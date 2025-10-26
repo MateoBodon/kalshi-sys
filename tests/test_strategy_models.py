@@ -8,12 +8,16 @@ from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.drivers.nws_cli import parse_multi_station_report
 from kalshi_alpha.strategies import base
 from kalshi_alpha.strategies.claims import ClaimsInputs
+from kalshi_alpha.strategies.claims import calibrate as claims_calibrate
 from kalshi_alpha.strategies.claims import pmf as claims_pmf
 from kalshi_alpha.strategies.cpi import CPIInputs
+from kalshi_alpha.strategies.cpi import calibrate as cpi_calibrate
 from kalshi_alpha.strategies.cpi import nowcast as cpi_nowcast
 from kalshi_alpha.strategies.teny import TenYInputs
+from kalshi_alpha.strategies.teny import calibrate as teny_calibrate
 from kalshi_alpha.strategies.teny import pmf as teny_pmf
 from kalshi_alpha.strategies.weather import WeatherInputs
+from kalshi_alpha.strategies.weather import calibrate as weather_calibrate
 from kalshi_alpha.strategies.weather import pmf as weather_pmf
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures"
@@ -36,6 +40,7 @@ def _bin_indicator(bin_prob: LadderBinProbability, value: float) -> float:
 def test_cpi_nowcast_crps_beats_baseline() -> None:
     data = json.loads((FIXTURE_ROOT / "cpi" / "history.json").read_text(encoding="utf-8"))
     history = data["history"]
+    cpi_calibrate(history)
     baseline_scores: list[float] = []
     model_scores: list[float] = []
     previous_actual: float | None = None
@@ -63,6 +68,7 @@ def test_cpi_nowcast_crps_beats_baseline() -> None:
 def test_claims_model_beats_naive_brier() -> None:
     data = json.loads((FIXTURE_ROOT / "claims" / "history.json").read_text(encoding="utf-8"))
     history = data["history"]
+    claims_calibrate(history)
     strikes = [200_000, 205_000, 210_000, 215_000, 220_000, 225_000]
     observed: list[int] = []
     model_scores: list[float] = []
@@ -100,6 +106,7 @@ def test_teny_crps_factor_model() -> None:
     data = json.loads((FIXTURE_ROOT / "teny" / "history.json").read_text(encoding="utf-8"))
     history = data["history"]
     strikes = [4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9]
+    teny_calibrate(history)
     closes: list[float] = []
     model_scores: list[float] = []
     baseline_scores: list[float] = []
@@ -130,6 +137,7 @@ def test_weather_bias_spread_distribution_and_parser() -> None:
     data = json.loads((FIXTURE_ROOT / "weather" / "history.json").read_text(encoding="utf-8"))
     history = data["history"]
     strikes = [float(value) for value in range(40, 101, 5)]
+    weather_calibrate(history)
     model_scores: list[float] = []
     baseline_scores: list[float] = []
     for entry in history:

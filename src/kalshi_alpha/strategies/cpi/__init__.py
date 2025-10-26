@@ -7,16 +7,23 @@ References:
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from statistics import mean as stat_mean
+from statistics import pstdev
 
 from kalshi_alpha.core.pricing import LadderBinProbability
+from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.strategies import base
 
 GRID_STEP = 0.05
 GRID_SPAN = 4  # +/- span multiples around the mean
 DEFAULT_STD = 0.12
+CALIBRATION_DIR = PROC_ROOT / "calibration"
+CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
+CALIBRATION_PATH = CALIBRATION_DIR / "cpi.json"
 
 
 @dataclass(frozen=True)
@@ -38,6 +45,10 @@ def nowcast(inputs: CPIInputs | None = None) -> dict[float, float]:
         else max(0.0025, 0.0036 + 0.04 * abs(inputs.aaa_delta))
     )
     std = max(variance**0.5, 0.03)
+    calibration = _load_calibration()
+    if calibration:
+        mean += calibration.get("bias", 0.0)
+        std = max(std, calibration.get("std", std))
 
     grid = _grid_around(mean)
     weights = {point: _gaussian_weight(point, mean, std) for point in grid}
@@ -93,3 +104,35 @@ def _grid_around(center: float) -> list[float]:
 def _gaussian_weight(point: float, mean: float, std: float) -> float:
     exponent = -((point - mean) ** 2) / (2 * std**2)
     return math.exp(exponent)
+
+
+def calibrate(history: Sequence[Mapping[str, float]], window: int = 12) -> dict[str, float]:
+    if not history:
+        raise ValueError("history is required for calibration")
+    tail = list(history)[-window:]
+    actuals = [float(entry["actual"]) for entry in tail]
+    predictions = [
+        float(entry["cleveland_nowcast"]) + float(entry.get("aaa_delta", 0.0))
+        for entry in tail
+    ]
+    errors = [actual - pred for actual, pred in zip(actuals, predictions, strict=True)]
+    bias = stat_mean(errors)
+    std = max(pstdev(actuals), 0.03) if len(actuals) > 1 else 0.03
+    payload = {"bias": bias, "std": std, "window": len(tail)}
+    CALIBRATION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
+
+
+def _load_calibration() -> dict[str, float] | None:
+    if not CALIBRATION_PATH.exists():
+        return None
+    try:
+        data = json.loads(CALIBRATION_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    result: dict[str, float] = {}
+    if "bias" in data:
+        result["bias"] = float(data["bias"])
+    if "std" in data:
+        result["std"] = float(data["std"])
+    return result or None

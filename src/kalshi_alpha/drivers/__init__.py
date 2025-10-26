@@ -6,4 +6,5 @@ __all__ = [
     "treasury_yields",
     "nws_cli",
     "aaa_gas",
+    "cleveland_nowcast",
 ]

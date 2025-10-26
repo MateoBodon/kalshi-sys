@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,7 +79,7 @@ class PALGuard:
     def __init__(self, policy: PALPolicy, *, schedule: FeeSchedule = DEFAULT_FEE_SCHEDULE) -> None:
         self.policy = policy
         self.schedule = schedule
-        self._exposure: MutableMapping[str, float] = defaultdict(float)
+        self._exposure: defaultdict[str, float] = defaultdict(float)
 
     def can_accept(self, order: OrderProposal) -> bool:
         limit = self.policy.limit_for_strike(order.strike_id)
@@ -97,3 +98,54 @@ class PALGuard:
 
     def exposure_snapshot(self) -> dict[str, float]:
         return dict(self._exposure)
+
+
+@dataclass(frozen=True)
+class PortfolioConfig:
+    factor_vols: Mapping[str, float]
+    strategy_betas: Mapping[str, Mapping[str, float]]
+
+    @classmethod
+    def from_yaml(cls, path: Path) -> PortfolioConfig:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = yaml.safe_load(handle)
+        factor_vols = {str(k): float(v) for k, v in payload.get("factor_vols", {}).items()}
+        strategy_betas = {
+            str(strategy): {str(f): float(beta) for f, beta in betas.items()}
+            for strategy, betas in (payload.get("strategy_betas") or {}).items()
+        }
+        return cls(factor_vols=factor_vols, strategy_betas=strategy_betas)
+
+
+class PortfolioRiskManager:
+    def __init__(self, config: PortfolioConfig) -> None:
+        self.config = config
+        self._exposures: defaultdict[str, float] = defaultdict(float)
+
+    def reset(self) -> None:
+        self._exposures.clear()
+
+    def current_var(self) -> float:
+        return self._compute_var(self._exposures)
+
+    def can_accept(self, *, strategy: str, max_loss: float, max_var: float | None) -> bool:
+        if max_var is None:
+            return True
+        new_exposures: defaultdict[str, float] = defaultdict(float, self._exposures)
+        betas = self.config.strategy_betas.get(strategy.upper())
+        if not betas:
+            betas = {"TOTAL": 1.0}
+        for factor, beta in betas.items():
+            new_exposures[factor] += beta * max_loss
+        projected_var = self._compute_var(new_exposures)
+        if projected_var <= max_var:
+            self._exposures = new_exposures
+            return True
+        return False
+
+    def _compute_var(self, exposures: Mapping[str, float]) -> float:
+        total = 0.0
+        for factor, exposure in exposures.items():
+            vol = self.config.factor_vols.get(factor, 1.0)
+            total += (exposure * vol) ** 2
+        return math.sqrt(total)

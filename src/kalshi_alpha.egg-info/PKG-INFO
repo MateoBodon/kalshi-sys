@@ -14,6 +14,8 @@ Requires-Dist: duckdb>=0.10.2
 Requires-Dist: python-dateutil>=2.9.0.post0
 Requires-Dist: pyyaml>=6.0.1
 Requires-Dist: cachetools<5,>=4.2
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: beautifulsoup4>=4.12.3
 Provides-Extra: dev
 Requires-Dist: pytest>=8.2.0; extra == "dev"
 Requires-Dist: hypothesis>=6.99.0; extra == "dev"
@@ -31,7 +33,7 @@ Kalshi Alpha is a private research monorepo that consolidates reusable tooling f
 
 ## Features
 
-- Shared fee, pricing, and risk engines to support multiple Kalshi ladders.
+- Shared fee, pricing, and risk engines to support multiple Kalshi ladders (fees follow the October 1, 2025 round-up schedule using Decimal precision).
 - Read-only public market-data client with offline fixture support for testing.
 - Strategy stubs for CPI, jobless claims, Treasury yields, weather, and gasoline.
 - Drivers for ingesting core macro datasets (BLS CPI, DOL ETA-539, Treasury par yields, NOAA/NWS Daily Climate Reports, AAA gas prices).
@@ -64,10 +66,10 @@ uv pip install -e ".[dev]"  # fall back to `pip` if `uv` is unavailable
 make lint
 make typecheck
 make test
-python -m kalshi_alpha.exec.runners.scan_ladders --series CPI --dry-run
+python -m kalshi_alpha.exec.runners.scan_ladders --series CPI --maker-only --min-ev 0.005 --dry-run
 ```
 
-The CLI will read offline fixtures when network access is disabled and will write proposed dry-run orders into `exec/proposals/<series>/<YYYY-MM-DD>.json`.
+The CLI will read offline fixtures when network access is disabled and will write proposed dry-run orders into `exec/proposals/<series>/<YYYY-MM-DD>.json`. Additional options include `--strategy`, `--pal-policy`, `--max-loss-per-strike`, and adjacency controls via `--allow-tails`.
 
 ## References
 

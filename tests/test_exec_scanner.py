@@ -4,12 +4,21 @@ import json
 from pathlib import Path
 
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
-from kalshi_alpha.core.risk import PALGuard, PALPolicy
-from kalshi_alpha.exec.runners.scan_ladders import scan_series, write_proposals
+from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioConfig, PortfolioRiskManager
+from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
+from kalshi_alpha.exec.ledger import simulate_fills
+from kalshi_alpha.exec.reports import write_markdown_report
+from kalshi_alpha.exec.runners.scan_ladders import (
+    _attach_series_metadata,
+    scan_series,
+    write_proposals,
+)
 from kalshi_alpha.exec.scanners import cpi
 
 
-def test_scanner_generates_positive_maker_ev(fixtures_root: Path, tmp_path: Path) -> None:
+def test_scanner_generates_positive_maker_ev(
+    fixtures_root: Path, offline_fixtures_root: Path, tmp_path: Path
+) -> None:
     client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
     policy = PALPolicy(series="CPI", default_max_loss=10_000.0)
     guard = PALGuard(policy)
@@ -20,23 +29,43 @@ def test_scanner_generates_positive_maker_ev(fixtures_root: Path, tmp_path: Path
         min_ev=0.01,
         contracts=5,
         pal_guard=guard,
-        driver_fixtures=fixtures_root / "drivers",
+        driver_fixtures=offline_fixtures_root,
         strategy_name="auto",
         maker_only=True,
         allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
     )
     assert proposals, "Expected scanner to produce proposals with positive EV"
+    original_daily = aaa_fetch.DAILY_PATH
+    original_monthly = aaa_fetch.MONTHLY_PATH
+    try:
+        aaa_fetch.DAILY_PATH = tmp_path / "aaa_daily.parquet"
+        aaa_fetch.MONTHLY_PATH = tmp_path / "aaa_monthly.parquet"
+        _attach_series_metadata(
+            proposals=proposals,
+            series="CPI",
+            driver_fixtures=offline_fixtures_root,
+            offline=True,
+        )
+    finally:
+        aaa_fetch.DAILY_PATH = original_daily
+        aaa_fetch.MONTHLY_PATH = original_monthly
 
     for proposal in proposals:
         assert proposal.taker_ev == 0.0
         assert proposal.maker_ev_per_contract >= 0.01
+        assert proposal.strategy == "CPI"
+        assert proposal.metadata is not None and "aaa" in proposal.metadata
+        assert "aaa_mtd_average" in proposal.metadata["aaa"]
 
     exposures = guard.exposure_snapshot()
     assert all(value <= guard.policy.default_max_loss + 1e-6 for value in exposures.values())
 
     ladder = client.get_markets(client.get_events(client.get_series()[0].id)[0].id)[0]
     strikes = ladder.ladder_strikes
-    strategy_pmf = cpi.strategy_pmf(strikes, fixtures_dir=fixtures_root / "drivers")
+    strategy_pmf = cpi.strategy_pmf(strikes, fixtures_dir=offline_fixtures_root, offline=True)
     max_prob = max(bin_prob.probability for bin_prob in strategy_pmf[: len(strikes)])
     mode_indices = [
         idx
@@ -54,3 +83,84 @@ def test_scanner_generates_positive_maker_ev(fixtures_root: Path, tmp_path: Path
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["series"] == "CPI"
     assert payload["proposals"]
+
+
+def test_scan_series_respects_var(
+    fixtures_root: Path, offline_fixtures_root: Path, tmp_path: Path
+) -> None:
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    policy = PALPolicy(series="CPI", default_max_loss=1_000.0)
+    guard = PALGuard(policy)
+    config = PortfolioConfig(factor_vols={"TOTAL": 1.0}, strategy_betas={"CPI": {"TOTAL": 1.0}})
+    manager = PortfolioRiskManager(config)
+
+    proposals = scan_series(
+        series="CPI",
+        client=client,
+        min_ev=0.01,
+        contracts=5,
+        pal_guard=guard,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=manager,
+        max_var=100.0,
+        offline=True,
+    )
+    assert proposals
+
+    manager.reset()
+    guard = PALGuard(policy)
+    proposals_small = scan_series(
+        series="CPI",
+        client=client,
+        min_ev=0.01,
+        contracts=5,
+        pal_guard=guard,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=PortfolioRiskManager(config),
+        max_var=0.1,
+        offline=True,
+    )
+    assert not proposals_small
+
+
+def test_paper_ledger_simulation(
+    fixtures_root: Path, offline_fixtures_root: Path, tmp_path: Path
+) -> None:
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    policy = PALPolicy(series="CPI", default_max_loss=10_000.0)
+    guard = PALGuard(policy)
+    proposals = scan_series(
+        series="CPI",
+        client=client,
+        min_ev=0.01,
+        contracts=3,
+        pal_guard=guard,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+    )
+    orderbooks = {
+        proposal.market_id: client.get_orderbook(proposal.market_id) for proposal in proposals
+    }
+    ledger = simulate_fills(proposals, orderbooks)
+    assert ledger.total_expected_pnl() != 0
+    report_path = write_markdown_report(
+        series="CPI",
+        proposals=proposals,
+        ledger=ledger,
+        output_dir=tmp_path,
+    )
+    assert report_path.exists()
+    contents = report_path.read_text(encoding="utf-8")
+    assert "| Strike | Side | Contracts |" in contents
+    assert "Paper Ledger Summary" in contents

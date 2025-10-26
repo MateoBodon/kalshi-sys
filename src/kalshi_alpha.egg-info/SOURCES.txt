@@ -36,9 +36,11 @@ src/kalshi_alpha/strategies/cpi/__init__.py
 src/kalshi_alpha/strategies/gas/__init__.py
 src/kalshi_alpha/strategies/teny/__init__.py
 src/kalshi_alpha/strategies/weather/__init__.py
+tests/test_config.py
 tests/test_datastore.py
 tests/test_exec_scanner.py
 tests/test_fees.py
 tests/test_kalshi_api_offline.py
 tests/test_pricing.py
 tests/test_risk.py
+tests/test_strategy_models.py

@@ -5,6 +5,8 @@ duckdb>=0.10.2
 python-dateutil>=2.9.0.post0
 pyyaml>=6.0.1
 cachetools<5,>=4.2
+python-dotenv>=1.0.1
+beautifulsoup4>=4.12.3
 
 [dev]
 pytest>=8.2.0

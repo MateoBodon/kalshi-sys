@@ -1,0 +1,11 @@
+factor_vols:
+  INFLATION: 1.0
+  RATES: 0.8
+strategy_betas:
+  CPI:
+    INFLATION: 1.0
+  TENY:
+    RATES: 1.0
+  CLAIMS:
+    INFLATION: 0.4
+    RATES: 0.3

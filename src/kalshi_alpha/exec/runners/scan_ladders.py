@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
-from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Series
+from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook, Series
 from kalshi_alpha.core.pricing import (
     LadderBinProbability,
     LadderRung,
@@ -18,7 +18,18 @@ from kalshi_alpha.core.pricing import (
     OrderSide,
     pmf_from_quotes,
 )
-from kalshi_alpha.core.risk import OrderProposal, PALGuard, PALPolicy, max_loss_for_order
+from kalshi_alpha.core.risk import (
+    OrderProposal,
+    PALGuard,
+    PALPolicy,
+    PortfolioConfig,
+    PortfolioRiskManager,
+    max_loss_for_order,
+)
+from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
+from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
+from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 
@@ -42,31 +53,18 @@ class Proposal:
     survival_market: float
     survival_strategy: float
     max_loss: float
+    strategy: str
+    metadata: dict[str, object] | None = None
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     fixtures_root = Path(args.fixtures_root).resolve()
-    api_fixtures = fixtures_root / "kalshi"
     driver_fixtures = fixtures_root / "drivers"
 
-    client = KalshiPublicClient(
-        offline_dir=api_fixtures,
-        use_offline=True,
-    )
-
-    policy_path = Path(args.pal_policy) if args.pal_policy else Path("configs/pal_policy.yaml")
-    if not policy_path.exists():
-        policy_path = Path("configs/pal_policy.example.yaml")
-    policy = PALPolicy.from_yaml(policy_path)
-    if args.max_loss_per_strike is not None:
-        policy = PALPolicy(
-            series=policy.series,
-            default_max_loss=args.max_loss_per_strike,
-            per_strike=dict(policy.per_strike),
-        )
-    pal_guard = PALGuard(policy)
-
+    client = _build_client(fixtures_root)
+    pal_guard = _build_pal_guard(args)
+    risk_manager = _build_risk_manager(args)
     proposals = scan_series(
         series=args.series,
         client=client,
@@ -77,8 +75,19 @@ def main(argv: Sequence[str] | None = None) -> None:
         strategy_name=args.strategy,
         maker_only=args.maker_only,
         allow_tails=args.allow_tails,
+        risk_manager=risk_manager,
+        max_var=args.max_var,
+        offline=args.offline,
     )
 
+    ledger = _maybe_simulate_ledger(args, proposals, client)
+    if proposals:
+        _attach_series_metadata(
+            proposals=proposals,
+            series=args.series,
+            driver_fixtures=driver_fixtures,
+            offline=args.offline,
+        )
     output_path = write_proposals(
         series=args.series,
         proposals=proposals,
@@ -86,6 +95,116 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     if not args.quiet:
         print(f"Wrote {len(proposals)} proposals to {output_path}")
+
+    _maybe_write_report(args, proposals, ledger)
+
+
+def _build_client(fixtures_root: Path) -> KalshiPublicClient:
+    api_fixtures = fixtures_root / "kalshi"
+    return KalshiPublicClient(
+        offline_dir=api_fixtures,
+        use_offline=True,
+    )
+
+
+def _build_pal_guard(args: argparse.Namespace) -> PALGuard:
+    policy_path = Path(args.pal_policy) if args.pal_policy else Path("configs/pal_policy.yaml")
+    if not policy_path.exists():
+        policy_path = Path("configs/pal_policy.example.yaml")
+    policy = PALPolicy.from_yaml(policy_path)
+    if args.max_loss_per_strike is not None:
+        policy = PALPolicy(
+            series=policy.series,
+            default_max_loss=args.max_loss_per_strike,
+            per_strike=dict(policy.per_strike),
+        )
+    return PALGuard(policy)
+
+
+def _build_risk_manager(args: argparse.Namespace) -> PortfolioRiskManager | None:
+    if args.portfolio_config:
+        config = PortfolioConfig.from_yaml(Path(args.portfolio_config))
+        return PortfolioRiskManager(config)
+    if args.max_var is not None:
+        fallback_config = PortfolioConfig(factor_vols={"TOTAL": 1.0}, strategy_betas={})
+        return PortfolioRiskManager(fallback_config)
+    return None
+
+
+def _maybe_simulate_ledger(
+    args: argparse.Namespace,
+    proposals: Sequence[Proposal],
+    client: KalshiPublicClient,
+) -> PaperLedger | None:
+    if not proposals or not (args.paper_ledger or args.report):
+        return None
+    orderbooks: dict[str, Orderbook] = {}
+    for proposal in proposals:
+        if proposal.market_id not in orderbooks:
+            orderbooks[proposal.market_id] = client.get_orderbook(proposal.market_id)
+    ledger = simulate_fills(proposals, orderbooks)
+    if args.paper_ledger and not args.quiet:
+        stats = ledger.to_dict()
+        print(
+            f"Paper ledger trades={stats['trades']} "
+            f"expected_pnl={stats['expected_pnl']:.2f} max_loss={stats['max_loss']:.2f}"
+        )
+    return ledger
+
+
+def _attach_series_metadata(
+    *,
+    proposals: Sequence[Proposal],
+    series: str,
+    driver_fixtures: Path,
+    offline: bool,
+) -> None:
+    if not proposals or series.upper() not in {"CPI", "GAS"}:
+        return
+    fixtures_aaa = driver_fixtures / "aaa"
+    if offline and fixtures_aaa.exists() and not aaa_fetch.DAILY_PATH.exists():
+        sample_csv = fixtures_aaa / "AAA_daily_gas_price_regular_sample.csv"
+        if sample_csv.exists():
+            aaa_ingest.bootstrap_from_csv(sample_csv)
+    try:
+        latest = aaa_fetch.fetch_latest(
+            offline=offline,
+            fixtures_dir=fixtures_aaa if fixtures_aaa.exists() else None,
+        )
+    except Exception:  # pragma: no cover - robustness
+        latest = None
+    mtd_avg = aaa_fetch.mtd_average(latest.as_of_date if latest else None)
+    delta = (latest.price - mtd_avg) if latest and mtd_avg is not None else None
+    suspicious = abs(delta) > 0.25 if delta is not None else False
+    metadata = {
+        "aaa_price": latest.price if latest else None,
+        "aaa_as_of": latest.as_of_date.isoformat() if latest else None,
+        "aaa_mtd_average": mtd_avg,
+        "aaa_delta": delta,
+        "stale": latest is None,
+        "suspicious": suspicious,
+    }
+    for proposal in proposals:
+        existing = dict(proposal.metadata) if proposal.metadata else {}
+        existing.setdefault("aaa", metadata.copy())
+        proposal.metadata = existing
+
+
+def _maybe_write_report(
+    args: argparse.Namespace,
+    proposals: Sequence[Proposal],
+    ledger: PaperLedger | None,
+) -> None:
+    if not args.report:
+        return
+    report_path = write_markdown_report(
+        series=args.series,
+        proposals=proposals,
+        ledger=ledger,
+        output_dir=Path("reports") / args.series.upper(),
+    )
+    if not args.quiet:
+        print(f"Wrote report to {report_path}")
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -101,6 +220,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Alias for producing proposals only (default).",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Use offline fixtures for driver data.",
     )
     parser.add_argument(
         "--fixtures-root",
@@ -150,6 +274,26 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Permit proposals outside adjacent bins to the model mode.",
     )
     parser.add_argument(
+        "--max-var",
+        type=float,
+        help="Maximum portfolio VaR allowed (USD).",
+    )
+    parser.add_argument(
+        "--portfolio-config",
+        type=Path,
+        help="Path to portfolio factor configuration YAML file.",
+    )
+    parser.add_argument(
+        "--paper-ledger",
+        action="store_true",
+        help="Simulate paper fills using top-of-book data.",
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="Write markdown report for the scan.",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress stdout summary.",
@@ -168,6 +312,9 @@ def scan_series(  # noqa: PLR0913
     strategy_name: str,
     maker_only: bool,
     allow_tails: bool,
+    risk_manager: PortfolioRiskManager | None,
+    max_var: float | None,
+    offline: bool,
 ) -> list[Proposal]:
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
@@ -195,6 +342,7 @@ def scan_series(  # noqa: PLR0913
                 strikes=[rung.strike for rung in rungs],
                 fixtures_dir=driver_fixtures,
                 override=strategy_name,
+                offline=offline,
             )
             strategy_survival = pmf_to_survival(strategy_pmf, [rung.strike for rung in rungs])
             allowed_indices = None
@@ -212,6 +360,9 @@ def scan_series(  # noqa: PLR0913
                 pal_guard=pal_guard,
                 allowed_indices=allowed_indices,
                 maker_only=maker_only,
+                risk_manager=risk_manager,
+                max_var=max_var,
+                strategy_name=series_obj.ticker.upper(),
             )
             proposals.extend(rung_proposals)
     return proposals
@@ -223,6 +374,7 @@ def _strategy_pmf_for_series(
     strikes: list[float],
     fixtures_dir: Path,
     override: str,
+    offline: bool,
 ) -> list[LadderBinProbability]:
     pick = override.lower()
     ticker = series.upper()
@@ -230,7 +382,7 @@ def _strategy_pmf_for_series(
         pick = ticker.lower()
 
     if pick == "cpi" and ticker == "CPI":
-        return cpi.strategy_pmf(strikes, fixtures_dir=fixtures_dir)
+        return cpi.strategy_pmf(strikes, fixtures_dir=fixtures_dir, offline=offline)
     raise NotImplementedError(f"No strategy PMF implemented for series {series}")
 
 
@@ -276,6 +428,9 @@ def _evaluate_market(  # noqa: PLR0913
     pal_guard: PALGuard,
     allowed_indices: set[int] | None,
     maker_only: bool,
+    risk_manager: PortfolioRiskManager | None,
+    max_var: float | None,
+    strategy_name: str,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
 
@@ -331,6 +486,14 @@ def _evaluate_market(  # noqa: PLR0913
             total_ev[taker_key] = 0.0
             per_contract[taker_key] = 0.0
 
+        total_max_loss = max_loss_single * max_contracts
+        if risk_manager and not risk_manager.can_accept(
+            strategy=strategy_name,
+            max_loss=total_max_loss,
+            max_var=max_var,
+        ):
+            continue
+
         proposal = Proposal(
             market_id=market_id,
             market_ticker=market_ticker,
@@ -345,7 +508,9 @@ def _evaluate_market(  # noqa: PLR0913
             market_yes_price=yes_price,
             survival_market=survival_market,
             survival_strategy=event_probability,
-            max_loss=max_loss_single * max_contracts,
+            max_loss=total_max_loss,
+            strategy=strategy_name,
+            metadata=None,
         )
         pal_guard.register(
             OrderProposal(

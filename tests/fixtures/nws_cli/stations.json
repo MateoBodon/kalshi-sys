@@ -1,0 +1,7 @@
+{
+  "stations": [
+    {"station_id": "KBOS", "name": "Boston Logan International", "wban": "14739"},
+    {"station_id": "KATL", "name": "Atlanta Hartsfield-Jackson", "wban": "13874"},
+    {"station_id": "KSEA", "name": "Seattle-Tacoma International", "wban": "24233"}
+  ]
+}

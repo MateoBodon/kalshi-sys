@@ -11,6 +11,11 @@ def fixtures_root() -> Path:
 
 
 @pytest.fixture
+def offline_fixtures_root() -> Path:
+    return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
 def pal_policy_path(tmp_path: Path) -> Path:
     policy_src = Path("configs/pal_policy.example.yaml")
     policy_copy = tmp_path / "pal_policy.yaml"
