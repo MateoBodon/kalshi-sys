@@ -1,0 +1,13 @@
+{
+  "market_id": "MKT_CPI_OCT2025_MM",
+  "bids": [
+    {"price": 0.37, "size": 80},
+    {"price": 0.35, "size": 55},
+    {"price": 0.32, "size": 25}
+  ],
+  "asks": [
+    {"price": 0.39, "size": 40},
+    {"price": 0.42, "size": 60},
+    {"price": 0.45, "size": 20}
+  ]
+}

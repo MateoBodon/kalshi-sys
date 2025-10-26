@@ -1,0 +1,16 @@
+{
+  "history": [
+    {"period": "2024-11", "cleveland_nowcast": 0.28, "aaa_delta": 0.01, "actual": 0.29},
+    {"period": "2024-12", "cleveland_nowcast": 0.24, "aaa_delta": -0.02, "actual": 0.23},
+    {"period": "2025-01", "cleveland_nowcast": 0.27, "aaa_delta": 0.00, "actual": 0.26},
+    {"period": "2025-02", "cleveland_nowcast": 0.31, "aaa_delta": 0.03, "actual": 0.34},
+    {"period": "2025-03", "cleveland_nowcast": 0.33, "aaa_delta": 0.04, "actual": 0.36},
+    {"period": "2025-04", "cleveland_nowcast": 0.29, "aaa_delta": 0.02, "actual": 0.31},
+    {"period": "2025-05", "cleveland_nowcast": 0.28, "aaa_delta": 0.01, "actual": 0.30},
+    {"period": "2025-06", "cleveland_nowcast": 0.26, "aaa_delta": 0.00, "actual": 0.25},
+    {"period": "2025-07", "cleveland_nowcast": 0.32, "aaa_delta": 0.03, "actual": 0.35},
+    {"period": "2025-08", "cleveland_nowcast": 0.34, "aaa_delta": 0.05, "actual": 0.38},
+    {"period": "2025-09", "cleveland_nowcast": 0.31, "aaa_delta": 0.02, "actual": 0.33},
+    {"period": "2025-10", "cleveland_nowcast": 0.30, "aaa_delta": 0.01, "actual": 0.31}
+  ]
+}

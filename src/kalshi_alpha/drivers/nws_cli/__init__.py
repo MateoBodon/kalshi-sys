@@ -1,0 +1,93 @@
+"""NOAA/NWS Daily Climate Report (DCR) driver.
+
+Settlement reminder: only the NWS Daily Climate Report is authoritative for weather ladders.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+from dateutil import parser as date_parser
+
+SETTLEMENT_SOURCE = "NWS Daily Climate Report"
+
+
+@dataclass(frozen=True)
+class StationConfig:
+    station_id: str
+    name: str
+    wban: str | None = None
+
+
+@dataclass(frozen=True)
+class DailyClimateRecord:
+    station_id: str
+    record_date: date
+    high_temp_f: float | None
+    low_temp_f: float | None
+
+
+def load_station_config(path: Path) -> dict[str, StationConfig]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        entry["station_id"]: StationConfig(
+            station_id=entry["station_id"],
+            name=entry["name"],
+            wban=entry.get("wban"),
+        )
+        for entry in payload["stations"]
+    }
+
+
+def parse_daily_climate_report(path: Path) -> DailyClimateRecord:
+    """Parse a minimal DCR text fixture."""
+    text = path.read_text(encoding="utf-8")
+    station_match = re.search(r"STATION:\s*(?P<station>\w+)", text)
+    date_match = re.search(r"DATE:\s*(?P<date>[\d-]+)", text)
+    high_match = re.search(r"HIGH:\s*(?P<high>-?\d+)", text)
+    low_match = re.search(r"LOW:\s*(?P<low>-?\d+)", text)
+
+    if not station_match or not date_match:
+        raise ValueError("invalid DCR format")
+
+    return DailyClimateRecord(
+        station_id=station_match.group("station"),
+        record_date=_to_date(date_match.group("date")),
+        high_temp_f=float(high_match.group("high")) if high_match else None,
+        low_temp_f=float(low_match.group("low")) if low_match else None,
+    )
+
+
+def parse_multi_station_report(path: Path) -> list[DailyClimateRecord]:
+    text = path.read_text(encoding="utf-8")
+    blocks = [block.strip() for block in text.split("\n\n") if block.strip()]
+    records: list[DailyClimateRecord] = []
+    for block in blocks:
+        station_match = re.search(r"STATION:\s*(?P<station>\w+)", block)
+        date_match = re.search(r"DATE:\s*(?P<date>[\d-]+)", block)
+        high_match = re.search(r"HIGH:\s*(?P<high>-?\d+)", block)
+        low_match = re.search(r"LOW:\s*(?P<low>-?\d+)", block)
+        if not station_match or not date_match:
+            continue
+        records.append(
+            DailyClimateRecord(
+                station_id=station_match.group("station"),
+                record_date=_to_date(date_match.group("date")),
+                high_temp_f=float(high_match.group("high")) if high_match else None,
+                low_temp_f=float(low_match.group("low")) if low_match else None,
+            )
+        )
+    return records
+
+
+def settlement_assertion() -> str:
+    return f"All weather settlements must use the {SETTLEMENT_SOURCE}."
+
+
+def _to_date(value: str) -> date:
+    parsed = date_parser.parse(value)
+    return date(parsed.year, parsed.month, parsed.day)

@@ -1,0 +1,16 @@
+{
+  "history": [
+    {"week": "2025-01-03", "claims": 219000, "holiday": true},
+    {"week": "2025-01-10", "claims": 214000, "holiday": false},
+    {"week": "2025-01-17", "claims": 212000, "holiday": false},
+    {"week": "2025-01-24", "claims": 210000, "holiday": false},
+    {"week": "2025-01-31", "claims": 208000, "holiday": false},
+    {"week": "2025-02-07", "claims": 206000, "holiday": false},
+    {"week": "2025-02-14", "claims": 207000, "holiday": true},
+    {"week": "2025-02-21", "claims": 209000, "holiday": false},
+    {"week": "2025-02-28", "claims": 211000, "holiday": false},
+    {"week": "2025-03-07", "claims": 213000, "holiday": false},
+    {"week": "2025-03-14", "claims": 212000, "holiday": false},
+    {"week": "2025-03-21", "claims": 210000, "holiday": false}
+  ]
+}

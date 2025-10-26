@@ -1,0 +1,22 @@
+series:
+  CPI:
+    settlement_source: "BLS Consumer Price Index release"
+    settlement_lag_days: 0
+    notes:
+      - "Reference Cleveland Fed nowcast + AAA gas delta fixtures"
+      - "Official settlement handled by BLS monthly CPI release."
+  CLAIMS:
+    settlement_source: "DOL ETA-539 weekly initial claims"
+    settlement_lag_days: 1
+    notes:
+      - "Wednesday freeze enforced via PAL."
+  TENY:
+    settlement_source: "U.S. Treasury Daily Par Yield Curve"
+    settlement_lag_days: 0
+    notes:
+      - "Focus on DGS10 closing yield from Treasury."
+  WEATHER:
+    settlement_source: "NWS Daily Climate Report"
+    settlement_lag_days: 0
+    notes:
+      - "Station metadata maintained in drivers/nws_cli."

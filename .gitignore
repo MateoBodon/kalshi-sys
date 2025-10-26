@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.venv/
+*.pyc
+*.pyo
+
+data/raw/
+data/proc/
+exec/proposals/
+notebooks/.ipynb_checkpoints/

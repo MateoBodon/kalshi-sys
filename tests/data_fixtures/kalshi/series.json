@@ -1,0 +1,9 @@
+{
+  "series": [
+    {
+      "id": "CPI_SERIES",
+      "ticker": "CPI",
+      "name": "Consumer Price Index"
+    }
+  ]
+}

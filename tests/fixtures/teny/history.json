@@ -1,0 +1,14 @@
+{
+  "history": [
+    {"date": "2025-10-13", "prior_close": 4.42, "macro_shock": -0.03, "actual_close": 4.39},
+    {"date": "2025-10-14", "prior_close": 4.39, "macro_shock": 0.02, "actual_close": 4.43},
+    {"date": "2025-10-15", "prior_close": 4.43, "macro_shock": -0.01, "actual_close": 4.42},
+    {"date": "2025-10-16", "prior_close": 4.42, "macro_shock": 0.05, "actual_close": 4.48},
+    {"date": "2025-10-17", "prior_close": 4.48, "macro_shock": -0.04, "actual_close": 4.45},
+    {"date": "2025-10-20", "prior_close": 4.45, "macro_shock": 0.01, "actual_close": 4.46},
+    {"date": "2025-10-21", "prior_close": 4.46, "macro_shock": 0.00, "actual_close": 4.47},
+    {"date": "2025-10-22", "prior_close": 4.47, "macro_shock": -0.02, "actual_close": 4.44},
+    {"date": "2025-10-23", "prior_close": 4.44, "macro_shock": 0.03, "actual_close": 4.48},
+    {"date": "2025-10-24", "prior_close": 4.48, "macro_shock": -0.01, "actual_close": 4.47}
+  ]
+}

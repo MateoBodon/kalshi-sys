@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "id": "EVT_CPI_OCT2025",
+      "series_id": "CPI_SERIES",
+      "ticker": "CPI-2025-10",
+      "title": "October 2025 CPI m/m release"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "stations": [
+    {
+      "station_id": "KBOS",
+      "name": "Boston Logan International Airport",
+      "wban": "14739"
+    }
+  ]
+}

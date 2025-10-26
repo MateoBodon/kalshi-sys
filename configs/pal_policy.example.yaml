@@ -1,0 +1,15 @@
+# Example PAL (Position and Loss) policy configuration.
+# This file is referenced by kalshi_alpha.core.risk components.
+#
+# All limits are expressed in USD of maximum potential loss per strike.
+#
+# Sources:
+# - Internal PAL policy documentation.
+# - Kalshi fee schedule (Oct 1, 2025) for max-loss calculations.
+#
+series: CPI
+default_max_loss: 5000
+per_strike:
+  "CPI-2025-10": 2500
+  "CPI-2025-11": 3000
+  "CPI-2025-12": 3500
