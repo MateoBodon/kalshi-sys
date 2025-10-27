@@ -17,6 +17,7 @@ from kalshi_alpha.datastore import ingest as datastore_ingest
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
+from kalshi_alpha.core.archive.scorecards import build_replay_scorecard
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
     _archive_and_replay,
@@ -97,6 +98,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Maximum absolute price impact for depth slippage.",
     )
     parser.add_argument(
+        "--mispricing-only",
+        action="store_true",
+        help="Restrict generated proposals to detected mispricing bins.",
+    )
+    parser.add_argument(
+        "--max-legs",
+        type=int,
+        default=4,
+        help="Maximum legs for mispricing spread detection.",
+    )
+    parser.add_argument(
+        "--prob-sum-gap-threshold",
+        type=float,
+        default=0.0,
+        help="Probability mass gap threshold for mispricing logging.",
+    )
+    parser.add_argument(
+        "--model-version",
+        choices=["v0", "v15"],
+        default="v15",
+        help="Strategy model version to run for CPI/Claims/TENY.",
+    )
+    parser.add_argument(
         "--when",
         type=_parse_date,
         help="Override target date (YYYY-MM-DD) for calendar scheduling.",
@@ -148,6 +172,7 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
         "timestamp": now_utc.isoformat(),
         "offline": args.offline,
         "steps": [],
+        "model_version": args.model_version,
     }
     try:
         run_ingest(args, log)
@@ -359,6 +384,10 @@ def run_scan(
         sizing_mode="kelly",
         kelly_cap=args.kelly_cap,
         daily_loss_cap=args.daily_loss_cap,
+        mispricing_only=args.mispricing_only,
+        max_legs=args.max_legs,
+        prob_sum_gap_threshold=args.prob_sum_gap_threshold,
+        model_version=args.model_version,
     )
 
     proposals = outcome.proposals
@@ -367,6 +396,7 @@ def run_scan(
         monitors["fill_alpha_auto"] = fill_alpha_value
     else:
         monitors.setdefault("fill_alpha", fill_alpha_value)
+    monitors.setdefault("model_version", args.model_version)
     exposure_summary = _compute_exposure_summary(proposals)
     cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
     should_archive = args.report or args.paper_ledger
@@ -423,6 +453,9 @@ def run_scan(
 
     proposals_path = write_proposals(series=series, proposals=proposals, output_dir=Path("exec/proposals"))
     manifest_path: Path | None = None
+    scorecard_summary_path: Path | None = None
+    scorecard_cdf_path: Path | None = None
+    scorecard_records: list[dict[str, object]] | None = None
     if should_archive and outcome.series is not None:
         manifest_path = _archive_and_replay(
             client=client,
@@ -434,6 +467,24 @@ def run_scan(
             driver_fixtures=driver_fixtures,
             scanner_fixtures=fixtures_root,
         )
+        if manifest_path:
+            try:
+                scorecard = build_replay_scorecard(
+                    manifest_path=manifest_path,
+                    model_version=args.model_version,
+                    driver_fixtures=driver_fixtures,
+                )
+                scorecard_dir = Path("reports/_artifacts/scorecards")
+                scorecard_dir.mkdir(parents=True, exist_ok=True)
+                scorecard_summary_path = scorecard_dir / f"{series.upper()}_summary.parquet"
+                scorecard.summary.write_parquet(scorecard_summary_path)
+                scorecard_cdf_path = scorecard_dir / f"{series.upper()}_cdf.parquet"
+                scorecard.cdf_deltas.write_parquet(scorecard_cdf_path)
+                scorecard_records = scorecard.summary.sort("mean_abs_cdf_delta", descending=True).to_dicts()
+            except Exception:  # pragma: no cover - scoreboard best-effort
+                scorecard_summary_path = None
+                scorecard_cdf_path = None
+                scorecard_records = None
 
     _write_latest_manifest(manifest_path)
 
@@ -448,6 +499,12 @@ def run_scan(
             offline=offline_mode,
         )
 
+    scorecard_summary_section = (
+        scorecard_records
+        if scorecard_records is not None
+        else ([] if manifest_path else None)
+    )
+
     report_path = None
     if args.report:
         report_path = write_markdown_report(
@@ -460,6 +517,9 @@ def run_scan(
             manifest_path=manifest_path,
             go_status=True,
             fill_alpha=fill_alpha_value,
+            mispricings=outcome.mispricings,
+            model_metadata=outcome.model_metadata,
+            scorecard_summary=scorecard_summary_section,
         )
 
     log.setdefault("scan_results", {})[mode] = {
@@ -471,6 +531,10 @@ def run_scan(
         "exposure": exposure_summary,
         "cdf_diffs_path": str(cdf_path) if cdf_path else None,
         "archive_manifest": str(manifest_path) if manifest_path else None,
+        "mispricings": outcome.mispricings,
+        "model_metadata": outcome.model_metadata,
+        "scorecard_summary_path": str(scorecard_summary_path) if scorecard_summary_path else None,
+        "scorecard_cdf_path": str(scorecard_cdf_path) if scorecard_cdf_path else None,
     }
 
 

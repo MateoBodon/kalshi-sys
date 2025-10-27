@@ -27,7 +27,7 @@ class _ReplayContext:
     artifacts_dir: Path
 
 
-def replay_manifest(manifest_path: Path | str) -> Path:
+def replay_manifest(manifest_path: Path | str, *, model_version: str = "v15") -> Path:
     """Recompute expected values for archived proposals and write parquet output."""
 
     ctx = _load_context(Path(manifest_path))
@@ -63,6 +63,7 @@ def replay_manifest(manifest_path: Path | str) -> Path:
                 fixtures_dir=driver_fixtures,
                 override=series.ticker,
                 offline=True,
+                model_version=model_version,
             )
             strategy_survival = pmf_to_survival(strategy_pmf, [rung.strike for rung in rungs])
         except Exception:  # pragma: no cover - fallback when drivers unavailable
@@ -190,26 +191,48 @@ def _strategy_pmf_for_series(
     fixtures_dir: Path,
     override: str,
     offline: bool,
+    model_version: str = "v15",
 ) -> list[LadderBinProbability]:
     pick = override.lower()
     ticker = series.upper()
     if pick == "auto":
         pick = ticker.lower()
 
+    version = (model_version or "v15").lower()
+    if version not in {"v0", "v15"}:
+        version = "v15"
+
     if pick == "cpi" and ticker == "CPI":
-        return cpi_scanner.strategy_pmf(strikes, fixtures_dir=fixtures_dir, offline=offline)
+        return cpi_scanner.strategy_pmf(
+            strikes,
+            fixtures_dir=fixtures_dir,
+            offline=offline,
+            model_version=version,
+        )
     if pick in {"claims", "jobless"} and ticker == "CLAIMS":
         history = _load_history(fixtures_dir, "claims")
         claims_history = [int(item["claims"]) for item in history[-6:]] if history else None
         latest_claims = claims_history[-1] if claims_history else None
         holiday_flag = bool(history[-1].get("holiday")) if history else False
+        continuing_seq = None
+        if history:
+            continuing_seq = [
+                int(item["continuing_claims"])
+                for item in history[-3:]
+                if "continuing_claims" in item
+            ] or None
+        short_week_flag = bool(history[-1].get("short_week")) if history else holiday_flag
         inputs = claims_strategy.ClaimsInputs(
             history=claims_history,
             holiday_next=holiday_flag,
             freeze_active=claims_strategy.freeze_window(),
             latest_initial_claims=latest_claims,
             four_week_avg=None,
+            continuing_claims=continuing_seq,
+            short_week=short_week_flag,
         )
+        if version == "v15":
+            return claims_strategy.pmf_v15(strikes, inputs=inputs)
         return claims_strategy.pmf(strikes, inputs=inputs)
     if pick in {"tney", "rates"} and ticker == "TNEY":
         history = _load_history(fixtures_dir, "teny")
@@ -228,6 +251,8 @@ def _strategy_pmf_for_series(
             macro_shock=macro_shock,
             trailing_history=trailing,
         )
+        if version == "v15":
+            return teny_strategy.pmf_v15(strikes, inputs=inputs)
         return teny_strategy.pmf(strikes, inputs=inputs)
     if pick in {"weather"} and ticker == "WEATHER":
         history = _load_history(fixtures_dir, "weather")
@@ -242,9 +267,7 @@ def _strategy_pmf_for_series(
         else:
             inputs = weather_strategy.WeatherInputs(forecast_high=70.0)
         return weather_strategy.pmf(strikes, inputs=inputs)
-    if ticker == "CPI":
-        return cpi_scanner.strategy_pmf(strikes, fixtures_dir=fixtures_dir, offline=offline)
-    raise NotImplementedError(f"No strategy PMF implemented for series {series}")
+    raise ValueError(f"No strategy PMF implemented for series {series}")
 
 
 def _load_history(fixtures_dir: Path, namespace: str) -> list[dict[str, Any]]:

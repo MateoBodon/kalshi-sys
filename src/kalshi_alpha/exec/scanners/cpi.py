@@ -8,7 +8,7 @@ from pathlib import Path
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.drivers.bls_cpi import fetch_latest_release
 from kalshi_alpha.drivers.cleveland_nowcast import fetch_nowcast
-from kalshi_alpha.strategies.cpi import CPIInputs, map_to_ladder_bins, nowcast
+from kalshi_alpha.strategies.cpi import CPIInputs, map_to_ladder_bins, nowcast, nowcast_v15
 
 
 def strategy_pmf(
@@ -16,6 +16,7 @@ def strategy_pmf(
     *,
     fixtures_dir: Path,
     offline: bool = False,
+    model_version: str = "v15",
 ) -> list[LadderBinProbability]:
     bls_fixtures = fixtures_dir / "bls_cpi"
     release = fetch_latest_release(
@@ -33,5 +34,9 @@ def strategy_pmf(
         latest_release_mom=release.mom_sa,
         aaa_delta=0.0,
     )
-    distribution = nowcast(inputs)
+    version = (model_version or "v15").lower()
+    if version == "v15":
+        distribution = nowcast_v15(inputs, fixtures_dir=fixtures_dir, offline=offline)
+    else:
+        distribution = nowcast(inputs)
     return map_to_ladder_bins(strikes, distribution)

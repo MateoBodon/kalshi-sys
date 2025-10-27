@@ -1,0 +1,10 @@
+version: "v1.5"
+blend:
+  cleveland: 0.6
+  components: 0.4
+variance:
+  component_scale: 0.0012
+component_weights:
+  gas: 0.45
+  shelter: 0.35
+  autos: 0.2

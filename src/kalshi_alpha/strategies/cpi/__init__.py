@@ -5,9 +5,12 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from statistics import mean as stat_mean
 from statistics import pstdev
 from typing import Any
+
+import yaml
 
 import polars as pl
 
@@ -15,11 +18,84 @@ from kalshi_alpha.core.backtest import crps_from_pmf
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.strategies import base
+from kalshi_alpha.strategies.cpi import components
 
 GRID_STEP = 0.05
 GRID_SPAN = 4  # +/- span multiples around the mean
 DEFAULT_STD = 0.12
 CALIBRATION_PATH = PROC_ROOT / "cpi_calib.parquet"
+DEFAULT_COMPONENT_WEIGHTS = components.ComponentWeights()
+CONFIG_PATH = Path("configs/strategies/cpi.yaml")
+
+
+@dataclass(frozen=True)
+class CPIV15Config:
+    component_weights: components.ComponentWeights
+    blend_cleveland: float
+    blend_components: float
+    variance_scale: float
+
+
+_CONFIG_CACHE: dict[Path, CPIV15Config] = {}
+
+
+def _safe_float(value: Any, fallback: float) -> float:
+    try:
+        if value is None:
+            return fallback
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _load_v15_config(config_path: Path | None = None) -> CPIV15Config:
+    path = (config_path or CONFIG_PATH).resolve()
+    cached = _CONFIG_CACHE.get(path)
+    if cached is not None:
+        return cached
+
+    payload: dict[str, Any] = {}
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                payload = yaml.safe_load(handle) or {}
+        except Exception:  # pragma: no cover - defensive config parsing
+            payload = {}
+
+    component_payload = payload.get("component_weights") or {}
+    weights = components.ComponentWeights(
+        gas=_safe_float(component_payload.get("gas"), DEFAULT_COMPONENT_WEIGHTS.gas),
+        shelter=_safe_float(
+            component_payload.get("shelter"),
+            DEFAULT_COMPONENT_WEIGHTS.shelter,
+        ),
+        autos=_safe_float(component_payload.get("autos"), DEFAULT_COMPONENT_WEIGHTS.autos),
+    )
+
+    blend_payload = payload.get("blend") or {}
+    blend_cleveland = _safe_float(blend_payload.get("cleveland"), 1.0)
+    blend_components = _safe_float(blend_payload.get("components"), 1.0)
+    if blend_cleveland <= 0 and blend_components <= 0:
+        blend_cleveland = 1.0
+        blend_components = 1.0
+
+    variance_payload = payload.get("variance") or {}
+    variance_scale = _safe_float(variance_payload.get("component_scale"), 0.001)
+
+    config = CPIV15Config(
+        component_weights=weights,
+        blend_cleveland=blend_cleveland,
+        blend_components=blend_components,
+        variance_scale=variance_scale,
+    )
+    _CONFIG_CACHE[path] = config
+    return config
+
+
+def load_v15_config(config_path: Path | None = None) -> CPIV15Config:
+    """Expose cached v1.5 configuration for downstream consumers."""
+
+    return _load_v15_config(config_path)
 
 
 @dataclass(frozen=True)
@@ -57,6 +133,77 @@ def nowcast(
     if total == 0:
         raise ValueError("degenerate CPI nowcast weights")
     return {point: weight / total for point, weight in weights.items()}
+
+
+def nowcast_v15(
+    inputs: CPIInputs | None = None,
+    *,
+    fixtures_dir: Path | None = None,
+    weights: components.ComponentWeights | Mapping[str, float] | None = None,
+    component_overrides: Mapping[str, float] | None = None,
+    calibration: Mapping[str, float] | None = None,
+    offline: bool = True,
+    config_path: Path | None = None,
+) -> dict[float, float]:
+    base_inputs = inputs or CPIInputs()
+    config = _load_v15_config(config_path)
+    signals = components.component_signals(fixtures_dir=fixtures_dir, offline=offline)
+    if component_overrides:
+        signals.update(component_overrides)
+
+    required_components = {"gas", "shelter", "autos"}
+    if required_components - signals.keys():
+        return nowcast(base_inputs, calibration=calibration)
+
+    weight_map: dict[str, float] = {
+        "gas": config.component_weights.gas,
+        "shelter": config.component_weights.shelter,
+        "autos": config.component_weights.autos,
+    }
+    if weights is not None:
+        if isinstance(weights, components.ComponentWeights):
+            weight_map.update(
+                {
+                    "gas": weights.gas,
+                    "shelter": weights.shelter,
+                    "autos": weights.autos,
+                }
+            )
+        else:
+            weight_map.update(weights)
+
+    shift = components.blend_component_shift(signals, weight_map)
+
+    blend_total = config.blend_cleveland + config.blend_components
+    if blend_total <= 0:
+        base_weight = 0.5
+        component_weight = 0.5
+    else:
+        base_weight = config.blend_cleveland / blend_total
+        component_weight = config.blend_components / blend_total
+
+    base_mean = _select_mean(base_inputs)
+    baseline_mean = base_mean + base_inputs.aaa_delta
+    blended_mean = base_weight * baseline_mean + component_weight * (baseline_mean + shift)
+    adjusted_delta = blended_mean - base_mean
+
+    if base_inputs.variance is not None:
+        base_variance = base_inputs.variance
+    else:
+        base_variance = max(0.0025, 0.0036 + 0.04 * abs(adjusted_delta))
+
+    variance_boost = config.variance_scale * sum(
+        abs(signals.get(key, 0.0)) * abs(weight_map.get(key, 0.0))
+        for key in weight_map
+    )
+
+    tuned_inputs = CPIInputs(
+        cleveland_nowcast=base_inputs.cleveland_nowcast,
+        latest_release_mom=base_inputs.latest_release_mom,
+        aaa_delta=adjusted_delta,
+        variance=base_variance + variance_boost,
+    )
+    return nowcast(tuned_inputs, calibration=calibration)
 
 
 def map_to_ladder_bins(
@@ -246,4 +393,3 @@ def _load_calibration() -> dict[str, float] | None:
     if row.get("std") is not None:
         result["std"] = float(row["std"])
     return result or None
-

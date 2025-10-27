@@ -27,6 +27,21 @@ class ClaimsInputs:
     freeze_active: bool | None = None
     latest_initial_claims: int | None = None
     four_week_avg: int | None = None
+    continuing_claims: Sequence[int] | None = None
+    gt_topic_score: float | None = None
+    short_week: bool = False
+
+
+@dataclass(frozen=True)
+class ClaimsRegressorWeights:
+    continuing: float = 0.09
+    gt_topic: float = 5_500.0
+    holiday: float = 2_500.0
+    short_week: float = -6_000.0
+
+
+DEFAULT_REGRESSOR_WEIGHTS = ClaimsRegressorWeights()
+FREEZE_MEASUREMENT_NOISE = 3_000.0
 
 
 def freeze_window(active_at: datetime | None = None) -> bool:
@@ -34,6 +49,61 @@ def freeze_window(active_at: datetime | None = None) -> bool:
 
     active_at = active_at or datetime.now(tz=UTC)
     return active_at.weekday() >= 2  # Wednesday (2) through Friday
+
+
+def _to_float(value: Any, default: float) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _resolve_regressor_weights(
+    weights: ClaimsRegressorWeights | Mapping[str, float] | None,
+) -> ClaimsRegressorWeights:
+    if weights is None:
+        return DEFAULT_REGRESSOR_WEIGHTS
+    if isinstance(weights, ClaimsRegressorWeights):
+        return weights
+    mapping = dict(weights)
+    return ClaimsRegressorWeights(
+        continuing=_to_float(mapping.get("continuing"), DEFAULT_REGRESSOR_WEIGHTS.continuing),
+        gt_topic=_to_float(mapping.get("gt_topic"), DEFAULT_REGRESSOR_WEIGHTS.gt_topic),
+        holiday=_to_float(mapping.get("holiday"), DEFAULT_REGRESSOR_WEIGHTS.holiday),
+        short_week=_to_float(mapping.get("short_week"), DEFAULT_REGRESSOR_WEIGHTS.short_week),
+    )
+
+
+def _regression_adjustment(inputs: ClaimsInputs, weights: ClaimsRegressorWeights) -> float:
+    adjustment = 0.0
+    cc_values = inputs.continuing_claims or []
+    if len(cc_values) >= 2:
+        latest = float(cc_values[-1])
+        prior = float(cc_values[-2])
+        adjustment += weights.continuing * (latest - prior)
+    if inputs.gt_topic_score is not None:
+        adjustment += weights.gt_topic * float(inputs.gt_topic_score)
+    if inputs.holiday_next:
+        adjustment += weights.holiday
+    if inputs.short_week:
+        adjustment += weights.short_week
+    return adjustment
+
+
+def _kalman_freeze_update(
+    prior_mean: float,
+    prior_variance: float,
+    measurement: float,
+    measurement_variance: float,
+) -> tuple[float, float]:
+    if prior_variance <= 0 or measurement_variance <= 0:
+        return prior_mean, max(prior_variance, 0.0)
+    gain = prior_variance / (prior_variance + measurement_variance)
+    posterior_mean = prior_mean + gain * (measurement - prior_mean)
+    posterior_variance = max((1 - gain) * prior_variance, 0.0)
+    return posterior_mean, posterior_variance
 
 
 def pmf(
@@ -50,15 +120,69 @@ def pmf(
         std = _claims_std(inputs.history)
         freeze_flag = inputs.freeze_active if inputs.freeze_active is not None else freeze_window()
         if freeze_flag:
-            std = max(std * 0.5, 3_000.0)
+            if inputs.latest_initial_claims is not None:
+                mean = 0.6 * mean + 0.4 * float(inputs.latest_initial_claims)
+            std = max(std * 0.4, 2_500.0)
     else:
         mean = _mean_claims(inputs)
         std = max(mean * 0.05, 5_000.0)
+
+    mean += _continuing_claims_adjustment(inputs.continuing_claims)
+    mean += _gt_topic_adjustment(inputs.gt_topic_score)
+    if inputs.short_week:
+        mean -= 4_500.0
     params = calibration or _load_calibration()
     if params:
         if inputs.holiday_next:
             mean += params.get("holiday_lift", 0.0)
         std = max(std, params.get("std", std))
+    return base.pmf_from_gaussian(strikes, mean=mean, std=std)
+
+
+def pmf_v15(
+    strikes: Sequence[float],
+    inputs: ClaimsInputs | None = None,
+    *,
+    calibration: Mapping[str, float] | None = None,
+    weights: ClaimsRegressorWeights | Mapping[str, float] | None = None,
+    freeze_measurement_noise: float = FREEZE_MEASUREMENT_NOISE,
+) -> list[LadderBinProbability]:
+    """Enhanced claims distribution using optional regressors and Kalman blending."""
+
+    inputs = inputs or ClaimsInputs()
+    resolved_weights = _resolve_regressor_weights(weights)
+
+    if inputs.history and len(inputs.history) >= 2:
+        mean = _damped_trend_forecast(inputs.history, holiday_adjust=False)
+        std = _claims_std(inputs.history)
+    else:
+        mean = _mean_claims(inputs)
+        std = max(mean * 0.05, 5_000.0)
+
+    mean += _regression_adjustment(inputs, resolved_weights)
+
+    params = calibration or _load_calibration()
+    variance = std**2
+    target_std = None
+    if params:
+        if inputs.holiday_next:
+            mean += params.get("holiday_lift", 0.0)
+        if params.get("std") is not None:
+            target_std = float(params["std"])
+            variance = max(variance, target_std**2)
+
+    freeze_flag = inputs.freeze_active if inputs.freeze_active is not None else freeze_window()
+    if freeze_flag and inputs.latest_initial_claims is not None:
+        measurement = float(inputs.latest_initial_claims)
+        noise = freeze_measurement_noise if freeze_measurement_noise > 0 else FREEZE_MEASUREMENT_NOISE
+        measurement_variance = float(noise) ** 2
+        mean, variance = _kalman_freeze_update(mean, max(variance, 1.0), measurement, measurement_variance)
+        variance = max(variance, (std * 0.35) ** 2)
+
+    if target_std is not None:
+        variance = max(variance, target_std**2)
+
+    std = max(variance**0.5, 2_500.0)
     return base.pmf_from_gaussian(strikes, mean=mean, std=std)
 
 
@@ -179,6 +303,20 @@ def _mean_claims(inputs: ClaimsInputs) -> float:
     if inputs.latest_initial_claims:
         return float(inputs.latest_initial_claims)
     return 230_000.0
+
+
+def _continuing_claims_adjustment(values: Sequence[int] | None) -> float:
+    if not values or len(values) < 2:
+        return 0.0
+    latest = float(values[-1])
+    prior = float(values[-2])
+    return 0.06 * (latest - prior)
+
+
+def _gt_topic_adjustment(score: float | None) -> float:
+    if score is None:
+        return 0.0
+    return 4000.0 * float(score)
 
 
 def _params_from_history(history: Sequence[Mapping[str, Any]]) -> dict[str, float]:

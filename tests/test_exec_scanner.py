@@ -222,39 +222,42 @@ def test_kelly_sizing_respects_caps(
 
 def test_strategy_router_claims_pmf(offline_fixtures_root: Path) -> None:
     strikes = [200_000, 205_000, 210_000]
-    pmf = _strategy_pmf_for_series(
+    pmf, metadata = _strategy_pmf_for_series(
         series="CLAIMS",
         strikes=strikes,
         fixtures_dir=offline_fixtures_root,
         override="auto",
         offline=True,
     )
+    assert metadata.get("model_version") == "v15"
     assert len(pmf) >= 1
     assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
 
 
 def test_strategy_router_teny_pmf(offline_fixtures_root: Path) -> None:
     strikes = [4.2, 4.3, 4.4]
-    pmf = _strategy_pmf_for_series(
+    pmf, metadata = _strategy_pmf_for_series(
         series="TNEY",
         strikes=strikes,
         fixtures_dir=offline_fixtures_root,
         override="auto",
         offline=True,
     )
+    assert metadata.get("model_version") == "v15"
     assert len(pmf) >= len(strikes)
     assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
 
 
 def test_strategy_router_weather_pmf(offline_fixtures_root: Path) -> None:
     strikes = [55, 60, 65]
-    pmf = _strategy_pmf_for_series(
+    pmf, metadata = _strategy_pmf_for_series(
         series="WEATHER",
         strikes=strikes,
         fixtures_dir=offline_fixtures_root,
         override="auto",
         offline=True,
     )
+    assert metadata.get("model_version") == "v15"
     assert len(pmf) >= len(strikes)
     assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
 

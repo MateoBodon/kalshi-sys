@@ -25,6 +25,9 @@ def write_markdown_report(
     manifest_path: Path | None = None,
     go_status: bool | None = True,
     fill_alpha: float | None = None,
+    mispricings: Sequence[dict[str, object]] | None = None,
+    model_metadata: dict[str, object] | None = None,
+    scorecard_summary: Sequence[dict[str, object]] | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=UTC)
@@ -39,6 +42,56 @@ def write_markdown_report(
     lines.append("")
     lines.append(f"# {series.upper()} Ladder Scan {ts.strftime('%Y-%m-%d %H:%M UTC')}")
     lines.append("")
+    if model_metadata:
+        lines.append("## Model Configuration")
+        version = model_metadata.get("model_version") if isinstance(model_metadata, dict) else None
+        if version is not None:
+            lines.append(f"- Model Version: {version}")
+        component_weights = None
+        if isinstance(model_metadata, dict):
+            component_weights = model_metadata.get("component_weights")
+        if isinstance(component_weights, dict) and component_weights:
+            lines.append("- CPI Component Weights:")
+            for key in sorted(component_weights):
+                value = component_weights[key]
+                try:
+                    formatted = f"{float(value):.3f}"
+                except (TypeError, ValueError):
+                    formatted = str(value)
+                lines.append(f"  - {key}: {formatted}")
+        other_metadata = {
+            key: value
+            for key, value in (model_metadata.items() if isinstance(model_metadata, dict) else [])
+            if key not in {"model_version", "component_weights"}
+        }
+        for key, value in sorted(other_metadata.items()):
+            lines.append(f"- {key}: {value}")
+        lines.append("")
+    if scorecard_summary is not None:
+        lines.append("## Replay Scorecard")
+        if not scorecard_summary:
+            lines.append("No replay scorecard data available.")
+        else:
+            top_records = sorted(
+                scorecard_summary,
+                key=lambda rec: float(rec.get("mean_abs_cdf_delta", 0.0)),
+                reverse=True,
+            )
+            lines.append("| Market | Mean | Max | Prob Gap | Max Kink | Kinks |")
+            lines.append("| --- | --- | --- | --- | --- | --- |")
+            for record in top_records[:5]:
+                market_name = record.get("market_ticker", "-")
+                mean_delta = float(record.get("mean_abs_cdf_delta", 0.0))
+                max_delta = float(record.get("max_abs_cdf_delta", 0.0))
+                prob_gap = float(record.get("prob_sum_gap", 0.0))
+                max_kink = float(record.get("max_kink", 0.0))
+                kink_count = int(record.get("kink_count", 0))
+                lines.append(
+                    f"| {market_name} | {mean_delta:.4f} | {max_delta:.4f} | {prob_gap:.4f} | {max_kink:.4f} | {kink_count} |"
+                )
+            lines.append("")
+            lines.append(f"Markets evaluated: {len(scorecard_summary)}")
+        lines.append("")
     lines.append("## Proposals")
     lines.append(
         "| Strike | Side | Contracts | Maker EV | Max Loss | Strategy S(x) | Market S(x) |"
@@ -64,6 +117,21 @@ def write_markdown_report(
         lines.append("## Monitors")
         for key, value in monitors.items():
             lines.append(f"- {key}: {value}")
+        lines.append("")
+    if mispricings:
+        lines.append("## Mispricing & Kinks")
+        lines.append("| Market | Prob Gap | Max Kink | Legs | Direction | Delta Sum |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
+        for record in mispricings:
+            spreads = record.get("spreads") or []
+            top = spreads[0] if spreads else None
+            legs = top["legs"] if top else 0
+            direction = top["direction"] if top else "-"
+            delta_sum = top["delta_sum"] if top else 0.0
+            lines.append(
+                f"| {record['market_ticker']} | {record['prob_sum_gap']:.4f} | {record['max_kink']:.4f} | "
+                f"{legs} | {direction} | {delta_sum:+.4f} |"
+            )
         lines.append("")
     if exposure_summary:
         lines.append("## Portfolio Exposure")

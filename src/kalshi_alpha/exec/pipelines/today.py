@@ -69,6 +69,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.02,
         help="Impact cap forwarded to daily pipeline (probability points).",
     )
+    parser.add_argument(
+        "--model-version",
+        choices=["v0", "v15"],
+        default="v15",
+        help="Strategy model version forwarded to the daily pipeline.",
+    )
     return parser.parse_args(argv)
 
 
@@ -115,6 +121,8 @@ def main(argv: list[str] | None = None) -> None:
         base_flags.extend(["--slippage-mode", args.slippage_mode])
     if args.impact_cap is not None:
         base_flags.extend(["--impact-cap", _fmt_float(args.impact_cap)])
+    if args.model_version:
+        base_flags.extend(["--model-version", args.model_version])
 
     for mode_run in runs:
         mode, run_date = mode_run.mode, mode_run.run_date

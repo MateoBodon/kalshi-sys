@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime, time
 from math import sqrt
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import polars as pl
 
@@ -15,6 +17,22 @@ from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.strategies import base
 
 CALIBRATION_PATH = PROC_ROOT / "teny_calib.parquet"
+DEFAULT_SHOCK_WEIGHTS: dict[str, float] = {
+    "cpi": 0.08,
+    "jobs": 0.06,
+    "claims": 0.04,
+    "fomc": 0.12,
+    "default": 0.03,
+}
+IMBALANCE_THRESHOLD = 0.6
+IMBALANCE_MULTIPLIER = 1.4
+_IMBALANCE_WINDOW_START = time(15, 0)
+_IMBALANCE_WINDOW_END = time(15, 25)
+
+try:  # pragma: no cover - platform specific zoneinfo availability
+    _ET_ZONE = ZoneInfo("America/New_York")
+except Exception:  # pragma: no cover
+    _ET_ZONE = None
 
 
 @dataclass(frozen=True)
@@ -24,6 +42,9 @@ class TenYInputs:
     prior_close: float | None = None
     macro_shock: float = 0.0
     trailing_history: Sequence[float] | None = None
+    macro_shock_dummies: Mapping[str, float] | None = None
+    orderbook_imbalance: float | None = None
+    event_timestamp: datetime | time | None = None
 
 
 def pmf(
@@ -55,6 +76,98 @@ def pmf(
     std = inputs.trailing_vol if inputs.trailing_vol is not None else 0.35
     std = max(std, 0.05)
     return base.pmf_from_gaussian(strikes, mean=mean, std=std)
+
+
+def pmf_v15(
+    strikes: Sequence[float],
+    inputs: TenYInputs | None = None,
+    *,
+    calibration: Mapping[str, float] | None = None,
+    dummy_weights: Mapping[str, float] | None = None,
+    imbalance_threshold: float = IMBALANCE_THRESHOLD,
+    imbalance_multiplier: float = IMBALANCE_MULTIPLIER,
+) -> list[LadderBinProbability]:
+    inputs = inputs or TenYInputs()
+    params = calibration or _load_calibration()
+    weights = dict(dummy_weights or DEFAULT_SHOCK_WEIGHTS)
+    macro_adjustment = _shock_dummy_adjustment(inputs.macro_shock_dummies, weights)
+
+    if inputs.prior_close is not None:
+        beta_macro = params.get("shock_beta", 1.4) if params else 1.4
+        beta_slope = params.get("slope_beta", 0.0) if params else 0.0
+        slope_factor = _slope_factor(inputs)
+        macro_value = inputs.macro_shock + macro_adjustment
+        mean = inputs.prior_close + beta_macro * macro_value + beta_slope * slope_factor
+        history = list(inputs.trailing_history or [])
+        history.append(inputs.prior_close)
+        residual_std = params.get("residual_std") if params else None
+        spread = max(_sample_std(history[-6:]), residual_std or 0.05)
+        spread = min(spread, 0.2)
+        spread = _apply_imbalance_spread(spread, inputs, imbalance_threshold, imbalance_multiplier)
+        spread = min(spread, 0.35)
+        distribution = {
+            round(mean - spread, 3): 0.25,
+            round(mean, 3): 0.5,
+            round(mean + spread, 3): 0.25,
+        }
+        return base.grid_distribution_to_pmf(distribution)
+
+    mean = inputs.latest_yield if inputs.latest_yield is not None else 4.50
+    mean += macro_adjustment
+    std = inputs.trailing_vol if inputs.trailing_vol is not None else 0.35
+    std = max(std, 0.05)
+    std = _apply_imbalance_spread(std, inputs, imbalance_threshold, imbalance_multiplier)
+    return base.pmf_from_gaussian(strikes, mean=mean, std=std)
+
+
+def _shock_dummy_adjustment(
+    dummies: Mapping[str, float] | None,
+    weights: Mapping[str, float],
+) -> float:
+    if not dummies:
+        return 0.0
+    default_weight = float(weights.get("default", 0.0))
+    adjustment = 0.0
+    for key, value in dummies.items():
+        weight = float(weights.get(key, default_weight))
+        adjustment += weight * float(value)
+    return adjustment
+
+
+def _apply_imbalance_spread(
+    spread: float,
+    inputs: TenYInputs,
+    threshold: float,
+    multiplier: float,
+) -> float:
+    if multiplier <= 1.0:
+        return spread
+    imbalance = inputs.orderbook_imbalance
+    if imbalance is None or threshold <= 0:
+        return spread
+    if abs(float(imbalance)) <= threshold:
+        return spread
+    event_time = _extract_event_time(inputs.event_timestamp)
+    if event_time is None:
+        return spread
+    if event_time < _IMBALANCE_WINDOW_START or event_time > _IMBALANCE_WINDOW_END:
+        return spread
+    severity = abs(float(imbalance)) - threshold
+    severity = max(min(severity, 0.5), 0.0)
+    scaling = 1.0 + (severity / 0.5) * (multiplier - 1.0)
+    return spread * scaling
+
+
+def _extract_event_time(value: datetime | time | None) -> time | None:
+    if value is None:
+        return None
+    if isinstance(value, time):
+        return value
+    if isinstance(value, datetime):
+        if value.tzinfo is not None and _ET_ZONE is not None:
+            return value.astimezone(_ET_ZONE).time()
+        return value.time()
+    return None
 
 
 def _sample_std(values: Sequence[float]) -> float:
@@ -202,4 +315,3 @@ def _load_calibration() -> dict[str, float] | None:
         if row.get(key) is not None:
             result[key] = float(row[key])
     return result or None
-

@@ -212,6 +212,9 @@ PY
       - name: Generate scoreboards
         run: |
           python -m kalshi_alpha.exec.scoreboard
+      - name: Sanity check markers
+        run: |
+          python -m kalshi_alpha.dev.sanity_check
       - name: Housekeeping
         run: |
           python -m kalshi_alpha.exec.housekeep --keep-days 30

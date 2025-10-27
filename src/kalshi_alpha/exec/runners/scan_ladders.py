@@ -24,7 +24,10 @@ from kalshi_alpha.core.pricing import (
     LadderRung,
     Liquidity,
     OrderSide,
+    implied_cdf_kinks,
+    kink_spreads,
     pmf_from_quotes,
+    prob_sum_gap,
 )
 from kalshi_alpha.core.risk import (
     drawdown,
@@ -98,9 +101,11 @@ class ScanOutcome:
     proposals: list[Proposal]
     monitors: dict[str, object] = field(default_factory=dict)
     cdf_diffs: list[dict[str, object]] = field(default_factory=list)
+    mispricings: list[dict[str, object]] = field(default_factory=list)
     series: Series | None = None
     events: list[Event] = field(default_factory=list)
     markets: list[Market] = field(default_factory=list)
+    model_metadata: dict[str, object] = field(default_factory=dict)
 
 
 class _LossBudget:
@@ -168,6 +173,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         uncertainty_penalty=args.uncertainty_penalty,
         ob_imbalance_penalty=args.ob_imbalance_penalty,
         daily_loss_cap=args.daily_loss_cap,
+        mispricing_only=args.mispricing_only,
+        max_legs=args.max_legs,
+        prob_sum_gap_threshold=args.prob_sum_gap_threshold,
     )
 
     proposals = outcome.proposals
@@ -246,6 +254,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         manifest_path,
         go_status=True,
         fill_alpha=fill_alpha_value,
+        mispricings=outcome.mispricings,
+        model_metadata=outcome.model_metadata,
     )
 
     if not proposals:
@@ -387,6 +397,8 @@ def _maybe_write_report(
     manifest_path: Path | None,
     go_status: bool | None,
     fill_alpha: float | None,
+    mispricings: Sequence[dict[str, object]] | None = None,
+    model_metadata: dict[str, object] | None = None,
 ) -> None:
     if not args.report:
         return
@@ -400,6 +412,8 @@ def _maybe_write_report(
         manifest_path=manifest_path,
         go_status=go_status,
         fill_alpha=fill_alpha,
+        mispricings=mispricings,
+        model_metadata=model_metadata,
     )
     if not args.quiet:
         print(f"Wrote report to {report_path}")
@@ -432,7 +446,10 @@ def _archive_and_replay(
         driver_fixtures=driver_fixtures,
         scanner_fixtures=scanner_fixtures,
     )
-    replay_manifest(manifest_path)
+    replay_manifest(
+        manifest_path,
+        model_version=str(outcome.model_metadata.get("model_version", "v15")),
+    )
     return manifest_path
 
 
@@ -586,6 +603,23 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Path to portfolio factor configuration YAML file.",
     )
     parser.add_argument(
+        "--mispricing-only",
+        action="store_true",
+        help="Restrict proposals to bins participating in detected kink spreads.",
+    )
+    parser.add_argument(
+        "--max-legs",
+        type=int,
+        default=4,
+        help="Maximum number of adjacent bins to consider when forming mispricing spreads.",
+    )
+    parser.add_argument(
+        "--prob-sum-gap-threshold",
+        type=float,
+        default=0.0,
+        help="Minimum probability mass gap required to log mispricing diagnostics.",
+    )
+    parser.add_argument(
         "--paper-ledger",
         action="store_true",
         help="Simulate paper fills using top-of-book data.",
@@ -622,15 +656,24 @@ def scan_series(  # noqa: PLR0913
     uncertainty_penalty: float = 0.0,
     ob_imbalance_penalty: float = 0.0,
     daily_loss_cap: float | None = None,
+    mispricing_only: bool = False,
+    max_legs: int = 4,
+    prob_sum_gap_threshold: float = 0.0,
+    model_version: str = "v15",
 ) -> ScanOutcome:
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
+    max_legs = max(2, int(max_legs))
+    prob_sum_gap_threshold = float(max(prob_sum_gap_threshold, 0.0))
+
     proposals: list[Proposal] = []
     non_monotone = 0
     daily_budget = _LossBudget(daily_loss_cap)
     cdf_diffs: list[dict[str, object]] = []
+    mispricing_records: list[dict[str, object]] = []
     all_markets: list[Market] = []
 
+    model_metadata: dict[str, object] = {}
     for event in events:
         markets = client.get_markets(event.id)
         all_markets.extend(markets)
@@ -649,13 +692,16 @@ def scan_series(  # noqa: PLR0913
             market_pmf = pmf_from_quotes(rungs)
             market_survival = _market_survival_from_pmf(market_pmf, rungs)
 
-            strategy_pmf = _strategy_pmf_for_series(
+            strategy_pmf, metadata = _strategy_pmf_for_series(
                 series=series_obj.ticker,
                 strikes=[rung.strike for rung in rungs],
                 fixtures_dir=driver_fixtures,
                 override=strategy_name,
                 offline=offline,
+                model_version=model_version,
             )
+            if metadata and not model_metadata:
+                model_metadata = dict(metadata)
             strategy_survival = pmf_to_survival(strategy_pmf, [rung.strike for rung in rungs])
             allowed_indices = None
             if not allow_tails:
@@ -671,6 +717,41 @@ def scan_series(  # noqa: PLR0913
                     strategy_survival=strategy_survival,
                 )
             )
+
+            kink_metrics = implied_cdf_kinks(strategy_survival)
+            prob_gap = prob_sum_gap(strategy_pmf)
+            spreads = kink_spreads(
+                strategy_pmf[: len(rungs)],
+                market_pmf[: len(rungs)],
+                max_legs=max_legs,
+            )
+            mispricing_indices: set[int] = set()
+            for spread in spreads:
+                mispricing_indices.update(range(int(spread["start_index"]), int(spread["end_index"]) + 1))
+            if prob_gap >= prob_sum_gap_threshold and not mispricing_indices:
+                mispricing_indices.update(range(len(rungs)))
+            if mispricing_only:
+                if mispricing_indices:
+                    if allowed_indices is None:
+                        allowed_indices = set(mispricing_indices)
+                    else:
+                        allowed_indices = set(allowed_indices) & mispricing_indices
+                else:
+                    allowed_indices = set()
+
+            if prob_gap >= prob_sum_gap_threshold or spreads:
+                mispricing_records.append(
+                    {
+                        "market_id": market.id,
+                        "market_ticker": market.ticker,
+                        "prob_sum_gap": prob_gap,
+                        "max_kink": kink_metrics.max_kink,
+                        "mean_abs_kink": kink_metrics.mean_abs_kink,
+                        "monotonicity_penalty": kink_metrics.monotonicity_penalty,
+                        "kink_count": kink_metrics.kink_count,
+                        "spreads": spreads[:3],
+                    }
+                )
 
             rung_proposals = _evaluate_market(
                 market_id=market.id,
@@ -699,13 +780,18 @@ def scan_series(  # noqa: PLR0913
         "model_drift": _model_drift_flag(series_obj.ticker),
         "tz_not_et": _tz_not_et(),
     }
+    monitors.setdefault("model_version", model_version)
+    if mispricing_records:
+        monitors["max_prob_sum_gap"] = max(record["prob_sum_gap"] for record in mispricing_records)
     return ScanOutcome(
         proposals=proposals,
         monitors=monitors,
         cdf_diffs=cdf_diffs,
+        mispricings=mispricing_records,
         series=series_obj,
         events=events,
         markets=all_markets,
+        model_metadata=model_metadata,
     )
 
 
@@ -716,27 +802,60 @@ def _strategy_pmf_for_series(
     fixtures_dir: Path,
     override: str,
     offline: bool,
-) -> list[LadderBinProbability]:
+    model_version: str = "v15",
+) -> tuple[list[LadderBinProbability], dict[str, object]]:
     pick = override.lower()
     ticker = series.upper()
     if pick == "auto":
         pick = ticker.lower()
 
+    version = (model_version or "v15").lower()
+    if version not in {"v0", "v15"}:
+        version = "v15"
+    metadata: dict[str, object] = {"model_version": version}
+
     if pick == "cpi" and ticker == "CPI":
-        return cpi.strategy_pmf(strikes, fixtures_dir=fixtures_dir, offline=offline)
+        pmf_values = cpi.strategy_pmf(
+            strikes,
+            fixtures_dir=fixtures_dir,
+            offline=offline,
+            model_version=version,
+        )
+        if version == "v15":
+            config = cpi_strategy.load_v15_config()
+            metadata["component_weights"] = {
+                "gas": config.component_weights.gas,
+                "shelter": config.component_weights.shelter,
+                "autos": config.component_weights.autos,
+            }
+        return pmf_values, metadata
     if pick in {"claims", "jobless"} and ticker == "CLAIMS":
         history = _load_history(fixtures_dir, "claims")
         claims_history = [int(item["claims"]) for item in history[-6:]] if history else None
         latest_claims = claims_history[-1] if claims_history else None
         holiday_flag = bool(history[-1].get("holiday")) if history else False
+        continuing_seq = None
+        if history:
+            continuing_seq = [
+                int(item["continuing_claims"])
+                for item in history[-3:]
+                if "continuing_claims" in item
+            ] or None
+        short_week_flag = bool(history[-1].get("short_week")) if history else holiday_flag
         inputs = claims_strategy.ClaimsInputs(
             history=claims_history,
             holiday_next=holiday_flag,
             freeze_active=claims_strategy.freeze_window(),
             latest_initial_claims=latest_claims,
             four_week_avg=None,
+            continuing_claims=continuing_seq,
+            short_week=short_week_flag,
         )
-        return claims_strategy.pmf(strikes, inputs=inputs)
+        if version == "v15":
+            pmf_values = claims_strategy.pmf_v15(strikes, inputs=inputs)
+        else:
+            pmf_values = claims_strategy.pmf(strikes, inputs=inputs)
+        return pmf_values, metadata
     if pick in {"tney", "rates"} and ticker == "TNEY":
         history = _load_history(fixtures_dir, "teny")
         if history:
@@ -754,7 +873,11 @@ def _strategy_pmf_for_series(
             macro_shock=macro_shock,
             trailing_history=trailing,
         )
-        return teny_strategy.pmf(strikes, inputs=inputs)
+        if version == "v15":
+            pmf_values = teny_strategy.pmf_v15(strikes, inputs=inputs)
+        else:
+            pmf_values = teny_strategy.pmf(strikes, inputs=inputs)
+        return pmf_values, metadata
     if pick in {"weather"} and ticker == "WEATHER":
         history = _load_history(fixtures_dir, "weather")
         if history:
@@ -767,8 +890,8 @@ def _strategy_pmf_for_series(
             )
         else:
             inputs = weather_strategy.WeatherInputs(forecast_high=70.0)
-        return weather_strategy.pmf(strikes, inputs=inputs)
-    raise NotImplementedError(f"No strategy PMF implemented for series {series}")
+        return weather_strategy.pmf(strikes, inputs=inputs), metadata
+    raise ValueError(f"No strategy PMF implemented for series {series}")
 
 
 def _load_history(fixtures_dir: Path, namespace: str) -> list[dict[str, object]]:
