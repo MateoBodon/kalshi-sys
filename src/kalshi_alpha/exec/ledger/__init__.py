@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import csv
 import json
 
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule, maker_fee
 from kalshi_alpha.core.kalshi_api import Orderbook
 from kalshi_alpha.core.pricing import Liquidity
@@ -26,6 +27,7 @@ class FillRecord:
     expected_value: float
     liquidity: Liquidity
     slippage: float
+    expected_contracts: int
 
 
 @dataclass
@@ -65,6 +67,7 @@ class PaperLedger:
                 "fill_price": record.fill_price,
                 "expected_value": record.expected_value,
                 "slippage": record.slippage,
+                "expected_contracts": record.expected_contracts,
             }
             for record in self.records
         ]
@@ -77,6 +80,7 @@ class PaperLedger:
                     "strike",
                     "side",
                     "contracts",
+                    "expected_contracts",
                     "fill_price",
                     "expected_value",
                     "slippage",
@@ -101,6 +105,7 @@ def simulate_fills(
     slippage_model: SlippageModel | None = None,
     schedule: FeeSchedule = DEFAULT_FEE_SCHEDULE,
     artifacts_dir: Path | None = None,
+    fill_estimator: FillRatioEstimator | None = None,
 ) -> PaperLedger:
     ledger = PaperLedger()
     model = None
@@ -115,7 +120,20 @@ def simulate_fills(
         fill_price, slippage = _derive_fill_price(
             proposal, orderbook, mode=mode, slippage_model=model
         )
-        expected = _expected_value_with_fill(proposal, fill_price, schedule=schedule)
+        expected_contracts = proposal.contracts
+        if fill_estimator is not None:
+            expected_contracts = fill_estimator.expected_contracts(
+                side=proposal.side,
+                price=fill_price,
+                contracts=proposal.contracts,
+                orderbook=orderbook,
+            )
+        expected = _expected_value_with_fill(
+            proposal,
+            fill_price,
+            schedule=schedule,
+            contracts_override=expected_contracts,
+        )
         ledger.record(
             FillRecord(
                 proposal=proposal,
@@ -123,6 +141,7 @@ def simulate_fills(
                 expected_value=expected,
                 liquidity=Liquidity.MAKER,
                 slippage=slippage,
+                expected_contracts=expected_contracts,
             )
         )
     if artifacts_dir is not None:
@@ -160,10 +179,13 @@ def _expected_value_with_fill(
     fill_price: float,
     *,
     schedule: FeeSchedule,
+    contracts_override: int | None = None,
 ) -> float:
     probability = proposal.strategy_probability
     price = fill_price
-    contracts = proposal.contracts
+    contracts = contracts_override if contracts_override is not None else proposal.contracts
+    if contracts <= 0:
+        return 0.0
     if proposal.side == "YES":
         fee = float(maker_fee(contracts, price, schedule=schedule))
         payoff_win = (1 - price) * contracts

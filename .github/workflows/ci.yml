@@ -141,6 +141,40 @@ if not any("data_freshness.cleveland" in reason for reason in reasons):
     raise SystemExit("Expected cleveland data freshness reason")
 PY
 
+  today-wrapper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+      - name: Run today pipeline offline
+        run: |
+          python -m kalshi_alpha.exec.pipelines.today \
+            --offline \
+            --report \
+            --paper-ledger \
+            --driver-fixtures tests/fixtures \
+            --scanner-fixtures tests/data_fixtures \
+            --include-weather
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: today-reports
+          path: reports
+          if-no-files-found: warn
+      - name: Upload archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: today-archives
+          path: data/raw/kalshi
+          if-no-files-found: warn
+
   nightly-offline-pipeline:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest

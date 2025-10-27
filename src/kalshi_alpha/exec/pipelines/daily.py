@@ -8,15 +8,17 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
 from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
-from kalshi_alpha.core.kalshi_api import KalshiPublicClient
-from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioRiskManager
+from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook
+from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioRiskManager, drawdown
 from kalshi_alpha.datastore import ingest as datastore_ingest
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
+    _archive_and_replay,
     _attach_series_metadata,
     _compute_exposure_summary,
     _write_cdf_diffs,
@@ -76,9 +78,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Kelly truncation cap for scanner sizing.",
     )
     parser.add_argument(
+        "--fill-alpha",
+        type=float,
+        default=0.6,
+        help="Fraction of visible depth expected to fill (0-1).",
+    )
+    parser.add_argument(
         "--when",
         type=_parse_date,
         help="Override target date (YYYY-MM-DD) for calendar scheduling.",
+    )
+    parser.add_argument(
+        "--daily-loss-cap",
+        type=float,
+        help="Daily expected-loss drawdown cap (USD).",
+    )
+    parser.add_argument(
+        "--weekly-loss-cap",
+        type=float,
+        help="Weekly expected-loss drawdown cap (USD).",
     )
     return parser.parse_args(argv)
 
@@ -101,7 +119,7 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
     try:
         run_ingest(args, log)
         run_calibrations(args, log)
-        gate_result = run_quality_gate_step(now_utc, log)
+        gate_result = run_quality_gate_step(args, now_utc, log)
         if not gate_result.go:
             raise SystemExit(1)
         target_date: date = args.when if args.when else now_utc.astimezone(ET).date()
@@ -170,16 +188,36 @@ def run_calibrations(args: argparse.Namespace, log: dict[str, object]) -> None:
     calibrate_wrapper("weather", calibrate_weather, histories["weather"])
 
 
-def run_quality_gate_step(now_utc: datetime, log: dict[str, object]) -> QualityGateResult:
+def run_quality_gate_step(
+    args: argparse.Namespace,
+    now_utc: datetime,
+    log: dict[str, object],
+) -> QualityGateResult:
     config = load_quality_gate_config(_resolve_quality_gate_config_path())
     result = run_quality_gates(config=config, now=now_utc, proc_root=PROC_ROOT, raw_root=RAW_ROOT)
+    drawdown_status = drawdown.check_limits(
+        getattr(args, "daily_loss_cap", None),
+        getattr(args, "weekly_loss_cap", None),
+        now=now_utc,
+    )
+
+    combined_reasons = list(result.reasons)
+    details = dict(result.details)
+    if drawdown_status.metrics:
+        details.setdefault("drawdown", drawdown_status.metrics)
+    go_flag = result.go and drawdown_status.ok
+    if not drawdown_status.ok:
+        combined_reasons.extend(drawdown_status.reasons)
+
+    combined = QualityGateResult(go=go_flag, reasons=combined_reasons, details=details)
+
     log["quality_gates"] = {
-        "go": result.go,
-        "reasons": result.reasons,
-        "details": result.details,
+        "go": combined.go,
+        "reasons": combined.reasons,
+        "details": combined.details,
     }
-    _write_go_no_go(result)
-    return result
+    _write_go_no_go(combined)
+    return combined
 
 
 def _resolve_quality_gate_config_path() -> Path:
@@ -243,40 +281,68 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
         offline=offline_mode,
         sizing_mode="kelly",
         kelly_cap=args.kelly_cap,
+        daily_loss_cap=args.daily_loss_cap,
     )
 
     proposals = outcome.proposals
     monitors = outcome.monitors
     exposure_summary = _compute_exposure_summary(proposals)
     cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
+    should_archive = args.report or args.paper_ledger
 
-    if not proposals:
-        log.setdefault("scan_results", {})[mode] = {
-            "proposals": 0,
-            "exposure": exposure_summary,
-            "cdf_diffs_path": str(cdf_path) if cdf_path else None,
-        }
-        return
+    orderbook_ids: set[str] = set()
+    if args.paper_ledger or args.report:
+        orderbook_ids.update({proposal.market_id for proposal in proposals})
+    if should_archive:
+        orderbook_ids.update({market.id for market in outcome.markets})
 
-    _attach_series_metadata(
-        proposals=proposals,
-        series=series,
-        driver_fixtures=driver_fixtures,
-        offline=offline_mode,
-    )
+    orderbooks: dict[str, Orderbook] = {}
+    for market_id in sorted(orderbook_ids):
+        try:
+            orderbooks[market_id] = client.get_orderbook(market_id)
+        except Exception:  # pragma: no cover
+            continue
 
     ledger: PaperLedger | None = None
-    if args.paper_ledger or args.report:
-        orderbooks = {
-            proposal.market_id: client.get_orderbook(proposal.market_id) for proposal in proposals
+    if proposals and (args.paper_ledger or args.report):
+        ledger_books = {
+            proposal.market_id: orderbooks[proposal.market_id]
+            for proposal in proposals
+            if proposal.market_id in orderbooks
         }
+        estimator = FillRatioEstimator(args.fill_alpha) if args.fill_alpha is not None else None
         ledger = simulate_fills(
             proposals,
-            orderbooks,
+            ledger_books,
             artifacts_dir=Path("reports/_artifacts"),
+            fill_estimator=estimator,
         )
 
+    if ledger:
+        drawdown.record_pnl(ledger.total_expected_pnl())
+
     proposals_path = write_proposals(series=series, proposals=proposals, output_dir=Path("exec/proposals"))
+    manifest_path: Path | None = None
+    if should_archive and outcome.series is not None:
+        manifest_path = _archive_and_replay(
+            client=client,
+            series=outcome.series,
+            events=outcome.events,
+            markets=outcome.markets,
+            orderbooks=orderbooks,
+            proposals_path=proposals_path,
+            driver_fixtures=driver_fixtures,
+            scanner_fixtures=fixtures_root,
+        )
+
+    if proposals:
+        _attach_series_metadata(
+            proposals=proposals,
+            series=series,
+            driver_fixtures=driver_fixtures,
+            offline=offline_mode,
+        )
+
     report_path = None
     if args.report:
         report_path = write_markdown_report(
@@ -286,6 +352,9 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
             output_dir=Path("reports") / series.upper(),
             monitors=monitors,
             exposure_summary=exposure_summary,
+            manifest_path=manifest_path,
+            go_status=True,
+            fill_alpha=args.fill_alpha,
         )
 
     log.setdefault("scan_results", {})[mode] = {
@@ -296,6 +365,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
         "monitors": monitors,
         "exposure": exposure_summary,
         "cdf_diffs_path": str(cdf_path) if cdf_path else None,
+        "archive_manifest": str(manifest_path) if manifest_path else None,
     }
 
 

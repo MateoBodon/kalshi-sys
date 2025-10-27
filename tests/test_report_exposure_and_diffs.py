@@ -78,10 +78,17 @@ def test_exposure_summary_and_report(tmp_path: Path, monkeypatch) -> None:
         output_dir=tmp_path / "reports" / "CPI",
         monitors={},
         exposure_summary=summary,
+        manifest_path=None,
+        go_status=True,
+        fill_alpha=0.6,
     )
     text = report_path.read_text(encoding="utf-8")
+    assert "GO/NO-GO" in text
     assert "Portfolio Exposure" in text
     assert "INFLATION" in text
+    assert "Fill Alpha: 0.60" in text
+    assert "Net Ladder Exposure" in text
+    assert "| CPI | CPI_X |" in text
 
 
 def test_cdf_diffs_parquet(tmp_path: Path, monkeypatch) -> None:

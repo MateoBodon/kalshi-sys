@@ -22,11 +22,21 @@ def write_markdown_report(
     output_dir: Path,
     monitors: dict[str, object] | None = None,
     exposure_summary: dict[str, object] | None = None,
+    manifest_path: Path | None = None,
+    go_status: bool | None = True,
+    fill_alpha: float | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=UTC)
     path = output_dir / f"{ts.strftime('%Y-%m-%d')}.md"
     lines: list[str] = []
+    badge_label = "GO" if go_status in {None, True} else "NO-GO"
+    badge_emoji = "🟢" if badge_label == "GO" else "🔴"
+    lines.append(f"{badge_emoji} **GO/NO-GO:** {badge_label}")
+    if manifest_path:
+        manifest_str = manifest_path.as_posix() if isinstance(manifest_path, Path) else str(manifest_path)
+        lines.append(f"[Archived Manifest]({manifest_str})")
+    lines.append("")
     lines.append(f"# {series.upper()} Ladder Scan {ts.strftime('%Y-%m-%d %H:%M UTC')}")
     lines.append("")
     lines.append("## Proposals")
@@ -62,6 +72,8 @@ def write_markdown_report(
         var_value = exposure_summary.get("var")
         if var_value is not None:
             lines.append(f"- Portfolio VaR: {float(var_value):.2f} USD")
+        if fill_alpha is not None:
+            lines.append(f"- Fill Alpha: {float(fill_alpha):.2f}")
         factors = exposure_summary.get("factors") or {}
         if factors:
             lines.append("")
@@ -84,6 +96,35 @@ def write_markdown_report(
             for market, value in sorted(net_contracts.items()):
                 lines.append(f"| {market} | {int(value):+d} |")
         lines.append("")
+        market_losses = exposure_summary.get("market_losses") or {}
+        market_series = exposure_summary.get("market_series") or {}
+        if market_losses and exposure_summary.get("net_contracts"):
+            lines.append("## Net Ladder Exposure")
+            lines.append("| Series | Market | Net Contracts | Max Loss |")
+            lines.append("| --- | --- | --- | --- |")
+            for market, net in sorted((exposure_summary.get("net_contracts") or {}).items()):
+                series_name = market_series.get(market, "")
+                max_loss = float(market_losses.get(market, 0.0))
+                lines.append(f"| {series_name} | {market} | {int(net):+d} | {max_loss:.2f} |")
+            lines.append("")
+        series_net = exposure_summary.get("series_net") or {}
+        series_factors = exposure_summary.get("series_factors") or {}
+        if series_net:
+            lines.append("### Series Summary")
+            lines.append("| Series | Net Long | Net Short | Total Max Loss | Factor Loads |")
+            lines.append("| --- | --- | --- | --- | --- |")
+            for series_name, payload in sorted(series_net.items()):
+                long_side = int(payload.get("long", 0))
+                short_side = int(payload.get("short", 0))
+                total_loss = float(per_series.get(series_name, 0.0))
+                factor_payload = series_factors.get(series_name, {})
+                factor_text = ", ".join(
+                    f"{factor}:{float(value):.2f}" for factor, value in sorted(factor_payload.items())
+                ) or "-"
+                lines.append(
+                    f"| {series_name} | {long_side:+d} | {-short_side:+d} | {total_loss:.2f} | {factor_text} |"
+                )
+            lines.append("")
     lines.append("## Proposal Details")
     for proposal in proposals:
         lines.append(f"### Strike {proposal.strike:.2f}")

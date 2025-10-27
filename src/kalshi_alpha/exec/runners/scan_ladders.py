@@ -14,8 +14,10 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
+from kalshi_alpha.core.archive import archive_scan, replay_manifest
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
-from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook, Series
+from kalshi_alpha.core.kalshi_api import Event, KalshiPublicClient, Market, Orderbook, Series
 from kalshi_alpha.core.pricing import (
     LadderBinProbability,
     LadderRung,
@@ -24,6 +26,7 @@ from kalshi_alpha.core.pricing import (
     pmf_from_quotes,
 )
 from kalshi_alpha.core.risk import (
+    drawdown,
     OrderProposal,
     PALGuard,
     PALPolicy,
@@ -34,7 +37,7 @@ from kalshi_alpha.core.risk import (
 from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, scale_kelly, truncate_kelly
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
-from kalshi_alpha.datastore.paths import PROC_ROOT
+from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
@@ -73,6 +76,9 @@ class ScanOutcome:
     proposals: list[Proposal]
     monitors: dict[str, object] = field(default_factory=dict)
     cdf_diffs: list[dict[str, object]] = field(default_factory=list)
+    series: Series | None = None
+    events: list[Event] = field(default_factory=list)
+    markets: list[Market] = field(default_factory=list)
 
 
 class _LossBudget:
@@ -110,6 +116,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
     offline_mode = args.offline or not args.online
+
+    drawdown_status = drawdown.check_limits(
+        args.daily_loss_cap,
+        args.weekly_loss_cap,
+    )
+    if not drawdown_status.ok:
+        if not args.quiet:
+            reasons = ", ".join(drawdown_status.reasons) or "drawdown cap breached"
+            print(f"[drawdown] Skipping scan due to {reasons}")
+        return
+
     outcome = scan_series(
         series=args.series,
         client=client,
@@ -131,7 +148,29 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     proposals = outcome.proposals
-    ledger = _maybe_simulate_ledger(args, proposals, client)
+    should_archive = args.report or args.paper_ledger
+    orderbook_ids: set[str] = set()
+    if args.report or args.paper_ledger:
+        orderbook_ids.update({proposal.market_id for proposal in proposals})
+    if should_archive:
+        orderbook_ids.update({market.id for market in outcome.markets})
+
+    orderbooks: dict[str, Orderbook] = {}
+    for market_id in sorted(orderbook_ids):
+        try:
+            orderbooks[market_id] = client.get_orderbook(market_id)
+        except Exception:  # pragma: no cover - tolerate missing orderbooks
+            continue
+
+    ledger = _maybe_simulate_ledger(
+        args,
+        proposals,
+        client,
+        orderbooks=orderbooks,
+        fill_alpha=args.fill_alpha,
+    )
+    if ledger:
+        drawdown.record_pnl(ledger.total_expected_pnl())
     exposure_summary = _compute_exposure_summary(proposals)
     cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
     if proposals:
@@ -149,12 +188,30 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not args.quiet:
         print(f"Wrote {len(proposals)} proposals to {output_path}")
 
+    manifest_path: Path | None = None
+    if should_archive:
+        manifest_path = _archive_and_replay(
+            client=client,
+            series=outcome.series,
+            events=outcome.events,
+            markets=outcome.markets,
+            orderbooks=orderbooks,
+            proposals_path=output_path,
+            driver_fixtures=driver_fixtures,
+            scanner_fixtures=fixtures_root,
+        )
+        if manifest_path and not args.quiet:
+            print(f"Archived snapshot manifest at {manifest_path}")
+
     _maybe_write_report(
         args,
         proposals,
         ledger,
         outcome.monitors,
         exposure_summary,
+        manifest_path,
+        go_status=True,
+        fill_alpha=args.fill_alpha,
     )
 
     if not proposals:
@@ -197,17 +254,25 @@ def _maybe_simulate_ledger(
     args: argparse.Namespace,
     proposals: Sequence[Proposal],
     client: KalshiPublicClient,
+    *,
+    orderbooks: dict[str, Orderbook] | None = None,
+    fill_alpha: float | None = None,
 ) -> PaperLedger | None:
     if not proposals or not (args.paper_ledger or args.report):
         return None
-    orderbooks: dict[str, Orderbook] = {}
+    cache = orderbooks if orderbooks is not None else {}
     for proposal in proposals:
-        if proposal.market_id not in orderbooks:
-            orderbooks[proposal.market_id] = client.get_orderbook(proposal.market_id)
+        if proposal.market_id not in cache:
+            try:
+                cache[proposal.market_id] = client.get_orderbook(proposal.market_id)
+            except Exception:  # pragma: no cover - tolerate missing books
+                continue
+    estimator = FillRatioEstimator(fill_alpha) if fill_alpha is not None else None
     ledger = simulate_fills(
         proposals,
-        orderbooks,
+        cache,
         artifacts_dir=Path("reports/_artifacts") if (args.paper_ledger or args.report) else None,
+        fill_estimator=estimator,
     )
     if args.paper_ledger and not args.quiet:
         stats = ledger.to_dict()
@@ -262,6 +327,9 @@ def _maybe_write_report(
     ledger: PaperLedger | None,
     monitors: dict[str, object],
     exposure_summary: dict[str, object],
+    manifest_path: Path | None,
+    go_status: bool | None,
+    fill_alpha: float | None,
 ) -> None:
     if not args.report:
         return
@@ -272,9 +340,60 @@ def _maybe_write_report(
         output_dir=Path("reports") / args.series.upper(),
         monitors=monitors,
         exposure_summary=exposure_summary,
+        manifest_path=manifest_path,
+        go_status=go_status,
+        fill_alpha=fill_alpha,
     )
     if not args.quiet:
         print(f"Wrote report to {report_path}")
+
+
+def _archive_and_replay(
+    *,
+    client: KalshiPublicClient | None,
+    series: Series | None,
+    events: Sequence[Event],
+    markets: Sequence[Market],
+    orderbooks: dict[str, Orderbook],
+    proposals_path: Path,
+    driver_fixtures: Path,
+    scanner_fixtures: Path,
+) -> Path | None:
+    if series is None:
+        return None
+    manifest_path = archive_scan(
+        series=series,
+        client=client,
+        events=events,
+        markets=markets,
+        orderbooks=orderbooks,
+        out_dir=RAW_ROOT / "kalshi",
+    )
+    _enrich_manifest(
+        manifest_path,
+        proposals_path=proposals_path,
+        driver_fixtures=driver_fixtures,
+        scanner_fixtures=scanner_fixtures,
+    )
+    replay_manifest(manifest_path)
+    return manifest_path
+
+
+def _enrich_manifest(
+    manifest_path: Path,
+    *,
+    proposals_path: Path,
+    driver_fixtures: Path,
+    scanner_fixtures: Path,
+) -> None:
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return
+    manifest["proposals_path"] = str(proposals_path)
+    manifest["driver_fixtures"] = str(driver_fixtures)
+    manifest["scanner_fixtures"] = str(scanner_fixtures)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -336,6 +455,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Maximum Kelly fraction when sizing via Kelly.",
     )
     parser.add_argument(
+        "--fill-alpha",
+        type=float,
+        default=0.6,
+        help="Fraction of visible depth expected to fill (0-1).",
+    )
+    parser.add_argument(
         "--uncertainty-penalty",
         type=float,
         default=0.0,
@@ -351,6 +476,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--daily-loss-cap",
         type=float,
         help="Maximum aggregate loss budget across all proposals (USD).",
+    )
+    parser.add_argument(
+        "--weekly-loss-cap",
+        type=float,
+        help="Maximum aggregate weekly loss budget (USD).",
     )
     parser.add_argument(
         "--strategy",
@@ -431,9 +561,11 @@ def scan_series(  # noqa: PLR0913
     non_monotone = 0
     daily_budget = _LossBudget(daily_loss_cap)
     cdf_diffs: list[dict[str, object]] = []
+    all_markets: list[Market] = []
 
     for event in events:
         markets = client.get_markets(event.id)
+        all_markets.extend(markets)
         for market in markets:
             if not market.ladder_strikes or not market.ladder_yes_prices:
                 continue
@@ -499,7 +631,14 @@ def scan_series(  # noqa: PLR0913
         "model_drift": _model_drift_flag(series_obj.ticker),
         "tz_not_et": _tz_not_et(),
     }
-    return ScanOutcome(proposals=proposals, monitors=monitors, cdf_diffs=cdf_diffs)
+    return ScanOutcome(
+        proposals=proposals,
+        monitors=monitors,
+        cdf_diffs=cdf_diffs,
+        series=series_obj,
+        events=events,
+        markets=all_markets,
+    )
 
 
 def _strategy_pmf_for_series(
@@ -892,6 +1031,8 @@ def _compute_exposure_summary(proposals: Sequence[Proposal]) -> dict[str, object
         "net_contracts": {},
         "factors": {},
         "var": 0.0,
+        "series_factors": {},
+        "series_net": {},
     }
     if not proposals:
         return summary
@@ -899,31 +1040,55 @@ def _compute_exposure_summary(proposals: Sequence[Proposal]) -> dict[str, object
     total_max_loss = sum(float(proposal.max_loss) for proposal in proposals)
     per_series: dict[str, float] = defaultdict(float)
     net_contracts: dict[str, int] = defaultdict(int)
+    market_losses: dict[str, float] = defaultdict(float)
+    market_series: dict[str, str] = {}
     for proposal in proposals:
         per_series[proposal.strategy] += float(proposal.max_loss)
         sign = 1 if proposal.side.upper() == "YES" else -1
         net_contracts[proposal.market_ticker] += sign * proposal.contracts
+        market_losses[proposal.market_ticker] += float(proposal.max_loss)
+        market_series.setdefault(proposal.market_ticker, proposal.strategy)
 
     summary["total_max_loss"] = total_max_loss
     summary["per_series"] = dict(sorted(per_series.items()))
     summary["net_contracts"] = dict(sorted(net_contracts.items()))
+    summary["market_losses"] = dict(sorted(market_losses.items()))
+    summary["market_series"] = market_series
 
     config = _load_portfolio_config()
     if config is not None:
         factor_exposures: dict[str, float] = defaultdict(float)
+        series_factor_exposures: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         for proposal in proposals:
             betas = config.strategy_betas.get(proposal.strategy.upper(), {"TOTAL": 1.0})
             for factor, beta in betas.items():
-                factor_exposures[factor] += beta * float(proposal.max_loss)
+                exposure = beta * float(proposal.max_loss)
+                factor_exposures[factor] += exposure
+                series_factor_exposures[proposal.strategy][factor] += exposure
         summary["factors"] = dict(sorted(factor_exposures.items()))
         var_sum = 0.0
         for factor, exposure in factor_exposures.items():
             vol = config.factor_vols.get(factor, 1.0)
             var_sum += (exposure * vol) ** 2
         summary["var"] = math.sqrt(var_sum)
+        summary["series_factors"] = {
+            series: dict(sorted(factors.items())) for series, factors in series_factor_exposures.items()
+        }
     else:
         summary["factors"] = {"TOTAL": total_max_loss}
         summary["var"] = total_max_loss
+        summary["series_factors"] = {series: {"TOTAL": value} for series, value in per_series.items()}
+
+    series_net: dict[str, dict[str, int]] = defaultdict(lambda: {"long": 0, "short": 0})
+    for market, value in net_contracts.items():
+        series_name = market_series.get(market)
+        if series_name is None:
+            continue
+        if value >= 0:
+            series_net[series_name]["long"] += int(value)
+        else:
+            series_net[series_name]["short"] += int(-value)
+    summary["series_net"] = {series: data for series, data in series_net.items()}
 
     return summary
 
