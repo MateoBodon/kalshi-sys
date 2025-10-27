@@ -1,0 +1,11 @@
+{
+  "market_id": "MKT_WEATHER_KBOS",
+  "bids": [
+    {"price": 0.35, "size": 60},
+    {"price": 0.30, "size": 90}
+  ],
+  "asks": [
+    {"price": 0.40, "size": 70},
+    {"price": 0.45, "size": 100}
+  ]
+}

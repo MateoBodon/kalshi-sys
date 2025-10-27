@@ -1,0 +1,19 @@
+[
+  {
+    "chart": {"_comment": "2025-10-24 00:00"},
+    "dataset": [
+      {
+        "seriesname": "CPI Inflation",
+        "data": [
+          {"value": "0.22", "tooltext": "CPI Inflation{br}10/24{br}"}
+        ]
+      },
+      {
+        "seriesname": "Core CPI Inflation",
+        "data": [
+          {"value": "0.18", "tooltext": "Core CPI Inflation{br}10/24{br}"}
+        ]
+      }
+    ]
+  }
+]

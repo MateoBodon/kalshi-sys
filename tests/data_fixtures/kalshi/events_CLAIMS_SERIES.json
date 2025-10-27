@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "id": "EVT_CLAIMS_WEEKLY",
+      "series_id": "CLAIMS_SERIES",
+      "ticker": "CLAIMS-W",
+      "title": "Weekly Initial Claims"
+    }
+  ]
+}

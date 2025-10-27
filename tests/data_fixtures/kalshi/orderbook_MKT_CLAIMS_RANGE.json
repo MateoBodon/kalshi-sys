@@ -1,0 +1,11 @@
+{
+  "market_id": "MKT_CLAIMS_RANGE",
+  "bids": [
+    {"price": 0.38, "size": 80},
+    {"price": 0.32, "size": 120}
+  ],
+  "asks": [
+    {"price": 0.42, "size": 90},
+    {"price": 0.48, "size": 150}
+  ]
+}

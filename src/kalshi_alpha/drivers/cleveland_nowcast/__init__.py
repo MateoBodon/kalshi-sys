@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -56,10 +57,13 @@ def fetch_nowcast(
             session=session,
             force_refresh=force_refresh,
         )
-        snapshots.write_text_snapshot("cleveland_nowcast", "page.html", page_bytes.decode("utf-8"))
+        page_text = page_bytes.decode("utf-8")
+        snapshots.write_text_snapshot("cleveland_nowcast", "page.html", page_text)
+
+        json_url = _extract_monthly_json_url(page_text) or MONTHLY_JSON_URL
 
         json_bytes = fetch_with_cache(
-            MONTHLY_JSON_URL,
+            json_url,
             cache_path=MONTHLY_CACHE_PATH,
             session=session,
             force_refresh=force_refresh,
@@ -203,3 +207,14 @@ def _parse_tooltext_date(tooltext: Any, fallback: datetime) -> datetime:
             except ValueError:
                 pass
     return fallback
+
+
+def _extract_monthly_json_url(page_text: str) -> str | None:
+    pattern = re.compile(r"data-data-config=\"(?P<path>[^\"]+nowcast_month[^\"]*)\"")
+    match = pattern.search(page_text)
+    if not match:
+        return None
+    href = match.group("path")
+    if href.startswith("http"):
+        return href
+    return "https://www.clevelandfed.org" + href

@@ -74,7 +74,7 @@ teny_calibrate(json.loads((fixtures / "teny" / "history.json").read_text())['his
 weather_calibrate(json.loads((fixtures / "weather" / "history.json").read_text())['history'])
 PY
 
-  nightly-backtest:
+  nightly-offline-pipeline:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
@@ -87,5 +87,18 @@ PY
         run: |
           python -m pip install --upgrade pip
           python -m pip install .[dev]
-      - name: Run fixture backtests
-        run: pytest tests/test_strategy_models.py -q
+      - name: Run offline daily pipeline
+        run: |
+          python -m kalshi_alpha.exec.pipelines.daily \
+            --mode full \
+            --offline \
+            --driver-fixtures tests/fixtures \
+            --scanner-fixtures tests/data_fixtures \
+            --report \
+            --paper-ledger
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-reports
+          path: reports
+          if-no-files-found: warn

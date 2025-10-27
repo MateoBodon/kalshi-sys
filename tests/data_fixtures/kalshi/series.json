@@ -4,6 +4,21 @@
       "id": "CPI_SERIES",
       "ticker": "CPI",
       "name": "Consumer Price Index"
+    },
+    {
+      "id": "CLAIMS_SERIES",
+      "ticker": "CLAIMS",
+      "name": "Weekly Jobless Claims"
+    },
+    {
+      "id": "TNEY_SERIES",
+      "ticker": "TNEY",
+      "name": "10Y Treasury"
+    },
+    {
+      "id": "WEATHER_SERIES",
+      "ticker": "WEATHER",
+      "name": "Weather High Temps"
     }
   ]
 }

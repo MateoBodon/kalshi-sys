@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_CLAIMS_RANGE",
+      "event_id": "EVT_CLAIMS_WEEKLY",
+      "ticker": "CLAIMS-RANGE",
+      "title": "Claims Range",
+      "ladder_strikes": [200000, 205000, 210000, 215000, 220000],
+      "ladder_yes_prices": [0.42, 0.36, 0.30, 0.24, 0.18]
+    }
+  ]
+}

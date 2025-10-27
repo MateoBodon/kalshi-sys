@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_TNEY_MOVE",
+      "event_id": "EVT_TNEY_CLOSE",
+      "ticker": "TNEY-DELTA",
+      "title": "10Y Daily Change",
+      "ladder_strikes": [4.1, 4.2, 4.3, 4.4, 4.5],
+      "ladder_yes_prices": [0.25, 0.30, 0.35, 0.40, 0.45]
+    }
+  ]
+}

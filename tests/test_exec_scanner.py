@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioConfig, PortfolioRiskManager
@@ -10,6 +13,7 @@ from kalshi_alpha.exec.ledger import simulate_fills
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
     _attach_series_metadata,
+    _strategy_pmf_for_series,
     scan_series,
     write_proposals,
 )
@@ -23,7 +27,7 @@ def test_scanner_generates_positive_maker_ev(
     policy = PALPolicy(series="CPI", default_max_loss=10_000.0)
     guard = PALGuard(policy)
 
-    proposals = scan_series(
+    outcome = scan_series(
         series="CPI",
         client=client,
         min_ev=0.01,
@@ -39,6 +43,7 @@ def test_scanner_generates_positive_maker_ev(
         sizing_mode="fixed",
         kelly_cap=0.25,
     )
+    proposals = outcome.proposals
     assert proposals, "Expected scanner to produce proposals with positive EV"
     original_daily = aaa_fetch.DAILY_PATH
     original_monthly = aaa_fetch.MONTHLY_PATH
@@ -96,7 +101,7 @@ def test_scan_series_respects_var(
     config = PortfolioConfig(factor_vols={"TOTAL": 1.0}, strategy_betas={"CPI": {"TOTAL": 1.0}})
     manager = PortfolioRiskManager(config)
 
-    proposals = scan_series(
+    outcome = scan_series(
         series="CPI",
         client=client,
         min_ev=0.01,
@@ -112,11 +117,12 @@ def test_scan_series_respects_var(
         sizing_mode="fixed",
         kelly_cap=0.25,
     )
+    proposals = outcome.proposals
     assert proposals
 
     manager.reset()
     guard = PALGuard(policy)
-    proposals_small = scan_series(
+    outcome_small = scan_series(
         series="CPI",
         client=client,
         min_ev=0.01,
@@ -132,7 +138,7 @@ def test_scan_series_respects_var(
         sizing_mode="fixed",
         kelly_cap=0.25,
     )
-    assert not proposals_small
+    assert not outcome_small.proposals
 
 
 def test_paper_ledger_simulation(
@@ -141,7 +147,7 @@ def test_paper_ledger_simulation(
     client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
     policy = PALPolicy(series="CPI", default_max_loss=10_000.0)
     guard = PALGuard(policy)
-    proposals = scan_series(
+    outcome = scan_series(
         series="CPI",
         client=client,
         min_ev=0.01,
@@ -157,6 +163,7 @@ def test_paper_ledger_simulation(
         sizing_mode="fixed",
         kelly_cap=0.25,
     )
+    proposals = outcome.proposals
     orderbooks = {
         proposal.market_id: client.get_orderbook(proposal.market_id) for proposal in proposals
     }
@@ -167,6 +174,7 @@ def test_paper_ledger_simulation(
         proposals=proposals,
         ledger=ledger,
         output_dir=tmp_path,
+        monitors={},
     )
     assert report_path.exists()
     contents = report_path.read_text(encoding="utf-8")
@@ -199,14 +207,79 @@ def test_kelly_sizing_respects_caps(
     fixed = scan_series(pal_guard=guard_fixed, sizing_mode="fixed", kelly_cap=0.25, **base_kwargs)
     kelly = scan_series(pal_guard=guard_kelly, sizing_mode="kelly", kelly_cap=0.1, **base_kwargs)
 
-    assert fixed and kelly
-    assert all(proposal.contracts <= base_kwargs["contracts"] for proposal in kelly)
+    assert fixed.proposals and kelly.proposals
+    assert all(proposal.contracts <= base_kwargs["contracts"] for proposal in kelly.proposals)
 
     fixed_map = {
-        (proposal.market_id, proposal.strike, proposal.side): proposal.contracts for proposal in fixed
+        (proposal.market_id, proposal.strike, proposal.side): proposal.contracts for proposal in fixed.proposals
     }
     assert all(
         proposal.contracts
         <= fixed_map.get((proposal.market_id, proposal.strike, proposal.side), base_kwargs["contracts"])
-        for proposal in kelly
+        for proposal in kelly.proposals
     )
+
+
+def test_strategy_router_claims_pmf(offline_fixtures_root: Path) -> None:
+    strikes = [200_000, 205_000, 210_000]
+    pmf = _strategy_pmf_for_series(
+        series="CLAIMS",
+        strikes=strikes,
+        fixtures_dir=offline_fixtures_root,
+        override="auto",
+        offline=True,
+    )
+    assert len(pmf) >= 1
+    assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
+
+
+def test_strategy_router_teny_pmf(offline_fixtures_root: Path) -> None:
+    strikes = [4.2, 4.3, 4.4]
+    pmf = _strategy_pmf_for_series(
+        series="TNEY",
+        strikes=strikes,
+        fixtures_dir=offline_fixtures_root,
+        override="auto",
+        offline=True,
+    )
+    assert len(pmf) >= len(strikes)
+    assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
+
+
+def test_strategy_router_weather_pmf(offline_fixtures_root: Path) -> None:
+    strikes = [55, 60, 65]
+    pmf = _strategy_pmf_for_series(
+        series="WEATHER",
+        strikes=strikes,
+        fixtures_dir=offline_fixtures_root,
+        override="auto",
+        offline=True,
+    )
+    assert len(pmf) >= len(strikes)
+    assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
+
+
+def test_scan_cli_offline_smoke(tmp_path: Path, fixtures_root: Path) -> None:
+    output_dir = tmp_path / "proposals"
+    cmd = [
+        sys.executable,
+        "-m",
+        "kalshi_alpha.exec.runners.scan_ladders",
+        "--series",
+        "CPI",
+        "--offline",
+        "--fixtures-root",
+        str(fixtures_root),
+        "--output-dir",
+        str(output_dir),
+        "--quiet",
+    ]
+    project_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(project_root / "src")
+        if not existing
+        else os.pathsep.join([str(project_root / "src"), existing])
+    )
+    subprocess.check_call(cmd, env=env)

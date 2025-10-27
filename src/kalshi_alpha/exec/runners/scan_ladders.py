@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import polars as pl
 
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook, Series
@@ -29,10 +32,15 @@ from kalshi_alpha.core.risk import (
 from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, truncate_kelly
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
+from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
+from kalshi_alpha.strategies import claims as claims_strategy
+from kalshi_alpha.strategies import cpi as cpi_strategy
+from kalshi_alpha.strategies import teny as teny_strategy
+from kalshi_alpha.strategies import weather as weather_strategy
 
 DEFAULT_MIN_EV = 0.05  # USD per contract after maker fees
 DEFAULT_CONTRACTS = 10
@@ -58,15 +66,25 @@ class Proposal:
     metadata: dict[str, object] | None = None
 
 
+@dataclass
+class ScanOutcome:
+    proposals: list[Proposal]
+    monitors: dict[str, object] = field(default_factory=dict)
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     fixtures_root = Path(args.fixtures_root).resolve()
     driver_fixtures = fixtures_root / "drivers"
 
-    client = _build_client(fixtures_root)
+    if args.online and args.offline:
+        raise ValueError("Cannot specify both --online and --offline.")
+
+    client = _build_client(fixtures_root, use_online=args.online)
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
-    proposals = scan_series(
+    offline_mode = args.offline or not args.online
+    outcome = scan_series(
         series=args.series,
         client=client,
         min_ev=args.min_ev,
@@ -78,18 +96,19 @@ def main(argv: Sequence[str] | None = None) -> None:
         allow_tails=args.allow_tails,
         risk_manager=risk_manager,
         max_var=args.max_var,
-        offline=args.offline,
+        offline=offline_mode,
         sizing_mode=args.sizing,
         kelly_cap=args.kelly_cap,
     )
 
+    proposals = outcome.proposals
     ledger = _maybe_simulate_ledger(args, proposals, client)
     if proposals:
         _attach_series_metadata(
             proposals=proposals,
             series=args.series,
             driver_fixtures=driver_fixtures,
-            offline=args.offline,
+            offline=offline_mode,
         )
     output_path = write_proposals(
         series=args.series,
@@ -99,14 +118,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not args.quiet:
         print(f"Wrote {len(proposals)} proposals to {output_path}")
 
-    _maybe_write_report(args, proposals, ledger)
+    _maybe_write_report(args, proposals, ledger, outcome.monitors)
 
 
-def _build_client(fixtures_root: Path) -> KalshiPublicClient:
+def _build_client(fixtures_root: Path, *, use_online: bool) -> KalshiPublicClient:
     api_fixtures = fixtures_root / "kalshi"
     return KalshiPublicClient(
         offline_dir=api_fixtures,
-        use_offline=True,
+        use_offline=not use_online,
     )
 
 
@@ -201,6 +220,7 @@ def _maybe_write_report(
     args: argparse.Namespace,
     proposals: Sequence[Proposal],
     ledger: PaperLedger | None,
+    monitors: dict[str, object],
 ) -> None:
     if not args.report:
         return
@@ -209,6 +229,7 @@ def _maybe_write_report(
         proposals=proposals,
         ledger=ledger,
         output_dir=Path("reports") / args.series.upper(),
+        monitors=monitors,
     )
     if not args.quiet:
         print(f"Wrote report to {report_path}")
@@ -232,6 +253,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--offline",
         action="store_true",
         help="Use offline fixtures for driver data.",
+    )
+    parser.add_argument(
+        "--online",
+        action="store_true",
+        help="Use live Kalshi API data (requires network).",
     )
     parser.add_argument(
         "--fixtures-root",
@@ -336,10 +362,11 @@ def scan_series(  # noqa: PLR0913
     offline: bool,
     sizing_mode: str,
     kelly_cap: float,
-) -> list[Proposal]:
+) -> ScanOutcome:
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
     proposals: list[Proposal] = []
+    non_monotone = 0
 
     for event in events:
         markets = client.get_markets(event.id)
@@ -369,6 +396,8 @@ def scan_series(  # noqa: PLR0913
             allowed_indices = None
             if not allow_tails:
                 allowed_indices = _adjacent_indices(strategy_pmf, len(rungs))
+            if not _is_monotone(strategy_survival):
+                non_monotone += 1
 
             rung_proposals = _evaluate_market(
                 market_id=market.id,
@@ -388,7 +417,13 @@ def scan_series(  # noqa: PLR0913
                 kelly_cap=kelly_cap,
             )
             proposals.extend(rung_proposals)
-    return proposals
+
+    monitors = {
+        "non_monotone_ladders": non_monotone,
+        "model_drift": _model_drift_flag(series_obj.ticker),
+        "tz_not_et": _tz_not_et(),
+    }
+    return ScanOutcome(proposals=proposals, monitors=monitors)
 
 
 def _strategy_pmf_for_series(
@@ -406,7 +441,65 @@ def _strategy_pmf_for_series(
 
     if pick == "cpi" and ticker == "CPI":
         return cpi.strategy_pmf(strikes, fixtures_dir=fixtures_dir, offline=offline)
+    if pick in {"claims", "jobless"} and ticker == "CLAIMS":
+        history = _load_history(fixtures_dir, "claims")
+        claims_history = [int(item["claims"]) for item in history[-6:]] if history else None
+        latest_claims = claims_history[-1] if claims_history else None
+        holiday_flag = bool(history[-1].get("holiday")) if history else False
+        inputs = claims_strategy.ClaimsInputs(
+            history=claims_history,
+            holiday_next=holiday_flag,
+            freeze_active=claims_strategy.freeze_window(),
+            latest_initial_claims=latest_claims,
+            four_week_avg=None,
+        )
+        return claims_strategy.pmf(strikes, inputs=inputs)
+    if pick in {"tney", "rates"} and ticker == "TNEY":
+        history = _load_history(fixtures_dir, "teny")
+        if history:
+            closes = [float(entry["actual_close"]) for entry in history]
+            latest = history[-1]
+            prior_close = float(latest.get("prior_close", closes[-1]))
+            macro_shock = float(latest.get("macro_shock", 0.0))
+            trailing = closes[:-1] if len(closes) > 1 else closes
+        else:
+            prior_close = None
+            macro_shock = 0.0
+            trailing = None
+        inputs = teny_strategy.TenYInputs(
+            prior_close=prior_close,
+            macro_shock=macro_shock,
+            trailing_history=trailing,
+        )
+        return teny_strategy.pmf(strikes, inputs=inputs)
+    if pick in {"weather"} and ticker == "WEATHER":
+        history = _load_history(fixtures_dir, "weather")
+        if history:
+            latest = history[-1]
+            inputs = weather_strategy.WeatherInputs(
+                forecast_high=float(latest.get("forecast_high", 70.0)),
+                bias=float(latest.get("bias", 0.0)),
+                spread=float(latest.get("spread", 3.0)),
+                station=str(latest.get("station", "")),
+            )
+        else:
+            inputs = weather_strategy.WeatherInputs(forecast_high=70.0)
+        return weather_strategy.pmf(strikes, inputs=inputs)
     raise NotImplementedError(f"No strategy PMF implemented for series {series}")
+
+
+def _load_history(fixtures_dir: Path, namespace: str) -> list[dict[str, object]]:
+    path = fixtures_dir / namespace / "history.json"
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    history = payload.get("history")
+    if isinstance(history, list):
+        return [item for item in history if isinstance(item, dict)]
+    return []
 
 
 def _market_survival_from_pmf(
@@ -437,6 +530,10 @@ def _adjacent_indices(
         end = min(idx + 1, rung_count - 1)
         allowed.update(range(start, end + 1))
     return allowed
+
+
+def _is_monotone(sequence: Sequence[float]) -> bool:
+    return all(a >= b - 1e-9 for a, b in zip(sequence, sequence[1:], strict=False))
 
 
 def _evaluate_market(  # noqa: PLR0913
@@ -621,6 +718,39 @@ def _find_series(client: KalshiPublicClient, ticker: str) -> Series:
         if series.ticker.upper() == ticker.upper():
             return series
     raise ValueError(f"Series {ticker} not found in fixtures")
+
+
+def _model_drift_flag(series_ticker: str) -> bool:
+    path_map = {
+        "CPI": PROC_ROOT / "cpi_calib.parquet",
+        "CLAIMS": PROC_ROOT / "claims_calib.parquet",
+        "TNEY": PROC_ROOT / "teny_calib.parquet",
+        "WEATHER": PROC_ROOT / "weather_calib.parquet",
+    }
+    path = path_map.get(series_ticker.upper())
+    if path is None or not path.exists():
+        return False
+    frame = pl.read_parquet(path)
+    summary = frame.filter(pl.col("record_type") == "params")
+    if summary.is_empty():
+        return False
+    row = summary.row(0, named=True)
+    crps = row.get("crps")
+    baseline_crps = row.get("baseline_crps")
+    if crps is not None and baseline_crps is not None:
+        if float(crps) > float(baseline_crps) * 1.1:
+            return True
+    brier = row.get("brier")
+    baseline_brier = row.get("baseline_brier")
+    if brier is not None and baseline_brier is not None:
+        if float(brier) > float(baseline_brier) * 1.1:
+            return True
+    return False
+
+
+def _tz_not_et() -> bool:
+    now_et = datetime.now(tz=ZoneInfo("America/New_York"))
+    return getattr(now_et.tzinfo, "key", "") != "America/New_York"
 
 
 if __name__ == "__main__":

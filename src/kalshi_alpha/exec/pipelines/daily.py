@@ -205,7 +205,8 @@ def check_window(now_et: datetime, start: time, end: time) -> dict[str, object]:
 def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> None:
     fixtures_root = Path(args.scanner_fixtures)
     driver_fixtures = Path(args.driver_fixtures)
-    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=args.offline)
+    offline_mode = args.offline or not args.online
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=offline_mode)
 
     pal_policy_path = Path("configs/pal_policy.yaml")
     if not pal_policy_path.exists():
@@ -221,7 +222,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
         log.setdefault("scan_notes", {})[mode] = "series_not_supported"
         return
 
-    proposals = scan_series(
+    outcome = scan_series(
         series=series,
         client=client,
         min_ev=0.01,
@@ -233,10 +234,13 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
         allow_tails=False,
         risk_manager=risk_manager,
         max_var=max_var,
-        offline=args.offline,
+        offline=offline_mode,
         sizing_mode="kelly",
         kelly_cap=args.kelly_cap,
     )
+
+    proposals = outcome.proposals
+    monitors = outcome.monitors
 
     if not proposals:
         log.setdefault("scan_results", {})[mode] = {"proposals": 0}
@@ -246,7 +250,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
         proposals=proposals,
         series=series,
         driver_fixtures=driver_fixtures,
-        offline=args.offline,
+        offline=offline_mode,
     )
 
     ledger: PaperLedger | None = None
@@ -268,6 +272,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
             proposals=proposals,
             ledger=ledger,
             output_dir=Path("reports") / series.upper(),
+            monitors=monitors,
         )
 
     log.setdefault("scan_results", {})[mode] = {
@@ -275,6 +280,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
         "proposals_path": str(proposals_path),
         "report_path": str(report_path) if report_path else None,
         "ledger_stats": ledger.to_dict() if ledger else None,
+        "monitors": monitors,
     }
 
 
@@ -282,11 +288,11 @@ def resolve_series(mode: str) -> str | None:
     if mode == "pre_cpi":
         return "CPI"
     if mode == "pre_claims":
-        return None  # placeholder until claims scanner added
+        return "CLAIMS"
     if mode == "teny_close":
-        return None
+        return "TNEY"
     if mode == "weather_cycle":
-        return None
+        return "WEATHER"
     return None
 
 
@@ -311,6 +317,9 @@ def write_log(mode: str, log: dict[str, object], now_utc: datetime) -> None:
     date_dir = PROC_ROOT / "logs" / now_utc.date().isoformat()
     date_dir.mkdir(parents=True, exist_ok=True)
     filename = date_dir / f"{now_utc.strftime('%H%M%S')}_{mode}.json"
+    from kalshi_alpha.utils.secrets import ensure_safe_payload
+
+    ensure_safe_payload(log)
     filename.write_text(json.dumps(log, indent=2, sort_keys=True), encoding="utf-8")
 
 

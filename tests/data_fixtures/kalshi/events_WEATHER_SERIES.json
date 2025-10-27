@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "id": "EVT_WEATHER_KBOS",
+      "series_id": "WEATHER_SERIES",
+      "ticker": "KBOS-TMAX",
+      "title": "KBOS Daily High"
+    }
+  ]
+}

@@ -20,6 +20,7 @@ def write_markdown_report(
     proposals: Sequence[Proposal],
     ledger: PaperLedger | None,
     output_dir: Path,
+    monitors: dict[str, object] | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=UTC)
@@ -46,6 +47,11 @@ def write_markdown_report(
         lines.append(f"Expected PnL: {summary['expected_pnl']:.2f} USD")
         lines.append(f"Max Loss: {summary['max_loss']:.2f} USD")
         lines.append(f"Trades: {summary['trades']}")
+        lines.append("")
+    if monitors:
+        lines.append("## Monitors")
+        for key, value in monitors.items():
+            lines.append(f"- {key}: {value}")
         lines.append("")
     lines.append("## Proposal Details")
     for proposal in proposals:

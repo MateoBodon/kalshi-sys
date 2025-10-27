@@ -1,0 +1,11 @@
+{
+  "market_id": "MKT_TNEY_MOVE",
+  "bids": [
+    {"price": 0.33, "size": 75},
+    {"price": 0.28, "size": 100}
+  ],
+  "asks": [
+    {"price": 0.37, "size": 70},
+    {"price": 0.42, "size": 90}
+  ]
+}

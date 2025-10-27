@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_WEATHER_KBOS",
+      "event_id": "EVT_WEATHER_KBOS",
+      "ticker": "KBOS-TMAX",
+      "title": "KBOS High Temperature",
+      "ladder_strikes": [55, 60, 65, 70, 75],
+      "ladder_yes_prices": [0.20, 0.30, 0.40, 0.45, 0.50]
+    }
+  ]
+}

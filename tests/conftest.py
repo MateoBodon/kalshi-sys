@@ -38,6 +38,7 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     from kalshi_alpha.drivers import bls_cpi, cleveland_nowcast, dol_claims, treasury_yields, nws_cli
     from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
     from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
+    from kalshi_alpha.exec.runners import scan_ladders
     from kalshi_alpha.strategies import claims as claims_strategy
     from kalshi_alpha.strategies import cpi as cpi_strategy
     from kalshi_alpha.strategies import teny as teny_strategy
@@ -83,5 +84,6 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     monkeypatch.setattr(claims_strategy, "CALIBRATION_PATH", proc_root / "claims_calib.parquet")
     monkeypatch.setattr(teny_strategy, "CALIBRATION_PATH", proc_root / "teny_calib.parquet")
     monkeypatch.setattr(weather_strategy, "CALIBRATION_PATH", proc_root / "weather_calib.parquet")
+    monkeypatch.setattr(scan_ladders, "PROC_ROOT", proc_root)
 
     return raw_root, proc_root

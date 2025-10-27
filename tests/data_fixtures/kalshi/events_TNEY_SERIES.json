@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "id": "EVT_TNEY_CLOSE",
+      "series_id": "TNEY_SERIES",
+      "ticker": "TNEY-DAY",
+      "title": "10Y Treasury Close"
+    }
+  ]
+}
