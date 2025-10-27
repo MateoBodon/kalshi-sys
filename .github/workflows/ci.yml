@@ -194,18 +194,36 @@ PY
         run: |
           python -m pip install --upgrade pip
           python -m pip install .[dev]
-      - name: Run offline daily pipeline
+      - name: Run today pipeline offline (nightly)
         run: |
-          python -m kalshi_alpha.exec.pipelines.daily \
-            --mode full \
+          python -m kalshi_alpha.exec.pipelines.today \
             --offline \
+            --report \
+            --paper-ledger \
             --driver-fixtures tests/fixtures \
             --scanner-fixtures tests/data_fixtures \
-            --report \
-            --paper-ledger
-      - name: Upload reports
+            --include-weather \
+            --fill-alpha auto \
+            --slippage-mode depth \
+            --impact-cap 0.25
+      - name: Aggregate ledgers
+        run: |
+          python -m kalshi_alpha.exec.ledger.aggregate
+      - name: Generate scoreboards
+        run: |
+          python -m kalshi_alpha.exec.scoreboard
+      - name: Housekeeping
+        run: |
+          python -m kalshi_alpha.exec.housekeep --keep-days 30
+      - name: Upload nightly reports
         uses: actions/upload-artifact@v4
         with:
-          name: offline-reports
+          name: nightly-reports
           path: reports
+          if-no-files-found: warn
+      - name: Upload nightly ledger parquet
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-ledger
+          path: data/proc/ledger_all.parquet
           if-no-files-found: warn

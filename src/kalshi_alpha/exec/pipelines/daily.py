@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, tune_alpha
 from kalshi_alpha.core.execution.slippage import SlippageModel
 from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook
@@ -34,6 +34,7 @@ from kalshi_alpha.strategies.weather import calibrate as calibrate_weather
 ET = ZoneInfo("America/New_York")
 
 MODE_SEQUENCE = ["pre_cpi", "pre_claims", "teny_close", "weather_cycle"]
+DEFAULT_FILL_ALPHA = 0.6
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -80,9 +81,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--fill-alpha",
-        type=float,
-        default=0.6,
-        help="Fraction of visible depth expected to fill (0-1).",
+        default="0.6",
+        help="Fraction of visible depth expected to fill (0-1) or 'auto'.",
     )
     parser.add_argument(
         "--slippage-mode",
@@ -114,6 +114,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _resolve_fill_alpha_value(fill_alpha_arg: object, series: str) -> tuple[float, bool]:
+    if fill_alpha_arg is None:
+        return DEFAULT_FILL_ALPHA, False
+    if isinstance(fill_alpha_arg, str):
+        raw = fill_alpha_arg.strip().lower()
+        if raw == "auto":
+            tuned = tune_alpha(series, RAW_ROOT / "kalshi")
+            if tuned is not None:
+                return float(tuned), True
+            return DEFAULT_FILL_ALPHA, True
+        try:
+            return float(raw), False
+        except ValueError:
+            return DEFAULT_FILL_ALPHA, False
+    try:
+        return float(fill_alpha_arg), False
+    except (TypeError, ValueError):
+        return DEFAULT_FILL_ALPHA, False
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     modes = MODE_SEQUENCE if args.mode == "full" else [args.mode]
@@ -132,7 +152,16 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
     try:
         run_ingest(args, log)
         run_calibrations(args, log)
-        gate_result = run_quality_gate_step(args, now_utc, log)
+        series = resolve_series(mode)
+        fill_alpha_value = DEFAULT_FILL_ALPHA
+        fill_alpha_auto = False
+        extra_monitors: dict[str, float] = {}
+        if series is not None:
+            fill_alpha_value, fill_alpha_auto = _resolve_fill_alpha_value(args.fill_alpha, series)
+            log.setdefault("fill_alpha", {})[series] = fill_alpha_value
+            key = "fill_alpha_auto" if fill_alpha_auto else "fill_alpha"
+            extra_monitors[key] = fill_alpha_value
+        gate_result = run_quality_gate_step(args, now_utc, log, monitors=extra_monitors)
         if not gate_result.go:
             raise SystemExit(1)
         target_date: date = args.when if args.when else now_utc.astimezone(ET).date()
@@ -145,7 +174,17 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
                 reason = ",".join(run_window.notes)
             log.setdefault("scan_notes", {})[mode] = reason
         else:
-            run_scan(mode, args, log)
+            if series is None:
+                log.setdefault("scan_notes", {})[mode] = "series_not_supported"
+            else:
+                run_scan(
+                    mode,
+                    args,
+                    log,
+                    series=series,
+                    fill_alpha_value=fill_alpha_value,
+                    fill_alpha_auto=fill_alpha_auto,
+                )
     except Exception as exc:  # pragma: no cover - orchestration guard
         log.setdefault("errors", []).append(str(exc))
         raise
@@ -205,9 +244,17 @@ def run_quality_gate_step(
     args: argparse.Namespace,
     now_utc: datetime,
     log: dict[str, object],
+    *,
+    monitors: dict[str, float] | None = None,
 ) -> QualityGateResult:
     config = load_quality_gate_config(_resolve_quality_gate_config_path())
-    result = run_quality_gates(config=config, now=now_utc, proc_root=PROC_ROOT, raw_root=RAW_ROOT)
+    result = run_quality_gates(
+        config=config,
+        now=now_utc,
+        proc_root=PROC_ROOT,
+        raw_root=RAW_ROOT,
+        monitors=monitors or {},
+    )
     drawdown_status = drawdown.check_limits(
         getattr(args, "daily_loss_cap", None),
         getattr(args, "weekly_loss_cap", None),
@@ -224,11 +271,14 @@ def run_quality_gate_step(
 
     combined = QualityGateResult(go=go_flag, reasons=combined_reasons, details=details)
 
-    log["quality_gates"] = {
+    log_entry = {
         "go": combined.go,
         "reasons": combined.reasons,
         "details": combined.details,
     }
+    if monitors:
+        log_entry["monitors"] = monitors
+    log["quality_gates"] = log_entry
     _write_go_no_go(combined)
     return combined
 
@@ -270,7 +320,15 @@ def _parse_date(value: str) -> date:
         raise argparse.ArgumentTypeError(f"Invalid date for --when: {value}") from exc
 
 
-def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> None:
+def run_scan(
+    mode: str,
+    args: argparse.Namespace,
+    log: dict[str, object],
+    *,
+    series: str,
+    fill_alpha_value: float,
+    fill_alpha_auto: bool,
+) -> None:
     fixtures_root = Path(args.scanner_fixtures)
     driver_fixtures = Path(args.driver_fixtures)
     offline_mode = args.offline or not args.online
@@ -285,11 +343,6 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
     risk_manager: PortfolioRiskManager | None = None
     max_var = None
     strategy_name = "auto"
-    series = resolve_series(mode)
-    if series is None:
-        log.setdefault("scan_notes", {})[mode] = "series_not_supported"
-        return
-
     outcome = scan_series(
         series=series,
         client=client,
@@ -310,6 +363,10 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
 
     proposals = outcome.proposals
     monitors = outcome.monitors
+    if fill_alpha_auto:
+        monitors["fill_alpha_auto"] = fill_alpha_value
+    else:
+        monitors.setdefault("fill_alpha", fill_alpha_value)
     exposure_summary = _compute_exposure_summary(proposals)
     cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
     should_archive = args.report or args.paper_ledger
@@ -334,7 +391,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
             for proposal in proposals
             if proposal.market_id in orderbooks
         }
-        estimator = FillRatioEstimator(args.fill_alpha) if args.fill_alpha is not None else None
+        estimator = FillRatioEstimator(fill_alpha_value) if fill_alpha_value is not None else None
         event_lookup: dict[str, str] = {}
         if outcome.events and outcome.markets:
             event_tickers = {event.id: event.ticker for event in outcome.events}
@@ -402,7 +459,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
             exposure_summary=exposure_summary,
             manifest_path=manifest_path,
             go_status=True,
-            fill_alpha=args.fill_alpha,
+            fill_alpha=fill_alpha_value,
         )
 
     log.setdefault("scan_results", {})[mode] = {

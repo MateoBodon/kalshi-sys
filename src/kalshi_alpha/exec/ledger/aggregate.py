@@ -48,8 +48,9 @@ def main(argv: list[str] | None = None) -> None:
         missing = [col for col in expected_columns if col not in frame.columns]
         if missing:
             raise ValueError(f"Ledger file {csv_path} missing columns: {missing}")
-        if set(map(str.lower, frame.columns)) != set(map(str.lower, expected_columns)):
-            frame = frame.select(expected_columns)
+        extra = [col for col in frame.columns if col not in expected_columns]
+        if extra:
+            raise ValueError(f"Ledger file {csv_path} contains unknown columns: {extra}")
         versions: list[int] = []
         for value in frame["ledger_schema_version"].to_list():
             if value is None:

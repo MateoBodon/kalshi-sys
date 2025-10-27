@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import polars as pl
 
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
-from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, tune_alpha
 from kalshi_alpha.core.execution.slippage import SlippageModel
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import Event, KalshiPublicClient, Market, Orderbook, Series
@@ -50,6 +50,27 @@ from kalshi_alpha.strategies import weather as weather_strategy
 
 DEFAULT_MIN_EV = 0.05  # USD per contract after maker fees
 DEFAULT_CONTRACTS = 10
+DEFAULT_FILL_ALPHA = 0.6
+
+
+def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float, bool]:
+    if fill_alpha_arg is None:
+        return DEFAULT_FILL_ALPHA, False
+    if isinstance(fill_alpha_arg, str):
+        value = fill_alpha_arg.strip().lower()
+        if value == "auto":
+            tuned = tune_alpha(series, RAW_ROOT / "kalshi")
+            if tuned is not None:
+                return float(tuned), True
+            return DEFAULT_FILL_ALPHA, True
+        try:
+            return float(value), False
+        except ValueError:
+            return DEFAULT_FILL_ALPHA, False
+    try:
+        return float(fill_alpha_arg), False
+    except (TypeError, ValueError):
+        return DEFAULT_FILL_ALPHA, False
 
 
 @dataclass
@@ -114,6 +135,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise ValueError("Cannot specify both --online and --offline.")
 
     client = _build_client(fixtures_root, use_online=args.online)
+    fill_alpha_value, fill_alpha_auto = _resolve_fill_alpha_arg(args.fill_alpha, args.series)
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
     offline_mode = args.offline or not args.online
@@ -149,6 +171,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     proposals = outcome.proposals
+    if fill_alpha_auto:
+        outcome.monitors["fill_alpha_auto"] = fill_alpha_value
+    else:
+        outcome.monitors.setdefault("fill_alpha", fill_alpha_value)
     should_archive = args.report or args.paper_ledger
     orderbook_ids: set[str] = set()
     if args.report or args.paper_ledger:
@@ -168,7 +194,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         proposals,
         client,
         orderbooks=orderbooks,
-        fill_alpha=args.fill_alpha,
+        fill_alpha=fill_alpha_value,
         series=outcome.series,
         events=outcome.events,
         markets=outcome.markets,
@@ -219,7 +245,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         exposure_summary,
         manifest_path,
         go_status=True,
-        fill_alpha=args.fill_alpha,
+        fill_alpha=fill_alpha_value,
     )
 
     if not proposals:
@@ -487,9 +513,8 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--fill-alpha",
-        type=float,
-        default=0.6,
-        help="Fraction of visible depth expected to fill (0-1).",
+        default="0.6",
+        help="Fraction of visible depth expected to fill (0-1) or 'auto'.",
     )
     parser.add_argument(
         "--slippage-mode",
