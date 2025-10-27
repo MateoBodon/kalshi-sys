@@ -59,6 +59,7 @@ def write_markdown_report(
         lines.append(f"Max Loss: {summary['max_loss']:.2f} USD")
         lines.append(f"Trades: {summary['trades']}")
         lines.append("")
+        lines.extend(_expected_vs_realized_rows(ledger))
     if monitors:
         lines.append("## Monitors")
         for key, value in monitors.items():
@@ -138,3 +139,28 @@ def write_markdown_report(
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
+
+
+def _expected_vs_realized_rows(ledger: PaperLedger) -> list[str]:
+    if not ledger.records:
+        return []
+    total_requested = sum(record.proposal.contracts for record in ledger.records)
+    total_expected = sum(record.expected_fills for record in ledger.records)
+    total_delta = total_expected - total_requested
+    lines = [
+        "### Expected vs Realized Fills",
+        "| Market | Bin | Side | Requested | Expected | Delta | Fill % |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for record in ledger.records:
+        requested = record.proposal.contracts
+        expected = record.expected_fills
+        delta = expected - requested
+        fill_pct = max(0.0, min(1.0, record.fill_ratio)) * 100
+        lines.append(
+            f"| {record.proposal.market_ticker} | {record.proposal.strike:.2f} | "
+            f"{record.proposal.side} | {requested} | {expected} | {delta:+d} | {fill_pct:.1f}% |"
+        )
+    lines.append(f"| **Totals** |  |  | {total_requested} | {total_expected} | {total_delta:+d} |  |")
+    lines.append("")
+    return lines

@@ -16,6 +16,7 @@ import polars as pl
 
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
+from kalshi_alpha.core.execution.slippage import SlippageModel
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import Event, KalshiPublicClient, Market, Orderbook, Series
 from kalshi_alpha.core.pricing import (
@@ -168,6 +169,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         client,
         orderbooks=orderbooks,
         fill_alpha=args.fill_alpha,
+        series=outcome.series,
+        events=outcome.events,
+        markets=outcome.markets,
     )
     if ledger:
         drawdown.record_pnl(ledger.total_expected_pnl())
@@ -202,6 +206,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         if manifest_path and not args.quiet:
             print(f"Archived snapshot manifest at {manifest_path}")
+
+    if ledger and (args.paper_ledger or args.report):
+        artifacts_dir = Path("reports/_artifacts")
+        ledger.write_artifacts(artifacts_dir, manifest_path=manifest_path)
 
     _maybe_write_report(
         args,
@@ -257,6 +265,9 @@ def _maybe_simulate_ledger(
     *,
     orderbooks: dict[str, Orderbook] | None = None,
     fill_alpha: float | None = None,
+    series: Series | None = None,
+    events: Sequence[Event] | None = None,
+    markets: Sequence[Market] | None = None,
 ) -> PaperLedger | None:
     if not proposals or not (args.paper_ledger or args.report):
         return None
@@ -268,11 +279,31 @@ def _maybe_simulate_ledger(
             except Exception:  # pragma: no cover - tolerate missing books
                 continue
     estimator = FillRatioEstimator(fill_alpha) if fill_alpha is not None else None
+    event_lookup: dict[str, str] = {}
+    if events is not None and markets is not None:
+        event_tickers = {event.id: event.ticker for event in events}
+        for market in markets:
+            label = event_tickers.get(market.event_id) or market.ticker
+            event_lookup[market.id] = label
+    series_label = series.ticker if series is not None else args.series
+    slippage_mode = (getattr(args, "slippage_mode", "top") or "top").lower()
+    impact_cap_arg = getattr(args, "impact_cap", None)
+    slippage_model = None
+    if slippage_mode in {"top", "depth"}:
+        if impact_cap_arg is not None:
+            slippage_model = SlippageModel(mode=slippage_mode, impact_cap=float(impact_cap_arg))
+        else:
+            slippage_model = SlippageModel(mode=slippage_mode)
+    elif slippage_mode != "mid":
+        slippage_mode = "top"
     ledger = simulate_fills(
         proposals,
         cache,
-        artifacts_dir=Path("reports/_artifacts") if (args.paper_ledger or args.report) else None,
         fill_estimator=estimator,
+        ledger_series=series_label,
+        market_event_lookup=event_lookup,
+        mode=slippage_mode,
+        slippage_model=slippage_model,
     )
     if args.paper_ledger and not args.quiet:
         stats = ledger.to_dict()
@@ -459,6 +490,18 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         type=float,
         default=0.6,
         help="Fraction of visible depth expected to fill (0-1).",
+    )
+    parser.add_argument(
+        "--slippage-mode",
+        default="top",
+        choices=["top", "depth", "mid"],
+        help="Slippage model to use for paper ledger fills.",
+    )
+    parser.add_argument(
+        "--impact-cap",
+        type=float,
+        default=0.02,
+        help="Maximum absolute price impact for depth slippage.",
     )
     parser.add_argument(
         "--uncertainty-penalty",

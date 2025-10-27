@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -56,6 +57,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.6,
         help="Fill ratio alpha forwarded to daily pipeline (0-1).",
     )
+    parser.add_argument(
+        "--slippage-mode",
+        default="top",
+        choices=["top", "depth", "mid"],
+        help="Slippage mode forwarded to daily pipeline.",
+    )
+    parser.add_argument(
+        "--impact-cap",
+        type=float,
+        default=0.02,
+        help="Impact cap forwarded to daily pipeline (probability points).",
+    )
     return parser.parse_args(argv)
 
 
@@ -68,6 +81,9 @@ def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     now = _now()
     runs = _plan_runs(now, include_weather=args.include_weather)
+
+    badge_path = _badge_path()
+    print(f"[today] GO/NO-GO badge -> {badge_path}")
 
     if not runs:
         print("[today] No modes scheduled for current calendar.")
@@ -95,12 +111,25 @@ def main(argv: list[str] | None = None) -> None:
         base_flags.extend(["--weekly-loss-cap", _fmt_float(args.weekly_loss_cap)])
     if args.fill_alpha is not None:
         base_flags.extend(["--fill-alpha", _fmt_float(args.fill_alpha)])
+    if args.slippage_mode:
+        base_flags.extend(["--slippage-mode", args.slippage_mode])
+    if args.impact_cap is not None:
+        base_flags.extend(["--impact-cap", _fmt_float(args.impact_cap)])
 
     for mode_run in runs:
         mode, run_date = mode_run.mode, mode_run.run_date
         run_args = ["--mode", mode, "--when", run_date.isoformat(), *base_flags]
         print(f"[today] Running {mode} for {run_date.isoformat()} ...")
         daily.main(run_args)
+        _print_manifest_link()
+
+    final_manifest = _load_latest_manifest()
+    if final_manifest:
+        print(f"[today] Manifest used: {final_manifest}")
+
+    go_flag = _load_go_status(badge_path)
+    if go_flag is False:
+        raise SystemExit(1)
 
 
 @dataclass(frozen=True)
@@ -166,6 +195,45 @@ def _plan_runs(
 
 def _now() -> datetime:
     return datetime.now(tz=UTC)
+
+
+def _badge_path() -> Path:
+    return Path("reports/_artifacts/go_no_go.json")
+
+
+def _latest_manifest_marker() -> Path:
+    return Path("reports/_artifacts/latest_manifest.txt")
+
+
+def _load_latest_manifest() -> Path | None:
+    marker = _latest_manifest_marker()
+    if not marker.exists():
+        return None
+    content = marker.read_text(encoding="utf-8").strip()
+    if not content:
+        return None
+    return Path(content)
+
+
+def _print_manifest_link() -> None:
+    manifest = _load_latest_manifest()
+    if manifest is not None:
+        print(f"[today] Archived manifest: {manifest}")
+
+
+def _load_go_status(path: Path) -> bool | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    value = payload.get("go")
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    return bool(value)
 
 
 if __name__ == "__main__":

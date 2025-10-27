@@ -9,6 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
+from kalshi_alpha.core.execution.slippage import SlippageModel
 from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook
 from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioRiskManager, drawdown
@@ -82,6 +83,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         default=0.6,
         help="Fraction of visible depth expected to fill (0-1).",
+    )
+    parser.add_argument(
+        "--slippage-mode",
+        default="top",
+        choices=["top", "depth", "mid"],
+        help="Slippage model to use for paper ledger fills.",
+    )
+    parser.add_argument(
+        "--impact-cap",
+        type=float,
+        default=0.02,
+        help="Maximum absolute price impact for depth slippage.",
     )
     parser.add_argument(
         "--when",
@@ -239,6 +252,17 @@ def _write_go_no_go(result: QualityGateResult) -> Path:
     return output_path
 
 
+def _write_latest_manifest(manifest_path: Path | None) -> None:
+    artifacts_dir = Path("reports/_artifacts")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    marker = artifacts_dir / "latest_manifest.txt"
+    if manifest_path is None:
+        if marker.exists():
+            marker.unlink()
+        return
+    marker.write_text(manifest_path.as_posix(), encoding="utf-8")
+
+
 def _parse_date(value: str) -> date:
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
@@ -311,11 +335,30 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
             if proposal.market_id in orderbooks
         }
         estimator = FillRatioEstimator(args.fill_alpha) if args.fill_alpha is not None else None
+        event_lookup: dict[str, str] = {}
+        if outcome.events and outcome.markets:
+            event_tickers = {event.id: event.ticker for event in outcome.events}
+            for market in outcome.markets:
+                label = event_tickers.get(market.event_id) or market.ticker
+                event_lookup[market.id] = label
+        slippage_mode = (args.slippage_mode or "top").lower()
+        impact_cap_arg = args.impact_cap
+        slippage_model = None
+        if slippage_mode in {"top", "depth"}:
+            if impact_cap_arg is not None:
+                slippage_model = SlippageModel(mode=slippage_mode, impact_cap=float(impact_cap_arg))
+            else:
+                slippage_model = SlippageModel(mode=slippage_mode)
+        elif slippage_mode != "mid":
+            slippage_mode = "top"
         ledger = simulate_fills(
             proposals,
             ledger_books,
-            artifacts_dir=Path("reports/_artifacts"),
             fill_estimator=estimator,
+            ledger_series=series,
+            market_event_lookup=event_lookup,
+            mode=slippage_mode,
+            slippage_model=slippage_model,
         )
 
     if ledger:
@@ -334,6 +377,11 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
             driver_fixtures=driver_fixtures,
             scanner_fixtures=fixtures_root,
         )
+
+    _write_latest_manifest(manifest_path)
+
+    if ledger and (args.paper_ledger or args.report):
+        ledger.write_artifacts(Path("reports/_artifacts"), manifest_path=manifest_path)
 
     if proposals:
         _attach_series_metadata(

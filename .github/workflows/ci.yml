@@ -161,18 +161,24 @@ PY
             --paper-ledger \
             --driver-fixtures tests/fixtures \
             --scanner-fixtures tests/data_fixtures \
-            --include-weather
+            --include-weather \
+            --fill-alpha 0.6 \
+            --slippage-mode depth \
+            --impact-cap 0.25
+      - name: Aggregate ledgers
+        run: |
+          python -m kalshi_alpha.exec.ledger.aggregate
       - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
           name: today-reports
           path: reports
           if-no-files-found: warn
-      - name: Upload archives
+      - name: Upload ledger parquet
         uses: actions/upload-artifact@v4
         with:
-          name: today-archives
-          path: data/raw/kalshi
+          name: ledger-parquet
+          path: data/proc/ledger_all.parquet
           if-no-files-found: warn
 
   nightly-offline-pipeline:
