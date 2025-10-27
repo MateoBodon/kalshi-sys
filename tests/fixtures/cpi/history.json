@@ -1,16 +1,16 @@
 {
   "history": [
-    {"period": "2024-11", "cleveland_nowcast": 0.28, "aaa_delta": 0.01, "actual": 0.29},
-    {"period": "2024-12", "cleveland_nowcast": 0.24, "aaa_delta": -0.02, "actual": 0.23},
-    {"period": "2025-01", "cleveland_nowcast": 0.27, "aaa_delta": 0.00, "actual": 0.26},
-    {"period": "2025-02", "cleveland_nowcast": 0.31, "aaa_delta": 0.03, "actual": 0.34},
-    {"period": "2025-03", "cleveland_nowcast": 0.33, "aaa_delta": 0.04, "actual": 0.36},
-    {"period": "2025-04", "cleveland_nowcast": 0.29, "aaa_delta": 0.02, "actual": 0.31},
-    {"period": "2025-05", "cleveland_nowcast": 0.28, "aaa_delta": 0.01, "actual": 0.30},
-    {"period": "2025-06", "cleveland_nowcast": 0.26, "aaa_delta": 0.00, "actual": 0.25},
-    {"period": "2025-07", "cleveland_nowcast": 0.32, "aaa_delta": 0.03, "actual": 0.35},
-    {"period": "2025-08", "cleveland_nowcast": 0.34, "aaa_delta": 0.05, "actual": 0.38},
-    {"period": "2025-09", "cleveland_nowcast": 0.31, "aaa_delta": 0.02, "actual": 0.33},
-    {"period": "2025-10", "cleveland_nowcast": 0.30, "aaa_delta": 0.01, "actual": 0.31}
+    {"period": "2024-11", "cleveland_nowcast": 0.28, "aaa_delta": 0.01, "actual": 0.29, "prev_yoy": 3.10, "base_effect": 0.22, "actual_yoy": 3.17},
+    {"period": "2024-12", "cleveland_nowcast": 0.24, "aaa_delta": -0.02, "actual": 0.23, "prev_yoy": 3.17, "base_effect": 0.24, "actual_yoy": 3.16},
+    {"period": "2025-01", "cleveland_nowcast": 0.27, "aaa_delta": 0.00, "actual": 0.26, "prev_yoy": 3.16, "base_effect": 0.25, "actual_yoy": 3.17},
+    {"period": "2025-02", "cleveland_nowcast": 0.31, "aaa_delta": 0.03, "actual": 0.34, "prev_yoy": 3.17, "base_effect": 0.27, "actual_yoy": 3.24},
+    {"period": "2025-03", "cleveland_nowcast": 0.33, "aaa_delta": 0.04, "actual": 0.36, "prev_yoy": 3.24, "base_effect": 0.26, "actual_yoy": 3.34},
+    {"period": "2025-04", "cleveland_nowcast": 0.29, "aaa_delta": 0.02, "actual": 0.31, "prev_yoy": 3.34, "base_effect": 0.28, "actual_yoy": 3.37},
+    {"period": "2025-05", "cleveland_nowcast": 0.28, "aaa_delta": 0.01, "actual": 0.30, "prev_yoy": 3.37, "base_effect": 0.29, "actual_yoy": 3.38},
+    {"period": "2025-06", "cleveland_nowcast": 0.26, "aaa_delta": 0.00, "actual": 0.25, "prev_yoy": 3.38, "base_effect": 0.31, "actual_yoy": 3.32},
+    {"period": "2025-07", "cleveland_nowcast": 0.32, "aaa_delta": 0.03, "actual": 0.35, "prev_yoy": 3.32, "base_effect": 0.30, "actual_yoy": 3.37},
+    {"period": "2025-08", "cleveland_nowcast": 0.34, "aaa_delta": 0.05, "actual": 0.38, "prev_yoy": 3.37, "base_effect": 0.28, "actual_yoy": 3.47},
+    {"period": "2025-09", "cleveland_nowcast": 0.31, "aaa_delta": 0.02, "actual": 0.33, "prev_yoy": 3.47, "base_effect": 0.27, "actual_yoy": 3.53},
+    {"period": "2025-10", "cleveland_nowcast": 0.30, "aaa_delta": 0.01, "actual": 0.31, "prev_yoy": 3.53, "base_effect": 0.25, "actual_yoy": 3.59}
   ]
 }

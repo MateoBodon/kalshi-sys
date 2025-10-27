@@ -26,6 +26,7 @@ from kalshi_alpha.core.risk import (
     PortfolioRiskManager,
     max_loss_for_order,
 )
+from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, truncate_kelly
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
@@ -78,6 +79,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         risk_manager=risk_manager,
         max_var=args.max_var,
         offline=args.offline,
+        sizing_mode=args.sizing,
+        kelly_cap=args.kelly_cap,
     )
 
     ledger = _maybe_simulate_ledger(args, proposals, client)
@@ -142,7 +145,11 @@ def _maybe_simulate_ledger(
     for proposal in proposals:
         if proposal.market_id not in orderbooks:
             orderbooks[proposal.market_id] = client.get_orderbook(proposal.market_id)
-    ledger = simulate_fills(proposals, orderbooks)
+    ledger = simulate_fills(
+        proposals,
+        orderbooks,
+        artifacts_dir=Path("reports/_artifacts") if (args.paper_ledger or args.report) else None,
+    )
     if args.paper_ledger and not args.quiet:
         stats = ledger.to_dict()
         print(
@@ -249,6 +256,18 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Target contracts per proposal.",
     )
     parser.add_argument(
+        "--sizing",
+        default="fixed",
+        choices=["fixed", "kelly"],
+        help="Position sizing methodology.",
+    )
+    parser.add_argument(
+        "--kelly-cap",
+        type=float,
+        default=0.25,
+        help="Maximum Kelly fraction when sizing via Kelly.",
+    )
+    parser.add_argument(
         "--strategy",
         default="auto",
         choices=["auto", "cpi"],
@@ -315,6 +334,8 @@ def scan_series(  # noqa: PLR0913
     risk_manager: PortfolioRiskManager | None,
     max_var: float | None,
     offline: bool,
+    sizing_mode: str,
+    kelly_cap: float,
 ) -> list[Proposal]:
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
@@ -363,6 +384,8 @@ def scan_series(  # noqa: PLR0913
                 risk_manager=risk_manager,
                 max_var=max_var,
                 strategy_name=series_obj.ticker.upper(),
+                sizing_mode=sizing_mode,
+                kelly_cap=kelly_cap,
             )
             proposals.extend(rung_proposals)
     return proposals
@@ -431,6 +454,8 @@ def _evaluate_market(  # noqa: PLR0913
     risk_manager: PortfolioRiskManager | None,
     max_var: float | None,
     strategy_name: str,
+    sizing_mode: str,
+    kelly_cap: float,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
 
@@ -472,8 +497,34 @@ def _evaluate_market(  # noqa: PLR0913
         if max_contracts <= 0:
             continue
 
+        contract_count = max_contracts
+        if sizing_mode == "kelly":
+            if best_side is OrderSide.YES:
+                raw_fraction = kelly_yes_no(event_probability, yes_price)
+            else:
+                raw_fraction = kelly_yes_no(1.0 - event_probability, 1.0 - yes_price)
+            sized_fraction = truncate_kelly(raw_fraction, kelly_cap)
+            if sized_fraction <= 0.0:
+                continue
+            capital_base = pal_guard.policy.default_max_loss
+            raw_risk = capital_base * sized_fraction
+            var_remaining = None
+            if risk_manager and max_var is not None:
+                var_remaining = max(max_var - risk_manager.current_var(), 0.0)
+            capped_risk = apply_caps(
+                raw_risk,
+                pal=remaining_limit,
+                max_loss_per_strike=pal_guard.policy.limit_for_strike(order_id),
+                max_var=var_remaining,
+            )
+            if capped_risk <= 0.0:
+                continue
+            contract_count = min(max_contracts, int(capped_risk // max_loss_single))
+            if contract_count <= 0:
+                continue
+
         total_ev = expected_value_summary(
-            contracts=max_contracts,
+            contracts=contract_count,
             yes_price=yes_price,
             event_probability=event_probability,
             schedule=DEFAULT_FEE_SCHEDULE,
@@ -486,7 +537,7 @@ def _evaluate_market(  # noqa: PLR0913
             total_ev[taker_key] = 0.0
             per_contract[taker_key] = 0.0
 
-        total_max_loss = max_loss_single * max_contracts
+        total_max_loss = max_loss_single * contract_count
         if risk_manager and not risk_manager.can_accept(
             strategy=strategy_name,
             max_loss=total_max_loss,
@@ -499,7 +550,7 @@ def _evaluate_market(  # noqa: PLR0913
             market_ticker=market_ticker,
             strike=rung.strike,
             side=best_side.name,
-            contracts=max_contracts,
+            contracts=contract_count,
             maker_ev=total_ev[maker_key],
             taker_ev=total_ev[taker_key],
             maker_ev_per_contract=per_contract[maker_key],
@@ -516,7 +567,7 @@ def _evaluate_market(  # noqa: PLR0913
             OrderProposal(
                 strike_id=order_id,
                 yes_price=yes_price,
-                contracts=max_contracts,
+                contracts=contract_count,
                 side=best_side,
                 liquidity=Liquidity.MAKER,
                 market_name=market_ticker,

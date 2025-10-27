@@ -1,15 +1,20 @@
-"""10-year Treasury yield strategy stub."""
+"""10-year Treasury yield strategy with factor calibration."""
 
 from __future__ import annotations
 
-import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import sqrt
+from typing import Any
 
+import polars as pl
+
+from kalshi_alpha.core.backtest import crps_from_pmf
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.strategies import base
+
+CALIBRATION_PATH = PROC_ROOT / "teny_calib.parquet"
 
 
 @dataclass(frozen=True)
@@ -21,15 +26,22 @@ class TenYInputs:
     trailing_history: Sequence[float] | None = None
 
 
-def pmf(strikes: Sequence[float], inputs: TenYInputs | None = None) -> list[LadderBinProbability]:
+def pmf(
+    strikes: Sequence[float],
+    inputs: TenYInputs | None = None,
+    *,
+    calibration: Mapping[str, float] | None = None,
+) -> list[LadderBinProbability]:
     inputs = inputs or TenYInputs()
+    params = calibration or _load_calibration()
     if inputs.prior_close is not None:
-        calibration = _load_calibration()
-        beta = calibration.get("shock_beta", 1.4) if calibration else 1.4
-        mean = inputs.prior_close + beta * inputs.macro_shock
+        beta_macro = params.get("shock_beta", 1.4) if params else 1.4
+        beta_slope = params.get("slope_beta", 0.0) if params else 0.0
+        slope_factor = _slope_factor(inputs)
+        mean = inputs.prior_close + beta_macro * inputs.macro_shock + beta_slope * slope_factor
         history = list(inputs.trailing_history or [])
         history.append(inputs.prior_close)
-        residual_std = calibration.get("residual_std") if calibration else None
+        residual_std = params.get("residual_std") if params else None
         spread = max(_sample_std(history[-6:]), residual_std or 0.05)
         spread = min(spread, 0.2)
         distribution = {
@@ -53,42 +65,141 @@ def _sample_std(values: Sequence[float]) -> float:
     return sqrt(variance)
 
 
-CALIBRATION_DIR = PROC_ROOT / "calibration"
-CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
-CALIBRATION_PATH = CALIBRATION_DIR / "teny.json"
+def _slope_factor(inputs: TenYInputs) -> float:
+    history = list(inputs.trailing_history or [])
+    if not history:
+        return 0.0
+    window = history[-5:] if len(history) >= 5 else history
+    trailing_mean = sum(window) / len(window)
+    return float(inputs.prior_close or trailing_mean) - trailing_mean
 
 
-def calibrate(history: Sequence[dict[str, float]]) -> dict[str, float]:
+def calibrate(history: Sequence[dict[str, float]]) -> pl.DataFrame:
     if len(history) < 2:
         raise ValueError("ten-year history requires at least two rows")
-    shocks: list[float] = []
-    diffs: list[float] = []
+
+    deltas: list[float] = []
+    macro: list[float] = []
+    slope_terms: list[float] = []
+    records: list[dict[str, Any]] = []
+    model_crps: list[float] = []
+    baseline_crps: list[float] = []
+
+    closes = [float(entry["actual_close"]) for entry in history]
     for idx in range(1, len(history)):
-        prior = history[idx - 1]["actual_close"]
-        current = history[idx]["actual_close"]
-        shocks.append(history[idx]["macro_shock"])
-        diffs.append(current - prior)
-    shock_beta = _ols_beta(shocks, diffs)
-    residuals = [diff - shock_beta * shock for diff, shock in zip(diffs, shocks, strict=True)]
+        prior = closes[idx - 1]
+        current = closes[idx]
+        deltas.append(current - prior)
+        macro_value = float(history[idx]["macro_shock"])
+        macro.append(macro_value)
+        slope_terms.append(prior - sum(closes[max(0, idx - 5) : idx]) / min(idx, 5))
+
+    beta_macro, beta_slope = _ols_betas(macro, slope_terms, deltas)
+    residuals = [
+        delta - beta_macro * m - beta_slope * s
+        for delta, m, s in zip(deltas, macro, slope_terms, strict=True)
+    ]
     residual_std = sqrt(sum(res**2 for res in residuals) / max(len(residuals), 1))
-    payload = {"shock_beta": shock_beta, "residual_std": residual_std}
-    CALIBRATION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return payload
+
+    params = {
+        "shock_beta": beta_macro,
+        "slope_beta": beta_slope,
+        "residual_std": residual_std,
+    }
+
+    strikes = [4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9]
+    for idx in range(1, len(history)):
+        prior = closes[idx - 1]
+        macro_value = float(history[idx]["macro_shock"])
+        trailing = closes[:idx]
+        inputs = TenYInputs(
+            prior_close=prior,
+            macro_shock=macro_value,
+            trailing_history=trailing,
+        )
+        pmf_values = pmf(strikes, inputs=inputs, calibration=params)
+        crps_value = crps_from_pmf(pmf_values, closes[idx])
+        model_crps.append(crps_value)
+
+        baseline_distribution = {
+            round(prior - 0.1, 2): 0.25,
+            round(prior, 2): 0.5,
+            round(prior + 0.1, 2): 0.25,
+        }
+        baseline_pmf = base.grid_distribution_to_pmf(baseline_distribution)
+        baseline_value = crps_from_pmf(baseline_pmf, closes[idx])
+        baseline_crps.append(baseline_value)
+
+        records.append(
+            {
+                "record_type": "evaluation",
+                "date": history[idx].get("date"),
+                "macro_shock": macro_value,
+                "slope_factor": slope_terms[idx - 1],
+                "mean": prior + beta_macro * macro_value + beta_slope * slope_terms[idx - 1],
+                "std": max(_sample_std(trailing[-6:]), residual_std or 0.05),
+                "actual_close": closes[idx],
+                "crps": crps_value,
+                "baseline_crps": baseline_value,
+            }
+        )
+
+    summary_row = {
+        "record_type": "params",
+        "date": None,
+        "macro_shock": None,
+        "slope_factor": None,
+        "mean": None,
+        "std": params["residual_std"],
+        "actual_close": None,
+        "crps": sum(model_crps) / len(model_crps),
+        "baseline_crps": sum(baseline_crps) / len(baseline_crps),
+        "shock_beta": params["shock_beta"],
+        "slope_beta": params["slope_beta"],
+        "residual_std": params["residual_std"],
+    }
+    records.insert(0, summary_row)
+
+    frame = pl.DataFrame(records)
+    CALIBRATION_PATH.parent.mkdir(parents=True, exist_ok=True)
+    frame.write_parquet(CALIBRATION_PATH)
+    return frame
 
 
-def _ols_beta(x: Sequence[float], y: Sequence[float]) -> float:
-    numerator = sum(a * b for a, b in zip(x, y, strict=True))
-    denominator = sum(a * a for a in x)
-    if denominator == 0:
-        return 0.0
-    return numerator / denominator
+def _ols_betas(
+    macro: Sequence[float],
+    slope_terms: Sequence[float],
+    deltas: Sequence[float],
+) -> tuple[float, float]:
+    if not macro:
+        return 0.0, 0.0
+    sum_mm = sum(m * m for m in macro)
+    sum_ss = sum(s * s for s in slope_terms)
+    sum_ms = sum(m * s for m, s in zip(macro, slope_terms, strict=True))
+    sum_my = sum(m * y for m, y in zip(macro, deltas, strict=True))
+    sum_sy = sum(s * y for s, y in zip(slope_terms, deltas, strict=True))
+
+    det = sum_mm * sum_ss - sum_ms * sum_ms
+    if abs(det) < 1e-9:
+        beta_macro = sum_my / sum_mm if sum_mm else 0.0
+        return beta_macro, 0.0
+
+    beta_macro = (sum_my * sum_ss - sum_sy * sum_ms) / det
+    beta_slope = (sum_sy * sum_mm - sum_my * sum_ms) / det
+    return beta_macro, beta_slope
 
 
 def _load_calibration() -> dict[str, float] | None:
     if not CALIBRATION_PATH.exists():
         return None
-    try:
-        data = json.loads(CALIBRATION_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+    frame = pl.read_parquet(CALIBRATION_PATH)
+    params = frame.filter(pl.col("record_type") == "params")
+    if params.is_empty():
         return None
-    return {key: float(value) for key, value in data.items()}
+    row = params.row(0, named=True)
+    result: dict[str, float] = {}
+    for key in ("shock_beta", "slope_beta", "residual_std"):
+        if row.get(key) is not None:
+            result[key] = float(row[key])
+    return result or None
+

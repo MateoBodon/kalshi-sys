@@ -13,6 +13,7 @@ import requests
 
 from kalshi_alpha.datastore import snapshots
 from kalshi_alpha.datastore.paths import RAW_ROOT
+from kalshi_alpha.utils.env import load_env
 from kalshi_alpha.utils.http import fetch_with_cache
 
 ETA_539_URL = "https://ows.doleta.gov/unemploy/docs/eta539tbl.csv"
@@ -35,6 +36,7 @@ def fetch_latest_report(
     session: requests.Session | None = None,
 ) -> ClaimsReport:
     """Fetch the latest ETA-539 report."""
+    load_env()
     if offline:
         if fixtures_dir is None:
             raise RuntimeError("fixtures_dir required for offline mode")

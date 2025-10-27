@@ -14,6 +14,7 @@ import requests
 
 from kalshi_alpha.datastore import snapshots
 from kalshi_alpha.datastore.paths import RAW_ROOT
+from kalshi_alpha.utils.env import load_env
 from kalshi_alpha.utils.http import fetch_with_cache
 
 TREASURY_URL = (
@@ -38,6 +39,7 @@ def fetch_daily_yields(
     session: requests.Session | None = None,
 ) -> list[ParYield]:
     """Fetch daily par yields."""
+    load_env()
     if offline:
         if fixtures_dir is None:
             raise RuntimeError("fixtures_dir required for offline mode")

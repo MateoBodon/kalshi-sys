@@ -16,6 +16,7 @@ from dateutil import parser as date_parser
 
 from kalshi_alpha.datastore import snapshots
 from kalshi_alpha.datastore.paths import RAW_ROOT
+from kalshi_alpha.utils.env import load_env
 from kalshi_alpha.utils.http import fetch_with_cache
 
 SETTLEMENT_SOURCE = "NWS Daily Climate Report"
@@ -108,6 +109,7 @@ def fetch_station_metadata(
     force_refresh: bool = False,
     session: requests.Session | None = None,
 ) -> dict[str, StationConfig]:
+    load_env()
     if offline:
         if fixtures_dir is None:
             raise RuntimeError("fixtures_dir required for offline mode")
@@ -142,6 +144,7 @@ def fetch_daily_climate_report(
     force_refresh: bool = False,
     session: requests.Session | None = None,
 ) -> DailyClimateRecord:
+    load_env()
     if offline:
         if fixtures_dir is None:
             raise RuntimeError("fixtures_dir required for offline mode")

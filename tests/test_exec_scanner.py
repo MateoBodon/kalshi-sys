@@ -36,6 +36,8 @@ def test_scanner_generates_positive_maker_ev(
         risk_manager=None,
         max_var=None,
         offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
     )
     assert proposals, "Expected scanner to produce proposals with positive EV"
     original_daily = aaa_fetch.DAILY_PATH
@@ -107,6 +109,8 @@ def test_scan_series_respects_var(
         risk_manager=manager,
         max_var=100.0,
         offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
     )
     assert proposals
 
@@ -125,6 +129,8 @@ def test_scan_series_respects_var(
         risk_manager=PortfolioRiskManager(config),
         max_var=0.1,
         offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
     )
     assert not proposals_small
 
@@ -148,6 +154,8 @@ def test_paper_ledger_simulation(
         risk_manager=None,
         max_var=None,
         offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
     )
     orderbooks = {
         proposal.market_id: client.get_orderbook(proposal.market_id) for proposal in proposals
@@ -164,3 +172,41 @@ def test_paper_ledger_simulation(
     contents = report_path.read_text(encoding="utf-8")
     assert "| Strike | Side | Contracts |" in contents
     assert "Paper Ledger Summary" in contents
+
+
+def test_kelly_sizing_respects_caps(
+    fixtures_root: Path, offline_fixtures_root: Path
+) -> None:
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    policy = PALPolicy(series="CPI", default_max_loss=5_000.0)
+    guard_fixed = PALGuard(policy)
+    guard_kelly = PALGuard(policy)
+
+    base_kwargs = dict(
+        series="CPI",
+        client=client,
+        min_ev=0.01,
+        contracts=10,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+    )
+
+    fixed = scan_series(pal_guard=guard_fixed, sizing_mode="fixed", kelly_cap=0.25, **base_kwargs)
+    kelly = scan_series(pal_guard=guard_kelly, sizing_mode="kelly", kelly_cap=0.1, **base_kwargs)
+
+    assert fixed and kelly
+    assert all(proposal.contracts <= base_kwargs["contracts"] for proposal in kelly)
+
+    fixed_map = {
+        (proposal.market_id, proposal.strike, proposal.side): proposal.contracts for proposal in fixed
+    }
+    assert all(
+        proposal.contracts
+        <= fixed_map.get((proposal.market_id, proposal.strike, proposal.side), base_kwargs["contracts"])
+        for proposal in kelly
+    )

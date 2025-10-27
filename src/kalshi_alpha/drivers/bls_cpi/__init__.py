@@ -42,6 +42,7 @@ def fetch_release_calendar(
     session: requests.Session | None = None,
 ) -> list[datetime]:
     """Return upcoming CPI release datetimes in ET."""
+    load_env()
     if offline:
         if fixtures_dir is None:
             raise RuntimeError("fixtures_dir required for offline mode")

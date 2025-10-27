@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
+import csv
+import json
 
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule, maker_fee
 from kalshi_alpha.core.kalshi_api import Orderbook
 from kalshi_alpha.core.pricing import Liquidity
+from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 
 if TYPE_CHECKING:  # pragma: no cover
     from kalshi_alpha.exec.runners.scan_ladders import Proposal
@@ -20,6 +25,7 @@ class FillRecord:
     fill_price: float
     expected_value: float
     liquidity: Liquidity
+    slippage: float
 
 
 @dataclass
@@ -42,20 +48,73 @@ class PaperLedger:
             "trades": len(self.records),
         }
 
+    def write_artifacts(self, output_dir: Path) -> tuple[Path | None, Path | None]:
+        if not self.records:
+            return None, None
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%S")
+        json_path = output_dir / f"{timestamp}_ledger.json"
+        csv_path = output_dir / f"{timestamp}_ledger.csv"
+
+        rows = [
+            {
+                "market_id": record.proposal.market_id,
+                "strike": record.proposal.strike,
+                "side": record.proposal.side,
+                "contracts": record.proposal.contracts,
+                "fill_price": record.fill_price,
+                "expected_value": record.expected_value,
+                "slippage": record.slippage,
+            }
+            for record in self.records
+        ]
+
+        with csv_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=[
+                    "market_id",
+                    "strike",
+                    "side",
+                    "contracts",
+                    "fill_price",
+                    "expected_value",
+                    "slippage",
+                ],
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+
+        payload = {
+            "summary": self.to_dict(),
+            "fills": rows,
+        }
+        json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return json_path, csv_path
+
 
 def simulate_fills(
     proposals: Sequence[Proposal],
     orderbooks: dict[str, Orderbook],
     *,
     mode: str = "top",
+    slippage_model: SlippageModel | None = None,
     schedule: FeeSchedule = DEFAULT_FEE_SCHEDULE,
+    artifacts_dir: Path | None = None,
 ) -> PaperLedger:
     ledger = PaperLedger()
+    model = None
+    if slippage_model is not None:
+        model = slippage_model
+    elif mode in {"top", "depth"}:
+        model = SlippageModel(mode=mode)
     for proposal in proposals:
         orderbook = orderbooks.get(proposal.market_id)
         if orderbook is None:
             continue
-        fill_price = _derive_fill_price(proposal, orderbook, mode=mode)
+        fill_price, slippage = _derive_fill_price(
+            proposal, orderbook, mode=mode, slippage_model=model
+        )
         expected = _expected_value_with_fill(proposal, fill_price, schedule=schedule)
         ledger.record(
             FillRecord(
@@ -63,20 +122,37 @@ def simulate_fills(
                 fill_price=fill_price,
                 expected_value=expected,
                 liquidity=Liquidity.MAKER,
+                slippage=slippage,
             )
         )
+    if artifacts_dir is not None:
+        ledger.write_artifacts(artifacts_dir)
     return ledger
 
 
-def _derive_fill_price(proposal: Proposal, orderbook: Orderbook, *, mode: str) -> float:
-    if mode == "mid":
+def _derive_fill_price(
+    proposal: Proposal,
+    orderbook: Orderbook,
+    *,
+    mode: str,
+    slippage_model: SlippageModel | None,
+) -> tuple[float, float]:
+    if slippage_model is None and mode == "mid":
         try:
-            return orderbook.depth_weighted_mid()
+            price = orderbook.depth_weighted_mid()
         except Exception:
-            return proposal.market_yes_price
-    if proposal.side == "YES":
-        return orderbook.asks[0]["price"] if orderbook.asks else proposal.market_yes_price
-    return orderbook.bids[0]["price"] if orderbook.bids else 1.0 - proposal.market_yes_price
+            price = proposal.market_yes_price
+        return price, price - proposal.market_yes_price
+
+    model = slippage_model or SlippageModel(mode="top")
+    price, impact = price_with_slippage(
+        side=proposal.side,
+        contracts=proposal.contracts,
+        proposal_price=proposal.market_yes_price,
+        orderbook=orderbook,
+        model=model,
+    )
+    return price, impact
 
 
 def _expected_value_with_fill(
