@@ -1,0 +1,38 @@
+metrics:
+  default:
+    crps_advantage_min: 0.0
+    brier_advantage_min: 0.0
+  series:
+    cpi:
+      crps_advantage_min: 0.0
+      brier_advantage_min: 0.0
+    claims:
+      crps_advantage_min: -1000.0
+      brier_advantage_min: -1000.0
+    teny:
+      crps_advantage_min: -1000.0
+      brier_advantage_min: -1000.0
+    weather:
+      crps_advantage_min: -1000.0
+      brier_advantage_min: -1000.0
+data_freshness:
+  - name: cleveland_nowcast
+    namespace: cleveland_nowcast/monthly
+    timestamp_field: as_of
+    max_age_hours: 24
+    require_et: true
+  - name: treasury_yields
+    namespace: treasury_yields/daily
+    timestamp_field: as_of
+    max_age_hours: 72
+    require_et: true
+reconciliation:
+  - name: treasury_10y_vs_dgs10
+    namespace: treasury_yields/daily
+    par_maturity: "10 YR"
+    dgs_maturity: "DGS10"
+    tolerance_bps: 5.0
+monitors:
+  tz_not_et: 0
+  non_monotone_ladders: 1
+  negative_ev_after_fees: 0

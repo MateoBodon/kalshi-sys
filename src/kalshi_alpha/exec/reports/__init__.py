@@ -21,6 +21,7 @@ def write_markdown_report(
     ledger: PaperLedger | None,
     output_dir: Path,
     monitors: dict[str, object] | None = None,
+    exposure_summary: dict[str, object] | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=UTC)
@@ -52,6 +53,36 @@ def write_markdown_report(
         lines.append("## Monitors")
         for key, value in monitors.items():
             lines.append(f"- {key}: {value}")
+        lines.append("")
+    if exposure_summary:
+        lines.append("## Portfolio Exposure")
+        total_loss = exposure_summary.get("total_max_loss")
+        if total_loss is not None:
+            lines.append(f"- Total Max Loss: {float(total_loss):.2f} USD")
+        var_value = exposure_summary.get("var")
+        if var_value is not None:
+            lines.append(f"- Portfolio VaR: {float(var_value):.2f} USD")
+        factors = exposure_summary.get("factors") or {}
+        if factors:
+            lines.append("")
+            lines.append("| Factor | Exposure |")
+            lines.append("| --- | --- |")
+            for factor, value in sorted(factors.items()):
+                lines.append(f"| {factor} | {float(value):.2f} |")
+        per_series = exposure_summary.get("per_series") or {}
+        if per_series:
+            lines.append("")
+            lines.append("| Series | Max Loss |")
+            lines.append("| --- | --- |")
+            for name, value in sorted(per_series.items()):
+                lines.append(f"| {name} | {float(value):.2f} |")
+        net_contracts = exposure_summary.get("net_contracts") or {}
+        if net_contracts:
+            lines.append("")
+            lines.append("| Market | Net Contracts |")
+            lines.append("| --- | --- |")
+            for market, value in sorted(net_contracts.items()):
+                lines.append(f"| {market} | {int(value):+d} |")
         lines.append("")
     lines.append("## Proposal Details")
     for proposal in proposals:

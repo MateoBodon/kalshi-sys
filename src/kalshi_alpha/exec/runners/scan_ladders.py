@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -29,7 +31,7 @@ from kalshi_alpha.core.risk import (
     PortfolioRiskManager,
     max_loss_for_order,
 )
-from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, truncate_kelly
+from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, scale_kelly, truncate_kelly
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
 from kalshi_alpha.datastore.paths import PROC_ROOT
@@ -70,7 +72,31 @@ class Proposal:
 class ScanOutcome:
     proposals: list[Proposal]
     monitors: dict[str, object] = field(default_factory=dict)
+    cdf_diffs: list[dict[str, object]] = field(default_factory=list)
 
+
+class _LossBudget:
+    def __init__(self, cap: float | None) -> None:
+        self.cap = cap if cap is not None and cap > 0.0 else None
+        self.remaining: float | None = float(self.cap) if self.cap is not None else None
+
+    def max_contracts(self, unit_loss: float, requested: int) -> int:
+        if self.cap is None or unit_loss <= 0 or requested <= 0:
+            return requested
+        if self.remaining is None or self.remaining <= 0:
+            return 0
+        allowed = int(self.remaining // unit_loss)
+        return min(requested, allowed)
+
+    def consume(self, loss: float) -> None:
+        if self.cap is None or loss <= 0:
+            return
+        if self.remaining is None:
+            self.remaining = float(self.cap)
+        self.remaining = max(0.0, self.remaining - loss)
+
+
+_PORTFOLIO_CONFIG_CACHE: PortfolioConfig | None = None
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
@@ -99,10 +125,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         offline=offline_mode,
         sizing_mode=args.sizing,
         kelly_cap=args.kelly_cap,
+        uncertainty_penalty=args.uncertainty_penalty,
+        ob_imbalance_penalty=args.ob_imbalance_penalty,
+        daily_loss_cap=args.daily_loss_cap,
     )
 
     proposals = outcome.proposals
     ledger = _maybe_simulate_ledger(args, proposals, client)
+    exposure_summary = _compute_exposure_summary(proposals)
+    cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
     if proposals:
         _attach_series_metadata(
             proposals=proposals,
@@ -118,7 +149,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not args.quiet:
         print(f"Wrote {len(proposals)} proposals to {output_path}")
 
-    _maybe_write_report(args, proposals, ledger, outcome.monitors)
+    _maybe_write_report(
+        args,
+        proposals,
+        ledger,
+        outcome.monitors,
+        exposure_summary,
+    )
+
+    if not proposals:
+        return
 
 
 def _build_client(fixtures_root: Path, *, use_online: bool) -> KalshiPublicClient:
@@ -221,6 +261,7 @@ def _maybe_write_report(
     proposals: Sequence[Proposal],
     ledger: PaperLedger | None,
     monitors: dict[str, object],
+    exposure_summary: dict[str, object],
 ) -> None:
     if not args.report:
         return
@@ -230,6 +271,7 @@ def _maybe_write_report(
         ledger=ledger,
         output_dir=Path("reports") / args.series.upper(),
         monitors=monitors,
+        exposure_summary=exposure_summary,
     )
     if not args.quiet:
         print(f"Wrote report to {report_path}")
@@ -292,6 +334,23 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         type=float,
         default=0.25,
         help="Maximum Kelly fraction when sizing via Kelly.",
+    )
+    parser.add_argument(
+        "--uncertainty-penalty",
+        type=float,
+        default=0.0,
+        help="Penalty multiplier (0-1) applied when model confidence is low.",
+    )
+    parser.add_argument(
+        "--ob-imbalance-penalty",
+        type=float,
+        default=0.0,
+        help="Penalty multiplier (0-1) for orderbook imbalance.",
+    )
+    parser.add_argument(
+        "--daily-loss-cap",
+        type=float,
+        help="Maximum aggregate loss budget across all proposals (USD).",
     )
     parser.add_argument(
         "--strategy",
@@ -362,11 +421,16 @@ def scan_series(  # noqa: PLR0913
     offline: bool,
     sizing_mode: str,
     kelly_cap: float,
+    uncertainty_penalty: float = 0.0,
+    ob_imbalance_penalty: float = 0.0,
+    daily_loss_cap: float | None = None,
 ) -> ScanOutcome:
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
     proposals: list[Proposal] = []
     non_monotone = 0
+    daily_budget = _LossBudget(daily_loss_cap)
+    cdf_diffs: list[dict[str, object]] = []
 
     for event in events:
         markets = client.get_markets(event.id)
@@ -398,6 +462,15 @@ def scan_series(  # noqa: PLR0913
                 allowed_indices = _adjacent_indices(strategy_pmf, len(rungs))
             if not _is_monotone(strategy_survival):
                 non_monotone += 1
+            cdf_diffs.extend(
+                _collect_cdf_diffs(
+                    market_id=market.id,
+                    market_ticker=market.ticker,
+                    rungs=rungs,
+                    market_survival=market_survival,
+                    strategy_survival=strategy_survival,
+                )
+            )
 
             rung_proposals = _evaluate_market(
                 market_id=market.id,
@@ -415,6 +488,9 @@ def scan_series(  # noqa: PLR0913
                 strategy_name=series_obj.ticker.upper(),
                 sizing_mode=sizing_mode,
                 kelly_cap=kelly_cap,
+                uncertainty_penalty=uncertainty_penalty,
+                ob_imbalance_penalty=ob_imbalance_penalty,
+                daily_budget=daily_budget,
             )
             proposals.extend(rung_proposals)
 
@@ -423,7 +499,7 @@ def scan_series(  # noqa: PLR0913
         "model_drift": _model_drift_flag(series_obj.ticker),
         "tz_not_et": _tz_not_et(),
     }
-    return ScanOutcome(proposals=proposals, monitors=monitors)
+    return ScanOutcome(proposals=proposals, monitors=monitors, cdf_diffs=cdf_diffs)
 
 
 def _strategy_pmf_for_series(
@@ -553,8 +629,13 @@ def _evaluate_market(  # noqa: PLR0913
     strategy_name: str,
     sizing_mode: str,
     kelly_cap: float,
+    uncertainty_penalty: float,
+    ob_imbalance_penalty: float,
+    daily_budget: _LossBudget,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
+    uncertainty_penalty = max(0.0, uncertainty_penalty)
+    ob_imbalance_penalty = max(0.0, ob_imbalance_penalty)
 
     for index, rung in enumerate(rungs):
         if allowed_indices is not None and index not in allowed_indices:
@@ -562,6 +643,11 @@ def _evaluate_market(  # noqa: PLR0913
         yes_price = rung.yes_price
         event_probability = strategy_survival[index]
         survival_market = market_survival[index]
+        raw_fraction: float | None = None
+        truncated_fraction: float | None = None
+        scaled_fraction: float | None = None
+        uncertainty_metric = max(0.0, min(1.0, 1.0 - abs(event_probability - 0.5) * 2.0))
+        imbalance_metric = max(0.0, min(1.0, abs(survival_market - 0.5) * 2.0))
 
         per_contract = expected_value_summary(
             contracts=1,
@@ -585,9 +671,8 @@ def _evaluate_market(  # noqa: PLR0913
                 market_name=market_ticker,
             )
         )
-        remaining_limit = pal_guard.policy.limit_for_strike(order_id) - pal_guard.exposure_for(
-            order_id
-        )
+        strike_cap = pal_guard.policy.limit_for_strike(order_id)
+        remaining_limit = strike_cap - pal_guard.exposure_for(order_id)
         if max_loss_single <= 0 or remaining_limit <= 0:
             continue
         max_contracts = min(int(remaining_limit // max_loss_single), contracts)
@@ -600,25 +685,47 @@ def _evaluate_market(  # noqa: PLR0913
                 raw_fraction = kelly_yes_no(event_probability, yes_price)
             else:
                 raw_fraction = kelly_yes_no(1.0 - event_probability, 1.0 - yes_price)
-            sized_fraction = truncate_kelly(raw_fraction, kelly_cap)
-            if sized_fraction <= 0.0:
+            truncated_fraction = truncate_kelly(raw_fraction, kelly_cap)
+            scaled_fraction = scale_kelly(
+                truncated_fraction,
+                uncertainty_metric * uncertainty_penalty,
+                imbalance_metric * ob_imbalance_penalty,
+                kelly_cap,
+            )
+            if scaled_fraction <= 0.0:
                 continue
             capital_base = pal_guard.policy.default_max_loss
-            raw_risk = capital_base * sized_fraction
+            if capital_base is None or capital_base <= 0:
+                capital_base = remaining_limit
+            if capital_base is None or capital_base <= 0:
+                continue
+            raw_risk = capital_base * scaled_fraction
             var_remaining = None
             if risk_manager and max_var is not None:
                 var_remaining = max(max_var - risk_manager.current_var(), 0.0)
             capped_risk = apply_caps(
                 raw_risk,
                 pal=remaining_limit,
-                max_loss_per_strike=pal_guard.policy.limit_for_strike(order_id),
+                max_loss_per_strike=strike_cap,
                 max_var=var_remaining,
             )
             if capped_risk <= 0.0:
                 continue
-            contract_count = min(max_contracts, int(capped_risk // max_loss_single))
+            desired_contracts = int(capped_risk // max_loss_single)
+            contract_count = min(max_contracts, desired_contracts)
             if contract_count <= 0:
                 continue
+
+        budget_before = daily_budget.remaining
+        total_max_loss = max_loss_single * contract_count
+        if total_max_loss <= 0:
+            continue
+        allowed_contracts = daily_budget.max_contracts(max_loss_single, contract_count)
+        if allowed_contracts <= 0:
+            continue
+        if allowed_contracts < contract_count:
+            contract_count = allowed_contracts
+            total_max_loss = max_loss_single * contract_count
 
         total_ev = expected_value_summary(
             contracts=contract_count,
@@ -642,6 +749,9 @@ def _evaluate_market(  # noqa: PLR0913
         ):
             continue
 
+        daily_budget.consume(total_max_loss)
+        budget_after = daily_budget.remaining
+
         proposal = Proposal(
             market_id=market_id,
             market_ticker=market_ticker,
@@ -658,7 +768,19 @@ def _evaluate_market(  # noqa: PLR0913
             survival_strategy=event_probability,
             max_loss=total_max_loss,
             strategy=strategy_name,
-            metadata=None,
+            metadata={
+                "sizing": {
+                    "kelly_raw": raw_fraction if sizing_mode == "kelly" else None,
+                    "kelly_truncated": truncated_fraction if sizing_mode == "kelly" else None,
+                    "kelly_scaled": scaled_fraction if sizing_mode == "kelly" else None,
+                    "uncertainty_metric": uncertainty_metric,
+                    "uncertainty_penalty": uncertainty_penalty,
+                    "ob_imbalance_metric": imbalance_metric,
+                    "ob_imbalance_penalty": ob_imbalance_penalty,
+                    "daily_loss_before": budget_before,
+                    "daily_loss_after": budget_after,
+                }
+            },
         )
         pal_guard.register(
             OrderProposal(
@@ -693,6 +815,32 @@ def _choose_side(
     return OrderSide.NO, best_no
 
 
+def _collect_cdf_diffs(
+    *,
+    market_id: str,
+    market_ticker: str,
+    rungs: Sequence[LadderRung],
+    market_survival: Sequence[float],
+    strategy_survival: Sequence[float],
+) -> list[dict[str, object]]:
+    diffs: list[dict[str, object]] = []
+    for idx, rung in enumerate(rungs):
+        p_model = float(strategy_survival[idx])
+        p_market = float(market_survival[idx])
+        diffs.append(
+            {
+                "market_id": market_id,
+                "market_ticker": market_ticker,
+                "bin_index": idx,
+                "strike": float(rung.strike),
+                "p_model": p_model,
+                "p_market": p_market,
+                "delta": p_model - p_market,
+            }
+        )
+    return diffs
+
+
 def write_proposals(*, series: str, proposals: Sequence[Proposal], output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     dated_dir = output_dir / series.upper()
@@ -710,6 +858,74 @@ def write_proposals(*, series: str, proposals: Sequence[Proposal], output_dir: P
     }
     filename.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return filename
+
+
+def _write_cdf_diffs(diffs: Sequence[dict[str, object]]) -> Path | None:
+    if not diffs:
+        return None
+    frame = pl.DataFrame(diffs)
+    artifacts_dir = Path("reports/_artifacts")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    path = artifacts_dir / "cdf_diffs.parquet"
+    frame.write_parquet(path)
+    return path
+
+
+def _load_portfolio_config() -> PortfolioConfig | None:
+    global _PORTFOLIO_CONFIG_CACHE
+    if _PORTFOLIO_CONFIG_CACHE is not None:
+        return _PORTFOLIO_CONFIG_CACHE
+    path = Path("configs/portfolio.yaml")
+    if not path.exists():
+        return None
+    try:
+        _PORTFOLIO_CONFIG_CACHE = PortfolioConfig.from_yaml(path)
+    except Exception:  # pragma: no cover - config parse errors fall back to None
+        _PORTFOLIO_CONFIG_CACHE = None
+    return _PORTFOLIO_CONFIG_CACHE
+
+
+def _compute_exposure_summary(proposals: Sequence[Proposal]) -> dict[str, object]:
+    summary: dict[str, object] = {
+        "total_max_loss": 0.0,
+        "per_series": {},
+        "net_contracts": {},
+        "factors": {},
+        "var": 0.0,
+    }
+    if not proposals:
+        return summary
+
+    total_max_loss = sum(float(proposal.max_loss) for proposal in proposals)
+    per_series: dict[str, float] = defaultdict(float)
+    net_contracts: dict[str, int] = defaultdict(int)
+    for proposal in proposals:
+        per_series[proposal.strategy] += float(proposal.max_loss)
+        sign = 1 if proposal.side.upper() == "YES" else -1
+        net_contracts[proposal.market_ticker] += sign * proposal.contracts
+
+    summary["total_max_loss"] = total_max_loss
+    summary["per_series"] = dict(sorted(per_series.items()))
+    summary["net_contracts"] = dict(sorted(net_contracts.items()))
+
+    config = _load_portfolio_config()
+    if config is not None:
+        factor_exposures: dict[str, float] = defaultdict(float)
+        for proposal in proposals:
+            betas = config.strategy_betas.get(proposal.strategy.upper(), {"TOTAL": 1.0})
+            for factor, beta in betas.items():
+                factor_exposures[factor] += beta * float(proposal.max_loss)
+        summary["factors"] = dict(sorted(factor_exposures.items()))
+        var_sum = 0.0
+        for factor, exposure in factor_exposures.items():
+            vol = config.factor_vols.get(factor, 1.0)
+            var_sum += (exposure * vol) ** 2
+        summary["var"] = math.sqrt(var_sum)
+    else:
+        summary["factors"] = {"TOTAL": total_max_loss}
+        summary["var"] = total_max_loss
+
+    return summary
 
 
 def _find_series(client: KalshiPublicClient, ticker: str) -> Series:

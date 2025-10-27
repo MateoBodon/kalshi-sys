@@ -23,6 +23,26 @@ def truncate_kelly(kelly_fraction: float, cap: float) -> float:
     return max(min(kelly_fraction, cap), -cap)
 
 
+def scale_kelly(kelly_fraction: float, uncertainty: float, ob_imbalance: float, cap: float) -> float:
+    """Scale a Kelly fraction by uncertainty and orderbook imbalance penalties."""
+
+    if cap <= 0.0:
+        raise ValueError("cap must be positive")
+
+    def _clamp(value: float) -> float:
+        return max(0.0, min(1.0, value))
+
+    baseline = truncate_kelly(kelly_fraction, cap)
+    if baseline == 0.0:
+        return 0.0
+
+    penalty_uncertainty = 1.0 - _clamp(uncertainty)
+    penalty_imbalance = 1.0 - _clamp(ob_imbalance)
+    scale = max(0.0, penalty_uncertainty) * max(0.0, penalty_imbalance)
+    scaled = baseline * scale
+    return truncate_kelly(scaled, cap)
+
+
 def apply_caps(
     size: float,
     pal: float | None,

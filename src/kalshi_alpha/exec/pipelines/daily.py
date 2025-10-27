@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioRiskManager
 from kalshi_alpha.datastore import ingest as datastore_ingest
-from kalshi_alpha.datastore.paths import PROC_ROOT
+from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
     _attach_series_metadata,
+    _compute_exposure_summary,
+    _write_cdf_diffs,
     scan_series,
     write_proposals,
 )
@@ -71,6 +75,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.25,
         help="Kelly truncation cap for scanner sizing.",
     )
+    parser.add_argument(
+        "--when",
+        type=_parse_date,
+        help="Override target date (YYYY-MM-DD) for calendar scheduling.",
+    )
     return parser.parse_args(argv)
 
 
@@ -92,13 +101,18 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
     try:
         run_ingest(args, log)
         run_calibrations(args, log)
-        window_state = evaluate_window(mode, now_utc)
-        log["window"] = window_state
+        gate_result = run_quality_gate_step(now_utc, log)
+        if not gate_result.go:
+            raise SystemExit(1)
+        target_date: date = args.when if args.when else now_utc.astimezone(ET).date()
+        run_window = resolve_run_window(mode=mode, target_date=target_date, now=now_utc, proc_root=PROC_ROOT)
+        log["window"] = run_window.to_dict(now_utc)
 
-        if not window_state.get("scan_allowed", True):
-            log.setdefault("scan_notes", {})[mode] = window_state.get(
-                "reason", "outside window"
-            )
+        if not run_window.scan_allowed(now_utc):
+            reason = "outside window"
+            if run_window.notes:
+                reason = ",".join(run_window.notes)
+            log.setdefault("scan_notes", {})[mode] = reason
         else:
             run_scan(mode, args, log)
     except Exception as exc:  # pragma: no cover - orchestration guard
@@ -156,50 +170,42 @@ def run_calibrations(args: argparse.Namespace, log: dict[str, object]) -> None:
     calibrate_wrapper("weather", calibrate_weather, histories["weather"])
 
 
-def evaluate_window(mode: str, now_utc: datetime) -> dict[str, object]:
-    now_et = now_utc.astimezone(ET)
-    result = {"scan_allowed": True, "freeze_active": False}
-    if mode == "pre_cpi":
-        start = time(6, 0)
-        end = time(8, 20)
-        freeze_start = datetime.combine(now_et.date(), start, tzinfo=ET) - timedelta(hours=24)
-        result["freeze_active"] = now_et >= freeze_start
-        result.update(check_window(now_et, start, end))
-    elif mode == "pre_claims":
-        start = time(6, 0)
-        end = time(8, 25)
-        freeze_time = datetime.combine(now_et.date(), time(18, 0), tzinfo=ET)
-        weekday = now_et.weekday()
-        result["freeze_active"] = weekday > 2 or (weekday == 2 and now_et >= freeze_time)
-        result.update(check_window(now_et, start, end))
-    elif mode == "teny_close":
-        start = time(14, 30)
-        end = time(15, 25)
-        freeze_time = datetime.combine(now_et.date(), time(13, 30), tzinfo=ET)
-        result["freeze_active"] = now_et >= freeze_time
-        result.update(check_window(now_et, start, end))
-    elif mode == "weather_cycle":
-        cycle_hours = {0, 6, 12, 18}
-        hour = now_utc.hour
-        cycle = min(cycle_hours, key=lambda h: abs(hour - h))
-        cycle_start = datetime.combine(now_utc.date(), time(cycle, 0), tzinfo=UTC)
-        window_start = cycle_start
-        window_end = cycle_start + timedelta(minutes=45)
-        result["freeze_active"] = now_utc >= cycle_start
-        result["scan_allowed"] = window_start <= now_utc <= window_end
-        if not result["scan_allowed"]:
-            result["reason"] = "outside weather cycle window"
+def run_quality_gate_step(now_utc: datetime, log: dict[str, object]) -> QualityGateResult:
+    config = load_quality_gate_config(_resolve_quality_gate_config_path())
+    result = run_quality_gates(config=config, now=now_utc, proc_root=PROC_ROOT, raw_root=RAW_ROOT)
+    log["quality_gates"] = {
+        "go": result.go,
+        "reasons": result.reasons,
+        "details": result.details,
+    }
+    _write_go_no_go(result)
     return result
 
 
-def check_window(now_et: datetime, start: time, end: time) -> dict[str, object]:
-    start_dt = datetime.combine(now_et.date(), start, tzinfo=ET)
-    end_dt = datetime.combine(now_et.date(), end, tzinfo=ET)
-    allowed = start_dt <= now_et <= end_dt
-    payload = {"scan_allowed": allowed}
-    if not allowed:
-        payload["reason"] = f"window {start.strftime('%H:%M')}-{end.strftime('%H:%M')} ET"
-    return payload
+def _resolve_quality_gate_config_path() -> Path:
+    primary = Path("configs/quality_gates.yaml")
+    if primary.exists():
+        return primary
+    fallback = Path("configs/quality_gates.example.yaml")
+    if fallback.exists():
+        return fallback
+    return primary
+
+
+def _write_go_no_go(result: QualityGateResult) -> Path:
+    artifacts_dir = Path("reports/_artifacts")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    payload = {"go": bool(result.go), "reasons": list(result.reasons)}
+    output_path = artifacts_dir / "go_no_go.json"
+    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return output_path
+
+
+def _parse_date(value: str) -> date:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:  # pragma: no cover - surfaced via argparse
+        raise argparse.ArgumentTypeError(f"Invalid date for --when: {value}") from exc
 
 
 def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> None:
@@ -241,9 +247,15 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
 
     proposals = outcome.proposals
     monitors = outcome.monitors
+    exposure_summary = _compute_exposure_summary(proposals)
+    cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
 
     if not proposals:
-        log.setdefault("scan_results", {})[mode] = {"proposals": 0}
+        log.setdefault("scan_results", {})[mode] = {
+            "proposals": 0,
+            "exposure": exposure_summary,
+            "cdf_diffs_path": str(cdf_path) if cdf_path else None,
+        }
         return
 
     _attach_series_metadata(
@@ -273,6 +285,7 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
             ledger=ledger,
             output_dir=Path("reports") / series.upper(),
             monitors=monitors,
+            exposure_summary=exposure_summary,
         )
 
     log.setdefault("scan_results", {})[mode] = {
@@ -281,6 +294,8 @@ def run_scan(mode: str, args: argparse.Namespace, log: dict[str, object]) -> Non
         "report_path": str(report_path) if report_path else None,
         "ledger_stats": ledger.to_dict() if ledger else None,
         "monitors": monitors,
+        "exposure": exposure_summary,
+        "cdf_diffs_path": str(cdf_path) if cdf_path else None,
     }
 
 

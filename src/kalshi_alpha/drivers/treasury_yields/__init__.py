@@ -92,10 +92,14 @@ def _parse_treasury_csv(csv_text: str) -> list[ParYield]:
 
 
 def dgs10_latest_rate(yields: Iterable[ParYield]) -> float | None:
+    fallback: float | None = None
     for entry in yields:
-        if entry.maturity.upper() in {"DGS10", "10 YR"}:
+        maturity = entry.maturity.upper()
+        if maturity == "DGS10":
             return entry.rate
-    return None
+        if maturity in {"10 YR", "10YR"} and fallback is None:
+            fallback = entry.rate
+    return fallback
 
 
 def yields_to_frame(yields: Iterable[ParYield]) -> pl.DataFrame:

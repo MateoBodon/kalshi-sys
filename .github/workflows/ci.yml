@@ -74,6 +74,73 @@ teny_calibrate(json.loads((fixtures / "teny" / "history.json").read_text())['his
 weather_calibrate(json.loads((fixtures / "weather" / "history.json").read_text())['history'])
 PY
 
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+      - name: Configure strict quality gates
+        run: |
+          mkdir -p configs
+          cat <<'EOF' > configs/quality_gates.yaml
+          metrics:
+            series:
+              cpi:
+                crps_advantage_min: -1000
+              claims:
+                crps_advantage_min: -1000
+                brier_advantage_min: -1000
+          data_freshness:
+            - name: cleveland
+              namespace: cleveland_nowcast/monthly
+              timestamp_field: as_of
+              max_age_hours: 0
+              require_et: true
+          reconciliation: []
+          monitors:
+            tz_not_et: 1
+            non_monotone_ladders: 10
+            negative_ev_after_fees: 5
+          EOF
+      - name: Run daily pipeline expecting NO-GO
+        run: |
+          set +e
+          python -m kalshi_alpha.exec.pipelines.daily \
+            --mode pre_cpi \
+            --offline \
+            --driver-fixtures tests/fixtures \
+            --scanner-fixtures tests/data_fixtures
+          status=$?
+          if [ $status -eq 0 ]; then
+            echo "Expected quality gates to block run" >&2
+            exit 1
+          fi
+          if [ ! -f reports/_artifacts/go_no_go.json ]; then
+            echo "Missing go/no-go artifact" >&2
+            exit 1
+          fi
+      - name: Verify go/no-go artifact
+        run: |
+          python - <<'PY'
+from pathlib import Path
+import json
+
+path = Path("reports/_artifacts/go_no_go.json")
+data = json.loads(path.read_text())
+if data.get("go") is not False:
+    raise SystemExit("go flag should be false")
+reasons = data.get("reasons") or []
+if not any("data_freshness.cleveland" in reason for reason in reasons):
+    raise SystemExit("Expected cleveland data freshness reason")
+PY
+
   nightly-offline-pipeline:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
