@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -18,6 +19,7 @@ from kalshi_alpha.core.archive import archive_scan, replay_manifest
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, tune_alpha
 from kalshi_alpha.core.execution.slippage import SlippageModel
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
+from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
 from kalshi_alpha.core.kalshi_api import Event, KalshiPublicClient, Market, Orderbook, Series
 from kalshi_alpha.core.pricing import (
     LadderBinProbability,
@@ -42,10 +44,20 @@ from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, scale_kelly, trun
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
+from kalshi_alpha.brokers import create_broker
+from kalshi_alpha.brokers.kalshi.base import BrokerOrder
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
+from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
+from kalshi_alpha.exec.heartbeat import (
+    heartbeat_stale,
+    kill_switch_engaged,
+    resolve_kill_switch_path,
+    write_heartbeat,
+)
+from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.strategies import claims as claims_strategy
 from kalshi_alpha.strategies import cpi as cpi_strategy
 from kalshi_alpha.strategies import teny as teny_strategy
@@ -237,6 +249,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             proposals_path=output_path,
             driver_fixtures=driver_fixtures,
             scanner_fixtures=fixtures_root,
+            model_metadata=outcome.model_metadata,
         )
         if manifest_path and not args.quiet:
             print(f"Archived snapshot manifest at {manifest_path}")
@@ -245,6 +258,35 @@ def main(argv: Sequence[str] | None = None) -> None:
         artifacts_dir = Path("reports/_artifacts")
         ledger.write_artifacts(artifacts_dir, manifest_path=manifest_path)
 
+    broker_status = None
+    if proposals:
+        try:
+            broker_status = execute_broker(
+                broker_mode=args.broker,
+                proposals=proposals,
+                args=args,
+                monitors=outcome.monitors,
+                quiet=args.quiet,
+            )
+        except RuntimeError as exc:
+            broker_status = {"mode": args.broker, "orders_recorded": 0, "error": str(exc)}
+            if not args.quiet:
+                print(f"[broker] {exc}")
+        else:
+            if broker_status and not args.quiet:
+                print(
+                    f"[broker] mode={broker_status.get('mode')} "
+                    f"orders={broker_status.get('orders_recorded')}"
+                )
+
+    outstanding_summary = OutstandingOrdersState.load().summary()
+    pilot_metadata = {
+        "mode": args.broker,
+        "kelly_cap": getattr(args, "kelly_cap", None),
+        "max_var": getattr(args, "max_var", None),
+        "fill_alpha": fill_alpha_value,
+        "outstanding_total": sum(outstanding_summary.values()),
+    }
     _maybe_write_report(
         args,
         proposals,
@@ -256,6 +298,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         fill_alpha=fill_alpha_value,
         mispricings=outcome.mispricings,
         model_metadata=outcome.model_metadata,
+        outstanding_summary=outstanding_summary,
+        pilot_metadata=pilot_metadata,
+    )
+    write_heartbeat(
+        mode=f"scan_ladders:{args.series.upper()}",
+        monitors=outcome.monitors,
+        extra={
+            "outstanding": outstanding_summary,
+            "broker": broker_status,
+            "series": args.series.upper(),
+        },
     )
 
     if not proposals:
@@ -271,24 +324,27 @@ def _build_client(fixtures_root: Path, *, use_online: bool) -> KalshiPublicClien
 
 
 def _build_pal_guard(args: argparse.Namespace) -> PALGuard:
-    policy_path = Path(args.pal_policy) if args.pal_policy else Path("configs/pal_policy.yaml")
+    pal_policy_arg = getattr(args, "pal_policy", None)
+    policy_path = Path(pal_policy_arg) if pal_policy_arg else Path("configs/pal_policy.yaml")
     if not policy_path.exists():
         policy_path = Path("configs/pal_policy.example.yaml")
     policy = PALPolicy.from_yaml(policy_path)
-    if args.max_loss_per_strike is not None:
+    max_loss_per_strike = getattr(args, "max_loss_per_strike", None)
+    if max_loss_per_strike is not None:
         policy = PALPolicy(
             series=policy.series,
-            default_max_loss=args.max_loss_per_strike,
+            default_max_loss=max_loss_per_strike,
             per_strike=dict(policy.per_strike),
         )
     return PALGuard(policy)
 
 
 def _build_risk_manager(args: argparse.Namespace) -> PortfolioRiskManager | None:
-    if args.portfolio_config:
-        config = PortfolioConfig.from_yaml(Path(args.portfolio_config))
+    portfolio_config = getattr(args, "portfolio_config", None)
+    if portfolio_config:
+        config = PortfolioConfig.from_yaml(Path(portfolio_config))
         return PortfolioRiskManager(config)
-    if args.max_var is not None:
+    if getattr(args, "max_var", None) is not None:
         fallback_config = PortfolioConfig(factor_vols={"TOTAL": 1.0}, strategy_betas={})
         return PortfolioRiskManager(fallback_config)
     return None
@@ -399,6 +455,8 @@ def _maybe_write_report(
     fill_alpha: float | None,
     mispricings: Sequence[dict[str, object]] | None = None,
     model_metadata: dict[str, object] | None = None,
+    outstanding_summary: dict[str, int] | None = None,
+    pilot_metadata: dict[str, object] | None = None,
 ) -> None:
     if not args.report:
         return
@@ -414,9 +472,163 @@ def _maybe_write_report(
         fill_alpha=fill_alpha,
         mispricings=mispricings,
         model_metadata=model_metadata,
+        outstanding_summary=outstanding_summary,
+        pilot_metadata=pilot_metadata,
     )
     if not args.quiet:
         print(f"Wrote report to {report_path}")
+
+
+def execute_broker(
+    *,
+    broker_mode: str,
+    proposals: Sequence[Proposal],
+    args: argparse.Namespace,
+    monitors: dict[str, object],
+    quiet: bool,
+    go_status: bool | None = None,
+) -> dict[str, object] | None:
+    normalized = (broker_mode or "dry").strip().lower()
+    if not proposals:
+        return {"mode": normalized, "orders_recorded": 0}
+
+    state = OutstandingOrdersState.load()
+    kill_switch_path = resolve_kill_switch_path(getattr(args, "kill_switch_file", None))
+    if kill_switch_path.exists():
+        state.mark_cancel_all("kill_switch_engaged", modes=[normalized])
+        raise RuntimeError(
+            f"Kill switch engaged at {kill_switch_path.as_posix()}; refusing broker submission"
+        )
+
+    if go_status is None:
+        gate_result = _quality_gate_for_broker(args, monitors)
+        if not gate_result.go:
+            state.mark_cancel_all("quality_gate_no_go", modes=[normalized])
+            raise RuntimeError("Quality gates returned NO-GO; refusing broker submission")
+    elif not go_status:
+        state.mark_cancel_all("quality_gate_no_go", modes=[normalized])
+        raise RuntimeError("Quality gates returned NO-GO; refusing broker submission")
+
+    _enforce_broker_guards(proposals, args)
+    orders = [_proposal_to_broker_order(p) for p in proposals]
+    broker = create_broker(
+        normalized,
+        artifacts_dir=Path("reports/_artifacts"),
+        audit_dir=Path("data/proc/audit"),
+        acknowledge_risks=getattr(args, "i_understand_the_risks", False),
+    )
+    broker.place(orders)
+    state.record_submission(normalized, orders)
+    status = broker.status()
+    status.setdefault("orders_recorded", len(orders))
+    if not quiet:
+        status_msg = status.get("message") or ""
+        if status_msg:
+            print(f"[broker] {status_msg}")
+    return status
+
+
+def _proposal_to_broker_order(proposal: Proposal) -> BrokerOrder:
+    key_source = f"{proposal.market_id}|{proposal.side}|{proposal.strike:.3f}|{proposal.contracts}"
+    key = hashlib.sha256(key_source.encode("utf-8")).hexdigest()
+    return BrokerOrder(
+        idempotency_key=key,
+        market_id=proposal.market_id,
+        strike=proposal.strike,
+        side=proposal.side,
+        price=proposal.market_yes_price,
+        contracts=proposal.contracts,
+        probability=proposal.strategy_probability,
+        metadata=proposal.metadata or {},
+    )
+
+
+def _enforce_broker_guards(proposals: Sequence[Proposal], args: argparse.Namespace) -> None:
+    pal_guard = _build_pal_guard(args)
+    risk_manager = _build_risk_manager(args)
+    max_var = getattr(args, "max_var", None)
+    daily_budget = _LossBudget(getattr(args, "daily_loss_cap", None))
+    weekly_budget = _LossBudget(getattr(args, "weekly_loss_cap", None))
+
+    for proposal in proposals:
+        order_id = f"{proposal.market_ticker}:{proposal.strike}"
+        order = OrderProposal(
+            strike_id=order_id,
+            yes_price=proposal.market_yes_price,
+            contracts=proposal.contracts,
+            side=OrderSide[proposal.side.upper()],
+            liquidity=Liquidity.MAKER,
+            market_name=proposal.market_ticker,
+        )
+        if not pal_guard.can_accept(order):
+            raise RuntimeError(f"PAL guard rejected order for {order_id}")
+        pal_guard.register(order)
+
+        if risk_manager and not risk_manager.can_accept(
+            strategy=proposal.strategy,
+            max_loss=proposal.max_loss,
+            max_var=max_var,
+        ):
+            raise RuntimeError("Portfolio VaR limit reached; aborting broker submission")
+
+        per_contract_loss = proposal.max_loss / max(proposal.contracts, 1)
+        if daily_budget.cap is not None:
+            if daily_budget.max_contracts(per_contract_loss, proposal.contracts) < proposal.contracts:
+                raise RuntimeError("Daily loss cap exceeded during broker validation")
+            daily_budget.consume(per_contract_loss * proposal.contracts)
+        if weekly_budget.cap is not None:
+            if weekly_budget.max_contracts(per_contract_loss, proposal.contracts) < proposal.contracts:
+                raise RuntimeError("Weekly loss cap exceeded during broker validation")
+            weekly_budget.consume(per_contract_loss * proposal.contracts)
+
+
+def _quality_gate_for_broker(
+    args: argparse.Namespace,
+    monitors: dict[str, object],
+) -> QualityGateResult:
+    now_utc = datetime.now(tz=UTC)
+    config = load_quality_gate_config(resolve_quality_gate_config_path())
+    result = run_quality_gates(
+        config=config,
+        now=now_utc,
+        proc_root=PROC_ROOT,
+        raw_root=RAW_ROOT,
+        monitors=monitors,
+    )
+    drawdown_status = drawdown.check_limits(
+        getattr(args, "daily_loss_cap", None),
+        getattr(args, "weekly_loss_cap", None),
+        now=now_utc,
+    )
+
+    reasons = list(result.reasons)
+    details = dict(result.details)
+    if drawdown_status.metrics:
+        details.setdefault("drawdown", drawdown_status.metrics)
+    go_flag = result.go and drawdown_status.ok
+    if not drawdown_status.ok:
+        reasons.extend(drawdown_status.reasons)
+
+    kill_switch_path = resolve_kill_switch_path(getattr(args, "kill_switch_file", None))
+    if kill_switch_engaged(kill_switch_path):
+        go_flag = False
+        reasons.append("kill_switch_engaged")
+        details["kill_switch_path"] = kill_switch_path.as_posix()
+        OutstandingOrdersState.load().mark_cancel_all(
+            "kill_switch_engaged",
+            modes=[(getattr(args, "broker", "dry") or "dry")],
+        )
+
+    stale, heartbeat_payload = heartbeat_stale(threshold=timedelta(minutes=5))
+    if stale:
+        go_flag = False
+        reasons.append("heartbeat_stale")
+        if heartbeat_payload:
+            details.setdefault("heartbeat", heartbeat_payload)
+
+    combined = QualityGateResult(go=go_flag, reasons=reasons, details=details)
+    write_go_no_go(combined)
+    return combined
 
 
 def _archive_and_replay(
@@ -429,6 +641,7 @@ def _archive_and_replay(
     proposals_path: Path,
     driver_fixtures: Path,
     scanner_fixtures: Path,
+    model_metadata: dict[str, object] | None = None,
 ) -> Path | None:
     if series is None:
         return None
@@ -446,9 +659,10 @@ def _archive_and_replay(
         driver_fixtures=driver_fixtures,
         scanner_fixtures=scanner_fixtures,
     )
+    metadata = model_metadata or {}
     replay_manifest(
         manifest_path,
-        model_version=str(outcome.model_metadata.get("model_version", "v15")),
+        model_version=str(metadata.get("model_version", "v15")),
     )
     return manifest_path
 
@@ -618,6 +832,21 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Minimum probability mass gap required to log mispricing diagnostics.",
+    )
+    parser.add_argument(
+        "--broker",
+        default="dry",
+        choices=["dry", "live"],
+        help="Broker adapter to use when executing orders.",
+    )
+    parser.add_argument(
+        "--i-understand-the-risks",
+        action="store_true",
+        help="Required acknowledgement flag when arming the live broker adapter.",
+    )
+    parser.add_argument(
+        "--kill-switch-file",
+        help="Path to kill-switch sentinel file (default: data/proc/state/kill_switch).",
     )
     parser.add_argument(
         "--paper-ledger",

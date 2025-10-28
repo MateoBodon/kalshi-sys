@@ -28,6 +28,8 @@ def write_markdown_report(
     mispricings: Sequence[dict[str, object]] | None = None,
     model_metadata: dict[str, object] | None = None,
     scorecard_summary: Sequence[dict[str, object]] | None = None,
+    outstanding_summary: dict[str, int] | None = None,
+    pilot_metadata: dict[str, object] | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=UTC)
@@ -36,6 +38,14 @@ def write_markdown_report(
     badge_label = "GO" if go_status in {None, True} else "NO-GO"
     badge_emoji = "🟢" if badge_label == "GO" else "🔴"
     lines.append(f"{badge_emoji} **GO/NO-GO:** {badge_label}")
+    if outstanding_summary is not None:
+        total = sum(outstanding_summary.values())
+        breakdown = ", ".join(
+            f"{mode}={count}" for mode, count in sorted(outstanding_summary.items())
+        )
+        lines.append(f"Outstanding orders: {total} ({breakdown})")
+    if pilot_metadata:
+        lines.append(_format_pilot_header(pilot_metadata))
     if manifest_path:
         manifest_str = manifest_path.as_posix() if isinstance(manifest_path, Path) else str(manifest_path)
         lines.append(f"[Archived Manifest]({manifest_str})")
@@ -51,14 +61,17 @@ def write_markdown_report(
         if isinstance(model_metadata, dict):
             component_weights = model_metadata.get("component_weights")
         if isinstance(component_weights, dict) and component_weights:
-            lines.append("- CPI Component Weights:")
+            lines.append("### CPI Component Weights")
+            lines.append("| Component | Weight |")
+            lines.append("| --- | --- |")
             for key in sorted(component_weights):
                 value = component_weights[key]
                 try:
                     formatted = f"{float(value):.3f}"
                 except (TypeError, ValueError):
                     formatted = str(value)
-                lines.append(f"  - {key}: {formatted}")
+                lines.append(f"| {key} | {formatted} |")
+            lines.append("")
         other_metadata = {
             key: value
             for key, value in (model_metadata.items() if isinstance(model_metadata, dict) else [])
@@ -232,3 +245,23 @@ def _expected_vs_realized_rows(ledger: PaperLedger) -> list[str]:
     lines.append(f"| **Totals** |  |  | {total_requested} | {total_expected} | {total_delta:+d} |  |")
     lines.append("")
     return lines
+
+
+def _format_pilot_header(metadata: dict[str, object]) -> str:
+    parts: list[str] = []
+    mode = metadata.get("mode")
+    if mode:
+        parts.append(f"mode={str(mode).lower()}")
+    kelly = metadata.get("kelly_cap")
+    if isinstance(kelly, (int, float)):
+        parts.append(f"kelly_cap={kelly:.2f}")
+    max_var = metadata.get("max_var")
+    if isinstance(max_var, (int, float)):
+        parts.append(f"max_var={max_var:.2f}")
+    fill_alpha = metadata.get("fill_alpha")
+    if isinstance(fill_alpha, (int, float)):
+        parts.append(f"α={fill_alpha:.3f}")
+    outstanding = metadata.get("outstanding_total")
+    if isinstance(outstanding, (int, float)):
+        parts.append(f"outstanding={int(outstanding)}")
+    return "Live Pilot: " + " | ".join(parts)

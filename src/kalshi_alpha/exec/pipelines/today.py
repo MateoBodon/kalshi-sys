@@ -10,6 +10,7 @@ from pathlib import Path
 
 from kalshi_alpha.exec.pipelines import daily
 from kalshi_alpha.exec.pipelines.calendar import ET, resolve_run_window
+from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -70,10 +71,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Impact cap forwarded to daily pipeline (probability points).",
     )
     parser.add_argument(
+        "--broker",
+        choices=["dry", "live"],
+        default="dry",
+        help="Broker adapter forwarded to the daily pipeline.",
+    )
+    parser.add_argument(
         "--model-version",
         choices=["v0", "v15"],
         default="v15",
         help="Strategy model version forwarded to the daily pipeline.",
+    )
+    parser.add_argument(
+        "--kill-switch-file",
+        help="Path to kill-switch sentinel file forwarded to daily runs.",
     )
     return parser.parse_args(argv)
 
@@ -87,6 +98,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     now = _now()
     runs = _plan_runs(now, include_weather=args.include_weather)
+
+    _print_outstanding("[today]")
 
     badge_path = _badge_path()
     print(f"[today] GO/NO-GO badge -> {badge_path}")
@@ -121,8 +134,12 @@ def main(argv: list[str] | None = None) -> None:
         base_flags.extend(["--slippage-mode", args.slippage_mode])
     if args.impact_cap is not None:
         base_flags.extend(["--impact-cap", _fmt_float(args.impact_cap)])
+    if args.broker:
+        base_flags.extend(["--broker", args.broker])
     if args.model_version:
         base_flags.extend(["--model-version", args.model_version])
+    if args.kill_switch_file:
+        base_flags.extend(["--kill-switch-file", args.kill_switch_file])
 
     for mode_run in runs:
         mode, run_date = mode_run.mode, mode_run.run_date
@@ -130,6 +147,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"[today] Running {mode} for {run_date.isoformat()} ...")
         daily.main(run_args)
         _print_manifest_link()
+        _print_outstanding("[today]")
 
     final_manifest = _load_latest_manifest()
     if final_manifest:
@@ -138,6 +156,15 @@ def main(argv: list[str] | None = None) -> None:
     go_flag = _load_go_status(badge_path)
     if go_flag is False:
         raise SystemExit(1)
+
+
+def _print_outstanding(prefix: str) -> None:
+    state = OutstandingOrdersState.load()
+    summary = state.summary()
+    dry = summary.get("dry", 0)
+    live = summary.get("live", 0)
+    total = dry + live
+    print(f"{prefix} Outstanding orders -> total={total} (dry={dry}, live={live})")
 
 
 @dataclass(frozen=True)

@@ -72,3 +72,9 @@ def test_scoreboard_generates_markdown(monkeypatch, tmp_path: Path) -> None:
     assert "CRPS Advantage" in contents
     assert "Avg α" in contents
     assert "NO-GO Count" in contents
+
+    pilot_report = tmp_path / "reports" / "pilot_readiness.md"
+    assert pilot_report.exists()
+    pilot_text = pilot_report.read_text(encoding="utf-8")
+    assert "Pilot Readiness" in pilot_text
+    assert "| CPI" in pilot_text

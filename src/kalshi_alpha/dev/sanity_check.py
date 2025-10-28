@@ -7,11 +7,13 @@ from pathlib import Path
 
 EXCLUDE_TOP_LEVEL = {"tests", "docs"}
 FORBIDDEN_MARKERS = ("TODO", "NotImplementedError")
+ENV_PRINT_TOKENS = ("KALSHI_", "API_KEY", "API_SECRET")
 
 
 def main() -> int:
     root = Path(__file__).resolve().parents[3]
-    violations: list[tuple[Path, list[str]]] = []
+    marker_violations: list[tuple[Path, list[str]]] = []
+    print_violations: list[tuple[Path, str]] = []
 
     this_file = Path(__file__).resolve()
     for path in root.rglob("*"):
@@ -28,18 +30,35 @@ def main() -> int:
                 text = path.read_text(encoding="utf-8", errors="ignore")
             except Exception:  # pragma: no cover - non-readable file
                 continue
-        hits = [marker for marker in FORBIDDEN_MARKERS if marker in text]
+        text_lower = text.lower()
+        hits = [marker for marker in FORBIDDEN_MARKERS if marker.lower() in text_lower]
         if hits:
-            violations.append((path.relative_to(root), hits))
+            marker_violations.append((path.relative_to(root), hits))
 
-    if violations:
+        for line in text.splitlines():
+            if "print(" not in line:
+                continue
+            if any(token in line for token in ENV_PRINT_TOKENS):
+                print_violations.append((path.relative_to(root), line.strip()))
+
+    had_error = False
+    if marker_violations:
+        had_error = True
         print("Sanity check failed; forbidden markers found outside tests/ and docs/:", file=sys.stderr)
-        for rel_path, markers in violations:
+        for rel_path, markers in marker_violations:
             joined = ", ".join(markers)
             print(f" - {rel_path} ({joined})", file=sys.stderr)
+
+    if print_violations:
+        had_error = True
+        print("Sanity check failed; detected print statements referencing env var names:", file=sys.stderr)
+        for rel_path, line in print_violations:
+            print(f" - {rel_path}: {line}", file=sys.stderr)
+
+    if had_error:
         return 1
 
-    print("Sanity check passed: no TODO or NotImplementedError markers found.")
+    print("Sanity check passed: no forbidden markers or env var prints found.")
     return 0
 
 

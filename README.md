@@ -1,58 +1,253 @@
-# Kalshi Alpha Monorepo
+# Kalshi Alpha – Execution & Research Monorepo
 
-Kalshi Alpha is a private research monorepo that consolidates reusable tooling for pricing, scanning, and backtesting Kalshi ladder markets. The codebase is structured as a Python namespace package under `kalshi_alpha` and is designed for dry-run order proposal generation with no authenticated order submission capabilities.
+Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, and now a feature‑flagged live pilot lane for Kalshi ladder markets. It couples reproducible data ingestion with strategy scans, layered risk controls, and auditing so the default experience remains paper-only while still allowing controlled live execution when explicitly armed.
 
-## Features
+---
 
-- Shared fee, pricing, and risk engines to support multiple Kalshi ladders (fees follow the October 1, 2025 round-up schedule using Decimal precision).
-- Read-only public market-data client with offline fixture support for testing.
-- Strategy stubs for CPI, jobless claims, Treasury yields, weather, and gasoline.
-- Drivers for ingesting core macro datasets (BLS CPI, DOL ETA-539, Treasury par yields, NOAA/NWS Daily Climate Reports, AAA gas prices).
-- Datastore snapshotters producing timestamped raw captures and processed Parquet tables via DuckDB.
-- CLI runner (`kalshi-scan`) that scans ladders, applies strategies, fees, and PAL limits, and writes executable order proposal JSON (dry-run only).
+## What This Repository Provides
+
+### Strategy & Pricing Stack
+- **Core analytics (`src/kalshi_alpha/core/`)** – pricing primitives, fee models (October 1 2025 schedule), probability transforms, PAL enforcement, VaR checks, and backtesting helpers.
+- **Market data client** – read-only public API with offline fixtures and caching to stay deterministic in CI/offline modes.
+- **Strategy modules (`strategies/`)** – CPI, claims, 10Y Treasury, weather, and gasoline models that generate ladder PMFs with calibration hooks.
+
+### Data Ingestion & Storage
+- **Drivers (`drivers/`)** pull canonical macro datasets (BLS CPI, DOL ETA-539, treasury par yields, Cleveland nowcast, NOAA/NWS, AAA gas). Each driver supports offline fixtures under `tests/fixtures`.
+- **Datastore (`data/raw`, `data/proc`)** auto-populates timestamped snapshots and processed parquet tables. These directories are git-ignored and recreated on demand.
+
+### Execution Layer
+- **Scanners & pipelines (`exec/`)** power the CLI scanner (`kalshi-scan`) plus daily/today/week orchestration runners.
+- **Broker adapters (`exec/brokers`)** offer dry-run recording by default and a live Kalshi adapter that is locked behind dual CLI flags, environment credentials, kill-switch enforcement, and a bounded cancel/replace queue.
+- **State management (`exec/state`)** persists outstanding orders under `data/proc/state/orders.json` for restart recovery and reporting.
+- **Heartbeat & kill-switch (`exec/heartbeat.py`)** emit JSON heartbeats and gate execution when stale; presence of the kill-switch file forces NO-GO + cancel-all intent.
+
+### Reporting & Monitoring
+- **Markdown reports (`reports/<SERIES>/`)** include GO/NO-GO badge, Live Pilot header, exposure stats, mispricings, replay scorecards, and outstanding order counts.
+- **Pilot readiness dashboard** (`reports/pilot_readiness.md`) summarizes the last 7 days across GO rate, EV after fees, fill realism (observed vs α), and replay deltas.
+- **Scoreboard tooling (`exec/scoreboard.py`)** produces rolling 7/30‑day scorecards and surfaces gate stats and replay metrics.
+
+### Safety Net
+- Quality gates merge model monitors with drawdown checks and heartbeat freshness.
+- Kill-switch file (`data/proc/state/kill_switch`) halts new orders and records cancel-all intents.
+- Bounded cancel/replace queue (shared by dry & live brokers) enforces FIFO with retries, backoff, and audit drops.
+- `dev/sanity_check.py` fails if TODO/NotImplemented markers exist outside tests/docs or if code prints env var names (protects against secret leakage).
+
+---
 
 ## Repository Layout
 
-- `src/kalshi_alpha/core/`: Shared libraries for fees, pricing, API access, risk, backtesting, and datastore management.
-- `src/kalshi_alpha/drivers/`: Data ingestion helpers for macro datasets (fixtures provided for offline usage).
-- `src/kalshi_alpha/strategies/`: Strategy modules returning distributions over Kalshi ladder bins.
-- `src/kalshi_alpha/exec/`: Execution scaffolding, including runners, scanners, and broker placeholders.
-- `configs/`: Configuration files (e.g., PAL policies).
-- `data/`: Raw (`data/raw/`) and processed (`data/proc/`) data stores; both ignored by Git.
-- `exec/proposals/`: Scanner outputs in JSON format (ignored by Git).
-- `tests/`: Pytest suite with fixtures covering core subsystems.
-- `notebooks/`: Research notebooks (not versioned for data).
+| Path | Purpose |
+| --- | --- |
+| `src/kalshi_alpha/core/` | Pricing, fees, risk, archive, and API abstractions. |
+| `src/kalshi_alpha/drivers/` | Data ingestion for macro + weather sources (offline-ready). |
+| `src/kalshi_alpha/strategies/` | Calibrated strategy modules per ladder series. |
+| `src/kalshi_alpha/exec/` | Pipelines, runners, brokers, reports, ledger, scoreboard. |
+| `src/kalshi_alpha/exec/state/orders.py` | Outstanding order persistence, cancel-all intents. |
+| `src/kalshi_alpha/exec/heartbeat.py` | Heartbeat writer, staleness detection, kill-switch helpers. |
+| `src/kalshi_alpha/core/execution/order_queue.py` | FIFO cancel/replace queue with retry + audit. |
+| `configs/` | PAL policy templates, quality gate overrides, etc. |
+| `data/raw`, `data/proc` | Auto-generated data/processing stores (ignored in Git). |
+| `reports/` | Markdown reports, scoreboard outputs, pilot readiness summaries. |
+| `exec/proposals/` | Scanner proposal JSON artifacts. |
+| `tests/` | Pytest suites covering core subsystems, brokers, pipelines, and safety checks. |
+| `notebooks/` | Optional research notebooks (no data committed). |
 
-## Tooling
+---
 
-- Python 3.11+
-- Dependencies defined in `pyproject.toml` (PEP 621).
-- Development tooling: pytest, hypothesis, ruff, mypy, pre-commit.
-- `Makefile` targets simplify common workflows: formatting, linting, typing, testing, scanning.
+## Environment & Configuration
 
-## Quick Start
+1. **Set up Python environment**
+   ```bash
+   python3.11 -m venv .venv
+   source .venv/bin/activate
+   pip install --upgrade pip
+   pip install -e ".[dev]"        # use `uv pip install -e ".[dev]"` when available
+   ```
+
+2. **Secrets & environment variables**
+   - Copy credentials into `.env.local` (git-ignored). The live broker expects `KALSHI_API_KEY` and `KALSHI_API_SECRET`. Values are never logged; they load via `kalshi_alpha.utils.env.load_env()`.
+   - If `.env.local` is absent, the code falls back to `.env` then environment variables.
+
+3. **Data directories**
+   - `data/raw`, `data/proc`, and `reports/_artifacts` are created on demand. Tests patch these paths to temp locations through fixtures (see `tests/conftest.py`).
+
+---
+
+## Quick Start Workflow
 
 ```bash
-uv pip install -e ".[dev]"  # fall back to `pip` if `uv` is unavailable
+# Formatting, linting, typing, testing
+make fmt
 make lint
 make typecheck
-make test
-python -m kalshi_alpha.exec.runners.scan_ladders --series CPI --maker-only --min-ev 0.005 --dry-run
+make test          # runs pytest -q across the suite
+
+# Repo hygiene (run locally & in CI)
+PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check
+
+# Dry-run ladder scan with offline fixtures
+python -m kalshi_alpha.exec.runners.scan_ladders \
+  --series CPI \
+  --offline \
+  --fixtures-root tests/data_fixtures \
+  --report \
+  --paper-ledger \
+  --quiet
 ```
 
-The CLI will read offline fixtures when network access is disabled and will write proposed dry-run orders into `exec/proposals/<series>/<YYYY-MM-DD>.json`. Additional options include `--strategy`, `--pal-policy`, `--max-loss-per-strike`, and adjacency controls via `--allow-tails`.
+Common targets:
+- `make scan` – shorthand for CPI dry-run scan.
+- `python -m kalshi_alpha.exec.pipelines.daily ...` – run structured daily pipeline (see below).
+- `python -m kalshi_alpha.exec.scoreboard` – regenerate scoreboard + pilot readiness reports.
 
-## References
+---
 
-- GPT-5-Codex prompting basics (minimal prompt, apply_patch editing workflow).
-- Kalshi public market-data quick start (series, events, markets, orderbooks).
-- Kalshi fee schedule (October 1, 2025) for fee formulas, round-up semantics, and S&P/Nasdaq half-rate path (no settlement fees).
-- BLS CPI release schedule and methodology.
-- DOL ETA-539 weekly initial claims reports.
-- U.S. Treasury par yield curve (Daily Yield Curve Rates).
-- NOAA/NWS Daily Climate Report as the definitive settlement source for weather ladders.
-- AAA national and state gasoline price summaries (interface stubbed for future integration).
+## Running Scans & Pipelines
+
+### CLI Scanner (`kalshi-scan`)
+Key flags:
+- `--offline/--online` toggles fixtures vs live public API data.
+- `--broker {dry,live}` selects adapter (default `dry`).
+- `--i-understand-the-risks` **required** alongside `--broker live` to arm live execution.
+- `--kill-switch-file <path>` forwards a kill-switch sentinel (defaults to `data/proc/state/kill_switch`).
+- Risk controls: `--daily-loss-cap`, `--weekly-loss-cap`, `--max-var`, `--pal-policy`, `--max-loss-per-strike`.
+
+**Live mode requirements**
+1. Credentials loaded via `.env.local`.
+2. Command must include both `--broker live` and `--i-understand-the-risks`.
+3. Ensure kill-switch file does not exist (delete `data/proc/state/kill_switch` if safe). Creating the file forces cancel-all and blocks new orders.
+4. Live submissions operate through a cancel/replace queue with rate limiting, exponential backoff, idempotency keys, and audit JSONL (`data/proc/audit/live_orders_*.jsonl`).
+
+Example dry-run with live-capable flags (still dry unless `--broker live` is set):
+```bash
+python -m kalshi_alpha.exec.runners.scan_ladders \
+  --series CPI \
+  --offline \
+  --report \
+  --paper-ledger \
+  --broker dry
+```
+
+Example **live pilot** run (use only when ready and kill-switch cleared):
+```bash
+python -m kalshi_alpha.exec.runners.scan_ladders \
+  --series CPI \
+  --online \
+  --broker live \
+  --i-understand-the-risks \
+  --kill-switch-file data/proc/state/kill_switch \
+  --report
+```
+
+### Pipelines
+- `kalshi_alpha.exec.pipelines.daily` – full ingestion → calibration → scan workflow for a single mode (e.g., `pre_cpi`). Persists heartbeats, outstanding order state, reports, replay scorecards, and ledger artifacts.
+- `kalshi_alpha.exec.pipelines.today` – calendar-driven multi-mode launcher for the current day. Prints outstanding order counts before/after each run.
+- `kalshi_alpha.exec.pipelines.week` – weekly bundles (optionally weather, presets for paper/live cadence). Forwards broker/kill-switch flags into each daily invocation.
+
+Each pipeline writes:
+- `reports/_artifacts/go_no_go.json` – latest quality gate result.
+- `data/proc/state/orders.json` – outstanding order state (synchronized on place/cancel/replace).
+- `data/proc/state/heartbeat.json` – heartbeat metadata with ET timestamp, monitors, outstanding counts, and broker status.
+- Report markdown and scoreboard data.
+
+---
+
+## Broker Adapters & Order Lifecycle
+
+| Adapter | Default Mode | Behavior |
+| --- | --- | --- |
+| `DryBroker` | dry/paper | Deduplicates idempotency keys, serializes intents to `reports/_artifacts`, writes audit JSONL (`data/proc/audit/orders_*.jsonl`). Shares the cancel/replace queue when available. |
+| `LiveBroker` | live (feature-flagged) | Disabled in CI, loads `.env.local` credentials, enforces rate limiting (token bucket), idempotency headers, bounded cancel/replace queue, exponential backoff on 429/5xx, and structured audit trail (`live_orders_*.jsonl`). |
+
+Cancel/replace logic is centralized in `OrderQueue`:
+- FIFO processing, capacity guard (default 64), configurable retries/backoff.
+- On exhaustion, records `queue_drop` audit entries.
+- For replaces, executes cancel first then place using the same queue to maintain sequencing.
+
+Outstanding orders are recorded immediately after `broker.place(...)` so state is crash-safe. Reconciliation helpers can remove stale entries or mark cancel-all intents when kill-switches fire.
+
+---
+
+## Reports & Analytics
+
+- **Series reports** (written per run) include:
+  - GO/NO-GO badge.
+  - *Live Pilot* header summarizing broker mode, Kelly cap, VaR, fill α, and outstanding order totals.
+  - Mispricings, exposure, ledgers, replay scorecards, outstanding order breakdown.
+
+- **Scoreboard** (`python -m kalshi_alpha.exec.scoreboard`) produces:
+  - `reports/scoreboard_7d.md` and `reports/scoreboard_30d.md` with EV, realized PnL, fill ratios, α, GO/NO-GO counts.
+  - `reports/pilot_readiness.md` capturing last 7‑day GO rate, EV after fees, fill realism, and replay delta summary per series.
+  - Pulls replay metrics from `reports/_artifacts/scorecards/*.parquet`.
+
+---
+
+## Monitoring & Safety Controls
+
+1. **Quality gates** – combine monitors + drawdown status + heartbeat freshness. A stale (older than 5 min) heartbeat marks NO-GO and triggers cancel-all intents.
+2. **Kill-switch** – any existing kill-switch file forces `OutstandingOrdersState.mark_cancel_all(...)` and raises a broker refusal.
+3. **Heartbeats** – `write_heartbeat()` stores mode, monitors, outstanding counts, broker status. `heartbeat_stale()` guards pipelines and broker execution.
+4. **Outstanding orders** – persisted across runs; pipelines print counts during today/week orchestrations and reports include totals/breakdowns.
+5. **Sanity check** – `kalshi_alpha.dev.sanity_check` ensures no TODO/NotImplemented slip through and blocks accidental prints of env variable names.
+
+---
+
+## Testing & Continuous Integration
+
+- Unit & integration tests: `pytest -q`
+  - Broker safety (`tests/test_broker_live_safety.py`)
+  - Outstanding order state (`tests/test_orders_state.py`)
+  - Heartbeat & kill-switch gating (`tests/test_heartbeat_killswitch.py`)
+  - Order queue mechanics (`tests/test_order_queue.py`)
+  - Pilot readiness + scoreboard outputs (`tests/test_pilot_readiness.py`, `tests/test_scoreboard.py`)
+  - Legacy suites cover pipelines, risk, strategies, ledgers.
+
+- GitHub Actions (`.github/workflows/ci.yml`) stages:
+  1. Lint (ruff), mypy, pytest, sanity check.
+  2. Offline ingestion smoke.
+  3. Strategy calibration from fixtures.
+  4. Quality gate NO-GO validation.
+  5. Today wrapper offline run + artifact upload.
+  6. Nightly schedule executing the daily pipeline offline.
+
+To run locally in parity with CI:
+```bash
+pytest -q
+PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check
+python -m kalshi_alpha.exec.pipelines.daily --mode pre_cpi --offline --driver-fixtures tests/fixtures --scanner-fixtures tests/data_fixtures --report
+python -m kalshi_alpha.exec.scoreboard --window 7 --window 30
+```
+
+---
+
+## Future Work Guidelines
+
+- **Documentation first** – update this README and relevant docstrings when adding pipelines, brokers, strategy knobs, or safety controls.
+- **Safety review** – any live-path change must retain defaults (paper-only), require explicit arming flags, and include offline test coverage with fixtures.
+- **Artifacts hygiene** – new persistent state should live under `data/proc/state/` or `reports/_artifacts/` with explicit audit trails, and tests should validate serialization.
+- **CI hooks** – ensure `dev/sanity_check.py` remains green, add targeted tests for new controls, and extend GitHub workflow steps when introducing new scripts.
+- **Replay analytics** – when adding replay metrics, persist them under `reports/_artifacts/scorecards/` so scoreboard + pilot readiness ingest them automatically.
+
+---
+
+## Reference Commands
+
+```bash
+# Clean outstanding state (dry-run only)
+rm -f data/proc/state/orders.json data/proc/state/kill_switch data/proc/state/heartbeat.json
+
+# Manually trigger cancel-all intent
+touch data/proc/state/kill_switch
+
+# Inspect live audit entries
+tail -f data/proc/audit/live_orders_$(date +%F).jsonl
+
+# Refresh pilot readiness report
+python -m kalshi_alpha.exec.scoreboard --window 7 --window 30
+```
+
+---
 
 ## License
 
-Kalshi Alpha is released under the MIT License.
+This project is released under the MIT License. See `LICENSE` for details.

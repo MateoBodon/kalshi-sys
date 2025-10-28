@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from kalshi_alpha.exec.pipelines import daily
+from kalshi_alpha.exec.pipelines.calendar import ET, resolve_run_window
+from kalshi_alpha.datastore.paths import PROC_ROOT
+from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -17,6 +20,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--report", action="store_true", help="Render markdown reports for each run.")
     parser.add_argument("--paper-ledger", action="store_true", help="Simulate paper fills for each run.")
     parser.add_argument("--include-weather", action="store_true", help="Append the weather cycle run.")
+    parser.add_argument(
+        "--broker",
+        choices=["dry", "live"],
+        default="dry",
+        help="Broker adapter forwarded to daily runs.",
+    )
     parser.add_argument(
         "--driver-fixtures",
         default="tests/fixtures",
@@ -66,6 +75,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["pre_cpi", "pre_claims", "teny_close", "weather_cycle"],
         help="Explicit mode sequence; defaults to CPI, Claims, TenY (and weather if enabled).",
     )
+    parser.add_argument(
+        "--preset",
+        choices=["paper_live"],
+        help="Named run preset overriding manual mode selection.",
+    )
+    parser.add_argument(
+        "--kill-switch-file",
+        help="Path to kill-switch sentinel file forwarded to daily runs.",
+    )
     return parser.parse_args(argv)
 
 
@@ -82,8 +100,18 @@ def _default_modes(include_weather: bool) -> list[str]:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-    modes = list(dict.fromkeys(args.modes or _default_modes(args.include_weather)))
-    if not modes:
+    now = datetime.now(tz=UTC)
+
+    if args.preset == "paper_live":
+        schedule = _paper_live_schedule(now, include_weather=args.include_weather)
+    else:
+        modes = list(dict.fromkeys(args.modes or _default_modes(args.include_weather)))
+        if not modes:
+            print("[week] no modes requested")
+            return
+        schedule = [(mode, None) for mode in modes]
+
+    if not schedule:
         print("[week] no modes requested")
         return
 
@@ -114,15 +142,91 @@ def main(argv: list[str] | None = None) -> None:
 
     report_flag = args.report or args.paper
     paper_flag = args.paper_ledger or args.paper
+    if args.preset == "paper_live":
+        report_flag = True
+        paper_flag = True
     if report_flag:
         base_flags.append("--report")
     if paper_flag:
         base_flags.append("--paper-ledger")
+    if args.broker:
+        base_flags.extend(["--broker", args.broker])
+    if args.preset == "paper_live":
+        base_flags.append("--allow-no-go")
+    if args.kill_switch_file:
+        base_flags.extend(["--kill-switch-file", args.kill_switch_file])
 
-    print(f"[week] starting weekly run at {datetime.now(tz=UTC).isoformat()}")
-    for mode in modes:
-        print(f"[week] running mode: {mode}")
-        daily.main(["--mode", mode, *base_flags])
+    print(f"[week] starting weekly run at {now.isoformat()}")
+    _print_outstanding("[week]")
+    for mode, run_date in schedule:
+        run_args = ["--mode", mode, *base_flags]
+        if run_date is not None:
+            run_args.extend(["--when", run_date.isoformat()])
+        print(f"[week] running mode: {mode} ({run_date.isoformat() if run_date else 'auto'})")
+        daily.main(run_args)
+        _print_outstanding("[week]")
+
+
+def _print_outstanding(prefix: str) -> None:
+    state = OutstandingOrdersState.load()
+    summary = state.summary()
+    dry = summary.get("dry", 0)
+    live = summary.get("live", 0)
+    total = dry + live
+    print(f"{prefix} Outstanding orders -> total={total} (dry={dry}, live={live})")
+
+
+def _paper_live_schedule(now: datetime, *, include_weather: bool) -> list[tuple[str, date | None]]:
+    today_et = now.astimezone(ET).date()
+    runs: list[tuple[str, date]] = []
+
+    claims_window = resolve_run_window(mode="pre_claims", target_date=today_et, now=now)
+    release_date = _window_date(claims_window, fallback=_next_weekday(today_et, target_weekday=3))
+    freeze_date = _previous_business_day(release_date)
+    runs.append(("pre_claims", freeze_date))
+    runs.append(("pre_claims", release_date))
+
+    cpi_window = resolve_run_window(mode="pre_cpi", target_date=release_date, now=now, proc_root=PROC_ROOT)
+    cpi_release = _window_date(cpi_window, fallback=release_date)
+    cpi_eve = _previous_business_day(cpi_release)
+    runs.append(("pre_cpi", cpi_eve))
+    runs.append(("pre_cpi", cpi_release))
+
+    week_start = release_date - timedelta(days=release_date.weekday())
+    for offset in range(5):
+        ten_y_day = week_start + timedelta(days=offset)
+        if ten_y_day.weekday() >= 5:
+            continue
+        runs.append(("teny_close", ten_y_day))
+        if include_weather:
+            runs.append(("weather_cycle", ten_y_day))
+
+    ordered: list[tuple[str, date]] = []
+    seen: set[tuple[str, date]] = set()
+    for mode, when in sorted(runs, key=lambda item: (item[1], item[0])):
+        key = (mode, when)
+        if key not in seen:
+            ordered.append(key)
+            seen.add(key)
+    return ordered
+
+
+def _window_date(window, *, fallback: date) -> date:
+    if window and window.reference is not None:
+        return window.reference.astimezone(ET).date()
+    return fallback
+
+
+def _previous_business_day(candidate: date) -> date:
+    current = candidate - timedelta(days=1)
+    while current.weekday() >= 5:
+        current -= timedelta(days=1)
+    return current
+
+
+def _next_weekday(start: date, target_weekday: int) -> date:
+    delta = (target_weekday - start.weekday()) % 7
+    return start + timedelta(days=delta)
 
 
 if __name__ == "__main__":  # pragma: no cover

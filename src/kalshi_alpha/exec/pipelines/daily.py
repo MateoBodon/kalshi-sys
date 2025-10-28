@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -19,13 +19,22 @@ from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
 from kalshi_alpha.core.archive.scorecards import build_replay_scorecard
 from kalshi_alpha.exec.reports import write_markdown_report
+from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
 from kalshi_alpha.exec.runners.scan_ladders import (
     _archive_and_replay,
     _attach_series_metadata,
     _compute_exposure_summary,
     _write_cdf_diffs,
+    execute_broker,
     scan_series,
     write_proposals,
+)
+from kalshi_alpha.exec.state.orders import OutstandingOrdersState
+from kalshi_alpha.exec.heartbeat import (
+    heartbeat_stale,
+    kill_switch_engaged,
+    resolve_kill_switch_path,
+    write_heartbeat,
 )
 from kalshi_alpha.strategies.claims import calibrate as calibrate_claims
 from kalshi_alpha.strategies.cpi import calibrate as calibrate_cpi
@@ -98,6 +107,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Maximum absolute price impact for depth slippage.",
     )
     parser.add_argument(
+        "--broker",
+        choices=["dry", "live"],
+        default="dry",
+        help="Broker adapter to use when generating orders.",
+    )
+    parser.add_argument(
+        "--allow-no-go",
+        action="store_true",
+        help="Continue scanning even if quality gates block execution.",
+    )
+    parser.add_argument(
         "--mispricing-only",
         action="store_true",
         help="Restrict generated proposals to detected mispricing bins.",
@@ -119,6 +139,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["v0", "v15"],
         default="v15",
         help="Strategy model version to run for CPI/Claims/TENY.",
+    )
+    parser.add_argument(
+        "--kill-switch-file",
+        help="Path to kill-switch sentinel file (default: data/proc/state/kill_switch).",
     )
     parser.add_argument(
         "--when",
@@ -187,7 +211,7 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
             key = "fill_alpha_auto" if fill_alpha_auto else "fill_alpha"
             extra_monitors[key] = fill_alpha_value
         gate_result = run_quality_gate_step(args, now_utc, log, monitors=extra_monitors)
-        if not gate_result.go:
+        if not gate_result.go and not getattr(args, "allow_no_go", False):
             raise SystemExit(1)
         target_date: date = args.when if args.when else now_utc.astimezone(ET).date()
         run_window = resolve_run_window(mode=mode, target_date=target_date, now=now_utc, proc_root=PROC_ROOT)
@@ -272,7 +296,7 @@ def run_quality_gate_step(
     *,
     monitors: dict[str, float] | None = None,
 ) -> QualityGateResult:
-    config = load_quality_gate_config(_resolve_quality_gate_config_path())
+    config = load_quality_gate_config(resolve_quality_gate_config_path())
     result = run_quality_gates(
         config=config,
         now=now_utc,
@@ -294,6 +318,23 @@ def run_quality_gate_step(
     if not drawdown_status.ok:
         combined_reasons.extend(drawdown_status.reasons)
 
+    kill_switch_path = resolve_kill_switch_path(getattr(args, "kill_switch_file", None))
+    if kill_switch_engaged(kill_switch_path):
+        go_flag = False
+        combined_reasons.append("kill_switch_engaged")
+        details["kill_switch_path"] = kill_switch_path.as_posix()
+        OutstandingOrdersState.load().mark_cancel_all(
+            "kill_switch_engaged",
+            modes=[(getattr(args, "broker", "dry") or "dry")],
+        )
+
+    stale, heartbeat_payload = heartbeat_stale(threshold=timedelta(minutes=5))
+    if stale:
+        go_flag = False
+        combined_reasons.append("heartbeat_stale")
+        if heartbeat_payload:
+            details.setdefault("heartbeat", heartbeat_payload)
+
     combined = QualityGateResult(go=go_flag, reasons=combined_reasons, details=details)
 
     log_entry = {
@@ -304,27 +345,8 @@ def run_quality_gate_step(
     if monitors:
         log_entry["monitors"] = monitors
     log["quality_gates"] = log_entry
-    _write_go_no_go(combined)
+    write_go_no_go(combined)
     return combined
-
-
-def _resolve_quality_gate_config_path() -> Path:
-    primary = Path("configs/quality_gates.yaml")
-    if primary.exists():
-        return primary
-    fallback = Path("configs/quality_gates.example.yaml")
-    if fallback.exists():
-        return fallback
-    return primary
-
-
-def _write_go_no_go(result: QualityGateResult) -> Path:
-    artifacts_dir = Path("reports/_artifacts")
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    payload = {"go": bool(result.go), "reasons": list(result.reasons)}
-    output_path = artifacts_dir / "go_no_go.json"
-    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return output_path
 
 
 def _write_latest_manifest(manifest_path: Path | None) -> None:
@@ -466,6 +488,7 @@ def run_scan(
             proposals_path=proposals_path,
             driver_fixtures=driver_fixtures,
             scanner_fixtures=fixtures_root,
+            model_metadata=outcome.model_metadata,
         )
         if manifest_path:
             try:
@@ -505,6 +528,29 @@ def run_scan(
         else ([] if manifest_path else None)
     )
 
+    broker_status = None
+    if proposals:
+        try:
+            broker_status = execute_broker(
+                broker_mode=getattr(args, "broker", "dry"),
+                proposals=proposals,
+                args=args,
+                monitors=outcome.monitors,
+                quiet=False,
+                go_status=log.get("quality_gates", {}).get("go", True),
+            )
+        except RuntimeError as exc:
+            broker_status = {"mode": getattr(args, "broker", "dry"), "orders_recorded": 0, "error": str(exc)}
+            log.setdefault("broker", broker_status)
+
+    outstanding_summary = OutstandingOrdersState.load().summary()
+    pilot_metadata = {
+        "mode": getattr(args, "broker", "dry"),
+        "kelly_cap": getattr(args, "kelly_cap", None),
+        "max_var": getattr(args, "max_var", None),
+        "fill_alpha": fill_alpha_value,
+        "outstanding_total": sum(outstanding_summary.values()),
+    }
     report_path = None
     if args.report:
         report_path = write_markdown_report(
@@ -515,12 +561,25 @@ def run_scan(
             monitors=monitors,
             exposure_summary=exposure_summary,
             manifest_path=manifest_path,
-            go_status=True,
+            go_status=log.get("quality_gates", {}).get("go", True),
             fill_alpha=fill_alpha_value,
             mispricings=outcome.mispricings,
             model_metadata=outcome.model_metadata,
             scorecard_summary=scorecard_summary_section,
+            outstanding_summary=outstanding_summary,
+            pilot_metadata=pilot_metadata,
         )
+
+    write_heartbeat(
+        mode=f"daily:{mode}",
+        monitors=monitors,
+        extra={
+            "outstanding": outstanding_summary,
+            "broker": broker_status,
+            "series": series,
+        },
+    )
+
 
     log.setdefault("scan_results", {})[mode] = {
         "proposals": len(proposals),
@@ -535,6 +594,8 @@ def run_scan(
         "model_metadata": outcome.model_metadata,
         "scorecard_summary_path": str(scorecard_summary_path) if scorecard_summary_path else None,
         "scorecard_cdf_path": str(scorecard_cdf_path) if scorecard_cdf_path else None,
+        "broker": broker_status,
+        "outstanding": outstanding_summary,
     }
 
 
