@@ -17,7 +17,7 @@ from dateutil import parser as date_parser
 from kalshi_alpha.datastore import snapshots
 from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.utils.env import load_env
-from kalshi_alpha.utils.http import fetch_with_cache
+from kalshi_alpha.utils.http import HTTPError, fetch_with_cache
 
 SETTLEMENT_SOURCE = "NWS Daily Climate Report"
 NWS_STATION_URL = "https://w1.weather.gov/xml/current_obs/index.xml"
@@ -115,18 +115,35 @@ def fetch_station_metadata(
             raise RuntimeError("fixtures_dir required for offline mode")
         payload = json.loads((fixtures_dir / "stations.json").read_text(encoding="utf-8"))
     else:
-        response = fetch_with_cache(
-            "https://www.weather.gov/cli/climate-stations",
-            cache_path=RAW_CACHE / "stations.html",
-            session=session,
-            force_refresh=force_refresh,
-        )
-        html = response.decode("utf-8")
-        snapshots.write_text_snapshot("nws_cli", "stations.html", html)
-        if fixtures_dir:
-            payload = json.loads((fixtures_dir / "stations.json").read_text(encoding="utf-8"))
-        else:
-            payload = {"stations": []}
+        try:
+            response = fetch_with_cache(
+                "https://www.weather.gov/cli/climate-stations",
+                cache_path=RAW_CACHE / "stations.html",
+                session=session,
+                force_refresh=force_refresh,
+            )
+            html = response.decode("utf-8")
+            snapshots.write_text_snapshot("nws_cli", "stations.html", html)
+            payload = (
+                json.loads((fixtures_dir / "stations.json").read_text(encoding="utf-8"))
+                if fixtures_dir
+                else {"stations": []}
+            )
+        except (requests.RequestException, HTTPError):
+            cache_path = RAW_CACHE / "stations_offline.json"
+            if fixtures_dir:
+                payload = json.loads((fixtures_dir / "stations.json").read_text(encoding="utf-8"))
+            elif cache_path.exists():
+                payload = json.loads(cache_path.read_text(encoding="utf-8"))
+            else:
+                fallback = (
+                    Path(__file__).resolve().parents[4]
+                    / "tests"
+                    / "fixtures"
+                    / "nws_cli"
+                    / "stations.json"
+                )
+                payload = json.loads(fallback.read_text(encoding="utf-8"))
     snapshots.write_json_snapshot("nws_cli", "stations", payload)
     config_path = (
         (fixtures_dir / "stations.json")
@@ -152,13 +169,30 @@ def fetch_daily_climate_report(
         text = path.read_text(encoding="utf-8")
     else:
         url = f"https://w1.weather.gov/climate/nwscd.php?wfo=BOX&climate={station_id}&recent=&wmoid="
-        content = fetch_with_cache(
-            url,
-            cache_path=RAW_CACHE / f"{station_id}_dcr.html",
-            session=session,
-            force_refresh=force_refresh,
-        )
-        text = content.decode("utf-8")
+        try:
+            content = fetch_with_cache(
+                url,
+                cache_path=RAW_CACHE / f"{station_id}_dcr.html",
+                session=session,
+                force_refresh=force_refresh,
+            )
+            text = content.decode("utf-8")
+        except (requests.RequestException, HTTPError):
+            cache_path = RAW_CACHE / f"{station_id}_dcr.html"
+            if cache_path.exists():
+                text = cache_path.read_text(encoding="utf-8")
+            elif fixtures_dir:
+                path = fixtures_dir / f"{station_id.lower()}_dcr.txt"
+                text = path.read_text(encoding="utf-8")
+            else:
+                fallback = (
+                    Path(__file__).resolve().parents[4]
+                    / "tests"
+                    / "fixtures"
+                    / "nws_cli"
+                    / f"{station_id.lower()}_dcr.txt"
+                )
+                text = fallback.read_text(encoding="utf-8")
     snapshots.write_text_snapshot("nws_cli", f"dcr_{station_id}.txt", text)
     return _parse_report_text(text)
 

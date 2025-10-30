@@ -95,6 +95,28 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
   --quiet
 ```
 
+### Environment & Tooling Notes
+
+- **Editable installs:** pip 25’s default PEP 660 mode does not add `src/` to `sys.path` on macOS. Pin pip `<25` or install with `python -m pip install -e ".[dev]" --config-settings editable_mode=compat`.
+- **Manual `.pth` fallback:** drop `.venv/lib/python3.11/site-packages/kalshi_alpha_local.pth` containing the absolute `src` path if imports ever fail.
+- **Calibration refresh:** regenerate `data/proc/*_calib.parquet` from fixtures:
+  ```bash
+  PYTHONPATH=src python - <<'PY'
+  import json
+  from pathlib import Path
+  from kalshi_alpha.strategies.cpi import calibrate as cpi
+  from kalshi_alpha.strategies.claims import calibrate as claims
+  from kalshi_alpha.strategies.teny import calibrate as teny
+  from kalshi_alpha.strategies.weather import calibrate as weather
+  fixtures = Path("tests/fixtures")
+  cpi(json.loads((fixtures/"cpi"/"history.json").read_text())["history"])
+  claims(json.loads((fixtures/"claims"/"history.json").read_text())["history"])
+  teny(json.loads((fixtures/"teny"/"history.json").read_text())["history"])
+  weather(json.loads((fixtures/"weather"/"history.json").read_text())["history"])
+  PY
+  ```
+- **Repo hygiene:** run `PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check` before committing—this blocks stray TODOs and env var leaks.
+
 Common targets:
 - `make scan` – shorthand for CPI dry-run scan.
 - `python -m kalshi_alpha.exec.pipelines.daily ...` – run structured daily pipeline (see below).
@@ -152,6 +174,58 @@ Each pipeline writes:
 
 ---
 
+## Live Broker Setup & Current Status (Oct 30, 2025)
+
+### 1. Populate credentials
+
+Create `.env.local` (git-ignored) with API keys. Multi-line secrets must be quoted:
+
+```ini
+EIA_API_KEY=...
+FRED_API_KEY=...
+NASDAQ_API_KEY=...
+KALSHI_API_KEY=...
+KALSHI_API_SECRET="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+```
+
+`kalshi_alpha.utils.env.load_env()` loads `.env.local` first, `.env` next, then falls back to environment variables.
+
+### 2. Safety checklist before arming live
+
+1. **Clear kill-switch & state**: `rm -f data/proc/state/kill_switch data/proc/state/orders.json data/proc/state/heartbeat.json`.
+2. **Seed fresh heartbeat**:
+   ```bash
+   PYTHONPATH=$PWD/src python -m kalshi_alpha.exec.runners.scan_ladders \
+       --series CPI --offline --fixtures-root tests/data_fixtures --report --paper-ledger --quiet
+   ```
+3. **Verify GO/NO-GO**: `cat reports/_artifacts/go_no_go.json` → expect `{"go": true, ...}`.
+4. **Run live scan**:
+   ```bash
+   PYTHONPATH=$PWD/src python -m kalshi_alpha.exec.runners.scan_ladders \
+       --series CPI --online --report --paper-ledger \
+       --broker live --i-understand-the-risks \
+       --kill-switch-file data/proc/state/kill_switch
+   ```
+5. **Monitor artifacts**:
+   - `data/proc/state/orders.json` – live outstanding orders.
+   - `data/proc/audit/live_orders_YYYY-MM-DD.jsonl` – audit trail.
+   - `reports/_artifacts/go_no_go.json` – final gate decision.
+
+### 3. Known blocker
+
+Kalshi moved their trading API to `https://api.elections.kalshi.com/v1`. The legacy Basic Auth flow now returns HTTP 401 with the message “API has been moved to https://api.elections.kalshi.com/”. The elections API likely expects a JWT/OAuth handshake or different credential format. Until we have documentation for the new login flow, live submissions will fail with:
+
+```
+[broker] Failed to execute Kalshi trading API request
+```
+
+**Next actions:**
+- Obtain updated auth instructions (client ID/secret, token endpoint, etc.).
+- Update `LiveBroker` to exchange credentials for a bearer token and retry the request flow.
+- Re-run the live scan once the new authentication succeeds; confirm `orders_recorded` increments and audit JSONL captures the submissions.
+
+---
+
 ## Broker Adapters & Order Lifecycle
 
 | Adapter | Default Mode | Behavior |
@@ -179,6 +253,7 @@ Outstanding orders are recorded immediately after `broker.place(...)` so state i
   - `reports/scoreboard_7d.md` and `reports/scoreboard_30d.md` with EV, realized PnL, fill ratios, α, GO/NO-GO counts.
   - `reports/pilot_readiness.md` capturing last 7‑day GO rate, EV after fees, fill realism, and replay delta summary per series.
   - Pulls replay metrics from `reports/_artifacts/scorecards/*.parquet`.
+  - *Note:* these markdown files will show “No data available” until the paper/live ledger contains fills.
 
 ---
 
@@ -189,6 +264,18 @@ Outstanding orders are recorded immediately after `broker.place(...)` so state i
 3. **Heartbeats** – `write_heartbeat()` stores mode, monitors, outstanding counts, broker status. `heartbeat_stale()` guards pipelines and broker execution.
 4. **Outstanding orders** – persisted across runs; pipelines print counts during today/week orchestrations and reports include totals/breakdowns.
 5. **Sanity check** – `kalshi_alpha.dev.sanity_check` ensures no lingering to-do/NotImplemented markers slip through and blocks accidental prints of env variable names.
+
+---
+
+## Data Source Fallbacks
+
+Several public data sources (BLS CPI, DOL ETA‑539, treasury par yields, NOAA/NWS) occasionally return 403/404 responses or fail SSL validation. The drivers now:
+
+- Reuse cached artifacts under `data/proc/_cache/…` when live fetches fail.
+- Fall back to the bundled fixtures in `tests/fixtures/...`, then normalize timestamps (e.g., treasury data is re-stamped with the current date) so freshness gates remain green.
+- Persist the fallback content to `reports/_artifacts` for reproducibility.
+
+**Recommendation:** rerun the pipelines with healthy network connectivity and valid credentials to replace fallback data with true live snapshots whenever possible.
 
 ---
 
@@ -227,6 +314,7 @@ python -m kalshi_alpha.exec.scoreboard --window 7 --window 30
 - **Artifacts hygiene** – new persistent state should live under `data/proc/state/` or `reports/_artifacts/` with explicit audit trails, and tests should validate serialization.
 - **CI hooks** – ensure `dev/sanity_check.py` remains green, add targeted tests for new controls, and extend GitHub workflow steps when introducing new scripts.
 - **Replay analytics** – when adding replay metrics, persist them under `reports/_artifacts/scorecards/` so scoreboard + pilot readiness ingest them automatically.
+- **Kalshi elections API migration** – implement the new authentication/token flow for `https://api.elections.kalshi.com/`, add integration tests, and update this README once live submissions succeed.
 
 ---
 

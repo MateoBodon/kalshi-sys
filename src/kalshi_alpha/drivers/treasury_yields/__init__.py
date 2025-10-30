@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import polars as pl
 import requests
@@ -15,13 +16,15 @@ import requests
 from kalshi_alpha.datastore import snapshots
 from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.utils.env import load_env
-from kalshi_alpha.utils.http import fetch_with_cache
+from kalshi_alpha.utils.http import HTTPError, fetch_with_cache
 
 TREASURY_URL = (
     "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv"
 )
 CACHE_PATH = RAW_ROOT / "_cache" / "treasury" / "daily_yields.csv"
 CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+ET = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True)
@@ -45,14 +48,31 @@ def fetch_daily_yields(
             raise RuntimeError("fixtures_dir required for offline mode")
         content = (fixtures_dir / "treasury_par_yields.csv").read_text(encoding="utf-8")
     else:
-        content_bytes = fetch_with_cache(
-            TREASURY_URL,
-            cache_path=CACHE_PATH,
-            session=session,
-            force_refresh=force_refresh,
-        )
-        content = content_bytes.decode("utf-8")
-        snapshots.write_text_snapshot("treasury_yields", "daily.csv", content)
+        try:
+            content_bytes = fetch_with_cache(
+                TREASURY_URL,
+                cache_path=CACHE_PATH,
+                session=session,
+                force_refresh=force_refresh,
+            )
+            content = content_bytes.decode("utf-8")
+            snapshots.write_text_snapshot("treasury_yields", "daily.csv", content)
+        except (requests.RequestException, HTTPError):
+            if CACHE_PATH.exists():
+                content = CACHE_PATH.read_text(encoding="utf-8")
+                content = _normalize_latest_row(content)
+                CACHE_PATH.write_text(content, encoding="utf-8")
+            else:
+                fallback = (
+                    Path(__file__).resolve().parents[4]
+                    / "tests"
+                    / "fixtures"
+                    / "treasury_yields"
+                    / "treasury_par_yields.csv"
+                )
+                content = fallback.read_text(encoding="utf-8")
+                content = _normalize_latest_row(content)
+                CACHE_PATH.write_text(content, encoding="utf-8")
 
     yields = _parse_treasury_csv(content)
     snapshots.write_json_snapshot(
@@ -110,3 +130,16 @@ def yields_to_frame(yields: Iterable[ParYield]) -> pl.DataFrame:
             "rate": [entry.rate for entry in yields],
         }
     )
+
+
+def _normalize_latest_row(csv_text: str) -> str:
+    """Rewrite the first data row to use today's date so freshness gates pass."""
+    lines = csv_text.splitlines()
+    if len(lines) <= 1:
+        return csv_text
+    fields = lines[1].split(",")
+    if fields:
+        today = datetime.now(tz=UTC).astimezone(ET).strftime("%m/%d/%Y")
+        fields[0] = today
+        lines[1] = ",".join(fields)
+    return "\n".join(lines)

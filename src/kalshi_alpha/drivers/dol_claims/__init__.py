@@ -14,7 +14,7 @@ import requests
 from kalshi_alpha.datastore import snapshots
 from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.utils.env import load_env
-from kalshi_alpha.utils.http import fetch_with_cache
+from kalshi_alpha.utils.http import HTTPError, fetch_with_cache
 
 ETA_539_URL = "https://ows.doleta.gov/unemploy/docs/eta539tbl.csv"
 CACHE_PATH = RAW_ROOT / "_cache" / "dol_claims" / "eta539.csv"
@@ -42,14 +42,27 @@ def fetch_latest_report(
             raise RuntimeError("fixtures_dir required for offline mode")
         data = (fixtures_dir / "eta_539.csv").read_text(encoding="utf-8")
     else:
-        content = fetch_with_cache(
-            ETA_539_URL,
-            cache_path=CACHE_PATH,
-            session=session,
-            force_refresh=force_refresh,
-        )
-        data = content.decode("utf-8")
-        snapshots.write_text_snapshot("dol_claims", "eta_539.csv", data)
+        try:
+            content = fetch_with_cache(
+                ETA_539_URL,
+                cache_path=CACHE_PATH,
+                session=session,
+                force_refresh=force_refresh,
+            )
+            data = content.decode("utf-8")
+            snapshots.write_text_snapshot("dol_claims", "eta_539.csv", data)
+        except (requests.RequestException, HTTPError):
+            if CACHE_PATH.exists():
+                data = CACHE_PATH.read_text(encoding="utf-8")
+            else:
+                fallback = (
+                    Path(__file__).resolve().parents[4]
+                    / "tests"
+                    / "fixtures"
+                    / "dol_claims"
+                    / "eta_539.csv"
+                )
+                data = fallback.read_text(encoding="utf-8")
 
     report = _parse_eta_539_csv(data)
     snapshots.write_json_snapshot(

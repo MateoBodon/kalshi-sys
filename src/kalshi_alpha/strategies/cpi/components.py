@@ -50,10 +50,10 @@ def component_signals(
 
 def _resolve_candidates(base_dir: Path, filename: str) -> list[Path]:
     candidates = [
-        PROC_ROOT / filename,
         base_dir / filename,
         base_dir / "cpi" / filename,
         base_dir / "aaa" / filename,
+        PROC_ROOT / filename,
     ]
     return [path for path in candidates if path.exists()]
 

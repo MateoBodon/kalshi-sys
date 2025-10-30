@@ -61,7 +61,7 @@ class LiveBroker(Broker):
         artifacts_dir: Path,
         audit_dir: Path,
         session: requests.Session | None = None,
-        base_url: str = "https://trading-api.kalshi.com/v1",
+        base_url: str = "https://api.elections.kalshi.com/v1",
         rate_limit_per_second: int = 5,
         queue_capacity: int = 64,
         max_retries: int = 3,

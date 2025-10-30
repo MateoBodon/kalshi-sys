@@ -39,6 +39,10 @@ def fetch_with_cache(  # noqa: PLR0913
     request_headers: dict[str, str] = {}
     if headers:
         request_headers.update(headers)
+    request_headers.setdefault(
+        "User-Agent",
+        "kalshi-alpha/0.1.0 (+https://kalshi.com) Python-requests",
+    )
 
     if not force_refresh and meta:
         if etag := meta.get("etag"):
