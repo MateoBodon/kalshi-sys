@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import polars as pl
 
@@ -27,7 +27,12 @@ class _ReplayContext:
     artifacts_dir: Path
 
 
-def replay_manifest(manifest_path: Path | str, *, model_version: str = "v15") -> Path:
+def replay_manifest(
+    manifest_path: Path | str,
+    *,
+    model_version: str = "v15",
+    orderbooks_override: Mapping[str, Orderbook] | None = None,
+) -> Path:
     """Recompute expected values for archived proposals and write parquet output."""
 
     ctx = _load_context(Path(manifest_path))
@@ -36,7 +41,14 @@ def replay_manifest(manifest_path: Path | str, *, model_version: str = "v15") ->
         return _write_output([], ctx.artifacts_dir)
 
     markets = _load_markets(ctx)
-    orderbooks = _load_orderbooks(ctx)
+    if orderbooks_override is not None:
+        orderbooks = dict(orderbooks_override)
+        if len(orderbooks) < len(markets):
+            disk_books = _load_orderbooks(ctx)
+            for market_id, book in disk_books.items():
+                orderbooks.setdefault(market_id, book)
+    else:
+        orderbooks = _load_orderbooks(ctx)
     driver_fixtures = _resolve_driver_fixtures(ctx)
     series_info = ctx.manifest.get("series", {})
     series = Series(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -24,8 +25,12 @@ from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
 from kalshi_alpha.exec.runners.scan_ladders import (
     _archive_and_replay,
+    _apply_ev_honesty_gate,
     _attach_series_metadata,
+    _clear_dry_orders_start,
     _compute_exposure_summary,
+    _compute_ev_honesty_rows,
+    _load_replay_for_ev_honesty,
     _write_cdf_diffs,
     execute_broker,
     scan_series,
@@ -70,6 +75,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--force-run",
         action="store_true",
         help="Bypass calendar scan windows (DRY broker only).",
+    )
+    parser.add_argument(
+        "--snap-to-window",
+        choices=["off", "wait", "print"],
+        default="off",
+        help="Align execution with the next scan window (wait, print, or off).",
     )
     parser.add_argument(
         "--report",
@@ -119,6 +130,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["dry", "live"],
         default="dry",
         help="Broker adapter to use when generating orders.",
+    )
+    parser.add_argument(
+        "--clear-dry-orders-start",
+        action="store_true",
+        help="Clear outstanding DRY orders before scanning.",
     )
     parser.add_argument(
         "--allow-no-go",
@@ -199,6 +215,8 @@ def main(argv: list[str] | None = None) -> None:
     modes = MODE_SEQUENCE if args.mode == "full" else [args.mode]
     for mode in modes:
         run_mode(mode, args)
+        if getattr(args, "snap_to_window", "off") == "print":
+            break
 
 
 def run_mode(mode: str, args: argparse.Namespace) -> None:
@@ -214,6 +232,18 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
     force_run_enabled = bool(force_run_requested and getattr(args, "broker", "dry") == "dry")
     if force_run_requested and not force_run_enabled:
         log.setdefault("warnings", []).append("force_run_requires_dry_broker")
+
+    snap_result = _apply_snap_option(mode=mode, args=args, now_utc=now_utc)
+    if snap_result is None:
+        log.setdefault("scan_notes", {})[mode] = "snap_print"
+        write_log(mode, log, now_utc)
+        return
+
+    now_utc, target_date, run_window, snapped = snap_result
+    log["timestamp"] = now_utc.isoformat()
+    log["window"] = run_window.to_dict(now_utc)
+    if snapped:
+        log.setdefault("snap_notes", []).append("waited_for_window")
 
     def _refresh_heartbeat(stage: str, extra: dict[str, object] | None = None) -> None:
         payload: dict[str, object] = {"stage": stage, "mode": mode, "force_run": force_run_enabled}
@@ -235,11 +265,13 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
         run_ingest(args, log)
         _refresh_heartbeat("post_ingest")
         run_calibrations(args, log, heartbeat_cb=_refresh_heartbeat)
+        now_utc = datetime.now(tz=UTC)
         _refresh_heartbeat("post_calibrations")
         series = resolve_series(mode)
         fill_alpha_value = DEFAULT_FILL_ALPHA
         fill_alpha_auto = False
         extra_monitors: dict[str, object] = {}
+        extra_monitors["online"] = bool(args.online)
         if series is not None:
             fill_alpha_value, fill_alpha_auto = _resolve_fill_alpha_value(args.fill_alpha, series)
             log.setdefault("fill_alpha", {})[series] = fill_alpha_value
@@ -250,7 +282,7 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
         gate_result = run_quality_gate_step(args, now_utc, log, monitors=extra_monitors)
         if not gate_result.go and not getattr(args, "allow_no_go", False):
             raise SystemExit(1)
-        target_date: date = args.when if args.when else now_utc.astimezone(ET).date()
+        target_date = target_date if getattr(args, "when", None) else now_utc.astimezone(ET).date()
         run_window = resolve_run_window(mode=mode, target_date=target_date, now=now_utc, proc_root=PROC_ROOT)
         log["window"] = run_window.to_dict(now_utc)
 
@@ -260,6 +292,7 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
             if run_window.notes:
                 reason = ",".join(run_window.notes)
             log.setdefault("scan_notes", {})[mode] = reason
+            return
         else:
             if series is None:
                 log.setdefault("scan_notes", {})[mode] = "series_not_supported"
@@ -347,13 +380,13 @@ def run_calibrations(
     calibrate_wrapper("weather", calibrate_weather, histories["weather"])
 
 
-def run_quality_gate_step(
+def _evaluate_quality_gates(
     args: argparse.Namespace,
     now_utc: datetime,
-    log: dict[str, object],
     *,
     monitors: dict[str, float] | None = None,
-) -> QualityGateResult:
+    apply_side_effects: bool = True,
+) -> tuple[QualityGateResult, dict[str, object]]:
     config = load_quality_gate_config(resolve_quality_gate_config_path())
     result = run_quality_gates(
         config=config,
@@ -381,10 +414,11 @@ def run_quality_gate_step(
         go_flag = False
         combined_reasons.append("kill_switch_engaged")
         details["kill_switch_path"] = kill_switch_path.as_posix()
-        OutstandingOrdersState.load().mark_cancel_all(
-            "kill_switch_engaged",
-            modes=[(getattr(args, "broker", "dry") or "dry")],
-        )
+        if apply_side_effects:
+            OutstandingOrdersState.load().mark_cancel_all(
+                "kill_switch_engaged",
+                modes=[(getattr(args, "broker", "dry") or "dry")],
+            )
 
     stale, heartbeat_payload = heartbeat_stale(threshold=timedelta(minutes=5))
     if stale:
@@ -402,6 +436,22 @@ def run_quality_gate_step(
     }
     if monitors:
         log_entry["monitors"] = monitors
+    return combined, log_entry
+
+
+def run_quality_gate_step(
+    args: argparse.Namespace,
+    now_utc: datetime,
+    log: dict[str, object],
+    *,
+    monitors: dict[str, float] | None = None,
+) -> QualityGateResult:
+    combined, log_entry = _evaluate_quality_gates(
+        args,
+        now_utc,
+        monitors=monitors,
+        apply_side_effects=True,
+    )
     log["quality_gates"] = log_entry
     write_go_no_go(combined)
     return combined
@@ -459,6 +509,78 @@ def _apply_fill_realism_gate(
     return metric, result
 
 
+def _compute_next_window(
+    *,
+    mode: str,
+    start_date: date,
+    now_utc: datetime,
+    max_days: int = 14,
+) -> tuple[date, "RunWindow"]:
+    """Find the next run window on or after ``start_date`` that closes in the future."""
+
+    candidate_date = start_date
+    for _ in range(max_days):
+        window = resolve_run_window(mode=mode, target_date=candidate_date, now=now_utc, proc_root=PROC_ROOT)
+        if window.scan_open and window.scan_close and now_utc <= window.scan_close:
+            return candidate_date, window
+        candidate_date += timedelta(days=1)
+    # Fallback to the last computed window if none suitable were found
+    return candidate_date - timedelta(days=1), window
+
+
+def _format_window_line(prefix: str, run_window, *, include_notes: bool = False) -> str:
+    scan_open = run_window.scan_open.astimezone(ET).isoformat() if run_window.scan_open else "n/a"
+    scan_close = run_window.scan_close.astimezone(ET).isoformat() if run_window.scan_close else "n/a"
+    line = f"{prefix}: open={scan_open} close={scan_close}"
+    if include_notes and run_window.notes:
+        line += f" notes={','.join(run_window.notes)}"
+    return line
+
+
+def _print_next_window(mode: str, window_date: date, run_window) -> None:
+    print(f"[snap] Next window for {mode.upper()} on {window_date.isoformat()}")
+    print(_format_window_line("[snap] Window (ET)", run_window, include_notes=True))
+
+
+def _apply_snap_option(
+    *,
+    mode: str,
+    args: argparse.Namespace,
+    now_utc: datetime,
+) -> tuple[datetime, date, "RunWindow", bool] | None:
+    """Handle snap-to-window logic. Returns (now, date, window, waited) or None if we should exit."""
+
+    target_date: date = args.when if getattr(args, "when", None) else now_utc.astimezone(ET).date()
+    run_window = resolve_run_window(mode=mode, target_date=target_date, now=now_utc, proc_root=PROC_ROOT)
+    option = getattr(args, "snap_to_window", "off")
+    if option == "off":
+        return now_utc, target_date, run_window, False
+
+    next_date, next_window = _compute_next_window(mode=mode, start_date=target_date, now_utc=now_utc)
+    if option == "print":
+        _print_next_window(mode, next_date, next_window)
+        return None
+
+    if option == "wait":
+        if next_window.scan_open is None:
+            _print_next_window(mode, next_date, next_window)
+            return now_utc, next_date, next_window, False
+        wait_seconds = max(0.0, (next_window.scan_open - now_utc).total_seconds())
+        if wait_seconds > 0:
+            print(f"[snap] Waiting {wait_seconds:.0f}s for next {mode.upper()} window ...")
+            time.sleep(wait_seconds)
+        updated_now = datetime.now(tz=UTC)
+        refreshed_window = resolve_run_window(
+            mode=mode,
+            target_date=next_date,
+            now=updated_now,
+            proc_root=PROC_ROOT,
+        )
+        return updated_now, next_date, refreshed_window, True
+
+    raise ValueError(f"Unsupported snap-to-window option: {option}")
+
+
 def run_scan(
     mode: str,
     args: argparse.Namespace,
@@ -473,6 +595,12 @@ def run_scan(
     offline_mode = args.offline or not args.online
     force_run_enabled = bool(getattr(args, "force_run", False) and getattr(args, "broker", "dry") == "dry")
     client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=offline_mode)
+
+    outstanding_start = _clear_dry_orders_start(
+        enabled=getattr(args, "clear_dry_orders_start", False),
+        broker_mode=getattr(args, "broker", "dry"),
+        quiet=False,
+    )
 
     pal_policy_path = Path("configs/pal_policy.yaml")
     if not pal_policy_path.exists():
@@ -541,7 +669,24 @@ def run_scan(
         return
 
     proposals = outcome.proposals
+    books_at_scan = dict(getattr(outcome, "books_at_scan", {}))
+    book_snapshot_started_at = getattr(outcome, "book_snapshot_started_at", None)
+    book_snapshot_completed_at = getattr(outcome, "book_snapshot_completed_at", None)
     monitors = dict(outcome.monitors or {})
+    monitors["online"] = bool(args.online)
+    monitors.setdefault("orderbook_snapshots", len(books_at_scan))
+    if book_snapshot_started_at is not None:
+        monitors.setdefault("book_snapshot_started_at", book_snapshot_started_at.isoformat())
+    if book_snapshot_completed_at is not None:
+        monitors.setdefault("book_snapshot_completed_at", book_snapshot_completed_at.isoformat())
+    monitors.setdefault(
+        "outstanding_orders_start_total",
+        sum(outstanding_start.values()),
+    )
+    monitors.setdefault(
+        "outstanding_orders_start_breakdown",
+        dict(sorted(outstanding_start.items())),
+    )
     if fill_alpha_auto:
         monitors["fill_alpha_auto"] = fill_alpha_value
     else:
@@ -549,27 +694,19 @@ def run_scan(
     monitors.setdefault("model_version", args.model_version)
     exposure_summary = _compute_exposure_summary(proposals)
     cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
-    should_archive = args.report or args.paper_ledger
-
-    orderbook_ids: set[str] = set()
-    if args.paper_ledger or args.report:
-        orderbook_ids.update({proposal.market_id for proposal in proposals})
-    if should_archive:
-        orderbook_ids.update({market.id for market in outcome.markets})
-
-    orderbooks: dict[str, Orderbook] = {}
-    for market_id in sorted(orderbook_ids):
-        try:
-            orderbooks[market_id] = client.get_orderbook(market_id)
-        except Exception:  # pragma: no cover
-            continue
+    should_archive = args.report or args.paper_ledger or force_run_enabled
+    if should_archive and outcome.markets:
+        expected_ids = {market.id for market in outcome.markets}
+        missing_ids = expected_ids.difference(books_at_scan.keys())
+        if missing_ids:
+            monitors["orderbook_snapshot_missing"] = len(missing_ids)
 
     ledger: PaperLedger | None = None
     if proposals and (args.paper_ledger or args.report):
         ledger_books = {
-            proposal.market_id: orderbooks[proposal.market_id]
+            proposal.market_id: books_at_scan[proposal.market_id]
             for proposal in proposals
-            if proposal.market_id in orderbooks
+            if proposal.market_id in books_at_scan
         }
         estimator = FillRatioEstimator(fill_alpha_value) if fill_alpha_value is not None else None
         event_lookup: dict[str, str] = {}
@@ -603,21 +740,27 @@ def run_scan(
 
     proposals_path = write_proposals(series=series, proposals=proposals, output_dir=Path("exec/proposals"))
     manifest_path: Path | None = None
+    replay_path: Path | None = None
     scorecard_summary_path: Path | None = None
     scorecard_cdf_path: Path | None = None
     scorecard_records: list[dict[str, object]] | None = None
     if should_archive and outcome.series is not None:
-        manifest_path = _archive_and_replay(
+        archive_result = _archive_and_replay(
             client=client,
             series=outcome.series,
             events=outcome.events,
             markets=outcome.markets,
-            orderbooks=orderbooks,
+            orderbooks=books_at_scan,
             proposals_path=proposals_path,
             driver_fixtures=driver_fixtures,
             scanner_fixtures=fixtures_root,
             model_metadata=outcome.model_metadata,
         )
+        if isinstance(archive_result, tuple):
+            manifest_path, replay_path = archive_result
+        else:
+            manifest_path = archive_result
+            replay_path = None
         if manifest_path:
             try:
                 scorecard = build_replay_scorecard(
@@ -636,6 +779,34 @@ def run_scan(
                 scorecard_summary_path = None
                 scorecard_cdf_path = None
                 scorecard_records = None
+
+    if manifest_path and book_snapshot_completed_at is not None:
+        try:
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:  # pragma: no cover - best effort metrics
+            manifest_payload = None
+        if isinstance(manifest_payload, dict):
+            generated_at_raw = manifest_payload.get("generated_at")
+            if isinstance(generated_at_raw, str):
+                try:
+                    archiver_ts = datetime.fromisoformat(generated_at_raw)
+                except ValueError:
+                    archiver_ts = None
+                if archiver_ts is not None:
+                    latency = (archiver_ts - book_snapshot_completed_at).total_seconds() * 1000.0
+                    monitors["book_latency_ms"] = round(max(0.0, latency), 3)
+
+    if replay_path:
+        replay_records = _load_replay_for_ev_honesty(replay_path)
+        ev_rows, ev_max_delta = _compute_ev_honesty_rows(proposals, replay_records)
+        if ev_rows:
+            monitors["ev_honesty_table"] = ev_rows
+            monitors["ev_honesty_max_delta"] = ev_max_delta
+            monitors["ev_honesty_count"] = len(ev_rows)
+            monitors.setdefault("ev_per_contract_diff_max", ev_max_delta)
+    _apply_ev_honesty_gate(monitors, threshold=0.10)
+
+    outcome.monitors = monitors
 
     _write_latest_manifest(manifest_path)
 
@@ -663,7 +834,7 @@ def run_scan(
                 broker_mode=getattr(args, "broker", "dry"),
                 proposals=proposals,
                 args=args,
-                monitors=outcome.monitors,
+                monitors=monitors,
                 quiet=False,
                 go_status=log.get("quality_gates", {}).get("go", True),
             )
@@ -686,6 +857,7 @@ def run_scan(
         "fill_alpha": fill_alpha_value,
         "outstanding_total": sum(outstanding_summary.values()),
         "force_run": force_run_enabled,
+        "online": bool(args.online),
     }
     window_et = getattr(args, "window_et", None)
     if window_et:
@@ -706,7 +878,8 @@ def run_scan(
             )
         )
     report_path = None
-    if args.report:
+    write_report = bool(args.report or force_run_enabled)
+    if write_report:
         report_path = write_markdown_report(
             series=series,
             proposals=proposals,

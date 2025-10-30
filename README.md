@@ -119,7 +119,10 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
 
 Common targets:
 - `make scan` – shorthand for CPI dry-run scan.
-- `python -m kalshi_alpha.exec.pipelines.daily ...` – run structured daily pipeline (see below).
+- `python -m kalshi_alpha.exec.pipelines.daily ...` – run structured daily pipeline (see below). New helpers:
+  - `--snap-to-window {off,wait,print}` aligns execution with the next Eastern-time window (print-only or sleep-until-open behaviour).
+  - `--force-run` (DRY broker only) now always produces a markdown report labelled **FORCE-RUN (DRY)** so manual reviews match production scans.
+- `python -m kalshi_alpha.exec.pipelines.preflight --mode ...` – quick ET-aware window + gate check (see “Window Gating & Preflight”).
 - `python -m kalshi_alpha.exec.scoreboard` – regenerate scoreboard + pilot readiness reports.
 
 ---
@@ -168,6 +171,19 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
 
 Each pipeline writes:
 - `reports/_artifacts/go_no_go.json` – latest quality gate result.
+- Force-run dry scans bypass the usual window guard but still archive proposals, replay parity, and markdown reports for audit. Normal runs abort early if outside the window.
+
+### Window Gating & Preflight
+
+- **Strict window guard** – `daily`/`today` refuse to scan when the calendar window is closed, unless `--force-run` is supplied with `--broker dry`. Outside-window exits leave no proposals, ledgers, or reports.
+- **Force-run audit trail** – when force-running, reports always render with a prominent “FORCE-RUN (DRY)” banner and monitors capture the associated latency metrics.
+- **Accurate `online` monitors** – monitors now expose the exact CLI `--online/--offline` choice; no silent fallback.
+- **Snap-to-window** – `--snap-to-window wait` sleeps until the next allowable window (based on calendar resolution) before scanning. `--snap-to-window print` prints the next ET window and exits 0 (no ingestion/calibration).
+- **Preflight CLI** – use
+  ```bash
+  python -m kalshi_alpha.exec.pipelines.preflight --mode teny_close
+  ```
+  to print the current ET timestamp, the active/next windows, whether a scan would be allowed if triggered now, and any quality-gate warnings (re-using daily’s gating logic without side effects). Handy for manual ops checklists or CRON guards.
 - `data/proc/state/orders.json` – outstanding order state (synchronized on place/cancel/replace).
 - `data/proc/state/heartbeat.json` – heartbeat metadata with ET timestamp, monitors, outstanding counts, and broker status.
 - Report markdown and scoreboard data.

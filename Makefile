@@ -38,9 +38,9 @@ typecheck:
 
 test:
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run pytest; \
+		uv run pytest && uv run python -m kalshi_alpha.dev.sanity_check; \
 	else \
-		$(PYTHON) -m pytest; \
+		$(PYTHON) -m pytest && $(PYTHON) -m kalshi_alpha.dev.sanity_check; \
 	fi
 
 scan:

@@ -138,13 +138,29 @@ def write_markdown_report(
         lines.append(f"Trades: {summary['trades']}")
         lines.append("")
         lines.extend(_expected_vs_realized_rows(ledger))
-        ev_lines, ev_diff = _ev_honesty_rows(ledger)
-        if ev_lines:
-            lines.extend(ev_lines)
-            if monitors is not None and ev_diff is not None:
-                monitors.setdefault("ev_per_contract_diff_max", ev_diff)
         if monitors is not None and throttle_rows:
             monitors.setdefault("size_throttled_rows", throttle_rows)
+    ev_table_data = None
+    ev_max_delta = None
+    if monitors:
+        table_candidate = monitors.get("ev_honesty_table")
+        if isinstance(table_candidate, list) and table_candidate:
+            ev_table_data = table_candidate
+        max_delta_candidate = monitors.get("ev_honesty_max_delta")
+        if max_delta_candidate is not None:
+            try:
+                ev_max_delta = float(max_delta_candidate)
+            except (TypeError, ValueError):  # pragma: no cover - defensive
+                ev_max_delta = None
+
+    if ev_table_data or ledger:
+        ev_lines, ev_diff = _ev_honesty_rows(ledger, table_data=ev_table_data, max_delta=ev_max_delta)
+        if ev_lines:
+            lines.extend(ev_lines)
+            lines.append("")
+            if monitors is not None and ev_diff is not None:
+                monitors.setdefault("ev_per_contract_diff_max", ev_diff)
+
     if monitors:
         lines.append("## Monitors")
         for key, value in monitors.items():
@@ -266,8 +282,47 @@ def _expected_vs_realized_rows(ledger: PaperLedger) -> list[str]:
     return lines
 
 
-def _ev_honesty_rows(ledger: PaperLedger) -> tuple[list[str], float | None]:
-    if not ledger.records:
+def _ev_honesty_rows(
+    ledger: PaperLedger | None,
+    *,
+    table_data: Sequence[dict[str, object]] | None = None,
+    max_delta: float | None = None,
+) -> tuple[list[str], float | None]:
+    def _safe_float(value: object, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    if table_data:
+        header = [
+            "### EV Honesty",
+            "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay | Delta |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        rows: list[str] = []
+        local_max = 0.0
+        for entry in table_data:
+            market = entry.get("market_ticker", "-")
+            strike = _safe_float(entry.get("strike"))
+            ev_orig_pc = _safe_float(entry.get("maker_ev_per_contract_original"))
+            ev_replay_pc = _safe_float(entry.get("maker_ev_per_contract_replay"))
+            ev_orig_total = _safe_float(entry.get("maker_ev_original"))
+            ev_replay_total = _safe_float(entry.get("maker_ev_replay"))
+            delta = abs(ev_orig_pc - ev_replay_pc)
+            local_max = max(local_max, delta)
+            rows.append(
+                f"| {market} | {strike:.2f} | {ev_orig_pc:.2f} | {ev_replay_pc:.2f} | "
+                f"{ev_orig_total:.2f} | {ev_replay_total:.2f} | {delta:.2f} |"
+            )
+        summary: list[str] = []
+        resolved_max = max_delta if max_delta is not None else local_max
+        summary.append("")
+        summary.append(f"Max per-contract delta: {resolved_max:.2f}")
+        summary.append("")
+        return header + rows + summary, resolved_max
+
+    if ledger is None or not ledger.records:
         return [], None
     replay_path = Path("reports/_artifacts/replay_ev.parquet")
     if not replay_path.exists():
@@ -286,11 +341,15 @@ def _ev_honesty_rows(ledger: PaperLedger) -> tuple[list[str], float | None]:
         strike_value = row.get("strike")
         if market_id is None or strike_value is None:
             continue
-        lookup[(market_id, float(strike_value))] = row
+        try:
+            key = (str(market_id), float(strike_value))
+        except (TypeError, ValueError):
+            continue
+        lookup[key] = row
     header = [
         "### EV Honesty",
-        "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay | Delta |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     rows = []
     max_diff = 0.0
@@ -301,18 +360,21 @@ def _ev_honesty_rows(ledger: PaperLedger) -> tuple[list[str], float | None]:
             continue
         per_contract_original = float(record.proposal.maker_ev_per_contract)
         total_original = float(record.expected_value)
-        per_contract_replay = float(
-            replay_row.get("maker_ev_per_contract_replay", replay_row.get("maker_ev_replay", 0.0))
+        per_contract_replay = _safe_float(
+            replay_row.get("maker_ev_per_contract_replay", replay_row.get("maker_ev_replay"))
         )
-        total_replay = float(replay_row.get("maker_ev_replay", 0.0))
+        total_replay = _safe_float(replay_row.get("maker_ev_replay"))
+        delta = abs(per_contract_original - per_contract_replay)
         rows.append(
             f"| {record.proposal.market_ticker} | {record.proposal.strike:.2f} | "
             f"{per_contract_original:.2f} | {per_contract_replay:.2f} | "
-            f"{total_original:.2f} | {total_replay:.2f} |"
+            f"{total_original:.2f} | {total_replay:.2f} | {delta:.2f} |"
         )
-        max_diff = max(max_diff, abs(per_contract_original - per_contract_replay))
+        max_diff = max(max_diff, delta)
     if not rows:
         return [], None
+    rows.append("")
+    rows.append(f"Max per-contract delta: {max_diff:.2f}")
     rows.append("")
     return header + rows, max_diff
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import polars as pl
 
-from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook
+from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.exec.runners import scan_ladders
 
 
@@ -50,19 +50,15 @@ def test_archive_and_replay_creates_artifacts(
         output_dir=tmp_path / "exec/proposals",
     )
 
-    orderbooks: dict[str, Orderbook] = {}
-    for market in outcome.markets:
-        try:
-            orderbooks[market.id] = client.get_orderbook(market.id)
-        except Exception:
-            continue
+    books_at_scan = dict(outcome.books_at_scan)
+    assert books_at_scan, "expected scan_series to collect orderbooks"
 
-    manifest_path = scan_ladders._archive_and_replay(
+    manifest_path, replay_path = scan_ladders._archive_and_replay(
         client=client,
         series=outcome.series,
         events=outcome.events,
         markets=outcome.markets,
-        orderbooks=orderbooks,
+        orderbooks=books_at_scan,
         proposals_path=proposals_path,
         driver_fixtures=offline_fixtures_root,
         scanner_fixtures=fixtures_root,
@@ -71,9 +67,9 @@ def test_archive_and_replay_creates_artifacts(
     assert manifest_path is not None
     assert manifest_path.exists()
 
-    replay_path = Path("reports/_artifacts/replay_ev.parquet")
-    assert replay_path.exists()
-    frame = pl.read_parquet(replay_path)
+    replay_artifact = replay_path or Path("reports/_artifacts/replay_ev.parquet")
+    assert replay_artifact.exists()
+    frame = pl.read_parquet(replay_artifact)
     assert "maker_ev_replay" in frame.columns
 
     manifest = manifest_path.read_text(encoding="utf-8")

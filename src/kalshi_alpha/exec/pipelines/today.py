@@ -77,6 +77,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Impact cap forwarded to daily pipeline (probability points).",
     )
     parser.add_argument(
+        "--snap-to-window",
+        choices=["off", "wait", "print"],
+        default="off",
+        help="Forward snap-to-window behaviour to the daily pipeline.",
+    )
+    parser.add_argument(
         "--broker",
         choices=["dry", "live"],
         default="dry",
@@ -156,6 +162,8 @@ def main(argv: list[str] | None = None) -> None:
         base_flags.extend(["--model-version", args.model_version])
     if args.kill_switch_file:
         base_flags.extend(["--kill-switch-file", args.kill_switch_file])
+    if args.snap_to_window and args.snap_to_window != "off":
+        base_flags.extend(["--snap-to-window", args.snap_to_window])
 
     for mode_run in runs:
         mode, run_date = mode_run.mode, mode_run.run_date

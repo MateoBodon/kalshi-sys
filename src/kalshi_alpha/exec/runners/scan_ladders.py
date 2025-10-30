@@ -119,6 +119,9 @@ class ScanOutcome:
     events: list[Event] = field(default_factory=list)
     markets: list[Market] = field(default_factory=list)
     model_metadata: dict[str, object] = field(default_factory=dict)
+    books_at_scan: dict[str, Orderbook] = field(default_factory=dict)
+    book_snapshot_started_at: datetime | None = None
+    book_snapshot_completed_at: datetime | None = None
 
 
 class _LossBudget:
@@ -144,6 +147,38 @@ class _LossBudget:
 
 _PORTFOLIO_CONFIG_CACHE: PortfolioConfig | None = None
 
+
+def _clear_dry_orders_start(
+    *,
+    enabled: bool,
+    broker_mode: str,
+    quiet: bool,
+    state: OutstandingOrdersState | None = None,
+) -> dict[str, int]:
+    """Optionally clear outstanding DRY orders before generating proposals."""
+
+    state_obj = state if state is not None else OutstandingOrdersState.load()
+    normalized = (broker_mode or "dry").strip().lower()
+    removed = 0
+    if enabled and normalized == "dry":
+        dry_orders = state_obj.outstanding_for("dry")
+        dry_keys = list(dry_orders.keys())
+        if dry_keys:
+            removed_keys = state_obj.remove("dry", dry_keys)
+            removed = len(removed_keys)
+            if removed:
+                state_obj.clear_cancel_all()
+        if not quiet:
+            print(f"[orders] Cleared dry orders at start: {removed}")
+
+    summary = state_obj.summary()
+    total = sum(summary.values())
+    if not quiet:
+        breakdown = ", ".join(f"{mode}={count}" for mode, count in sorted(summary.items()))
+        print(f"Outstanding orders: {total} ({breakdown})")
+    return summary
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     fixtures_root = Path(args.fixtures_root).resolve()
@@ -157,6 +192,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
     offline_mode = args.offline or not args.online
+
+    outstanding_start = _clear_dry_orders_start(
+        enabled=getattr(args, "clear_dry_orders_start", False),
+        broker_mode=args.broker,
+        quiet=args.quiet,
+    )
 
     drawdown_status = drawdown.check_limits(
         args.daily_loss_cap,
@@ -192,29 +233,44 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     proposals = outcome.proposals
+    books_at_scan = dict(getattr(outcome, "books_at_scan", {}))
+    book_snapshot_started_at = getattr(outcome, "book_snapshot_started_at", None)
+    book_snapshot_completed_at = getattr(outcome, "book_snapshot_completed_at", None)
+    outcome.monitors.setdefault("orderbook_snapshots", len(books_at_scan))
+    if book_snapshot_started_at is not None:
+        outcome.monitors.setdefault(
+            "book_snapshot_started_at",
+            book_snapshot_started_at.isoformat(),
+        )
+    if book_snapshot_completed_at is not None:
+        outcome.monitors.setdefault(
+            "book_snapshot_completed_at",
+            book_snapshot_completed_at.isoformat(),
+        )
+    outcome.monitors.setdefault(
+        "outstanding_orders_start_total",
+        sum(outstanding_start.values()),
+    )
+    outcome.monitors.setdefault(
+        "outstanding_orders_start_breakdown",
+        dict(sorted(outstanding_start.items())),
+    )
     if fill_alpha_auto:
         outcome.monitors["fill_alpha_auto"] = fill_alpha_value
     else:
         outcome.monitors.setdefault("fill_alpha", fill_alpha_value)
     should_archive = args.report or args.paper_ledger
-    orderbook_ids: set[str] = set()
-    if args.report or args.paper_ledger:
-        orderbook_ids.update({proposal.market_id for proposal in proposals})
-    if should_archive:
-        orderbook_ids.update({market.id for market in outcome.markets})
-
-    orderbooks: dict[str, Orderbook] = {}
-    for market_id in sorted(orderbook_ids):
-        try:
-            orderbooks[market_id] = client.get_orderbook(market_id)
-        except Exception:  # pragma: no cover - tolerate missing orderbooks
-            continue
+    if should_archive and outcome.markets:
+        expected_market_ids = {market.id for market in outcome.markets}
+        missing_market_ids = expected_market_ids.difference(books_at_scan.keys())
+        if missing_market_ids:
+            outcome.monitors["orderbook_snapshot_missing"] = len(missing_market_ids)
 
     ledger = _maybe_simulate_ledger(
         args,
         proposals,
         client,
-        orderbooks=orderbooks,
+        orderbooks=books_at_scan,
         fill_alpha=fill_alpha_value,
         series=outcome.series,
         events=outcome.events,
@@ -240,20 +296,55 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(f"Wrote {len(proposals)} proposals to {output_path}")
 
     manifest_path: Path | None = None
+    replay_path: Path | None = None
     if should_archive:
-        manifest_path = _archive_and_replay(
+        archive_result = _archive_and_replay(
             client=client,
             series=outcome.series,
             events=outcome.events,
             markets=outcome.markets,
-            orderbooks=orderbooks,
+            orderbooks=books_at_scan,
             proposals_path=output_path,
             driver_fixtures=driver_fixtures,
             scanner_fixtures=fixtures_root,
             model_metadata=outcome.model_metadata,
         )
+        if isinstance(archive_result, tuple):
+            manifest_path, replay_path = archive_result
+        else:
+            manifest_path = archive_result
+            replay_path = None
         if manifest_path and not args.quiet:
             print(f"Archived snapshot manifest at {manifest_path}")
+
+    if manifest_path and book_snapshot_completed_at is not None:
+        try:
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:  # pragma: no cover - best effort metrics
+            manifest_payload = None
+        if isinstance(manifest_payload, dict):
+            generated_at_raw = manifest_payload.get("generated_at")
+            if isinstance(generated_at_raw, str):
+                try:
+                    archiver_ts = datetime.fromisoformat(generated_at_raw)
+                except ValueError:  # pragma: no cover - tolerate malformed timestamp
+                    archiver_ts = None
+                if archiver_ts is not None:
+                    latency = (archiver_ts - book_snapshot_completed_at).total_seconds() * 1000.0
+                    outcome.monitors["book_latency_ms"] = round(max(0.0, latency), 3)
+
+    ev_honesty_rows: list[dict[str, object]] = []
+    ev_honesty_max_delta: float | None = None
+    if replay_path:
+        replay_records = _load_replay_for_ev_honesty(replay_path)
+        ev_honesty_rows, ev_honesty_max_delta = _compute_ev_honesty_rows(proposals, replay_records)
+        if ev_honesty_rows:
+            outcome.monitors["ev_honesty_table"] = ev_honesty_rows
+            outcome.monitors["ev_honesty_max_delta"] = ev_honesty_max_delta
+            outcome.monitors["ev_honesty_count"] = len(ev_honesty_rows)
+            if ev_honesty_max_delta is not None:
+                outcome.monitors.setdefault("ev_per_contract_diff_max", ev_honesty_max_delta)
+    _apply_ev_honesty_gate(outcome.monitors, threshold=0.10)
 
     if ledger and (args.paper_ledger or args.report):
         artifacts_dir = Path("reports/_artifacts")
@@ -364,9 +455,11 @@ def _maybe_simulate_ledger(
 ) -> PaperLedger | None:
     if not proposals or not (args.paper_ledger or args.report):
         return None
-    cache = orderbooks if orderbooks is not None else {}
-    for proposal in proposals:
-        if proposal.market_id not in cache:
+    cache = dict(orderbooks) if orderbooks is not None else {}
+    if orderbooks is None:
+        for proposal in proposals:
+            if proposal.market_id in cache:
+                continue
             try:
                 cache[proposal.market_id] = client.get_orderbook(proposal.market_id)
             except Exception:  # pragma: no cover - tolerate missing books
@@ -627,6 +720,25 @@ def _quality_gate_for_broker(
         if heartbeat_payload:
             details.setdefault("heartbeat", heartbeat_payload)
 
+    ev_no_go = bool(monitors.get("ev_honesty_no_go")) if monitors is not None else False
+    if ev_no_go:
+        go_flag = False
+        if "ev_honesty_stale" not in reasons:
+            reasons.append("ev_honesty_stale")
+        ev_payload: dict[str, object] = {}
+        if monitors is not None:
+            max_delta = monitors.get("ev_honesty_max_delta")
+            threshold = monitors.get("ev_honesty_threshold")
+            latency_ms = monitors.get("book_latency_ms")
+            if max_delta is not None:
+                ev_payload["max_delta"] = max_delta
+            if threshold is not None:
+                ev_payload["threshold"] = threshold
+            if latency_ms is not None:
+                ev_payload["book_latency_ms"] = latency_ms
+        if ev_payload:
+            details["ev_honesty"] = ev_payload
+
     combined = QualityGateResult(go=go_flag, reasons=reasons, details=details)
     write_go_no_go(combined)
     return combined
@@ -643,9 +755,9 @@ def _archive_and_replay(
     driver_fixtures: Path,
     scanner_fixtures: Path,
     model_metadata: dict[str, object] | None = None,
-) -> Path | None:
+) -> tuple[Path | None, Path | None]:
     if series is None:
-        return None
+        return None, None
     manifest_path = archive_scan(
         series=series,
         client=client,
@@ -661,11 +773,12 @@ def _archive_and_replay(
         scanner_fixtures=scanner_fixtures,
     )
     metadata = model_metadata or {}
-    replay_manifest(
+    replay_path = replay_manifest(
         manifest_path,
         model_version=str(metadata.get("model_version", "v15")),
+        orderbooks_override=orderbooks,
     )
-    return manifest_path
+    return manifest_path, replay_path
 
 
 def _enrich_manifest(
@@ -683,6 +796,94 @@ def _enrich_manifest(
     manifest["driver_fixtures"] = str(driver_fixtures)
     manifest["scanner_fixtures"] = str(scanner_fixtures)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _load_replay_for_ev_honesty(path: Path | None) -> list[dict[str, object]]:
+    if path is None:
+        return []
+    if not path.exists():
+        return []
+    try:
+        frame = pl.read_parquet(path)
+    except Exception:  # pragma: no cover - tolerate parquet failures
+        return []
+    if frame.is_empty():
+        return []
+    return frame.to_dicts()
+
+
+def _compute_ev_honesty_rows(
+    proposals: Sequence[Proposal],
+    replay_rows: Sequence[dict[str, object]],
+) -> tuple[list[dict[str, object]], float | None]:
+    if not proposals or not replay_rows:
+        return [], None
+
+    def _to_float(value: object, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    lookup: dict[tuple[str, float], dict[str, object]] = {}
+    for row in replay_rows:
+        market_id = row.get("market_id")
+        strike_value = row.get("strike")
+        if market_id is None or strike_value is None:
+            continue
+        try:
+            key = (str(market_id), float(strike_value))
+        except (TypeError, ValueError):  # pragma: no cover - malformed payloads
+            continue
+        lookup[key] = row
+
+    results: list[dict[str, object]] = []
+    max_delta = 0.0
+    for proposal in proposals:
+        key = (proposal.market_id, float(proposal.strike))
+        replay_row = lookup.get(key)
+        if replay_row is None:
+            continue
+        original_per = _to_float(proposal.maker_ev_per_contract)
+        replay_per = _to_float(
+            replay_row.get("maker_ev_per_contract_replay", replay_row.get("maker_ev_replay")),
+            default=_to_float(replay_row.get("maker_ev_replay")),
+        )
+        delta = abs(original_per - replay_per)
+        max_delta = max(max_delta, delta)
+        results.append(
+            {
+                "market_id": proposal.market_id,
+                "market_ticker": proposal.market_ticker,
+                "strike": float(proposal.strike),
+                "side": proposal.side,
+                "maker_ev_per_contract_original": original_per,
+                "maker_ev_per_contract_replay": replay_per,
+                "maker_ev_original": _to_float(proposal.maker_ev),
+                "maker_ev_replay": _to_float(replay_row.get("maker_ev_replay")),
+                "delta": delta,
+            }
+        )
+
+    results.sort(key=lambda row: (row["market_ticker"], row["strike"], row["side"]))
+    if not results:
+        return [], None
+    return results, max_delta
+
+
+def _apply_ev_honesty_gate(monitors: dict[str, object], *, threshold: float) -> None:
+    monitors.setdefault("ev_honesty_threshold", threshold)
+    max_delta_raw = monitors.get("ev_honesty_max_delta")
+    try:
+        max_delta = float(max_delta_raw) if max_delta_raw is not None else None
+    except (TypeError, ValueError):  # pragma: no cover - contaminated monitor value
+        max_delta = None
+    if max_delta is None:
+        monitors["ev_honesty_no_go"] = False
+        return
+    monitors["ev_honesty_no_go"] = bool(max_delta > threshold)
+    if max_delta > threshold:
+        monitors["ev_honesty_delta_excess"] = round(max_delta - threshold, 6)
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -841,6 +1042,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Broker adapter to use when executing orders.",
     )
     parser.add_argument(
+        "--clear-dry-orders-start",
+        action="store_true",
+        help="Clear outstanding DRY orders before scanning.",
+    )
+    parser.add_argument(
         "--i-understand-the-risks",
         action="store_true",
         help="Required acknowledgement flag when arming the live broker adapter.",
@@ -902,12 +1108,20 @@ def scan_series(  # noqa: PLR0913
     cdf_diffs: list[dict[str, object]] = []
     mispricing_records: list[dict[str, object]] = []
     all_markets: list[Market] = []
+    books_at_scan: dict[str, Orderbook] = {}
+    book_snapshot_failures = 0
+    book_snapshot_started_at = datetime.now(tz=UTC)
 
     model_metadata: dict[str, object] = {}
     for event in events:
         markets = client.get_markets(event.id)
         all_markets.extend(markets)
         for market in markets:
+            if market.id not in books_at_scan:
+                try:
+                    books_at_scan[market.id] = client.get_orderbook(market.id)
+                except Exception:  # pragma: no cover - tolerate missing books
+                    book_snapshot_failures += 1
             if not market.ladder_strikes or not market.ladder_yes_prices:
                 continue
 
@@ -1005,14 +1219,19 @@ def scan_series(  # noqa: PLR0913
             )
             proposals.extend(rung_proposals)
 
+    book_snapshot_completed_at = datetime.now(tz=UTC)
+
     monitors = {
         "non_monotone_ladders": non_monotone,
         "model_drift": _model_drift_flag(series_obj.ticker),
         "tz_not_et": _tz_not_et(),
+        "orderbook_snapshots": len(books_at_scan),
     }
     monitors.setdefault("model_version", model_version)
     if mispricing_records:
         monitors["max_prob_sum_gap"] = max(record["prob_sum_gap"] for record in mispricing_records)
+    if book_snapshot_failures:
+        monitors["orderbook_snapshot_failures"] = book_snapshot_failures
     return ScanOutcome(
         proposals=proposals,
         monitors=monitors,
@@ -1022,6 +1241,9 @@ def scan_series(  # noqa: PLR0913
         events=events,
         markets=all_markets,
         model_metadata=model_metadata,
+        books_at_scan=books_at_scan,
+        book_snapshot_started_at=book_snapshot_started_at,
+        book_snapshot_completed_at=book_snapshot_completed_at,
     )
 
 
