@@ -17,3 +17,5 @@ data/raw/
 data/proc/
 exec/proposals/
 notebooks/.ipynb_checkpoints/
+
+src/kalshi_alpha.egg-info/

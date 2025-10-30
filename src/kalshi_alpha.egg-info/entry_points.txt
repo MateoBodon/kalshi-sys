@@ -1,2 +1,0 @@
-[console_scripts]
-kalshi-scan = kalshi_alpha.exec.runners.scan_ladders:main

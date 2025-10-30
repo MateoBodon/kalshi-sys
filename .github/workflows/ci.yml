@@ -27,6 +27,8 @@ jobs:
         run: python -m mypy src tests
       - name: Pytest
         run: pytest -q
+      - name: Sanity check markers
+        run: python -m kalshi_alpha.dev.sanity_check
 
   ingestion-check:
     runs-on: ubuntu-latest

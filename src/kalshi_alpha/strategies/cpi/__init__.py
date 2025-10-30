@@ -172,15 +172,15 @@ def nowcast_v15(
         else:
             weight_map.update(weights)
 
+    total_component_weight = sum(abs(value) for value in weight_map.values())
+    blend_total = config.blend_cleveland + config.blend_components
+    if total_component_weight <= 0 or config.blend_components <= 0 or blend_total <= 0:
+        return nowcast(base_inputs, calibration=calibration)
+
     shift = components.blend_component_shift(signals, weight_map)
 
-    blend_total = config.blend_cleveland + config.blend_components
-    if blend_total <= 0:
-        base_weight = 0.5
-        component_weight = 0.5
-    else:
-        base_weight = config.blend_cleveland / blend_total
-        component_weight = config.blend_components / blend_total
+    base_weight = config.blend_cleveland / blend_total
+    component_weight = config.blend_components / blend_total
 
     base_mean = _select_mean(base_inputs)
     baseline_mean = base_mean + base_inputs.aaa_delta
@@ -190,7 +190,7 @@ def nowcast_v15(
     if base_inputs.variance is not None:
         base_variance = base_inputs.variance
     else:
-        base_variance = max(0.0025, 0.0036 + 0.04 * abs(adjusted_delta))
+        base_variance = max(2e-4, 3e-4 + 0.002 * abs(adjusted_delta))
 
     variance_boost = config.variance_scale * sum(
         abs(signals.get(key, 0.0)) * abs(weight_map.get(key, 0.0))

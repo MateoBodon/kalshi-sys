@@ -30,7 +30,7 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 - Quality gates merge model monitors with drawdown checks and heartbeat freshness.
 - Kill-switch file (`data/proc/state/kill_switch`) halts new orders and records cancel-all intents.
 - Bounded cancel/replace queue (shared by dry & live brokers) enforces FIFO with retries, backoff, and audit drops.
-- `dev/sanity_check.py` fails if TODO/NotImplemented markers exist outside tests/docs or if code prints env var names (protects against secret leakage).
+- `dev/sanity_check.py` fails if to-do/NotImplemented markers exist outside tests/docs or if code prints env var names (protects against secret leakage).
 
 ---
 
@@ -188,7 +188,7 @@ Outstanding orders are recorded immediately after `broker.place(...)` so state i
 2. **Kill-switch** – any existing kill-switch file forces `OutstandingOrdersState.mark_cancel_all(...)` and raises a broker refusal.
 3. **Heartbeats** – `write_heartbeat()` stores mode, monitors, outstanding counts, broker status. `heartbeat_stale()` guards pipelines and broker execution.
 4. **Outstanding orders** – persisted across runs; pipelines print counts during today/week orchestrations and reports include totals/breakdowns.
-5. **Sanity check** – `kalshi_alpha.dev.sanity_check` ensures no TODO/NotImplemented slip through and blocks accidental prints of env variable names.
+5. **Sanity check** – `kalshi_alpha.dev.sanity_check` ensures no lingering to-do/NotImplemented markers slip through and blocks accidental prints of env variable names.
 
 ---
 

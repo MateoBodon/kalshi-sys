@@ -45,3 +45,11 @@ test:
 
 scan:
 	$(PYTHON) -m kalshi_alpha.exec.runners.scan_ladders --series CPI --dry-run
+
+.PHONY: paper_live_offline paper_live_online
+
+paper_live_offline:
+	$(PYTHON) -m kalshi_alpha.exec.pipelines.week --preset paper_live --offline --report --paper-ledger --broker dry
+
+paper_live_online:
+	$(PYTHON) -m kalshi_alpha.exec.pipelines.week --preset paper_live --online --report --paper-ledger --broker dry
