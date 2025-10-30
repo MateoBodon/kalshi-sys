@@ -19,6 +19,18 @@ STATE_PATH = Path("data/proc/state/fill_alpha.json")
 
 
 
+def alpha_row(depth: float, size: int | float, alpha_base: float) -> float:
+    """Row-level fill alpha adjusted by visible depth."""
+
+    if size <= 0 or alpha_base <= 0:
+        return 0.0
+    depth = max(float(depth), 0.0)
+    alpha_base = max(0.0, min(1.0, float(alpha_base)))
+    ratio = depth / float(size)
+    ratio = max(0.0, min(ratio, 1.0))
+    return alpha_base * ratio
+
+
 def expected_fills(size: int | float, visible_depth: float, alpha: float) -> tuple[int, float]:
     """Return expected filled contracts and fill ratio for requested size."""
     if size <= 0 or visible_depth <= 0 or alpha <= 0:
@@ -108,7 +120,14 @@ class FillRatioEstimator:
         if contracts <= 0:
             return 0, 0.0
         visible = _visible_depth(side, price, orderbook)
-        return expected_fills(contracts, visible, self.alpha)
+        if visible <= 0:
+            return 0, 0.0
+        alpha_effective = alpha_row(visible, contracts, self.alpha)
+        if alpha_effective <= 0:
+            return 0, 0.0
+        expected = min(contracts, int(math.floor(contracts * alpha_effective)))
+        ratio = (expected / contracts) if contracts > 0 else 0.0
+        return expected, ratio
 
     def expected_contracts(
         self,

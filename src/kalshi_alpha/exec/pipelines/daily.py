@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -30,6 +31,7 @@ from kalshi_alpha.exec.runners.scan_ladders import (
     scan_series,
     write_proposals,
 )
+from kalshi_alpha.core.pricing.align import SkipScan
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.exec.heartbeat import (
     heartbeat_stale,
@@ -423,6 +425,40 @@ def _parse_date(value: str) -> date:
         raise argparse.ArgumentTypeError(f"Invalid date for --when: {value}") from exc
 
 
+def _apply_fill_realism_gate(
+    log: dict[str, object],
+    ledger: PaperLedger | None,
+    monitors: dict[str, object],
+) -> tuple[float | None, QualityGateResult | None]:
+    if ledger is None or not ledger.records:
+        return None, None
+    deltas: list[float] = []
+    for record in ledger.records:
+        alpha_row_value = getattr(record, "alpha_row", None)
+        if alpha_row_value is None:
+            continue
+        deltas.append(abs(float(record.fill_ratio) - float(alpha_row_value)))
+    if not deltas:
+        return None, None
+    metric = statistics.median(deltas)
+    monitors.setdefault("fill_realism_median", metric)
+    quality = log.setdefault("quality_gates", {"go": True, "reasons": [], "details": {}})
+    details = quality.setdefault("details", {})
+    details["fill_realism_median"] = metric
+    reasons = quality.setdefault("reasons", [])
+    go_flag = quality.get("go", True)
+    if metric > 0.10:
+        if "fill_realism_miss" not in reasons:
+            reasons.append("fill_realism_miss")
+        go_flag = False
+    quality["go"] = go_flag
+    quality["reasons"] = reasons
+    quality["details"] = details
+    result = QualityGateResult(go=go_flag, reasons=list(reasons), details=dict(details))
+    write_go_no_go(result)
+    return metric, result
+
+
 def run_scan(
     mode: str,
     args: argparse.Namespace,
@@ -457,30 +493,55 @@ def run_scan(
             "window_et": getattr(args, "window_et", None),
         },
     )
-    outcome = scan_series(
-        series=series,
-        client=client,
-        min_ev=0.01,
-        contracts=10,
-        pal_guard=pal_guard,
-        driver_fixtures=driver_fixtures,
-        strategy_name=strategy_name,
-        maker_only=True,
-        allow_tails=False,
-        risk_manager=risk_manager,
-        max_var=max_var,
-        offline=offline_mode,
-        sizing_mode="kelly",
-        kelly_cap=args.kelly_cap,
-        daily_loss_cap=args.daily_loss_cap,
-        mispricing_only=args.mispricing_only,
-        max_legs=args.max_legs,
-        prob_sum_gap_threshold=args.prob_sum_gap_threshold,
-        model_version=args.model_version,
-    )
+    try:
+        outcome = scan_series(
+            series=series,
+            client=client,
+            min_ev=0.01,
+            contracts=10,
+            pal_guard=pal_guard,
+            driver_fixtures=driver_fixtures,
+            strategy_name=strategy_name,
+            maker_only=True,
+            allow_tails=False,
+            risk_manager=risk_manager,
+            max_var=max_var,
+            offline=offline_mode,
+            sizing_mode="kelly",
+            kelly_cap=args.kelly_cap,
+            daily_loss_cap=args.daily_loss_cap,
+            mispricing_only=args.mispricing_only,
+            max_legs=args.max_legs,
+            prob_sum_gap_threshold=args.prob_sum_gap_threshold,
+            model_version=args.model_version,
+        )
+    except SkipScan as exc:
+        reason_text = getattr(exc, "reason", str(exc))
+        log.setdefault("scan_notes", {})[mode] = reason_text
+        log.setdefault("errors", []).append(reason_text)
+        write_go_no_go(
+            QualityGateResult(
+                go=False,
+                reasons=[reason_text],
+                details={"mode": mode},
+            )
+        )
+        outstanding_summary = OutstandingOrdersState.load().summary()
+        write_heartbeat(
+            mode=f"daily:{mode}",
+            extra={
+                "stage": "scan_skipped",
+                "series": series,
+                "reason": reason_text,
+                "outstanding": outstanding_summary,
+                "force_run": force_run_enabled,
+                "window_et": getattr(args, "window_et", None),
+            },
+        )
+        return
 
     proposals = outcome.proposals
-    monitors = outcome.monitors
+    monitors = dict(outcome.monitors or {})
     if fill_alpha_auto:
         monitors["fill_alpha_auto"] = fill_alpha_value
     else:
@@ -610,6 +671,13 @@ def run_scan(
             broker_status = {"mode": getattr(args, "broker", "dry"), "orders_recorded": 0, "error": str(exc)}
             log.setdefault("broker", broker_status)
 
+    throttle_rows = 0
+    if ledger:
+        throttle_rows = sum(1 for record in ledger.records if getattr(record, "size_throttled", False))
+        if throttle_rows:
+            monitors["size_throttled_rows"] = throttle_rows
+    fill_realism_metric, realism_result = _apply_fill_realism_gate(log, ledger, monitors)
+
     outstanding_summary = OutstandingOrdersState.load().summary()
     pilot_metadata = {
         "mode": getattr(args, "broker", "dry"),
@@ -622,6 +690,21 @@ def run_scan(
     window_et = getattr(args, "window_et", None)
     if window_et:
         pilot_metadata["window_et"] = window_et
+    if throttle_rows:
+        pilot_metadata["size_throttled_rows"] = throttle_rows
+    if fill_realism_metric is not None:
+        pilot_metadata["fill_realism_median"] = fill_realism_metric
+    quality_entry = log.get("quality_gates")
+    if realism_result is not None:
+        write_go_no_go(realism_result)
+    elif isinstance(quality_entry, dict):
+        write_go_no_go(
+            QualityGateResult(
+                go=quality_entry.get("go", True),
+                reasons=list(quality_entry.get("reasons", [])),
+                details=dict(quality_entry.get("details", {})),
+            )
+        )
     report_path = None
     if args.report:
         report_path = write_markdown_report(

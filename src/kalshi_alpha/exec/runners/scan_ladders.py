@@ -31,6 +31,7 @@ from kalshi_alpha.core.pricing import (
     pmf_from_quotes,
     prob_sum_gap,
 )
+from kalshi_alpha.core.pricing.align import SkipScan, align_pmf_to_strikes
 from kalshi_alpha.core.risk import (
     drawdown,
     OrderProposal,
@@ -1042,6 +1043,7 @@ def _strategy_pmf_for_series(
     if version not in {"v0", "v15"}:
         version = "v15"
     metadata: dict[str, object] = {"model_version": version}
+    pmf_values: list[LadderBinProbability] | None = None
 
     if pick == "cpi" and ticker == "CPI":
         pmf_values = cpi.strategy_pmf(
@@ -1057,8 +1059,7 @@ def _strategy_pmf_for_series(
                 "shelter": config.component_weights.shelter,
                 "autos": config.component_weights.autos,
             }
-        return pmf_values, metadata
-    if pick in {"claims", "jobless"} and ticker == "CLAIMS":
+    elif pick in {"claims", "jobless"} and ticker == "CLAIMS":
         history = _load_history(fixtures_dir, "claims")
         claims_history = [int(item["claims"]) for item in history[-6:]] if history else None
         latest_claims = claims_history[-1] if claims_history else None
@@ -1084,8 +1085,7 @@ def _strategy_pmf_for_series(
             pmf_values = claims_strategy.pmf_v15(strikes, inputs=inputs)
         else:
             pmf_values = claims_strategy.pmf(strikes, inputs=inputs)
-        return pmf_values, metadata
-    if pick in {"tney", "rates"} and ticker == "TNEY":
+    elif pick in {"tney", "rates"} and ticker == "TNEY":
         history = _load_history(fixtures_dir, "teny")
         if history:
             closes = [float(entry["actual_close"]) for entry in history]
@@ -1106,8 +1106,7 @@ def _strategy_pmf_for_series(
             pmf_values = teny_strategy.pmf_v15(strikes, inputs=inputs)
         else:
             pmf_values = teny_strategy.pmf(strikes, inputs=inputs)
-        return pmf_values, metadata
-    if pick in {"weather"} and ticker == "WEATHER":
+    elif pick in {"weather"} and ticker == "WEATHER":
         history = _load_history(fixtures_dir, "weather")
         if history:
             latest = history[-1]
@@ -1119,8 +1118,13 @@ def _strategy_pmf_for_series(
             )
         else:
             inputs = weather_strategy.WeatherInputs(forecast_high=70.0)
-        return weather_strategy.pmf(strikes, inputs=inputs), metadata
-    raise ValueError(f"No strategy PMF implemented for series {series}")
+        pmf_values = weather_strategy.pmf(strikes, inputs=inputs)
+
+    if pmf_values is None:
+        raise ValueError(f"No strategy PMF implemented for series {series}")
+
+    aligned = align_pmf_to_strikes(pmf_values, strikes)
+    return aligned, metadata
 
 
 def _load_history(fixtures_dir: Path, namespace: str) -> list[dict[str, object]]:

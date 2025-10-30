@@ -52,13 +52,14 @@ def test_fillratio_toggle_changes_expected(tmp_path: Path) -> None:
     estimator = FillRatioEstimator(alpha=0.4)
     ledger_est = simulate_fills([proposal], {"M1": orderbook}, fill_estimator=estimator)
     record_est = ledger_est.records[0]
-    assert record_est.expected_fills == 3  # floor(0.4 * 8)
-    assert record_est.fill_ratio == pytest.approx(3 / proposal.contracts)
+    assert record_est.expected_fills == 0
+    assert record_est.fill_ratio == pytest.approx(0.0)
+    assert record_est.size_throttled is True
 
     csv_path = ledger_est.write_artifacts(tmp_path)[1]
     frame = pl.read_csv(csv_path)
     row = frame.row(0, named=True)
-    assert row["expected_fills"] == 3
+    assert row["expected_fills"] == 0
     assert row["fill_ratio"] == pytest.approx(record_est.fill_ratio)
 
 
@@ -69,8 +70,8 @@ def test_fillratio_caps_respected(tmp_path: Path) -> None:
     ledger = simulate_fills([proposal], {"M1": orderbook}, fill_estimator=estimator)
     record = ledger.records[0]
     assert record.expected_fills <= proposal.contracts
-    assert record.expected_fills == proposal.contracts  # depth ample, should cap at contracts
-    assert record.fill_ratio == pytest.approx(1.0)
+    assert record.expected_fills == 13
+    assert record.fill_ratio == pytest.approx(13 / proposal.contracts)
 
     shallow_orderbook = _orderbook(visible=4)
     ledger_shallow = simulate_fills(
@@ -79,7 +80,7 @@ def test_fillratio_caps_respected(tmp_path: Path) -> None:
         fill_estimator=estimator,
     )
     record_shallow = ledger_shallow.records[0]
-    assert record_shallow.expected_fills == 3  # floor(0.9 * 4)
+    assert record_shallow.expected_fills == 1
+    assert record_shallow.size_throttled is True
     assert 0.0 <= record_shallow.fill_ratio <= 1.0
     assert record_shallow.expected_fills <= proposal.contracts
-

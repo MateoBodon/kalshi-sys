@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -13,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from zoneinfo import ZoneInfo
 
-from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, alpha_row, _visible_depth
 from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule, maker_fee
 from kalshi_alpha.core.kalshi_api import Orderbook
@@ -42,6 +43,8 @@ class FillRecord:
     impact_cap: float
     fees_maker: float
     pnl_simulated: float
+    alpha_row: float = 0.0
+    size_throttled: bool = False
 
 
 @dataclass
@@ -189,21 +192,43 @@ def simulate_fills(
         size = max(0, proposal.contracts)
         expected_contracts = size
         expected_fills = size
-        fill_ratio = 1.0 if size > 0 else 0.0
+        alpha_row_value = 1.0 if size > 0 else 0.0
+        size_throttled = False
+
+        alpha_row_base: float | None = None
+        visible_depth: float | None = None
         if fill_estimator is not None and size > 0:
-            expected_fills, fill_ratio = fill_estimator.estimate(
-                side=proposal.side,
-                price=fill_price,
-                contracts=proposal.contracts,
-                orderbook=orderbook,
-            )
-            expected_contracts = expected_fills
+            visible_depth = _visible_depth(proposal.side, fill_price, orderbook)
+            alpha_row_base = alpha_row(visible_depth, size, fill_estimator.alpha)
+            alpha_row_base = max(0.0, min(alpha_row_base, 1.0))
+            expected_contracts = int(math.floor(size * alpha_row_base))
+            expected_fills = max(0, expected_contracts)
+        if size > 0:
+            depth_limited = visible_depth is not None and visible_depth < size
+            if (
+                alpha_row_base is not None
+                and alpha_row_base < 0.7
+                and expected_contracts > 0
+                and depth_limited
+            ):
+                scale_factor = alpha_row_base / 0.7 if 0.7 > 0 else 0.0
+                throttled_contracts = int(math.floor(expected_contracts * scale_factor))
+                if throttled_contracts < expected_contracts:
+                    expected_contracts = max(0, throttled_contracts)
+                    expected_fills = expected_contracts
+                    size_throttled = True
+            fill_ratio = expected_fills / size if size > 0 else 0.0
+            if alpha_row_base is None:
+                alpha_row_value = 1.0
+            else:
+                alpha_row_value = fill_ratio
+        else:
+            fill_ratio = 0.0
+            alpha_row_value = 0.0
+
         expected_contracts = max(0, expected_contracts)
         expected_fills = max(0, expected_fills)
-        if size <= 0:
-            fill_ratio = 0.0
-        else:
-            fill_ratio = max(0.0, min(fill_ratio, 1.0))
+        fill_ratio = max(0.0, min(fill_ratio, 1.0))
 
         fees = 0.0
         if expected_contracts > 0:
@@ -242,6 +267,8 @@ def simulate_fills(
                 impact_cap=impact_cap,
                 fees_maker=fees,
                 pnl_simulated=expected,
+                alpha_row=alpha_row_value,
+                size_throttled=size_throttled,
             )
         )
 

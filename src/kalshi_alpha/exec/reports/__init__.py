@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import polars as pl
+
 from kalshi_alpha.exec.ledger import PaperLedger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -44,6 +46,11 @@ def write_markdown_report(
             f"{mode}={count}" for mode, count in sorted(outstanding_summary.items())
         )
         lines.append(f"Outstanding orders: {total} ({breakdown})")
+    throttle_rows = 0
+    if ledger:
+        throttle_rows = sum(1 for record in ledger.records if getattr(record, "size_throttled", False))
+    if throttle_rows:
+        lines.append(f"Size throttle active on {throttle_rows} rows")
     if pilot_metadata:
         if pilot_metadata.get("force_run"):
             lines.append("FORCE-RUN (DRY)")
@@ -131,6 +138,13 @@ def write_markdown_report(
         lines.append(f"Trades: {summary['trades']}")
         lines.append("")
         lines.extend(_expected_vs_realized_rows(ledger))
+        ev_lines, ev_diff = _ev_honesty_rows(ledger)
+        if ev_lines:
+            lines.extend(ev_lines)
+            if monitors is not None and ev_diff is not None:
+                monitors.setdefault("ev_per_contract_diff_max", ev_diff)
+        if monitors is not None and throttle_rows:
+            monitors.setdefault("size_throttled_rows", throttle_rows)
     if monitors:
         lines.append("## Monitors")
         for key, value in monitors.items():
@@ -250,6 +264,57 @@ def _expected_vs_realized_rows(ledger: PaperLedger) -> list[str]:
     lines.append(f"| **Totals** |  |  | {total_requested} | {total_expected} | {total_delta:+d} |  |")
     lines.append("")
     return lines
+
+
+def _ev_honesty_rows(ledger: PaperLedger) -> tuple[list[str], float | None]:
+    if not ledger.records:
+        return [], None
+    replay_path = Path("reports/_artifacts/replay_ev.parquet")
+    if not replay_path.exists():
+        return [], None
+    try:
+        replay_df = pl.read_parquet(replay_path)
+    except Exception:
+        return [], None
+    if replay_df.is_empty():
+        return [], None
+    if {"market_id", "strike"}.difference(replay_df.columns):
+        return [], None
+    lookup = {}
+    for row in replay_df.to_dicts():
+        market_id = row.get("market_id")
+        strike_value = row.get("strike")
+        if market_id is None or strike_value is None:
+            continue
+        lookup[(market_id, float(strike_value))] = row
+    header = [
+        "### EV Honesty",
+        "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    rows = []
+    max_diff = 0.0
+    for record in ledger.records:
+        key = (record.proposal.market_id, float(record.proposal.strike))
+        replay_row = lookup.get(key)
+        if replay_row is None:
+            continue
+        per_contract_original = float(record.proposal.maker_ev_per_contract)
+        total_original = float(record.expected_value)
+        per_contract_replay = float(
+            replay_row.get("maker_ev_per_contract_replay", replay_row.get("maker_ev_replay", 0.0))
+        )
+        total_replay = float(replay_row.get("maker_ev_replay", 0.0))
+        rows.append(
+            f"| {record.proposal.market_ticker} | {record.proposal.strike:.2f} | "
+            f"{per_contract_original:.2f} | {per_contract_replay:.2f} | "
+            f"{total_original:.2f} | {total_replay:.2f} |"
+        )
+        max_diff = max(max_diff, abs(per_contract_original - per_contract_replay))
+    if not rows:
+        return [], None
+    rows.append("")
+    return header + rows, max_diff
 
 
 def _format_pilot_header(metadata: dict[str, object]) -> str:

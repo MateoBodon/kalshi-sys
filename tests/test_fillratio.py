@@ -60,12 +60,13 @@ def test_simulate_fills_with_estimator() -> None:
         fill_estimator=estimator,
     )
     record = ledger.records[0]
-    assert record.expected_contracts == 4
-    assert record.expected_fills == 4
-    assert record.fill_ratio == pytest.approx(0.4)
+    assert record.expected_contracts == 2
+    assert record.expected_fills == 2
+    assert record.fill_ratio == pytest.approx(0.2)
+    assert record.size_throttled is True
 
     expected_summary = expected_value_summary(
-        contracts=4,
+        contracts=2,
         yes_price=record.fill_price,
         event_probability=proposal.strategy_probability,
         schedule=DEFAULT_FEE_SCHEDULE,
