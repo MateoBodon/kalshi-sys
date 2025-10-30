@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -62,6 +63,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--force-refresh",
         action="store_true",
         help="Force refresh during ingestion.",
+    )
+    parser.add_argument(
+        "--force-run",
+        action="store_true",
+        help="Bypass calendar scan windows (DRY broker only).",
     )
     parser.add_argument(
         "--report",
@@ -150,6 +156,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Override target date (YYYY-MM-DD) for calendar scheduling.",
     )
     parser.add_argument(
+        "--window-et",
+        help="Human-readable scan window (ET) forwarded from week/today orchestrators.",
+    )
+    parser.add_argument(
         "--daily-loss-cap",
         type=float,
         help="Daily expected-loss drawdown cap (USD).",
@@ -198,18 +208,43 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
         "steps": [],
         "model_version": args.model_version,
     }
+    force_run_requested = bool(getattr(args, "force_run", False))
+    force_run_enabled = bool(force_run_requested and getattr(args, "broker", "dry") == "dry")
+    if force_run_requested and not force_run_enabled:
+        log.setdefault("warnings", []).append("force_run_requires_dry_broker")
+
+    def _refresh_heartbeat(stage: str, extra: dict[str, object] | None = None) -> None:
+        payload: dict[str, object] = {"stage": stage, "mode": mode, "force_run": force_run_enabled}
+        if extra:
+            payload.update(extra)
+        window_et = getattr(args, "window_et", None)
+        if window_et:
+            payload.setdefault("window_et", window_et)
+        try:
+            outstanding_summary = OutstandingOrdersState.load().summary()
+        except Exception:  # pragma: no cover - defensive
+            outstanding_summary = None
+        if outstanding_summary is not None:
+            payload.setdefault("outstanding", outstanding_summary)
+        write_heartbeat(mode=f"daily:{mode}", extra=payload)
+
+    _refresh_heartbeat("start")
     try:
         run_ingest(args, log)
-        run_calibrations(args, log)
+        _refresh_heartbeat("post_ingest")
+        run_calibrations(args, log, heartbeat_cb=_refresh_heartbeat)
+        _refresh_heartbeat("post_calibrations")
         series = resolve_series(mode)
         fill_alpha_value = DEFAULT_FILL_ALPHA
         fill_alpha_auto = False
-        extra_monitors: dict[str, float] = {}
+        extra_monitors: dict[str, object] = {}
         if series is not None:
             fill_alpha_value, fill_alpha_auto = _resolve_fill_alpha_value(args.fill_alpha, series)
             log.setdefault("fill_alpha", {})[series] = fill_alpha_value
             key = "fill_alpha_auto" if fill_alpha_auto else "fill_alpha"
             extra_monitors[key] = fill_alpha_value
+        if force_run_enabled:
+            extra_monitors["force_run"] = True
         gate_result = run_quality_gate_step(args, now_utc, log, monitors=extra_monitors)
         if not gate_result.go and not getattr(args, "allow_no_go", False):
             raise SystemExit(1)
@@ -217,7 +252,8 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
         run_window = resolve_run_window(mode=mode, target_date=target_date, now=now_utc, proc_root=PROC_ROOT)
         log["window"] = run_window.to_dict(now_utc)
 
-        if not run_window.scan_allowed(now_utc):
+        scan_allowed = run_window.scan_allowed(now_utc)
+        if not scan_allowed and not force_run_enabled:
             reason = "outside window"
             if run_window.notes:
                 reason = ",".join(run_window.notes)
@@ -226,6 +262,18 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
             if series is None:
                 log.setdefault("scan_notes", {})[mode] = "series_not_supported"
             else:
+                if not scan_allowed and force_run_enabled:
+                    log.setdefault("scan_notes", {})[mode] = "force_run_dry"
+                _refresh_heartbeat(
+                    "pre_scan",
+                    {
+                        "series": series,
+                        "run_window": run_window.to_dict(now_utc),
+                        "force_run": force_run_enabled,
+                        "outside_window": not scan_allowed,
+                        "when": (args.when.isoformat() if getattr(args, "when", None) else None),
+                    },
+                )
                 run_scan(
                     mode,
                     args,
@@ -258,7 +306,11 @@ def run_ingest(args: argparse.Namespace, log: dict[str, object]) -> None:
     )
 
 
-def run_calibrations(args: argparse.Namespace, log: dict[str, object]) -> None:
+def run_calibrations(
+    args: argparse.Namespace,
+    log: dict[str, object],
+    heartbeat_cb: Callable[[str, dict[str, object] | None], None] | None = None,
+) -> None:
     fixtures_root = Path(args.driver_fixtures)
 
     def load_history(name: str) -> list[dict[str, object]] | None:
@@ -280,8 +332,12 @@ def run_calibrations(args: argparse.Namespace, log: dict[str, object]) -> None:
     def calibrate_wrapper(name: str, func, history) -> None:
         if not history:
             log.setdefault("calibration_skipped", {})[name] = "missing_history"
+            if heartbeat_cb:
+                heartbeat_cb("post_calibrate", {"calibration": name, "status": "skipped"})
             return
         run_step(name=f"calibrate_{name}", log=log, func=lambda: func(history))
+        if heartbeat_cb:
+            heartbeat_cb("post_calibrate", {"calibration": name})
 
     calibrate_wrapper("cpi", calibrate_cpi, histories["cpi"])
     calibrate_wrapper("claims", calibrate_claims, histories["claims"])
@@ -379,6 +435,7 @@ def run_scan(
     fixtures_root = Path(args.scanner_fixtures)
     driver_fixtures = Path(args.driver_fixtures)
     offline_mode = args.offline or not args.online
+    force_run_enabled = bool(getattr(args, "force_run", False) and getattr(args, "broker", "dry") == "dry")
     client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=offline_mode)
 
     pal_policy_path = Path("configs/pal_policy.yaml")
@@ -390,6 +447,16 @@ def run_scan(
     risk_manager: PortfolioRiskManager | None = None
     max_var = None
     strategy_name = "auto"
+    write_heartbeat(
+        mode=f"daily:{mode}",
+        extra={
+            "stage": "scan_start",
+            "series": series,
+            "outstanding": OutstandingOrdersState.load().summary(),
+            "force_run": force_run_enabled,
+            "window_et": getattr(args, "window_et", None),
+        },
+    )
     outcome = scan_series(
         series=series,
         client=client,
@@ -550,7 +617,11 @@ def run_scan(
         "max_var": getattr(args, "max_var", None),
         "fill_alpha": fill_alpha_value,
         "outstanding_total": sum(outstanding_summary.values()),
+        "force_run": force_run_enabled,
     }
+    window_et = getattr(args, "window_et", None)
+    if window_et:
+        pilot_metadata["window_et"] = window_et
     report_path = None
     if args.report:
         report_path = write_markdown_report(
@@ -577,6 +648,8 @@ def run_scan(
             "outstanding": outstanding_summary,
             "broker": broker_status,
             "series": series,
+            "force_run": force_run_enabled,
+            "window_et": window_et,
         },
     )
 

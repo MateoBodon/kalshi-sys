@@ -11,6 +11,7 @@ from pathlib import Path
 from kalshi_alpha.exec.pipelines import daily
 from kalshi_alpha.exec.pipelines.calendar import ET, resolve_run_window
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
+from kalshi_alpha.exec.heartbeat import write_heartbeat
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -41,6 +42,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--force-refresh",
         action="store_true",
         help="Forward force-refresh flag to the daily pipeline.",
+    )
+    parser.add_argument(
+        "--force-run",
+        action="store_true",
+        help="Forward --force-run to daily pipeline (DRY broker only).",
     )
     parser.add_argument(
         "--daily-loss-cap",
@@ -97,6 +103,14 @@ def _fmt_float(value: float) -> str:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     now = _now()
+    write_heartbeat(
+        mode="today:start",
+        extra={
+            "stage": "start",
+            "timestamp": now.isoformat(),
+            "outstanding": OutstandingOrdersState.load().summary(),
+        },
+    )
     runs = _plan_runs(now, include_weather=args.include_weather)
 
     _print_outstanding("[today]")
@@ -124,6 +138,8 @@ def main(argv: list[str] | None = None) -> None:
         base_flags.append("--paper-ledger")
     if args.force_refresh:
         base_flags.append("--force-refresh")
+    if args.force_run:
+        base_flags.append("--force-run")
     if args.daily_loss_cap is not None:
         base_flags.extend(["--daily-loss-cap", _fmt_float(args.daily_loss_cap)])
     if args.weekly_loss_cap is not None:
@@ -143,6 +159,14 @@ def main(argv: list[str] | None = None) -> None:
 
     for mode_run in runs:
         mode, run_date = mode_run.mode, mode_run.run_date
+        write_heartbeat(
+            mode=f"today:{mode}",
+            extra={
+                "stage": "pre_daily",
+                "run_date": run_date.isoformat(),
+                "outstanding": OutstandingOrdersState.load().summary(),
+            },
+        )
         run_args = ["--mode", mode, "--when", run_date.isoformat(), *base_flags]
         print(f"[today] Running {mode} for {run_date.isoformat()} ...")
         daily.main(run_args)

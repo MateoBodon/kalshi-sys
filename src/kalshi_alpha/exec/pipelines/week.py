@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 from kalshi_alpha.exec.pipelines import daily
-from kalshi_alpha.exec.pipelines.calendar import ET, resolve_run_window
+from kalshi_alpha.exec.pipelines.calendar import ET, RunWindow, resolve_run_window
 from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
+from kalshi_alpha.exec.heartbeat import write_heartbeat
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -84,11 +86,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--kill-switch-file",
         help="Path to kill-switch sentinel file forwarded to daily runs.",
     )
+    parser.add_argument(
+        "--force-run",
+        action="store_true",
+        help="Forward --force-run to daily pipeline runs (DRY broker only).",
+    )
     return parser.parse_args(argv)
 
 
 def _fmt(value: float) -> str:
     return format(value, "g")
+
+
+@dataclass(frozen=True)
+class WeekRun:
+    mode: str
+    run_date: date | None
+    window_et: str | None = None
+    auto_resolved: bool = False
+    original_date: date | None = None
 
 
 def _default_modes(include_weather: bool) -> list[str]:
@@ -101,6 +117,14 @@ def _default_modes(include_weather: bool) -> list[str]:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     now = datetime.now(tz=UTC)
+    write_heartbeat(
+        mode="week:start",
+        extra={
+            "stage": "start",
+            "timestamp": now.isoformat(),
+            "outstanding": OutstandingOrdersState.load().summary(),
+        },
+    )
 
     if args.preset == "paper_live":
         schedule = _paper_live_schedule(now, include_weather=args.include_weather)
@@ -109,7 +133,7 @@ def main(argv: list[str] | None = None) -> None:
         if not modes:
             print("[week] no modes requested")
             return
-        schedule = [(mode, None) for mode in modes]
+        schedule = [WeekRun(mode=mode, run_date=None) for mode in modes]
 
     if not schedule:
         print("[week] no modes requested")
@@ -129,6 +153,8 @@ def main(argv: list[str] | None = None) -> None:
     ]
     if args.force_refresh:
         base_flags.append("--force-refresh")
+    if args.force_run:
+        base_flags.append("--force-run")
     if args.daily_loss_cap is not None:
         base_flags.extend(["--daily-loss-cap", _fmt(args.daily_loss_cap)])
     if args.weekly_loss_cap is not None:
@@ -158,11 +184,29 @@ def main(argv: list[str] | None = None) -> None:
 
     print(f"[week] starting weekly run at {now.isoformat()}")
     _print_outstanding("[week]")
-    for mode, run_date in schedule:
+    for run in schedule:
+        mode = run.mode
+        run_date = run.run_date
+        write_heartbeat(
+            mode=f"week:{mode}",
+            extra={
+                "stage": "pre_daily",
+                "run_date": run_date.isoformat() if run_date else "auto",
+                "window_et": run.window_et,
+                "outstanding": OutstandingOrdersState.load().summary(),
+            },
+        )
         run_args = ["--mode", mode, *base_flags]
         if run_date is not None:
             run_args.extend(["--when", run_date.isoformat()])
+        if run.window_et:
+            run_args.extend(["--window-et", run.window_et])
         print(f"[week] running mode: {mode} ({run_date.isoformat() if run_date else 'auto'})")
+        if run.auto_resolved and run.window_et:
+            original = run.original_date.isoformat() if run.original_date else "unknown"
+            print(f"[week] auto-resolved {mode} window {original} -> {run.window_et}")
+        elif run.window_et:
+            print(f"[week] scheduled {mode} window {run.window_et}")
         daily.main(run_args)
         _print_outstanding("[week]")
 
@@ -176,45 +220,122 @@ def _print_outstanding(prefix: str) -> None:
     print(f"{prefix} Outstanding orders -> total={total} (dry={dry}, live={live})")
 
 
-def _paper_live_schedule(now: datetime, *, include_weather: bool) -> list[tuple[str, date | None]]:
+def _paper_live_schedule(now: datetime, *, include_weather: bool) -> list[WeekRun]:
     today_et = now.astimezone(ET).date()
-    runs: list[tuple[str, date]] = []
+    raw: list[tuple[str, date, str | None]] = []
 
     claims_window = resolve_run_window(mode="pre_claims", target_date=today_et, now=now)
     release_date = _window_date(claims_window, fallback=_next_weekday(today_et, target_weekday=3))
     freeze_date = _previous_business_day(release_date)
-    runs.append(("pre_claims", freeze_date))
-    runs.append(("pre_claims", release_date))
+    raw.append(("pre_claims", freeze_date, "freeze"))
+    raw.append(("pre_claims", release_date, "release"))
 
     cpi_window = resolve_run_window(mode="pre_cpi", target_date=release_date, now=now, proc_root=PROC_ROOT)
     cpi_release = _window_date(cpi_window, fallback=release_date)
     cpi_eve = _previous_business_day(cpi_release)
-    runs.append(("pre_cpi", cpi_eve))
-    runs.append(("pre_cpi", cpi_release))
+    raw.append(("pre_cpi", cpi_eve, "freeze"))
+    raw.append(("pre_cpi", cpi_release, "release"))
 
     week_start = release_date - timedelta(days=release_date.weekday())
     for offset in range(5):
         ten_y_day = week_start + timedelta(days=offset)
         if ten_y_day.weekday() >= 5:
             continue
-        runs.append(("teny_close", ten_y_day))
+        raw.append(("teny_close", ten_y_day, None))
         if include_weather:
-            runs.append(("weather_cycle", ten_y_day))
+            raw.append(("weather_cycle", ten_y_day, None))
 
-    ordered: list[tuple[str, date]] = []
-    seen: set[tuple[str, date]] = set()
-    for mode, when in sorted(runs, key=lambda item: (item[1], item[0])):
-        key = (mode, when)
+    ordered: list[tuple[str, date, str | None]] = []
+    seen: set[tuple[str, date, str | None]] = set()
+    for mode, when, phase in sorted(raw, key=lambda item: (item[1], item[0], item[2] or "")):
+        key = (mode, when, phase)
         if key not in seen:
             ordered.append(key)
             seen.add(key)
-    return ordered
+
+    schedule: list[WeekRun] = []
+    for mode, target_date, phase in ordered:
+        schedule.append(_auto_resolve_week_run(mode, phase, target_date, now))
+    return schedule
 
 
 def _window_date(window, *, fallback: date) -> date:
     if window and window.reference is not None:
         return window.reference.astimezone(ET).date()
     return fallback
+
+
+def _auto_resolve_week_run(mode: str, phase: str | None, target_date: date, now: datetime) -> WeekRun:
+    current_date = target_date
+    original = target_date
+    auto = False
+    window: RunWindow | None = None
+    for _ in range(90):
+        window = resolve_run_window(mode=mode, target_date=current_date, now=now, proc_root=PROC_ROOT)
+        scan_close = window.scan_close
+        if scan_close is None or now <= scan_close:
+            break
+        current_date = _advance_target_date(mode, phase, window, current_date)
+        auto = True
+    else:  # pragma: no cover - safety guard
+        if window is None:
+            window = resolve_run_window(mode=mode, target_date=target_date, now=now, proc_root=PROC_ROOT)
+
+    resolved_date = _phase_adjusted_date(mode, phase, window, current_date)
+    window_et = _format_window_range(window)
+    return WeekRun(
+        mode=mode,
+        run_date=resolved_date,
+        window_et=window_et,
+        auto_resolved=auto,
+        original_date=original if auto else None,
+    )
+
+
+def _advance_target_date(mode: str, phase: str | None, window: RunWindow, current_date: date) -> date:
+    if mode == "teny_close":
+        next_date = current_date + timedelta(days=1)
+        while next_date.weekday() >= 5:
+            next_date += timedelta(days=1)
+        return next_date
+    if mode == "pre_claims":
+        reference = window.reference.astimezone(ET).date() if window.reference else current_date
+        return reference + timedelta(days=7)
+    if mode == "pre_cpi":
+        reference = window.reference.astimezone(ET).date() if window.reference else current_date
+        return reference + timedelta(days=1)
+    return current_date + timedelta(days=1)
+
+
+def _phase_adjusted_date(mode: str, phase: str | None, window: RunWindow, fallback: date) -> date:
+    if window.reference is not None:
+        ref_date = window.reference.astimezone(ET).date()
+    else:
+        ref_date = fallback
+    if mode == "pre_cpi":
+        if phase == "freeze":
+            return _previous_business_day(ref_date)
+        return ref_date
+    if mode == "pre_claims":
+        if phase == "freeze":
+            return _previous_business_day(ref_date)
+        return ref_date
+    if mode == "teny_close":
+        return ref_date
+    return fallback
+
+
+def _format_window_range(window: RunWindow) -> str | None:
+    if window.scan_open is None or window.scan_close is None:
+        return None
+    open_et = window.scan_open.astimezone(ET)
+    close_et = window.scan_close.astimezone(ET)
+    if open_et.date() == close_et.date():
+        return f"{open_et.strftime('%Y-%m-%d %H:%M')}–{close_et.strftime('%H:%M')} ET"
+    return (
+        f"{open_et.strftime('%Y-%m-%d %H:%M')} ET -> "
+        f"{close_et.strftime('%Y-%m-%d %H:%M')} ET"
+    )
 
 
 def _previous_business_day(candidate: date) -> date:

@@ -104,6 +104,29 @@ class OutstandingOrdersState:
             self._write()
         return removed
 
+    def mark_status(
+        self,
+        mode: str,
+        idempotency_keys: Iterable[str],
+        status: str,
+    ) -> list[str]:
+        normalized = self._normalize_mode(mode)
+        bucket: dict[str, dict[str, Any]] = self._payload["outstanding"][normalized]
+        updated: list[str] = []
+        for key in idempotency_keys:
+            order = bucket.get(key)
+            if order is None:
+                continue
+            if order.get("status") == status:
+                updated.append(key)
+                continue
+            order["status"] = status
+            updated.append(key)
+        if updated:
+            self._payload["updated_at"] = datetime.now(tz=UTC).isoformat()
+            self._write()
+        return updated
+
     def reconcile(self, mode: str, active_idempotency_keys: Iterable[str]) -> list[str]:
         normalized = self._normalize_mode(mode)
         bucket: dict[str, dict[str, Any]] = self._payload["outstanding"][normalized]
@@ -128,6 +151,13 @@ class OutstandingOrdersState:
 
     def cancel_all_request(self) -> dict[str, Any] | None:
         return self._payload.get("cancel_all")
+
+    def clear_cancel_all(self) -> None:
+        if self._payload.get("cancel_all") is None:
+            return
+        self._payload["cancel_all"] = None
+        self._payload["updated_at"] = datetime.now(tz=UTC).isoformat()
+        self._write()
 
     def outstanding_for(self, mode: str) -> dict[str, dict[str, Any]]:
         normalized = self._normalize_mode(mode)

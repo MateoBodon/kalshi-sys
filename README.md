@@ -115,7 +115,7 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
   weather(json.loads((fixtures/"weather"/"history.json").read_text())["history"])
   PY
   ```
-- **Repo hygiene:** run `PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check` before committing—this blocks stray TODOs and env var leaks.
+- **Repo hygiene:** run `PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check` before committing—this blocks stray unfinished markers and env var leaks.
 
 Common targets:
 - `make scan` – shorthand for CPI dry-run scan.

@@ -45,6 +45,11 @@ def write_markdown_report(
         )
         lines.append(f"Outstanding orders: {total} ({breakdown})")
     if pilot_metadata:
+        if pilot_metadata.get("force_run"):
+            lines.append("FORCE-RUN (DRY)")
+        window_label = pilot_metadata.get("window_et")
+        if window_label:
+            lines.append(f"Scheduled window (ET): {window_label}")
         lines.append(_format_pilot_header(pilot_metadata))
     if manifest_path:
         manifest_str = manifest_path.as_posix() if isinstance(manifest_path, Path) else str(manifest_path)
