@@ -5,9 +5,11 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy
 from kalshi_alpha.exec.runners import scan_ladders
+from kalshi_alpha.exec.scanners.utils import expected_value_summary
 
 
 @pytest.mark.usefixtures("isolated_data_roots")
@@ -75,4 +77,14 @@ def test_snapshot_parity(
         replay_row = lookup.get(key)
         assert replay_row is not None, f"missing replay row for {key}"
         replay_per = replay_row.get("maker_ev_per_contract_replay", replay_row.get("maker_ev_replay", 0.0))
-        assert abs(proposal.maker_ev_per_contract - float(replay_per)) <= 1e-6
+        fill_price = float(replay_row.get("fill_price", proposal.market_yes_price))
+        summary_per = expected_value_summary(
+            contracts=1,
+            yes_price=fill_price,
+            event_probability=float(proposal.strategy_probability),
+            schedule=DEFAULT_FEE_SCHEDULE,
+            market_name=proposal.market_ticker,
+        )
+        maker_key = "maker_yes" if proposal.side.upper() == "YES" else "maker_no"
+        expected_per = float(summary_per[maker_key])
+        assert abs(expected_per - float(replay_per)) <= 1e-6

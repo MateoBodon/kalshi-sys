@@ -33,8 +33,8 @@ def _make_proposal(strike: float, maker_ev: float, maker_ev_per_contract: float)
 
 def test_report_ev_units(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     proposals = [
-        _make_proposal(4.1, maker_ev=2.0, maker_ev_per_contract=1.0),
-        _make_proposal(4.2, maker_ev=1.0, maker_ev_per_contract=0.5),
+        _make_proposal(4.1, maker_ev=0.38, maker_ev_per_contract=0.19),
+        _make_proposal(4.2, maker_ev=0.38, maker_ev_per_contract=0.19),
     ]
 
     table = pl.DataFrame(
@@ -42,10 +42,11 @@ def test_report_ev_units(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
             "market_id": ["MKT", "MKT"],
             "market_ticker": ["TENY-TEST", "TENY-TEST"],
             "strike": [4.1, 4.2],
-            "maker_ev_original": [2.0, 1.0],
-            "maker_ev_per_contract_original": [1.0, 0.5],
-            "maker_ev_replay": [1.8, 0.9],
-            "maker_ev_per_contract_replay": [0.9, 0.45],
+            "fill_price": [0.4, 0.4],
+            "maker_ev_original": [0.38, 0.38],
+            "maker_ev_per_contract_original": [0.19, 0.19],
+            "maker_ev_replay": [0.18, 0.18],
+            "maker_ev_per_contract_replay": [0.09, 0.09],
         }
     )
     artifacts_dir = tmp_path / "reports/_artifacts"
@@ -90,5 +91,7 @@ def test_report_ev_units(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     )
     contents = path.read_text(encoding="utf-8")
     assert "EV Honesty" in contents
-    assert "| EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay |" in contents
-    assert "| TENY-TEST | 4.10 | 1.00 | 0.90 | 1.80 | 1.80 |" in contents
+    assert "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay | Delta |" in contents
+    assert "| TENY-TEST | 4.10 | 0.19 | 0.09 | 1.80 | 0.18 | 0.10 |" in contents
+    assert "Max per-contract delta: 0.10" in contents
+    assert monitors.get("ev_per_contract_diff_max") == pytest.approx(0.10, abs=1e-9)

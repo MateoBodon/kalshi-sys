@@ -12,6 +12,7 @@ import polars as pl
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import Market, Orderbook, Series
 from kalshi_alpha.core.pricing import LadderBinProbability, LadderRung, pmf_from_quotes
+from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 from kalshi_alpha.exec.scanners import cpi as cpi_scanner
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 from kalshi_alpha.strategies import claims as claims_strategy
@@ -85,32 +86,52 @@ def replay_manifest(
         idx = _resolve_rung_index([rung.strike for rung in rungs], strike)
         if idx is None:
             continue
-        event_probability = float(strategy_survival[idx])
+        proposal_prob_raw = proposal.get("strategy_probability")
+        if proposal_prob_raw is not None:
+            try:
+                event_probability = float(proposal_prob_raw)
+            except (TypeError, ValueError):  # pragma: no cover - malformed proposal
+                event_probability = float(strategy_survival[idx])
+        else:
+            event_probability = float(strategy_survival[idx])
         yes_price = float(rungs[idx].yes_price)
         contracts = int(proposal.get("contracts", 0))
         if contracts <= 0:
             continue
 
+        side = str(proposal.get("side", "YES")).upper()
+        ob = orderbooks.get(market.id)
+        fill_price = yes_price
+        if ob is not None:
+            try:
+                fill_price, _ = price_with_slippage(
+                    side=side,
+                    contracts=contracts,
+                    proposal_price=yes_price,
+                    orderbook=ob,
+                    model=SlippageModel(mode="top"),
+                )
+            except Exception:  # pragma: no cover - defensive fallback
+                fill_price = yes_price
+
         summary_total = expected_value_summary(
             contracts=contracts,
-            yes_price=yes_price,
+            yes_price=fill_price,
             event_probability=event_probability,
             schedule=DEFAULT_FEE_SCHEDULE,
             market_name=market.ticker,
         )
         summary_per = expected_value_summary(
             contracts=1,
-            yes_price=yes_price,
+            yes_price=fill_price,
             event_probability=event_probability,
             schedule=DEFAULT_FEE_SCHEDULE,
             market_name=market.ticker,
         )
 
-        side = str(proposal.get("side", "YES")).upper()
         maker_key = "maker_yes" if side == "YES" else "maker_no"
         taker_key = "taker_yes" if side == "YES" else "taker_no"
 
-        ob = orderbooks.get(market.id)
         depth = (len(ob.bids) + len(ob.asks)) if ob else 0
 
         records.append(
@@ -123,6 +144,7 @@ def replay_manifest(
                 "contracts": contracts,
                 "strategy_probability": event_probability,
                 "market_survival": float(market_survival[idx]),
+                "fill_price": fill_price,
                 "maker_ev_replay": float(summary_total[maker_key]),
                 "maker_ev_per_contract_replay": float(summary_per[maker_key]),
                 "taker_ev_replay": float(summary_total[taker_key]),

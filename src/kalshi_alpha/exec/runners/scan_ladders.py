@@ -844,13 +844,23 @@ def _compute_ev_honesty_rows(
         replay_row = lookup.get(key)
         if replay_row is None:
             continue
-        original_per = _to_float(proposal.maker_ev_per_contract)
+        fill_price = _to_float(replay_row.get("fill_price"), default=proposal.market_yes_price)
+        summary_per = expected_value_summary(
+            contracts=1,
+            yes_price=fill_price,
+            event_probability=float(proposal.strategy_probability),
+            schedule=DEFAULT_FEE_SCHEDULE,
+            market_name=proposal.market_ticker,
+        )
+        maker_key = "maker_yes" if proposal.side.upper() == "YES" else "maker_no"
+        original_per = _to_float(summary_per.get(maker_key))
         replay_per = _to_float(
             replay_row.get("maker_ev_per_contract_replay", replay_row.get("maker_ev_replay")),
             default=_to_float(replay_row.get("maker_ev_replay")),
         )
         delta = abs(original_per - replay_per)
         max_delta = max(max_delta, delta)
+        proposal_per = _to_float(proposal.maker_ev_per_contract)
         results.append(
             {
                 "market_id": proposal.market_id,
@@ -859,8 +869,10 @@ def _compute_ev_honesty_rows(
                 "side": proposal.side,
                 "maker_ev_per_contract_original": original_per,
                 "maker_ev_per_contract_replay": replay_per,
+                "maker_ev_per_contract_proposal": proposal_per,
                 "maker_ev_original": _to_float(proposal.maker_ev),
                 "maker_ev_replay": _to_float(replay_row.get("maker_ev_replay")),
+                "fill_price": fill_price,
                 "delta": delta,
             }
         )
