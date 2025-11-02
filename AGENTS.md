@@ -12,7 +12,7 @@ Define automation agents operating on this repo: roles, guardrails, credentials 
   - Conventional Commits only; no force-push.
   - Must run ruff/mypy/pytest before committing.
   - No plaintext secrets; use environment variables; update `.env.example`.
-  - For live code: add/extend tests or mark with xfail + TODO explaining why.
+  - For live code: add/extend tests or mark with xfail plus a clear rationale in-code.
 - **Definition of Done (per change):**
   - Tests updated/passing; CI green.
   - Docs updated (RUNBOOK / CHANGELOG).
