@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import requests
 import requests_mock
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
@@ -57,7 +58,10 @@ def _sample_order() -> BrokerOrder:
     )
 
 
-def test_request_signs_with_rsa_pss(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_request_signs_headers_without_authorization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     key_path = _write_rsa_key(tmp_path)
     private_key = _load_private_key(key_path)
     monkeypatch.setenv("KALSHI_API_KEY_ID", "ACCESS123")
@@ -65,20 +69,13 @@ def test_request_signs_with_rsa_pss(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     with requests_mock.Mocker() as mocker:
         mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/auth/token",
-            json={"access_token": "token-abc", "expires_in": 60},
-        )
-        mocker.post(
             "https://api.elections.kalshi.com/trade-api/v2/orders",
             json={"order_id": "O-1"},
             status_code=201,
         )
 
         clock = _FixedClock(datetime.now(tz=UTC))
-        client = KalshiHttpClient(
-            session=requests.Session(),
-            clock=clock,
-        )
+        client = KalshiHttpClient(session=requests.Session(), clock=clock)
         response = client.post(
             "/orders",
             json_body={"market_id": "M1"},
@@ -86,13 +83,12 @@ def test_request_signs_with_rsa_pss(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         )
 
         assert response.status_code == 201
-        request_history = mocker.request_history
-        assert len(request_history) == 2  # token + order
-        order_request = request_history[-1]
-        assert order_request.headers["Authorization"] == "Bearer token-abc"
-        assert order_request.headers["KALSHI-ACCESS-KEY"] == "ACCESS123"
-        signature_b64 = order_request.headers["KALSHI-ACCESS-SIGNATURE"]
-        timestamp_ms = order_request.headers["KALSHI-ACCESS-TIMESTAMP"]
+        assert len(mocker.request_history) == 1
+        request = mocker.request_history[0]
+        assert "Authorization" not in request.headers
+        timestamp_ms = request.headers["KALSHI-ACCESS-TIMESTAMP"]
+        assert len(timestamp_ms) == 13
+        signature_b64 = request.headers["KALSHI-ACCESS-SIGNATURE"]
         payload = f"{timestamp_ms}POST/orders".encode()
         signature = base64.b64decode(signature_b64)
         private_key.public_key().verify(
@@ -103,37 +99,94 @@ def test_request_signs_with_rsa_pss(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         )
 
 
-def test_refresh_token_on_unauthorized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_signature_excludes_query_string(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     key_path = _write_rsa_key(tmp_path)
+    public_key = _load_private_key(key_path).public_key()
     monkeypatch.setenv("KALSHI_API_KEY_ID", "ACCESS123")
     monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
 
     with requests_mock.Mocker() as mocker:
-        mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/auth/token",
-            [
-                {"json": {"access_token": "token-1", "expires_in": 60}},
-                {"json": {"access_token": "token-2", "expires_in": 60}},
-            ],
-        )
-        mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/orders",
-            [
-                {"status_code": 401},
-                {"json": {"order_id": "O-1"}, "status_code": 200},
-            ],
+        mocker.get(
+            "https://api.elections.kalshi.com/trade-api/v2/markets",
+            json={"markets": []},
         )
 
         client = KalshiHttpClient(
             session=requests.Session(),
             clock=_FixedClock(datetime.now(tz=UTC)),
         )
-        response = client.post("/orders", json_body={"market_id": "M1"})
+        response = client.get("/markets", params={"series": "CPI"})
         assert response.status_code == 200
 
-        order_calls = [req for req in mocker.request_history if req.path == "/trade-api/v2/orders"]
-        assert len(order_calls) == 2
-        assert order_calls[-1].headers["Authorization"] == "Bearer token-2"
+        request = mocker.request_history[0]
+        timestamp_ms = request.headers["KALSHI-ACCESS-TIMESTAMP"]
+        signature = base64.b64decode(request.headers["KALSHI-ACCESS-SIGNATURE"])
+
+        # Expected payload uses path only.
+        valid_payload = f"{timestamp_ms}GET/markets".encode()
+        public_key.verify(
+            signature,
+            valid_payload,
+            padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+            hashes.SHA256(),
+        )
+
+        # Incorrect payload including the query string must fail verification.
+        invalid_payload = f"{timestamp_ms}GET/markets?series=CPI".encode()
+        with pytest.raises(InvalidSignature):
+            public_key.verify(
+                signature,
+                invalid_payload,
+                padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+                hashes.SHA256(),
+            )
+
+
+def test_signature_uses_millisecond_timestamp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key_path = _write_rsa_key(tmp_path)
+    public_key = _load_private_key(key_path).public_key()
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "ACCESS123")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
+
+    with requests_mock.Mocker() as mocker:
+        mocker.get(
+            "https://api.elections.kalshi.com/trade-api/v2/portfolio/balance",
+            json={"balance": 0},
+        )
+
+        client = KalshiHttpClient(
+            session=requests.Session(),
+            clock=_FixedClock(datetime.now(tz=UTC)),
+        )
+        response = client.get("/portfolio/balance")
+        assert response.status_code == 200
+
+        request = mocker.request_history[0]
+        timestamp_ms_str = request.headers["KALSHI-ACCESS-TIMESTAMP"]
+        assert len(timestamp_ms_str) == 13
+        signature = base64.b64decode(request.headers["KALSHI-ACCESS-SIGNATURE"])
+
+        # Correct millisecond payload verifies.
+        valid_payload = f"{timestamp_ms_str}GET/portfolio/balance".encode()
+        public_key.verify(
+            signature,
+            valid_payload,
+            padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+            hashes.SHA256(),
+        )
+
+        # Using seconds instead of milliseconds should fail verification.
+        seconds_payload = f"{int(timestamp_ms_str) // 1000}GET/portfolio/balance".encode()
+        with pytest.raises(InvalidSignature):
+            public_key.verify(
+                signature,
+                seconds_payload,
+                padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+                hashes.SHA256(),
+            )
 
 
 def test_retry_on_retryable_status(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -147,10 +200,6 @@ def test_retry_on_retryable_status(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         sleeps.append(value)
 
     with requests_mock.Mocker() as mocker:
-        mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/auth/token",
-            json={"access_token": "token-1", "expires_in": 60},
-        )
         mocker.post(
             "https://api.elections.kalshi.com/trade-api/v2/orders",
             [
@@ -174,10 +223,7 @@ def test_clock_skew_guard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("KALSHI_API_KEY_ID", "ACCESS123")
     monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
 
-    client = KalshiHttpClient(
-        session=requests.Session(),
-        clock=_SkewedClock(),
-    )
+    client = KalshiHttpClient(session=requests.Session(), clock=_SkewedClock())
 
     with pytest.raises(KalshiClockSkewError):
         client.get("/markets")
@@ -193,10 +239,6 @@ def test_live_broker_order_lifecycle_with_mocked_http(
     monkeypatch.delenv("CI", raising=False)
 
     with requests_mock.Mocker() as mocker:
-        mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/auth/token",
-            json={"access_token": "token-xyz", "expires_in": 60},
-        )
         mocker.post(
             "https://api.elections.kalshi.com/trade-api/v2/orders",
             [{"json": {"order_id": "ORD-1"}, "status_code": 201}],
@@ -227,9 +269,7 @@ def test_live_broker_order_lifecycle_with_mocked_http(
 
         paths = [req.path for req in mocker.request_history]
         assert "/trade-api/v2/orders" in paths
-        assert any(
-            path.lower() == "/trade-api/v2/orders/ord-1/cancel" for path in paths
-        )
+        assert any(path.lower() == "/trade-api/v2/orders/ord-1/cancel" for path in paths)
 
         audit_files = sorted((tmp_path / "data" / "proc" / "audit").glob("live_orders_*.jsonl"))
         assert audit_files, "audit file should be written"

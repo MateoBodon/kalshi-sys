@@ -80,8 +80,8 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
 
 ## Live Trading Connectivity
 - **Endpoints**: REST `https://api.elections.kalshi.com/trade-api/v2`, WebSocket `wss://api.elections.kalshi.com/trade-api/ws/v2`.
-- **Token issuance**: `LiveBroker` signs `timestamp_ms + METHOD + PATH` (RSA-PSS, SHA-256) against the path being requested, then calls `/auth/token` with headers `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP`, `KALSHI-ACCESS-SIGNATURE`. The short-lived bearer token is cached and refreshed transparently on HTTP 401.
-- **Per-request signing**: every REST call reuses the same canonical string, adds the cached bearer token to `Authorization: Bearer <token>`, and includes idempotency keys on order submissions.
+- **Header signing**: every REST call signs `timestamp_ms + METHOD + PATH` (RSA-PSS, SHA-256). Only the path component participates in the signature—query strings are excluded by definition.
+- **Headers**: attach `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP` (milliseconds), and `KALSHI-ACCESS-SIGNATURE`; no bearer tokens are exchanged. HTTP 401 responses bubble to operators for manual remediation.
 - **Clock guard**: system clock drift greater than 5 s raises a `KalshiClockSkewError` locally—sync with NTP before enabling `--broker live`.
 - **Logging**: structured log entries mask sensitive values (only last 4 characters of access keys/Idempotency-Key) and capture retry counts/status codes. Audit artifacts remain under `data/proc/audit/live_orders_*.jsonl`.
 

@@ -229,8 +229,8 @@ KALSHI_PRIVATE_KEY_PEM_PATH=/Users/example/kalshi_private_key.pem
 
 ### 3. Connectivity checklist
 
-- Trading endpoints now live at `https://api.elections.kalshi.com/trade-api/v2`. Requests must include `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP` (ms), `KALSHI-ACCESS-SIGNATURE` (RSA-PSS over `timestamp + METHOD + PATH`), and an `Authorization: Bearer <token>` header.
-- `LiveBroker` exchanges credentials with `/auth/token`, caches the short-lived bearer token, and transparently refreshes on HTTP 401.
+- Trading endpoints now live at `https://api.elections.kalshi.com/trade-api/v2`. Every request must include `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP` (milliseconds), and `KALSHI-ACCESS-SIGNATURE` (RSA-PSS over `timestamp + METHOD + PATH` with the query string removed).
+- The broker no longer exchanges bearer tokens. Each REST call is independently signed; HTTP 401 responses bubble up for operator action.
 - Clock drift >5 s is rejected locally with a descriptive error—sync NTP before arming.
 - Structured logs mask keys to the last 4 characters and include idempotency key tails, retry counts, and HTTP status codes.
 
@@ -326,7 +326,7 @@ python -m kalshi_alpha.exec.scoreboard --window 7 --window 30
 - **Artifacts hygiene** – new persistent state should live under `data/proc/state/` or `reports/_artifacts/` with explicit audit trails, and tests should validate serialization.
 - **CI hooks** – ensure `dev/sanity_check.py` remains green, add targeted tests for new controls, and extend GitHub workflow steps when introducing new scripts.
 - **Replay analytics** – when adding replay metrics, persist them under `reports/_artifacts/scorecards/` so scoreboard + pilot readiness ingest them automatically.
-- **Kalshi elections API migration** – implement the new authentication/token flow for `https://api.elections.kalshi.com/`, add integration tests, and update this README once live submissions succeed.
+- **Kalshi elections API migration** – migrate to the header-only RSA-PSS authentication flow for `https://api.elections.kalshi.com/`, add integration tests, and update this README once live submissions succeed.
 
 ---
 

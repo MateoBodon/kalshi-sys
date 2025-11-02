@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import base64
-import json
 import logging
 import os
-import threading
 import time
 from collections.abc import Callable, Mapping, MutableMapping
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +24,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 _DEFAULT_BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
-_TOKEN_ENDPOINT = "/auth/token"  # noqa: S105 - public API endpoint
 _DEFAULT_TIMEOUT = 10.0
 _DEFAULT_RETRIES = 3
 _RETRYABLE_STATUS = {408, 409, 429, 500, 502, 503, 504}
@@ -59,17 +55,6 @@ class Sleep:
     def __call__(self, seconds: float) -> None:  # pragma: no cover - simple delegation
         time.sleep(seconds)
 
-
-@dataclass
-class KalshiToken:
-    value: str
-    expires_at: datetime
-
-    @property
-    def is_expired(self) -> bool:
-        return datetime.now(tz=UTC) >= self.expires_at
-
-
 class KalshiHttpError(RuntimeError):
     """Raised when the Kalshi API request exhausts retries."""
 
@@ -79,7 +64,7 @@ class KalshiClockSkewError(RuntimeError):
 
 
 class KalshiHttpClient:
-    """Resilient Kalshi HTTP client with RSA-PSS signing and token refresh."""
+    """Resilient Kalshi HTTP client with header-based RSA-PSS signing."""
 
     def __init__(  # noqa: PLR0913 - configuration-heavy constructor
         self,
@@ -111,9 +96,6 @@ class KalshiHttpClient:
                 "KALSHI_PRIVATE_KEY_PEM_PATH is required to authenticate with Kalshi."
             )
         self._private_key = self._load_private_key(Path(key_path))
-
-        self._token: KalshiToken | None = None
-        self._token_lock = threading.Lock()
 
     # Public API ---------------------------------------------------------------------------------
 
@@ -163,12 +145,10 @@ class KalshiHttpClient:
         last_error: Exception | None = None
 
         for attempt in range(1, self._max_retries + 1):
-            token = self._ensure_token()
             timestamp_ms, signature = self._sign(method_upper, canonical_path)
 
             request_headers.update(
                 {
-                    "Authorization": f"Bearer {token.value}",
                     "KALSHI-ACCESS-KEY": self._access_key_id,
                     "KALSHI-ACCESS-TIMESTAMP": str(timestamp_ms),
                     "KALSHI-ACCESS-SIGNATURE": signature,
@@ -190,21 +170,6 @@ class KalshiHttpClient:
                 last_error = exc
                 self._log_failure(method_upper, canonical_path, attempt, exc=exc)
                 if attempt >= self._max_retries:
-                    break
-                self._backoff(attempt)
-                continue
-
-            if response.status_code == 401:
-                self._log_failure(
-                    method_upper,
-                    canonical_path,
-                    attempt,
-                    status=response.status_code,
-                )
-                with self._token_lock:
-                    self._token = None
-                if attempt >= self._max_retries:
-                    last_error = KalshiHttpError("Kalshi API rejected credentials with HTTP 401.")
                     break
                 self._backoff(attempt)
                 continue
@@ -246,54 +211,6 @@ class KalshiHttpClient:
         raise KalshiHttpError("Failed to execute Kalshi API request") from last_error
 
     # Internal helpers --------------------------------------------------------------------------
-
-    def _ensure_token(self) -> KalshiToken:
-        with self._token_lock:
-            if self._token and not self._token.is_expired:
-                return self._token
-
-            timestamp_ms, signature = self._sign("POST", _TOKEN_ENDPOINT)
-
-            url = f"{self._base_url}{_TOKEN_ENDPOINT}"
-            headers = {
-                "KALSHI-ACCESS-KEY": self._access_key_id,
-                "KALSHI-ACCESS-TIMESTAMP": str(timestamp_ms),
-                "KALSHI-ACCESS-SIGNATURE": signature,
-                "Content-Type": "application/json",
-            }
-            try:
-                response = self._session.post(url, headers=headers, timeout=self._timeout)
-            except RequestException as exc:
-                # pragma: no cover - network errors rarely triggered in unit tests
-                raise KalshiHttpError("Kalshi token endpoint request failed") from exc
-
-            if response.status_code != 200:
-                raise KalshiHttpError(
-                    f"Kalshi token endpoint returned {response.status_code}: {response.text}"
-                )
-
-            payload = response.json()
-            access_token = payload.get("access_token")
-            expires_in = payload.get("expires_in", 60)
-            if not isinstance(access_token, str):
-                raise KalshiHttpError(f"Token response missing access_token: {json.dumps(payload)}")
-            if not isinstance(expires_in, (int, float)):
-                raise KalshiHttpError(f"Token response missing expires_in: {json.dumps(payload)}")
-
-            expires_at = datetime.now(tz=UTC) + timedelta(seconds=float(expires_in) * 0.9)
-            self._token = KalshiToken(value=access_token, expires_at=expires_at)
-
-            LOGGER.info(
-                "Kalshi token refreshed",
-                extra={
-                    "kalshi": {
-                        "access_key_tail": _mask(self._access_key_id),
-                        "expires_at": expires_at.isoformat(),
-                    }
-                },
-            )
-            return self._token
-
     def _sign(self, method: str, path: str) -> tuple[int, str]:
         now = self._clock.now()
         now_utc = _ensure_utc(now)
@@ -319,9 +236,15 @@ class KalshiHttpClient:
             raise RuntimeError(f"Kalshi private key path does not exist: {expanded}")
         pem_data = expanded.read_bytes()
         try:
-            private_key = load_pem_private_key(pem_data, password=None, backend=default_backend())
+            private_key = load_pem_private_key(
+                pem_data,
+                password=None,
+                backend=default_backend(),
+            )
         except ValueError as exc:
             raise RuntimeError("Failed to parse Kalshi private key PEM.") from exc
+        if not isinstance(private_key, RSAPrivateKey):
+            raise RuntimeError("Kalshi private key must be RSA for RSA-PSS signing.")
         return private_key
 
     def _canonical_path(self, path: str) -> str:

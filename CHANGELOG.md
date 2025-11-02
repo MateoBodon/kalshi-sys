@@ -1,7 +1,7 @@
 # Changelog
 
 ## 2025-11-02
-- Added resilient Kalshi HTTP client with RSA-PSS signing, bearer token refresh, retries/backoff, and structured logging.
-- Refactored `LiveBroker` to use the new client, enforce idempotency through the client, and guard against duplicate submissions with thread-safe tracking.
-- Introduced integration-style tests covering token issuance, retry behaviour, and clock skew validation; refreshed broker safety tests to use the HTTP client abstraction.
-- Documented the new credential requirements and connectivity flow in `.env.example`, `README.md`, and `docs/RUNBOOK.md`.
+- Hardened the Kalshi HTTP client with header-only RSA-PSS signing (no bearer tokens), exponential backoff, and structured logging.
+- Refactored `LiveBroker` to rely on the header-signed client, enforce idempotency via locking, and guard against duplicate submissions.
+- Added integration tests validating signature construction, retry behaviour, query exclusion, and millisecond timestamps; refreshed broker safety tests to use the new client abstraction.
+- Documented the credential expectations and connectivity flow in `.env.example`, `README.md`, and `docs/RUNBOOK.md`.
