@@ -10,6 +10,31 @@
 - Populate `.env.local` with required credentials. For live Kalshi trading set `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PEM_PATH` (absolute path to the RSA private key used for signing). Never commit secrets; `.env.local` is git-ignored.
 - Copy any local credentials into `.env.local` (never commit). The application automatically loads `.env.local` and `.env` via `kalshi_alpha.utils.env`.
 
+### macOS Keychain bootstrap (preferred for local live access)
+For long-lived local shells on macOS, store the Kalshi credentials in Keychain and have your shell read them automatically:
+
+```bash
+# one-time: move PEM out of the repo and lock permissions
+mkdir -p ~/Secure/kalshi
+mv ~/Downloads/MyKey.txt ~/Secure/kalshi/private.pem
+chmod 600 ~/Secure/kalshi/private.pem
+
+# one-time: record API key ID and PEM path in Keychain
+security add-generic-password -a "$USER" -s KalshiAPIKeyID \
+  -w 5abb0c59-0ad5-4c5c-bf02-3bbdc0b6f49b
+security add-generic-password -a "$USER" -s KalshiPrivateKeyPath \
+  -w /Users/<mac-username>/Secure/kalshi/private.pem
+
+# append to ~/.zshrc so new shells auto-export the vars
+echo '# Kalshi credentials from macOS Keychain' >> ~/.zshrc
+echo 'export KALSHI_API_KEY_ID="$(security find-generic-password -a "$USER" -s KalshiAPIKeyID -w 2>/dev/null)"' >> ~/.zshrc
+echo 'export KALSHI_PRIVATE_KEY_PEM_PATH="$(security find-generic-password -a "$USER" -s KalshiPrivateKeyPath -w 2>/dev/null)"' >> ~/.zshrc
+echo 'export KALSHI_ENV=prod' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Replace the placeholder PEM path with your actual location, approve the Keychain prompts with “Always Allow”, and future shells will expose the correct environment variables without re-entering secrets. Rotate keys by updating the two Keychain entries (repeat the `security add-generic-password ... -w NEW_VALUE` commands).
+
 ## Offline vs. Online Data
 - **Offline** mode uses fixtures under `tests/fixtures` (driver data) and `tests/data_fixtures` (public Kalshi payloads). This is the default for CI and testing.
 - **Online** mode hits live endpoints. Use `--online` flags for scanner or pipeline commands.
