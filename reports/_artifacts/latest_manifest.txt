@@ -1,1 +1,1 @@
-/tmp/manifest.json
+reports/_artifacts/manifest.json
