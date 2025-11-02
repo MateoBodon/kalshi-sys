@@ -3,13 +3,39 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 from kalshi_alpha.core.execution.order_queue import OrderQueue
 
 from .base import Broker, BrokerOrder, ensure_directory
+
+
+@dataclass
+class _SerializedOrder:
+    idempotency_key: str
+    market_id: str
+    strike: float
+    side: str
+    price: float
+    contracts: int
+    probability: float
+    metadata: dict[str, object]
+
+    @classmethod
+    def from_order(cls, order: BrokerOrder) -> _SerializedOrder:
+        return cls(
+            idempotency_key=order.idempotency_key,
+            market_id=order.market_id,
+            strike=float(order.strike),
+            side=order.side,
+            price=float(order.price),
+            contracts=int(order.contracts),
+            probability=float(order.probability),
+            metadata=dict(order.metadata or {}),
+        )
 
 
 class DryBroker(Broker):
@@ -46,19 +72,8 @@ class DryBroker(Broker):
             return
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%S%fZ")
         output_path = self._artifacts_dir / f"orders_{timestamp}.json"
-        payload = [
-            {
-                "idempotency_key": order.idempotency_key,
-                "market_id": order.market_id,
-                "strike": order.strike,
-                "side": order.side,
-                "price": order.price,
-                "contracts": order.contracts,
-                "probability": order.probability,
-                "metadata": order.metadata or {},
-            }
-            for order in accepted
-        ]
+        serialized = [_SerializedOrder.from_order(order) for order in accepted]
+        payload = [asdict(item) for item in serialized]
         output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         self._last_orders_path = output_path
         for order in accepted:
@@ -80,7 +95,7 @@ class DryBroker(Broker):
                     order_id=order_id,
                     new_order=order,
                     cancel_fn=self._perform_cancel,
-                    place_fn=lambda _, new_order=order: self._perform_replace(new_order),
+                    place_fn=self._queue_place_replace,
                 )
         else:
             for order in orders:
@@ -90,7 +105,9 @@ class DryBroker(Broker):
         return {
             "mode": self.mode,
             "orders_recorded": len(self._seen),
-            "last_orders_path": self._last_orders_path.as_posix() if self._last_orders_path else None,
+            "last_orders_path": (
+                self._last_orders_path.as_posix() if self._last_orders_path else None
+            ),
         }
 
     def _write_audit(
@@ -101,7 +118,7 @@ class DryBroker(Broker):
         order_id: str | None = None,
         artifact_path: Path | None = None,
     ) -> None:
-        entry = {
+        entry: dict[str, object] = {
             "timestamp": datetime.now(tz=UTC).isoformat(),
             "action": action,
             "mode": self.mode,
@@ -133,3 +150,6 @@ class DryBroker(Broker):
 
     def _perform_replace(self, order: BrokerOrder) -> None:
         self._write_audit("replace", order)
+
+    def _queue_place_replace(self, _: str, order: BrokerOrder) -> None:
+        self._perform_replace(order)
