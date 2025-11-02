@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import math
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -15,10 +17,13 @@ CALIBRATION_PATH = Path("data/proc/calibration_metrics.parquet")
 ALPHA_STATE_PATH = Path("data/proc/state/fill_alpha.json")
 ARTIFACTS_DIR = Path("reports/_artifacts")
 SCORECARD_DIR = ARTIFACTS_DIR / "scorecards"
+LOGGER = logging.getLogger(__name__)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate 7-day and 30-day performance scoreboards.")
+    parser = argparse.ArgumentParser(
+        description="Generate 7-day and 30-day performance scoreboards."
+    )
     parser.add_argument(
         "--window",
         type=int,
@@ -120,6 +125,15 @@ def _build_summary(
         pl.sum("expected_fills").alias("expected_fills"),
         pl.sum("size").alias("requested_contracts"),
         pl.mean("fill_ratio").alias("avg_fill_ratio"),
+        pl.len().alias("sample_size"),
+        (pl.col("ev_realized_bps") - pl.col("ev_expected_bps"))
+        .mean()
+        .alias("ev_delta_mean"),
+        (pl.col("ev_realized_bps") - pl.col("ev_expected_bps"))
+        .std()
+        .alias("ev_delta_std"),
+        pl.mean("ev_expected_bps").alias("ev_expected_bps_mean"),
+        pl.mean("ev_realized_bps").alias("ev_realized_bps_mean"),
     )
     records: list[dict[str, object]] = []
     calib_lookup = {}
@@ -135,6 +149,16 @@ def _build_summary(
         fill_ratio = (expected_fills / requested) if requested else 0.0
         avg_alpha = alpha_state.get(series)
         gate_stats = gate_metrics.get(series, {"go": 0, "no_go": 0})
+        sample_size = int(row.get("sample_size") or 0)
+        ev_expected_mean = float(row.get("ev_expected_bps_mean") or 0.0)
+        ev_realized_mean = float(row.get("ev_realized_bps_mean") or 0.0)
+        delta_mean = float(row.get("ev_delta_mean") or 0.0)
+        delta_std = float(row.get("ev_delta_std") or 0.0)
+        t_stat = 0.0
+        if sample_size > 1 and delta_std > 0:
+            t_stat = delta_mean / (delta_std / math.sqrt(sample_size))
+        badge = _confidence_badge(sample_size, t_stat)
+        ev_plot_lines = _ev_plot_lines(ev_expected_mean, ev_realized_mean)
         metrics = {
             "series": series,
             "ev_after_fees": row.get("ev_after_fees", 0.0),
@@ -146,6 +170,12 @@ def _build_summary(
             "avg_alpha": avg_alpha,
             "no_go_count": gate_stats.get("no_go", 0),
             "go_count": gate_stats.get("go", 0),
+            "sample_size": sample_size,
+            "ev_expected_bps_mean": ev_expected_mean,
+            "ev_realized_bps_mean": ev_realized_mean,
+            "t_stat": t_stat,
+            "confidence_badge": badge,
+            "ev_plot_lines": ev_plot_lines,
         }
         calib = calib_lookup.get(series)
         if calib:
@@ -169,7 +199,8 @@ def _load_gate_metrics(window_days: int) -> dict[str, dict[str, int]]:
         timestamp_text = data.get("timestamp")
         if timestamp_text:
             try:
-                mtime = datetime.fromisoformat(timestamp_text.replace("Z", "+00:00")).astimezone(UTC)
+                parsed = datetime.fromisoformat(timestamp_text.replace("Z", "+00:00"))
+                mtime = parsed.astimezone(UTC)
             except ValueError:
                 pass
         if mtime < threshold:
@@ -180,6 +211,27 @@ def _load_gate_metrics(window_days: int) -> dict[str, dict[str, int]]:
         else:
             metrics[series]["no_go"] += 1
     return metrics
+
+
+def _confidence_badge(sample_size: int, t_stat: float) -> str:
+    if sample_size >= 200 and t_stat >= 2.0:
+        return "✓"
+    if t_stat >= 1.0:
+        return "△"
+    return "✗"
+
+
+def _ev_plot_lines(expected: float, realized: float) -> list[str]:
+    scale = max(abs(expected), abs(realized), 1.0)
+
+    def _bar(label: str, value: float) -> str:
+        proportion = min(1.0, abs(value) / scale)
+        length = max(1, int(round(proportion * 20)))
+        bar = "█" * length
+        sign = "+" if value >= 0 else "-"
+        return f"{label:<9}: {sign}{bar:<20} {value:.1f} bps"
+
+    return ["```", _bar("expected", expected), _bar("realized", realized), "```"]
 
 
 def _write_markdown(summary: list[dict[str, object]], window_days: int, output: Path) -> None:
@@ -199,6 +251,20 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
             f"{row['expected_fills']:.1f} / {row['requested_contracts']:.1f}"
         )
         lines.append(f"- Avg Fill Ratio: {row['avg_fill_ratio']:.3f}")
+        lines.append(f"- Sample Size: {row.get('sample_size', 0)} trades")
+        lines.append(
+            f"- Expected EV (bps): {row.get('ev_expected_bps_mean', 0.0):+.1f}"
+        )
+        lines.append(
+            f"- Realized EV (bps): {row.get('ev_realized_bps_mean', 0.0):+.1f}"
+        )
+        t_stat = row.get("t_stat")
+        badge = row.get("confidence_badge", "✗")
+        if isinstance(t_stat, float):
+            lines.append(f"- Confidence: {badge} (t={t_stat:.2f})")
+        plot_lines = row.get("ev_plot_lines")
+        if plot_lines:
+            lines.extend(plot_lines)
         alpha = row.get("avg_alpha")
         alpha_text = f"{alpha:.3f}" if isinstance(alpha, (int, float)) else "n/a"
         lines.append(f"- Avg α: {alpha_text}")
@@ -214,7 +280,8 @@ def _load_replay_metrics() -> dict[str, dict[str, float]]:
     for path in SCORECARD_DIR.glob("*_summary.parquet"):
         try:
             frame = pl.read_parquet(path)
-        except Exception:
+        except Exception as exc:  # pragma: no cover - best-effort logging
+            LOGGER.debug("Failed to load replay metrics from %s: %s", path, exc)
             continue
         if frame.is_empty():
             continue
@@ -235,14 +302,6 @@ def _build_pilot_readiness(
     replay_metrics: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, object]:
     replay_metrics = replay_metrics or {}
-    now = datetime.now(tz=UTC)
-    window_start = now - timedelta(days=window_days)
-    if ledger.is_empty():
-        filtered_ledger = pl.DataFrame()
-    else:
-        filtered_ledger = ledger
-        if "timestamp_et" in ledger.columns:
-            filtered_ledger = ledger.filter(pl.col("timestamp_et") >= window_start)
 
     per_series: list[dict[str, object]] = []
     total_go = 0
@@ -300,8 +359,16 @@ def _build_pilot_readiness(
     overall_go_rate = (total_go / total_decisions) if total_decisions else None
     overall_fill = (total_expected / total_requested) if total_requested else None
     overall_alpha = (alpha_weight_sum / alpha_weight_den) if alpha_weight_den else None
-    replay_means = [entry["replay_mean"] for entry in per_series if isinstance(entry.get("replay_mean"), (int, float))]
-    replay_maxes = [entry["replay_max"] for entry in per_series if isinstance(entry.get("replay_max"), (int, float))]
+    replay_means = [
+        entry["replay_mean"]
+        for entry in per_series
+        if isinstance(entry.get("replay_mean"), (int, float))
+    ]
+    replay_maxes = [
+        entry["replay_max"]
+        for entry in per_series
+        if isinstance(entry.get("replay_max"), (int, float))
+    ]
     overall_replay_mean = sum(replay_means) / len(replay_means) if replay_means else None
     overall_replay_max = max(replay_maxes) if replay_maxes else None
 
@@ -320,7 +387,7 @@ def _build_pilot_readiness(
     }
 
 
-def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:
+def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:  # noqa: PLR0915
     lines: list[str] = ["# Pilot Readiness (last 7 days)", ""]
     overall = report.get("overall", {})
     series_rows: list[dict[str, object]] = report.get("series", [])  # type: ignore[assignment]
@@ -346,9 +413,11 @@ def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:
         if isinstance(replay_mean, (int, float)) and isinstance(replay_max, (int, float)):
             lines.append(f"- Replay mean Δ: {replay_mean:.4f} (max {replay_max:.4f})")
         lines.append("")
-        lines.append(
-            "| Series | GO Rate | GO/Total | EV after fees | Fill ratio | α | Δfill | Replay mean Δ | Replay max Δ |"
+        header = (
+            "| Series | GO Rate | GO/Total | EV after fees | Fill ratio | α | "
+            "Δfill | Replay mean Δ | Replay max Δ |"
         )
+        lines.append(header)
         lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for row in series_rows:
             go = int(row.get("go", 0))
@@ -363,14 +432,23 @@ def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:
             gap = row.get("fill_gap")
             gap_text = f"{gap:+.3f}" if isinstance(gap, (int, float)) else "n/a"
             replay_mean = row.get("replay_mean")
-            replay_mean_text = f"{replay_mean:.4f}" if isinstance(replay_mean, (int, float)) else "n/a"
+            if isinstance(replay_mean, (int, float)):
+                replay_mean_text = f"{replay_mean:.4f}"
+            else:
+                replay_mean_text = "n/a"
             replay_max = row.get("replay_max")
-            replay_max_text = f"{replay_max:.4f}" if isinstance(replay_max, (int, float)) else "n/a"
+            if isinstance(replay_max, (int, float)):
+                replay_max_text = f"{replay_max:.4f}"
+            else:
+                replay_max_text = "n/a"
             total_text = f"{go}/{total}" if total else "0/0"
-            lines.append(
-                "| "
-                f"{row['series']} | {go_rate_text} | {total_text} | {ev_text} | {fill_text} | {alpha_text} | {gap_text} | {replay_mean_text} | {replay_max_text} |"
+            series_name = row.get("series", "-")
+            row_line = (
+                f"| {series_name} | {go_rate_text} | {total_text} | {ev_text} | "
+                f"{fill_text} | {alpha_text} | {gap_text} | {replay_mean_text} | "
+                f"{replay_max_text} |"
             )
+            lines.append(row_line)
 
     output.write_text("\n".join(lines), encoding="utf-8")
 

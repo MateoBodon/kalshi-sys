@@ -11,39 +11,39 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, tune_alpha
-from kalshi_alpha.core.execution.slippage import SlippageModel
+from kalshi_alpha.core.archive.scorecards import build_replay_scorecard
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
+from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
 from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
-from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook
+from kalshi_alpha.core.kalshi_api import KalshiPublicClient
+from kalshi_alpha.core.pricing.align import SkipScan
 from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioRiskManager, drawdown
 from kalshi_alpha.datastore import ingest as datastore_ingest
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
-from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
-from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
-from kalshi_alpha.core.archive.scorecards import build_replay_scorecard
-from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
-from kalshi_alpha.exec.runners.scan_ladders import (
-    _archive_and_replay,
-    _apply_ev_honesty_gate,
-    _attach_series_metadata,
-    _clear_dry_orders_start,
-    _compute_exposure_summary,
-    _compute_ev_honesty_rows,
-    _load_replay_for_ev_honesty,
-    _write_cdf_diffs,
-    execute_broker,
-    scan_series,
-    write_proposals,
-)
-from kalshi_alpha.core.pricing.align import SkipScan
-from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.exec.heartbeat import (
     heartbeat_stale,
     kill_switch_engaged,
     resolve_kill_switch_path,
     write_heartbeat,
 )
+from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
+from kalshi_alpha.exec.reports import write_markdown_report
+from kalshi_alpha.exec.runners.scan_ladders import (
+    _apply_ev_honesty_gate,
+    _archive_and_replay,
+    _attach_series_metadata,
+    _clear_dry_orders_start,
+    _compute_ev_honesty_rows,
+    _compute_exposure_summary,
+    _load_replay_for_ev_honesty,
+    _write_cdf_diffs,
+    execute_broker,
+    scan_series,
+    write_proposals,
+)
+from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.strategies.claims import calibrate as calibrate_claims
 from kalshi_alpha.strategies.cpi import calibrate as calibrate_cpi
 from kalshi_alpha.strategies.teny import calibrate as calibrate_teny
@@ -190,24 +190,50 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _resolve_fill_alpha_value(fill_alpha_arg: object, series: str) -> tuple[float, bool]:
+def _resolve_fill_alpha_value(fill_alpha_arg: object, series: str) -> tuple[float, bool]:  # noqa: PLR0912
+    stored = load_alpha(series)
+    auto = False
+    candidate: float | None = None
+
     if fill_alpha_arg is None:
-        return DEFAULT_FILL_ALPHA, False
-    if isinstance(fill_alpha_arg, str):
+        if stored is not None:
+            candidate = stored
+            auto = True
+        else:
+            candidate = DEFAULT_FILL_ALPHA
+    elif isinstance(fill_alpha_arg, str):
         raw = fill_alpha_arg.strip().lower()
         if raw == "auto":
             tuned = tune_alpha(series, RAW_ROOT / "kalshi")
             if tuned is not None:
-                return float(tuned), True
-            return DEFAULT_FILL_ALPHA, True
+                candidate = float(tuned)
+            elif stored is not None:
+                candidate = stored
+            else:
+                candidate = DEFAULT_FILL_ALPHA
+            auto = True
+        else:
+            try:
+                candidate = float(raw)
+            except ValueError:
+                if stored is not None:
+                    candidate = stored
+                    auto = True
+                else:
+                    candidate = DEFAULT_FILL_ALPHA
+    else:
         try:
-            return float(raw), False
-        except ValueError:
-            return DEFAULT_FILL_ALPHA, False
-    try:
-        return float(fill_alpha_arg), False
-    except (TypeError, ValueError):
-        return DEFAULT_FILL_ALPHA, False
+            candidate = float(fill_alpha_arg)
+        except (TypeError, ValueError):
+            if stored is not None:
+                candidate = stored
+                auto = True
+            else:
+                candidate = DEFAULT_FILL_ALPHA
+
+    if candidate is None:
+        candidate = DEFAULT_FILL_ALPHA
+    return candidate, auto
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -721,7 +747,11 @@ def run_scan(
         if slippage_mode in {"top", "depth"}:
             if impact_cap_arg is not None:
                 slippage_model = SlippageModel(mode=slippage_mode, impact_cap=float(impact_cap_arg))
-            else:
+            elif slippage_mode == "depth":
+                calibrated = load_slippage_model(series, mode=slippage_mode)
+                if calibrated is not None:
+                    slippage_model = calibrated
+            if slippage_model is None:
                 slippage_model = SlippageModel(mode=slippage_mode)
         elif slippage_mode != "mid":
             slippage_mode = "top"

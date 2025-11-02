@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import statistics
 from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -16,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from kalshi_alpha.exec.runners.scan_ladders import Proposal
 
 
-def write_markdown_report(
+def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
     *,
     series: str,
     proposals: Sequence[Proposal],
@@ -48,7 +50,11 @@ def write_markdown_report(
         lines.append(f"Outstanding orders: {total} ({breakdown})")
     throttle_rows = 0
     if ledger:
-        throttle_rows = sum(1 for record in ledger.records if getattr(record, "size_throttled", False))
+        throttle_rows = sum(
+            1
+            for record in ledger.records
+            if getattr(record, "size_throttled", False)
+        )
     if throttle_rows:
         lines.append(f"Size throttle active on {throttle_rows} rows")
     if pilot_metadata:
@@ -59,7 +65,10 @@ def write_markdown_report(
             lines.append(f"Scheduled window (ET): {window_label}")
         lines.append(_format_pilot_header(pilot_metadata))
     if manifest_path:
-        manifest_str = manifest_path.as_posix() if isinstance(manifest_path, Path) else str(manifest_path)
+        if isinstance(manifest_path, Path):
+            manifest_str = manifest_path.as_posix()
+        else:
+            manifest_str = str(manifest_path)
         lines.append(f"[Archived Manifest]({manifest_str})")
     lines.append("")
     lines.append(f"# {series.upper()} Ladder Scan {ts.strftime('%Y-%m-%d %H:%M UTC')}")
@@ -111,9 +120,11 @@ def write_markdown_report(
                 prob_gap = float(record.get("prob_sum_gap", 0.0))
                 max_kink = float(record.get("max_kink", 0.0))
                 kink_count = int(record.get("kink_count", 0))
-                lines.append(
-                    f"| {market_name} | {mean_delta:.4f} | {max_delta:.4f} | {prob_gap:.4f} | {max_kink:.4f} | {kink_count} |"
+                row_line = (
+                    f"| {market_name} | {mean_delta:.4f} | {max_delta:.4f} | "
+                    f"{prob_gap:.4f} | {max_kink:.4f} | {kink_count} |"
                 )
+                lines.append(row_line)
             lines.append("")
             lines.append(f"Markets evaluated: {len(scorecard_summary)}")
         lines.append("")
@@ -154,7 +165,11 @@ def write_markdown_report(
                 ev_max_delta = None
 
     if ev_table_data or ledger:
-        ev_lines, ev_diff = _ev_honesty_rows(ledger, table_data=ev_table_data, max_delta=ev_max_delta)
+        ev_lines, ev_diff = _ev_honesty_rows(
+            ledger,
+            table_data=ev_table_data,
+            max_delta=ev_max_delta,
+        )
         if ev_lines:
             lines.extend(ev_lines)
             lines.append("")
@@ -176,10 +191,11 @@ def write_markdown_report(
             legs = top["legs"] if top else 0
             direction = top["direction"] if top else "-"
             delta_sum = top["delta_sum"] if top else 0.0
-            lines.append(
-                f"| {record['market_ticker']} | {record['prob_sum_gap']:.4f} | {record['max_kink']:.4f} | "
-                f"{legs} | {direction} | {delta_sum:+.4f} |"
+            row_line = (
+                f"| {record['market_ticker']} | {record['prob_sum_gap']:.4f} | "
+                f"{record['max_kink']:.4f} | {legs} | {direction} | {delta_sum:+.4f} |"
             )
+            lines.append(row_line)
         lines.append("")
     if exposure_summary:
         lines.append("## Portfolio Exposure")
@@ -236,11 +252,14 @@ def write_markdown_report(
                 total_loss = float(per_series.get(series_name, 0.0))
                 factor_payload = series_factors.get(series_name, {})
                 factor_text = ", ".join(
-                    f"{factor}:{float(value):.2f}" for factor, value in sorted(factor_payload.items())
+                    f"{factor}:{float(value):.2f}"
+                    for factor, value in sorted(factor_payload.items())
                 ) or "-"
-                lines.append(
-                    f"| {series_name} | {long_side:+d} | {-short_side:+d} | {total_loss:.2f} | {factor_text} |"
+                row_line = (
+                    f"| {series_name} | {long_side:+d} | {-short_side:+d} | "
+                    f"{total_loss:.2f} | {factor_text} |"
                 )
+                lines.append(row_line)
             lines.append("")
     lines.append("## Proposal Details")
     for proposal in proposals:
@@ -277,12 +296,75 @@ def _expected_vs_realized_rows(ledger: PaperLedger) -> list[str]:
             f"| {record.proposal.market_ticker} | {record.proposal.strike:.2f} | "
             f"{record.proposal.side} | {requested} | {expected} | {delta:+d} | {fill_pct:.1f}% |"
         )
-    lines.append(f"| **Totals** |  |  | {total_requested} | {total_expected} | {total_delta:+d} |  |")
+    totals_line = (
+        f"| **Totals** |  |  | {total_requested} | {total_expected} | {total_delta:+d} |  |"
+    )
+    lines.append(totals_line)
     lines.append("")
+
+    ev_expected_values: list[float] = []
+    ev_realized_values: list[float] = []
+    delta_values: list[float] = []
+    lines.append("### Expected vs Realized EV (bps)")
+    lines.append("| Market | Bin | Side | Expected (bps) | Realized (bps) | Δ (bps) |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
+    for record in ledger.records:
+        expected_bps = float(getattr(record, "ev_expected_bps", 0.0))
+        realized_bps = float(getattr(record, "ev_realized_bps", 0.0))
+        delta_bps = realized_bps - expected_bps
+        ev_expected_values.append(expected_bps)
+        ev_realized_values.append(realized_bps)
+        delta_values.append(delta_bps)
+        ev_line = (
+            f"| {record.proposal.market_ticker} | {record.proposal.strike:.2f} | "
+            f"{record.proposal.side} | {expected_bps:+.1f} | {realized_bps:+.1f} | "
+            f"{delta_bps:+.1f} |"
+        )
+        lines.append(ev_line)
+    sample_size = len(ev_expected_values)
+    if sample_size:
+        mean_expected = statistics.mean(ev_expected_values)
+        mean_realized = statistics.mean(ev_realized_values)
+        mean_delta = statistics.mean(delta_values)
+        std_delta = statistics.stdev(delta_values) if sample_size > 1 else 0.0
+        if sample_size > 1:
+            t_stat = mean_delta / (std_delta / math.sqrt(sample_size)) if std_delta > 0 else 0.0
+        else:
+            t_stat = 0.0
+        badge = _confidence_badge(sample_size, t_stat)
+        lines.append(
+            f"| **Mean** |  |  | {mean_expected:+.1f} | {mean_realized:+.1f} | {mean_delta:+.1f} |"
+        )
+        lines.append("")
+        lines.append(f"Sample Size: {sample_size} trades")
+        lines.append(f"Confidence: {badge} (t={t_stat:.2f})")
+        lines.extend(_ev_plot_lines(mean_expected, mean_realized))
+        lines.append("")
     return lines
 
 
-def _ev_honesty_rows(
+def _confidence_badge(sample_size: int, t_stat: float) -> str:
+    if sample_size >= 200 and t_stat >= 2.0:
+        return "✓"
+    if t_stat >= 1.0:
+        return "△"
+    return "✗"
+
+
+def _ev_plot_lines(expected: float, realized: float) -> list[str]:
+    scale = max(abs(expected), abs(realized), 1.0)
+
+    def _bar(label: str, value: float) -> str:
+        proportion = min(1.0, abs(value) / scale)
+        length = max(1, int(round(proportion * 20)))
+        bar = "█" * length
+        sign = "+" if value >= 0 else "-"
+        return f"{label:<9}: {sign}{bar:<20} {value:.1f} bps"
+
+    return ["```", _bar("expected", expected), _bar("realized", realized), "```"]
+
+
+def _ev_honesty_rows(  # noqa: PLR0911, PLR0912, PLR0915
     ledger: PaperLedger | None,
     *,
     table_data: Sequence[dict[str, object]] | None = None,
@@ -295,9 +377,13 @@ def _ev_honesty_rows(
             return default
 
     if table_data:
+        header_row = (
+            "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | "
+            "EV_total_original | EV_total_replay | Delta |"
+        )
         header = [
             "### EV Honesty",
-            "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay | Delta |",
+            header_row,
             "| --- | --- | --- | --- | --- | --- | --- |",
         ]
         rows: list[str] = []
@@ -348,7 +434,10 @@ def _ev_honesty_rows(
         lookup[key] = row
     header = [
         "### EV Honesty",
-        "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay | Delta |",
+        (
+            "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | "
+            "EV_total_original | EV_total_replay | Delta |"
+        ),
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     rows = []

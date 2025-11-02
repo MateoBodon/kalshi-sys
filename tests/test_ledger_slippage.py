@@ -81,4 +81,4 @@ def test_slippage_artifacts_written(tmp_path: Path) -> None:
     assert row["impact_cap"] == pytest.approx(0.01)
     assert row["price"] <= proposal.market_yes_price
     assert row["fill_ratio"] == pytest.approx(1.0)
-    assert row["ledger_schema_version"] == 1
+    assert row["ledger_schema_version"] == 2

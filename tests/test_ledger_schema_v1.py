@@ -65,7 +65,7 @@ def test_ledger_schema_v1_columns_and_types(tmp_path: Path) -> None:
         assert value is not None, f"{name} unexpectedly None"
         if isinstance(value, float):
             assert not math.isnan(value), f"{name} is NaN"
-    assert row["ledger_schema_version"] == 1
+    assert row["ledger_schema_version"] == 2
     assert row["series"] == "CPI"
     assert str(row["event"]) == "202510"
     assert str(row["manifest_path"]).endswith("manifest.json")

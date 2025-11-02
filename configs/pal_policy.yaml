@@ -1,0 +1,7 @@
+# Production PAL policy guardrails for CPI ladder execution.
+series: CPI
+default_max_loss: 3000
+per_strike:
+  CPI-2025-11: 2500
+  CPI-2025-12: 2800
+  CPI-2026-01: 3000

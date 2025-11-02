@@ -19,6 +19,11 @@
   python -m kalshi_alpha.datastore.ingest --all --online --force-refresh
   ```
 
+## Telemetry Capture
+- Live execution emits JSONL telemetry under `data/raw/kalshi/YYYY/MM/DD/exec.jsonl`. Each line contains an UTC timestamp, event type (`sent`, `fill`, `partial_fill`, `reject`, heartbeat events, etc.), and a sanitized payload (signatures/keys masked to the last four characters).
+- Use `make telemetry-smoke` to append a synthetic telemetry sequence without touching Kalshi—useful for verifying filesystem permissions and log shipping.
+- The sink auto-rotates daily; batch jobs can glob directories by date to collect execution traces for analytics.
+
 ## Calibration
 - Calibrate Tier-1 strategies from fixtures:
   ```bash
@@ -34,6 +39,7 @@
   PY
   ```
 - Calibration artifacts are written under `data/proc/*_calib.parquet` and feed drift monitors.
+- Live fill ratios and slippage curves are derived from the aggregated ledger; see [Fill Ratio & Slippage Calibration](#fill-ratio--slippage-calibration) for refresh commands and state locations.
 
 ## Daily Pipeline Modes
 Run the orchestrator in offline or online mode:
@@ -61,6 +67,18 @@ Pipeline steps per run:
 5. Paper ledger simulation (configurable slippage model, CSV/JSON artifacts under `reports/_artifacts`).
 6. Markdown report + JSON log in `data/proc/logs/YYYY-MM-DD/`.
 
+## Fill Ratio & Slippage Calibration
+- Fill alpha values are auto-tuned from the aggregated ledger (`data/proc/ledger_all.parquet`) and persisted to `data/proc/state/fill_alpha.json`. The scanner and daily pipelines automatically load the most recent alpha when `--fill-alpha` is omitted; `--fill-alpha auto` forces a refresh before scanning.
+- Depth slippage curves are fitted from the same ledger and stored in `data/proc/state/slippage.json`. When `--slippage-mode depth` is selected the pipelines will hydrate a `SlippageModel` from this state; pass `--impact-cap` to override at runtime.
+- Manual refresh example:
+  ```bash
+  python - <<'PY'
+  from kalshi_alpha.core.execution import fillratio, slippage
+  fillratio.tune_alpha("CPI", lookback_days=14)
+  slippage.fit_slippage("CPI", lookback_days=14)
+  PY
+  ```
+
 ## Scanner Usage
 ```bash
 python -m kalshi_alpha.exec.runners.scan_ladders \
@@ -78,6 +96,11 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
   - Monitors block (drift, TZ mismatch, non-monotone ladders).
   - Strategy metadata (AAA gas MTD, suspicious deltas, etc.).
 
+## Common Make Targets
+- `make report` regenerates scoreboards from `data/proc/ledger_all.parquet` and writes Markdown to `reports/`.
+- `make telemetry-smoke` appends a synthetic execution trace to the telemetry sink for end-to-end log validation.
+- `make live-smoke` runs the read-only REST/WebSocket health check (`kalshi_alpha.dev.sanity_check --live-smoke`).
+
 ## Live Trading Connectivity
 - **Endpoints**: REST `https://api.elections.kalshi.com/trade-api/v2`, WebSocket `wss://api.elections.kalshi.com/trade-api/ws/v2`.
 - **Header signing**: every REST call signs `timestamp_ms + METHOD + PATH` (RSA-PSS, SHA-256). Only the path component participates in the signature—query strings are excluded by definition.
@@ -92,6 +115,7 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
 ## Interpreting Reports
 - **Proposals**: strike, side, contracts, and maker EV per contract.
 - **Paper Ledger Summary**: aggregated expected PnL, max loss, trade count using the configured slippage model.
+- **EV Honesty**: scoreboard and ladder reports include expected vs. realized EV bars plus a confidence badge (`✓`, `△`, `✗`) based on sample size and t-statistic.
 - **Monitors**:
   - `model_drift`: `True` when rolling CRPS/Brier worsens by >10% vs baseline.
   - `tz_not_et`: `True` if local clock is not ET.
@@ -104,6 +128,12 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
 - **Drift alerts**: refresh calibrations with up-to-date history and validate driver inputs.
 - **Non-monotone ladders**: inspect the strategy PMF; adjust variance/grid if needed.
 - **TZ mismatch**: verify system timezone or run pipeline on an ET-aligned host.
+
+## Risk Guardrails & Configs
+- `configs/pal_policy.yaml` caps CPI ladder exposure (default USD 3k, strike overrides down to USD 2.5k).
+- `configs/portfolio.yaml` holds factor volatilities and betas used by the VaR guardrail. Tighten limits by increasing these weights; never lower them without coordination.
+- `configs/quality_gates.yaml` encodes minimum CRPS/Brier advantages and sets all monitor tolerances (`tz_not_et`, `non_monotone_ladders`, `negative_ev_after_fees`) to zero.
+- CI executes `tests/test_config_guardrails.py` so any attempt to weaken the baselines will fail fast.
 
 ## CI Nightly Pipeline
 GitHub Actions triggers the offline pipeline nightly:

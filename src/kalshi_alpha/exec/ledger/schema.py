@@ -28,6 +28,12 @@ class LedgerRowV1(BaseModel):
         "expected_contracts",
         "expected_fills",
         "fill_ratio",
+        "t_fill_ms",
+        "size_partial",
+        "slippage_ticks",
+        "ev_expected_bps",
+        "ev_realized_bps",
+        "fees_bps",
         "slippage_mode",
         "impact_cap",
         "fees_maker",
@@ -51,6 +57,12 @@ class LedgerRowV1(BaseModel):
     expected_contracts: int
     expected_fills: int
     fill_ratio: float
+    t_fill_ms: float = 0.0
+    size_partial: int = 0
+    slippage_ticks: float = 0.0
+    ev_expected_bps: float = 0.0
+    ev_realized_bps: float = 0.0
+    fees_bps: float = 0.0
     slippage_mode: str
     impact_cap: float
     fees_maker: float
@@ -58,7 +70,7 @@ class LedgerRowV1(BaseModel):
     pnl_simulated: float
     timestamp_et: datetime
     manifest_path: str = ""
-    ledger_schema_version: int = Field(default=1)
+    ledger_schema_version: int = Field(default=2)
 
     @classmethod
     def canonical_fields(cls) -> tuple[str, ...]:
@@ -79,6 +91,11 @@ class LedgerRowV1(BaseModel):
         "market_p",
         "delta_p",
         "fill_ratio",
+        "t_fill_ms",
+        "slippage_ticks",
+        "ev_expected_bps",
+        "ev_realized_bps",
+        "fees_bps",
         "impact_cap",
         "fees_maker",
         "ev_after_fees",
@@ -91,4 +108,3 @@ class LedgerRowV1(BaseModel):
             if math.isnan(value) or math.isinf(value):
                 raise ValueError("ledger fields must be finite")
         return value
-

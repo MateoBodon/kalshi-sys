@@ -1,11 +1,16 @@
 factor_vols:
-  INFLATION: 1.0
-  RATES: 0.8
+  INFLATION: 1.2
+  RATES: 1.0
+  EMPLOYMENT: 0.9
+  WEATHER: 1.1
 strategy_betas:
   CPI:
-    INFLATION: 1.0
+    INFLATION: 1.1
+    RATES: 0.2
   TENY:
-    RATES: 1.0
+    RATES: 1.2
   CLAIMS:
-    INFLATION: 0.4
-    RATES: 0.3
+    EMPLOYMENT: 0.8
+    INFLATION: 0.3
+  WEATHER:
+    WEATHER: 1.0

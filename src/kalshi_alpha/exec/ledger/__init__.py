@@ -8,13 +8,12 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
-
 from zoneinfo import ZoneInfo
 
-from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, alpha_row, _visible_depth
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, _visible_depth, alpha_row
 from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule, maker_fee
 from kalshi_alpha.core.kalshi_api import Orderbook
@@ -45,6 +44,12 @@ class FillRecord:
     pnl_simulated: float
     alpha_row: float = 0.0
     size_throttled: bool = False
+    t_fill_ms: float = 0.0
+    size_partial: int = 0
+    slippage_ticks: float = 0.0
+    ev_expected_bps: float = 0.0
+    ev_realized_bps: float = 0.0
+    fees_bps: float = 0.0
 
 
 @dataclass
@@ -86,7 +91,12 @@ class PaperLedger:
         manifest_path: Path | None = None,
     ) -> list[LedgerRowV1]:
         manifest = manifest_path or self.manifest_path
-        manifest_str = manifest.as_posix() if isinstance(manifest, Path) else (str(manifest) if manifest else "")
+        if manifest is None:
+            manifest_str = ""
+        elif isinstance(manifest, Path):
+            manifest_str = manifest.as_posix()
+        else:
+            manifest_str = str(manifest)
         rows: list[LedgerRowV1] = []
         for record in self.records:
             series_label_raw = self.series or record.proposal.strategy or ""
@@ -109,6 +119,12 @@ class PaperLedger:
                 expected_contracts=int(record.expected_contracts),
                 expected_fills=int(record.expected_fills),
                 fill_ratio=float(record.fill_ratio),
+                t_fill_ms=float(record.t_fill_ms),
+                size_partial=int(record.size_partial),
+                slippage_ticks=float(record.slippage_ticks),
+                ev_expected_bps=float(record.ev_expected_bps),
+                ev_realized_bps=float(record.ev_realized_bps),
+                fees_bps=float(record.fees_bps),
                 slippage_mode=record.slippage_mode,
                 impact_cap=float(record.impact_cap),
                 fees_maker=record.fees_maker,
@@ -154,7 +170,7 @@ class PaperLedger:
         return json_path, csv_path
 
 
-def simulate_fills(
+def simulate_fills(  # noqa: PLR0913, PLR0912, PLR0915
     proposals: Sequence[Proposal],
     orderbooks: Mapping[str, Orderbook],
     *,
@@ -205,13 +221,16 @@ def simulate_fills(
             expected_fills = max(0, expected_contracts)
         if size > 0:
             depth_limited = visible_depth is not None and visible_depth < size
+            throttle_reference = 0.7
             if (
                 alpha_row_base is not None
-                and alpha_row_base < 0.7
+                and alpha_row_base < throttle_reference
                 and expected_contracts > 0
                 and depth_limited
             ):
-                scale_factor = alpha_row_base / 0.7 if 0.7 > 0 else 0.0
+                scale_factor = (
+                    alpha_row_base / throttle_reference if throttle_reference > 0 else 0.0
+                )
                 throttled_contracts = int(math.floor(expected_contracts * scale_factor))
                 if throttled_contracts < expected_contracts:
                     expected_contracts = max(0, throttled_contracts)
@@ -253,6 +272,13 @@ def simulate_fills(
         slippage_mode = model.mode if model is not None else mode
         impact_cap = float(getattr(model, "impact_cap", 0.0)) if slippage_mode != "mid" else 0.0
 
+        notional = max(float(size) * float(fill_price), 1e-9)
+        partial_contracts = max(0, size - expected_fills)
+        slippage_ticks = float(slippage) / float(CENT) if CENT != 0 else 0.0
+        expected_bps = float(proposal.maker_ev_per_contract) * 10000.0 if size > 0 else 0.0
+        realized_bps = (expected / notional) * 10000.0 if notional > 0 else 0.0
+        fees_bps = (fees / notional) * 10000.0 if notional > 0 else 0.0
+
         ledger.record(
             FillRecord(
                 proposal=proposal,
@@ -269,6 +295,12 @@ def simulate_fills(
                 pnl_simulated=expected,
                 alpha_row=alpha_row_value,
                 size_throttled=size_throttled,
+                t_fill_ms=0.0,
+                size_partial=partial_contracts,
+                slippage_ticks=slippage_ticks,
+                ev_expected_bps=expected_bps,
+                ev_realized_bps=realized_bps,
+                fees_bps=fees_bps,
             )
         )
 

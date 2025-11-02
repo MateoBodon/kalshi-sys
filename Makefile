@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -45,6 +45,36 @@ test:
 
 scan:
 	$(PYTHON) -m kalshi_alpha.exec.runners.scan_ladders --series CPI --dry-run
+
+telemetry-smoke:
+	$(PYTHON) - <<'PY'
+from datetime import UTC, datetime
+from kalshi_alpha.exec.telemetry.sink import TelemetrySink
+
+sink = TelemetrySink()
+now = datetime.now(tz=UTC)
+sink.emit(
+    "sent",
+    source="make.telemetry",
+    data={"order_id": "SIM-001", "side": "YES", "contracts": 10, "timestamp": now.isoformat()},
+)
+sink.emit(
+    "fill",
+    source="make.telemetry",
+    data={"order_id": "SIM-001", "filled": 10, "price": 0.45, "latency_ms": 180},
+)
+sink.emit(
+    "heartbeat",
+    source="make.telemetry",
+    data={"ws_state": "open", "seq": 1},
+)
+PY
+
+report:
+	$(PYTHON) -m kalshi_alpha.exec.scoreboard
+
+live-smoke:
+	$(PYTHON) -m kalshi_alpha.dev.sanity_check --live-smoke --env demo
 
 .PHONY: paper_live_offline paper_live_online
 

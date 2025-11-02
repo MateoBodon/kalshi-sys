@@ -27,6 +27,12 @@ def _ledger_frame() -> pl.DataFrame:
             "expected_contracts": [18],
             "expected_fills": [16],
             "fill_ratio": [0.8],
+            "t_fill_ms": [250.0],
+            "size_partial": [2],
+            "slippage_ticks": [1.5],
+            "ev_expected_bps": [120.0],
+            "ev_realized_bps": [115.0],
+            "fees_bps": [5.0],
             "slippage_mode": ["top"],
             "impact_cap": [0.02],
             "fees_maker": [0.12],
@@ -34,12 +40,15 @@ def _ledger_frame() -> pl.DataFrame:
             "pnl_simulated": [2.1],
             "timestamp_et": [now],
             "manifest_path": ["data/raw/kalshi/manifest.json"],
-            "ledger_schema_version": [1],
+            "ledger_schema_version": [2],
         }
     )
 
 
-def test_aggregate_reorders_to_canonical(monkeypatch, tmp_path: Path) -> None:
+def test_aggregate_reorders_to_canonical(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.chdir(tmp_path)
     reports_dir = tmp_path / "reports" / "_artifacts"
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -55,7 +64,10 @@ def test_aggregate_reorders_to_canonical(monkeypatch, tmp_path: Path) -> None:
     assert combined.columns == list(LedgerRowV1.canonical_fields())
 
 
-def test_aggregate_rejects_unknown_columns(monkeypatch, tmp_path: Path) -> None:
+def test_aggregate_rejects_unknown_columns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.chdir(tmp_path)
     reports_dir = tmp_path / "reports" / "_artifacts"
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -64,3 +76,30 @@ def test_aggregate_rejects_unknown_columns(monkeypatch, tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         aggregate_main([])
+
+
+def test_aggregate_upgrades_v1(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    reports_dir = tmp_path / "reports" / "_artifacts"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    legacy = _ledger_frame().drop(
+        [
+            "t_fill_ms",
+            "size_partial",
+            "slippage_ticks",
+            "ev_expected_bps",
+            "ev_realized_bps",
+            "fees_bps",
+        ]
+    )
+    legacy = legacy.with_columns(pl.lit(1).alias("ledger_schema_version"))
+    legacy.write_csv(reports_dir / "legacy_ledger.csv")
+
+    aggregate_main([])
+
+    parquet_path = tmp_path / "data" / "proc" / "ledger_all.parquet"
+    frame = pl.read_parquet(parquet_path)
+    assert set(frame["ledger_schema_version"].unique().to_list()) == {2}

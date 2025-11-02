@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
@@ -53,21 +54,24 @@ def _sample_proposals() -> list[Proposal]:
     ]
 
 
-def test_exposure_summary_and_report(tmp_path: Path, monkeypatch) -> None:
+def test_exposure_summary_and_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     project_root = Path(__file__).resolve().parents[1]
     configs_dir = tmp_path / "configs"
     configs_dir.mkdir(parents=True, exist_ok=True)
     portfolio_src = project_root / "configs" / "portfolio.yaml"
-    configs_dir.joinpath("portfolio.yaml").write_text(portfolio_src.read_text(encoding="utf-8"), encoding="utf-8")
+    configs_dir.joinpath("portfolio.yaml").write_text(
+        portfolio_src.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
     proposals = _sample_proposals()
     summary = _compute_exposure_summary(proposals)
     assert summary["total_max_loss"] == 85.0
     assert summary["per_series"]["CPI"] == 45.0
     assert summary["per_series"]["TENY"] == 40.0
     factors = summary["factors"]
-    assert factors["INFLATION"] == 45.0
-    assert factors["RATES"] == 40.0
+    assert factors["INFLATION"] == pytest.approx(49.5)
+    assert factors["RATES"] == pytest.approx(57.0)
     assert summary["net_contracts"]["CPI_X"] == 10
     assert summary["net_contracts"]["TNEY_X"] == -8
 
@@ -91,7 +95,7 @@ def test_exposure_summary_and_report(tmp_path: Path, monkeypatch) -> None:
     assert "| CPI | CPI_X |" in text
 
 
-def test_cdf_diffs_parquet(tmp_path: Path, monkeypatch) -> None:
+def test_cdf_diffs_parquet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     diffs = [
         {

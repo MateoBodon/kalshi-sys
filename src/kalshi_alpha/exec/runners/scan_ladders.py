@@ -15,9 +15,11 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
+from kalshi_alpha.brokers import create_broker
+from kalshi_alpha.brokers.kalshi.base import BrokerOrder
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
-from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, tune_alpha
-from kalshi_alpha.core.execution.slippage import SlippageModel
+from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
+from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
 from kalshi_alpha.core.kalshi_api import Event, KalshiPublicClient, Market, Orderbook, Series
@@ -31,26 +33,20 @@ from kalshi_alpha.core.pricing import (
     pmf_from_quotes,
     prob_sum_gap,
 )
-from kalshi_alpha.core.pricing.align import SkipScan, align_pmf_to_strikes
+from kalshi_alpha.core.pricing.align import align_pmf_to_strikes
 from kalshi_alpha.core.risk import (
-    drawdown,
     OrderProposal,
     PALGuard,
     PALPolicy,
     PortfolioConfig,
     PortfolioRiskManager,
+    drawdown,
     max_loss_for_order,
 )
 from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, scale_kelly, truncate_kelly
+from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
-from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
-from kalshi_alpha.brokers import create_broker
-from kalshi_alpha.brokers.kalshi.base import BrokerOrder
-from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
-from kalshi_alpha.exec.reports import write_markdown_report
-from kalshi_alpha.exec.scanners import cpi
-from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
 from kalshi_alpha.exec.heartbeat import (
     heartbeat_stale,
@@ -58,6 +54,10 @@ from kalshi_alpha.exec.heartbeat import (
     resolve_kill_switch_path,
     write_heartbeat,
 )
+from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.reports import write_markdown_report
+from kalshi_alpha.exec.scanners import cpi
+from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.strategies import claims as claims_strategy
 from kalshi_alpha.strategies import cpi as cpi_strategy
@@ -69,24 +69,50 @@ DEFAULT_CONTRACTS = 10
 DEFAULT_FILL_ALPHA = 0.6
 
 
-def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float, bool]:
+def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float, bool]:  # noqa: PLR0912
+    stored = load_alpha(series)
+    auto = False
+    candidate: float | None = None
+
     if fill_alpha_arg is None:
-        return DEFAULT_FILL_ALPHA, False
-    if isinstance(fill_alpha_arg, str):
+        if stored is not None:
+            candidate = stored
+            auto = True
+        else:
+            candidate = DEFAULT_FILL_ALPHA
+    elif isinstance(fill_alpha_arg, str):
         value = fill_alpha_arg.strip().lower()
         if value == "auto":
             tuned = tune_alpha(series, RAW_ROOT / "kalshi")
             if tuned is not None:
-                return float(tuned), True
-            return DEFAULT_FILL_ALPHA, True
+                candidate = float(tuned)
+            elif stored is not None:
+                candidate = stored
+            else:
+                candidate = DEFAULT_FILL_ALPHA
+            auto = True
+        else:
+            try:
+                candidate = float(value)
+            except ValueError:
+                if stored is not None:
+                    candidate = stored
+                    auto = True
+                else:
+                    candidate = DEFAULT_FILL_ALPHA
+    else:
         try:
-            return float(value), False
-        except ValueError:
-            return DEFAULT_FILL_ALPHA, False
-    try:
-        return float(fill_alpha_arg), False
-    except (TypeError, ValueError):
-        return DEFAULT_FILL_ALPHA, False
+            candidate = float(fill_alpha_arg)
+        except (TypeError, ValueError):
+            if stored is not None:
+                candidate = stored
+                auto = True
+            else:
+                candidate = DEFAULT_FILL_ALPHA
+
+    if candidate is None:
+        candidate = DEFAULT_FILL_ALPHA
+    return candidate, auto
 
 
 @dataclass
@@ -279,7 +305,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if ledger:
         drawdown.record_pnl(ledger.total_expected_pnl())
     exposure_summary = _compute_exposure_summary(proposals)
-    cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
+    _write_cdf_diffs(outcome.cdf_diffs)
     if proposals:
         _attach_series_metadata(
             proposals=proposals,
@@ -462,7 +488,7 @@ def _maybe_simulate_ledger(
                 continue
             try:
                 cache[proposal.market_id] = client.get_orderbook(proposal.market_id)
-            except Exception:  # pragma: no cover - tolerate missing books
+            except Exception:  # pragma: no cover - tolerate missing books  # noqa: S112
                 continue
     estimator = FillRatioEstimator(fill_alpha) if fill_alpha is not None else None
     event_lookup: dict[str, str] = {}
@@ -478,7 +504,11 @@ def _maybe_simulate_ledger(
     if slippage_mode in {"top", "depth"}:
         if impact_cap_arg is not None:
             slippage_model = SlippageModel(mode=slippage_mode, impact_cap=float(impact_cap_arg))
-        else:
+        elif slippage_mode == "depth":
+            calibrated = load_slippage_model(series_label, mode=slippage_mode)
+            if calibrated is not None:
+                slippage_model = calibrated
+        if slippage_model is None:
             slippage_model = SlippageModel(mode=slippage_mode)
     elif slippage_mode != "mid":
         slippage_mode = "top"

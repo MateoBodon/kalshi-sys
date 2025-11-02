@@ -9,9 +9,17 @@ import polars as pl
 
 from kalshi_alpha.exec.ledger.schema import LedgerRowV1
 
-
 DEFAULT_REPORTS_DIR = Path("reports/_artifacts")
 DEFAULT_OUTPUT_PATH = Path("data/proc/ledger_all.parquet")
+COLUMN_DEFAULTS: dict[str, float | int] = {
+    "t_fill_ms": 0.0,
+    "size_partial": 0,
+    "slippage_ticks": 0.0,
+    "ev_expected_bps": 0.0,
+    "ev_realized_bps": 0.0,
+    "fees_bps": 0.0,
+}
+SUPPORTED_VERSIONS = {1, 2}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -36,7 +44,10 @@ def main(argv: list[str] | None = None) -> None:
     csv_files = sorted(_discover_ledger_csv(args.reports_dir))
     if not csv_files:
         _write_empty_output(args.output)
-        print(f"[aggregate] No ledger CSV files found in {args.reports_dir}; wrote empty dataset to {args.output}.")
+        print(
+            "[aggregate] No ledger CSV files found in "
+            f"{args.reports_dir}; wrote empty dataset to {args.output}."
+        )
         return
 
     frames: list[pl.DataFrame] = []
@@ -47,17 +58,29 @@ def main(argv: list[str] | None = None) -> None:
             frame = frame.with_columns(pl.col("ledger_schema_version").cast(pl.Int64, strict=False))
         missing = [col for col in expected_columns if col not in frame.columns]
         if missing:
-            raise ValueError(f"Ledger file {csv_path} missing columns: {missing}")
+            for column in missing:
+                if column not in COLUMN_DEFAULTS:
+                    raise ValueError(f"Ledger file {csv_path} missing columns: {missing}")
+                default_value = COLUMN_DEFAULTS[column]
+                frame = frame.with_columns(pl.lit(default_value).alias(column))
         extra = [col for col in frame.columns if col not in expected_columns]
         if extra:
             raise ValueError(f"Ledger file {csv_path} contains unknown columns: {extra}")
-        versions: list[int] = []
-        for value in frame["ledger_schema_version"].to_list():
-            if value is None:
-                raise ValueError(f"Ledger file {csv_path} has missing schema version")
-            versions.append(int(value))
-        if any(version != 1 for version in versions):
-            raise ValueError(f"Ledger file {csv_path} contains unsupported schema versions")
+        versions = {
+            int(value)
+            for value in frame["ledger_schema_version"].to_list()
+            if value is not None
+        }
+        if not versions:
+            raise ValueError(f"Ledger file {csv_path} has missing schema version")
+        unsupported = versions - SUPPORTED_VERSIONS
+        if unsupported:
+            raise ValueError(
+                f"Ledger file {csv_path} contains unsupported schema versions: "
+                f"{sorted(unsupported)}"
+            )
+        if 1 in versions:
+            frame = frame.with_columns(pl.lit(2).alias("ledger_schema_version"))
         frames.append(frame.select(expected_columns))
 
     combined = pl.concat(frames, how="vertical")
@@ -88,6 +111,11 @@ def _write_empty_output(output_path: Path) -> None:
         "market_p",
         "delta_p",
         "fill_ratio",
+        "t_fill_ms",
+        "slippage_ticks",
+        "ev_expected_bps",
+        "ev_realized_bps",
+        "fees_bps",
         "impact_cap",
         "fees_maker",
         "ev_after_fees",
@@ -97,6 +125,7 @@ def _write_empty_output(output_path: Path) -> None:
         "size",
         "expected_contracts",
         "expected_fills",
+        "size_partial",
         "ledger_schema_version",
     }
     for column in numeric_float:

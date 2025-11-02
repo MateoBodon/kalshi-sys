@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 import math
-import statistics
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
 
 import polars as pl
 
+from kalshi_alpha.core.execution.series_utils import canonical_series_family
 from kalshi_alpha.core.kalshi_api import Orderbook
 
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
@@ -46,59 +45,99 @@ def expected_fills(size: int | float, visible_depth: float, alpha: float) -> tup
 
 def tune_alpha(
     series: str,
-    archives_dir: Path | str,
+    archives_dir: Path | str | None = None,
     *,
     lookback_days: int = 14,
+    min_observations: int = 30,
+    persist: bool = True,
 ) -> float | None:
-    """Estimate an alpha multiplier from archived orderbooks and ledger fills."""
+    """Estimate a fill-allocation alpha from aggregated ledger outcomes."""
 
-    series = series.upper()
-    ledger = _load_series_ledger(series)
-    if ledger.is_empty():
+    _ = archives_dir  # retained for backwards compatibility with legacy callers
+    family = canonical_series_family(series)
+    ledger = _load_ledger_frame()
+    if ledger.is_empty() or "size" not in ledger.columns:
         return None
 
     cutoff = datetime.now(tz=UTC) - timedelta(days=max(lookback_days, 1))
-    if "timestamp_et" in ledger.columns:
-        ledger = ledger.filter(pl.col("timestamp_et") >= cutoff)
-    if ledger.is_empty():
+    frame = ledger
+    if "timestamp_et" in frame.columns:
+        timestamp_expr = pl.col("timestamp_et")
+        if frame["timestamp_et"].dtype == pl.Utf8:
+            frame = frame.with_columns(timestamp_expr.str.strptime(pl.Datetime, strict=False))
+            timestamp_expr = pl.col("timestamp_et")
+        frame = frame.filter(timestamp_expr >= cutoff)
+
+    frame = frame.with_columns(
+        pl.col("series")
+        .cast(pl.Utf8, strict=False)
+        .str.strip_chars()
+        .str.to_uppercase()
+        .map_elements(canonical_series_family)
+        .alias("series_family"),
+        pl.col("size").cast(pl.Float64, strict=False).alias("size_float"),
+        pl.col("size_partial")
+        .fill_null(0)
+        .cast(pl.Float64, strict=False)
+        .alias("size_partial_float"),
+    )
+    filtered = frame.filter(
+        (pl.col("series_family") == family)
+        & (pl.col("size_float") > 0)
+    )
+    if filtered.is_empty():
         return None
 
-    archives_base = Path(archives_dir)
-    samples: list[float] = []
-    orderbook_cache: dict[tuple[Path, str], Orderbook] = {}
-    manifest_cache: dict[Path, dict] = {}
-
-    for row in ledger.to_dicts():
-        manifest_raw = row.get("manifest_path")
-        market_id = row.get("market")
-        price = float(row.get("price") or 0.0)
-        side = str(row.get("side") or "YES")
-        realized = float(row.get("expected_fills") or row.get("size") or 0.0)
-        if not manifest_raw or not market_id or realized <= 0 or price <= 0:
-            continue
-        manifest_path = _resolve_manifest_path(str(manifest_raw), archives_base)
-        if manifest_path is None:
-            continue
-        orderbook = _load_orderbook_from_manifest(
-            manifest_path,
-            str(market_id),
-            manifest_cache,
-            orderbook_cache,
-        )
-        if orderbook is None:
-            continue
-        visible = _visible_depth(side, price, orderbook)
-        if visible <= 0:
-            continue
-        samples.append(min(1.0, realized / visible))
-
-    if not samples:
+    filtered = filtered.with_columns(
+        (pl.col("size_float") - pl.col("size_partial_float"))
+        .clip(lower_bound=0.0)
+        .alias("filled_contracts"),
+    )
+    filtered = filtered.filter(pl.col("filled_contracts") > 0)
+    if filtered.is_empty():
         return None
 
-    mean_alpha = statistics.mean(samples)
-    tuned = max(0.4, min(0.8, mean_alpha))
-    _persist_alpha(series, tuned)
-    return tuned
+    sample_size = filtered.height
+    if sample_size < max(min_observations, 1):
+        return None
+
+    total_requested = float(filtered["size_float"].sum())
+    if total_requested <= 0:
+        return None
+
+    total_filled = float(filtered["filled_contracts"].sum())
+    alpha = max(0.0, min(total_filled / total_requested, 1.0))
+    alpha = max(0.2, min(alpha, 0.98))
+    alpha = round(alpha, 4)
+    if persist:
+        _persist_alpha(family, alpha, sample_size)
+    return alpha
+
+
+def load_alpha(series: str) -> float | None:
+    """Return the persisted alpha value for the given series family."""
+
+    family = canonical_series_family(series)
+    if not STATE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    series_map = payload.get("series", {})
+    if not isinstance(series_map, dict):
+        return None
+    entry = series_map.get(family)
+    if entry is None:
+        return None
+    if isinstance(entry, dict):
+        value = entry.get("alpha")
+    else:
+        value = entry
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -160,59 +199,16 @@ def _visible_depth(side: str, price: float, orderbook: Orderbook) -> float:
     return depth
 
 
-def _load_series_ledger(series: str) -> pl.DataFrame:
+def _load_ledger_frame() -> pl.DataFrame:
     if not LEDGER_PATH.exists():
         return pl.DataFrame()
     frame = pl.read_parquet(LEDGER_PATH)
     if "timestamp_et" in frame.columns and frame["timestamp_et"].dtype == pl.Utf8:
         frame = frame.with_columns(pl.col("timestamp_et").str.strptime(pl.Datetime, strict=False))
-    return frame.filter(pl.col("series") == series)
+    return frame
 
 
-def _resolve_manifest_path(raw: str, archives_base: Path) -> Path | None:
-    path = Path(raw)
-    if not path.is_absolute():
-        path = archives_base / path
-    if path.exists():
-        return path
-    return None
-
-
-def _load_orderbook_from_manifest(
-    manifest_path: Path,
-    market_id: str,
-    manifest_cache: dict[Path, dict],
-    orderbook_cache: dict[tuple[Path, str], Orderbook],
-) -> Orderbook | None:
-    key = (manifest_path, market_id)
-    if key in orderbook_cache:
-        return orderbook_cache[key]
-    manifest = manifest_cache.get(manifest_path)
-    if manifest is None:
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        manifest_cache[manifest_path] = manifest
-    entries: Iterable[str] = manifest.get("paths", {}).get("orderbooks", [])
-    target_entry = None
-    for entry in entries:
-        if Path(entry).stem == market_id:
-            target_entry = entry
-            break
-    if target_entry is None:
-        return None
-    orderbook_path = manifest_path.parent / target_entry
-    try:
-        payload = json.loads(orderbook_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    orderbook = Orderbook.from_payload(payload)
-    orderbook_cache[key] = orderbook
-    return orderbook
-
-
-def _persist_alpha(series: str, alpha: float) -> None:
+def _persist_alpha(series: str, alpha: float, sample_size: int | None = None) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     payload = {}
     if STATE_PATH.exists():
@@ -221,9 +217,12 @@ def _persist_alpha(series: str, alpha: float) -> None:
         except json.JSONDecodeError:
             payload = {}
     series_map = payload.setdefault("series", {})
-    series_map[series] = {
+    series_payload: dict[str, object] = {
         "alpha": round(alpha, 4),
         "ts": datetime.now(tz=UTC).isoformat(),
     }
+    if sample_size is not None:
+        series_payload["sample_size"] = int(sample_size)
+    series_map[series] = series_payload
     payload["updated"] = datetime.now(tz=UTC).isoformat()
     STATE_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

@@ -5,11 +5,15 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from kalshi_alpha.exec import scoreboard
 
 
-def test_pilot_readiness_report(monkeypatch, tmp_path: Path) -> None:
+def test_pilot_readiness_report(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.chdir(tmp_path)
 
     data_dir = tmp_path / "data" / "proc"
@@ -24,7 +28,17 @@ def test_pilot_readiness_report(monkeypatch, tmp_path: Path) -> None:
             "expected_fills": [80, 40, 30],
             "size": [100, 50, 40],
             "fill_ratio": [0.8, 0.6, 0.7],
-            "timestamp_et": [now - timedelta(days=1), now - timedelta(days=2), now - timedelta(days=3)],
+            "t_fill_ms": [100.0, 140.0, 180.0],
+            "size_partial": [0, 5, 3],
+            "slippage_ticks": [1.0, -0.8, 0.5],
+            "ev_expected_bps": [110.0, -45.0, 60.0],
+            "ev_realized_bps": [105.0, -40.0, 55.0],
+            "fees_bps": [3.0, 4.0, 5.0],
+            "timestamp_et": [
+                now - timedelta(days=1),
+                now - timedelta(days=2),
+                now - timedelta(days=3),
+            ],
         }
     )
     ledger.write_parquet(data_dir / "ledger_all.parquet")
@@ -42,12 +56,15 @@ def test_pilot_readiness_report(monkeypatch, tmp_path: Path) -> None:
     artifacts_dir = tmp_path / "reports" / "_artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     go_events = [
-       {"go": True, "series": "CPI", "timestamp": (now - timedelta(days=1)).isoformat()},
-       {"go": False, "series": "CPI", "timestamp": (now - timedelta(days=1)).isoformat()},
-       {"go": True, "series": "CLAIMS", "timestamp": (now - timedelta(days=2)).isoformat()},
+        {"go": True, "series": "CPI", "timestamp": (now - timedelta(days=1)).isoformat()},
+        {"go": False, "series": "CPI", "timestamp": (now - timedelta(days=1)).isoformat()},
+        {"go": True, "series": "CLAIMS", "timestamp": (now - timedelta(days=2)).isoformat()},
     ]
     for idx, payload in enumerate(go_events, start=1):
-        artifacts_dir.joinpath(f"go_no_go_{idx}.json").write_text(json.dumps(payload), encoding="utf-8")
+        artifacts_dir.joinpath(f"go_no_go_{idx}.json").write_text(
+            json.dumps(payload),
+            encoding="utf-8",
+        )
 
     scorecard_dir = artifacts_dir / "scorecards"
     scorecard_dir.mkdir(parents=True, exist_ok=True)
