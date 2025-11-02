@@ -32,7 +32,14 @@ def test_drawdown_weekly_cap(isolated_data_roots: tuple[Path, Path]) -> None:
 
 
 def test_scan_ladders_halts_on_drawdown(monkeypatch, fixtures_root: Path) -> None:
-    monkeypatch.setattr(drawdown, "check_limits", lambda *args, **kwargs: drawdown.DrawdownStatus(False, ["drawdown.daily:-150.00<=-100.00"], {"daily_pnl": -150.0}))
+    def _daily_breach(*_args, **_kwargs) -> drawdown.DrawdownStatus:
+        return drawdown.DrawdownStatus(
+            False,
+            ["drawdown.daily:-150.00<=-100.00"],
+            {"daily_pnl": -150.0},
+        )
+
+    monkeypatch.setattr(drawdown, "check_limits", _daily_breach)
 
     def fail_scan_series(*args, **kwargs):  # pragma: no cover - ensure not called
         raise AssertionError("scan_series should not be invoked when drawdown breached")
@@ -52,7 +59,14 @@ def test_scan_ladders_halts_on_drawdown(monkeypatch, fixtures_root: Path) -> Non
 def test_daily_quality_gate_drawdown(monkeypatch, isolated_data_roots: tuple[Path, Path]) -> None:
     _, proc_root = isolated_data_roots
 
-    monkeypatch.setattr(drawdown, "check_limits", lambda *args, **kwargs: drawdown.DrawdownStatus(False, ["drawdown.weekly:-250.00<=-200.00"], {"weekly_pnl": -250.0}))
+    def _weekly_breach(*_args, **_kwargs) -> drawdown.DrawdownStatus:
+        return drawdown.DrawdownStatus(
+            False,
+            ["drawdown.weekly:-250.00<=-200.00"],
+            {"weekly_pnl": -250.0},
+        )
+
+    monkeypatch.setattr(drawdown, "check_limits", _weekly_breach)
 
     args = argparse.Namespace(
         daily_loss_cap=100.0,

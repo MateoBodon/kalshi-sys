@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
-
-import math
+from typing import Any
+from zoneinfo import ZoneInfo
 
 import polars as pl
 import yaml
-from zoneinfo import ZoneInfo
 
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 
@@ -182,7 +182,7 @@ def run_quality_gates(
     return evaluator.evaluate()
 
 
-def _maybe_float(value: Any, *, default: float | None = None) -> float | None:
+def _maybe_float(value: object, *, default: float | None = None) -> float | None:
     if value is None:
         return default
     try:
@@ -334,7 +334,7 @@ class _QualityGateEvaluator:
             for row in grouped.iter_rows(named=True):
                 maturities = row["maturity"]
                 rates = row["rate"]
-                pairs = dict(zip(maturities, rates))
+                pairs = dict(zip(maturities, rates, strict=False))
                 par_rate = pairs.get(item.par_maturity.upper())
                 dgs_rate = pairs.get(item.dgs_maturity.upper())
                 if par_rate is None or dgs_rate is None:

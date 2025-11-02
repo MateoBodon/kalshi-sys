@@ -51,7 +51,7 @@ def freeze_window(active_at: datetime | None = None) -> bool:
     return active_at.weekday() >= 2  # Wednesday (2) through Friday
 
 
-def _to_float(value: Any, default: float) -> float:
+def _to_float(value: object, default: float) -> float:
     try:
         if value is None:
             return default

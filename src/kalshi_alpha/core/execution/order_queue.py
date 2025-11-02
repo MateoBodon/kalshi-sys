@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Deque, Dict, Tuple, TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover
     from kalshi_alpha.brokers.kalshi.base import BrokerOrder
@@ -41,7 +41,7 @@ class OrderQueue:
         self._backoff = max(0.0, backoff)
         self._sleep = sleep or time.sleep
         self._audit = audit_callback
-        self._queue: Deque[_QueueItem] = deque()
+        self._queue: deque[_QueueItem] = deque()
 
     # Public API ------------------------------------------------------------------------------
 
@@ -56,9 +56,9 @@ class OrderQueue:
         self,
         *,
         order_id: str,
-        new_order: "BrokerOrder",
+        new_order: BrokerOrder,
         cancel_fn: Callable[[str], None],
-        place_fn: Callable[[str, "BrokerOrder"], None],
+        place_fn: Callable[[str, BrokerOrder], None],
     ) -> None:
         self._add(
             "replace",
@@ -116,9 +116,9 @@ class OrderQueue:
     @staticmethod
     def _execute_replace(
         order_id: str,
-        new_order: "BrokerOrder",
+        new_order: BrokerOrder,
         cancel_fn: Callable[[str], None],
-        place_fn: Callable[[str, "BrokerOrder"], None],
+        place_fn: Callable[[str, BrokerOrder], None],
     ) -> None:
         cancel_fn(order_id)
         place_fn(order_id, new_order)

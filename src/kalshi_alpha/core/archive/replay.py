@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import polars as pl
 
+from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import Market, Orderbook, Series
 from kalshi_alpha.core.pricing import LadderBinProbability, LadderRung, pmf_from_quotes
-from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 from kalshi_alpha.exec.scanners import cpi as cpi_scanner
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 from kalshi_alpha.strategies import claims as claims_strategy

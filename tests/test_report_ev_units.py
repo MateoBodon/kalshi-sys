@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import polars as pl
 import pytest
 
 from kalshi_alpha.core.pricing import Liquidity
-from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.ledger import FillRecord, PaperLedger
+from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import Proposal
 
 
@@ -91,7 +92,11 @@ def test_report_ev_units(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     )
     contents = path.read_text(encoding="utf-8")
     assert "EV Honesty" in contents
-    assert "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | EV_total_original | EV_total_replay | Delta |" in contents
+    expected_header = (
+        "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | "
+        "EV_total_original | EV_total_replay | Delta |"
+    )
+    assert expected_header in contents
     assert "| TENY-TEST | 4.10 | 0.19 | 0.09 | 1.80 | 0.18 | 0.10 |" in contents
     assert "Max per-contract delta: 0.10" in contents
     assert monitors.get("ev_per_contract_diff_max") == pytest.approx(0.10, abs=1e-9)

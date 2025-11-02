@@ -11,6 +11,7 @@ import pytest
 
 from kalshi_alpha.core.risk import drawdown
 from kalshi_alpha.exec.reports.ramp import RampPolicyConfig, compute_ramp_policy, write_ramp_outputs
+from kalshi_alpha.exec.runners import scan_ladders
 
 
 def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -537,3 +538,51 @@ def test_ramp_policy_applies_manual_bin_overrides(tmp_path: Path, monkeypatch: p
     assert target.get("recommended_cap") == 5.0
     assert "manual_override" in target.get("sources", [])
     assert any("manual downgrade" in note for note in target.get("notes", []))
+
+
+def test_load_ev_honesty_constraints(tmp_path: Path) -> None:
+    readiness = tmp_path / "pilot_ready.json"
+    readiness.write_text(
+        json.dumps(
+            {
+                "series": [
+                    {
+                        "series": "CPI",
+                        "ev_honesty_bins": [
+                            {
+                                "market_id": "M1",
+                                "market_ticker": "CPI-TEST",
+                                "strike": 270,
+                                "side": "YES",
+                                "recommended_weight": 0.5,
+                                "recommended_cap": 3,
+                                "sources": ["auto_ev_honesty"],
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolver = scan_ladders._load_ev_honesty_constraints("CPI", readiness)
+    assert resolver is not None and resolver.has_rules
+    contracts, details = resolver.apply(
+        market_id="M1",
+        market_ticker="CPI-TEST",
+        strike=270.0,
+        side="YES",
+        contracts=10,
+    )
+    assert contracts == 3
+    assert details is not None
+    summary = resolver.summary()
+    assert summary["rules"] == 1
+    assert summary["applied"] == 1
+    assert summary.get("source_hits", {}).get("auto_ev_honesty") == 1
+
+
+def test_load_ev_honesty_constraints_missing(tmp_path: Path) -> None:
+    resolver = scan_ladders._load_ev_honesty_constraints("CPI", tmp_path / "missing.json")
+    assert resolver is None

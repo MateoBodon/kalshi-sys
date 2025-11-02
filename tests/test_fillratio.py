@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import pytest
 
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, expected_fills

@@ -9,7 +9,11 @@ import pytest
 from kalshi_alpha.exec.runners import risk_preview
 
 
-def test_risk_preview_reports_and_fails_on_no_go(monkeypatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_risk_preview_reports_and_fails_on_no_go(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Configs

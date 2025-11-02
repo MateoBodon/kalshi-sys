@@ -69,8 +69,7 @@ def summarize_monitor_artifacts(
         if generated is None:
             continue
 
-        if generated > now:
-            generated = now
+        generated = min(generated, now)
         age_minutes = (now - generated).total_seconds() / 60.0
         if max_age_minutes is None or age_minutes > max_age_minutes:
             max_age_minutes = age_minutes

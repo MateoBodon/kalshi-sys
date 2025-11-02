@@ -266,12 +266,15 @@ def compute_ramp_policy(
         pilot_summary = {
             "session_id": pilot_session.get("session_id"),
             "series": pilot_session.get("series"),
+             "family": pilot_session.get("family") or pilot_session.get("series"),
             "generated_at": pilot_session.get("generated_at"),
             "path": session_candidate.as_posix()
             if isinstance(session_candidate, Path) and session_candidate.exists()
             else None,
             "mean_delta_bps_after_fees": pilot_session.get("mean_delta_bps_after_fees"),
             "t_stat": pilot_session.get("t_stat"),
+            "cusum_state": pilot_session.get("cusum_state") or pilot_session.get("cusum_status"),
+            "fill_realism_gap": pilot_session.get("fill_realism_gap"),
         }
 
     overall_summary: dict[str, Any] = {
@@ -431,23 +434,31 @@ def write_ramp_outputs(
         )
         lines.append(row_line)
         bin_records = entry.get("ev_honesty_bins") or []
-        flagged_bins = [bin_entry for bin_entry in bin_records if bin_entry.get("flagged")]
-        if flagged_bins:
-            lines.append("    - EV honesty adjustments:")
-            for bin_entry in flagged_bins:
+        if bin_records:
+            lines.append("    - EV honesty bins:")
+            lines.append("        | Strike | Side | Δbps | Weight | Cap | Sources | Flagged |")
+            lines.append("        | --- | --- | --- | --- | --- | --- | --- |")
+            for bin_entry in bin_records:
+                strike_str = _format_number_for_markdown(bin_entry.get("strike"))
+                side_str = str(bin_entry.get("side") or "?")
                 delta_str = _format_number_for_markdown(bin_entry.get("delta"))
                 weight_val = bin_entry.get("recommended_weight")
                 weight_str = _format_number_for_markdown(weight_val) if weight_val is not None else "n/a"
                 cap_val = bin_entry.get("recommended_cap")
                 cap_str = _format_number_for_markdown(cap_val) if cap_val is not None else "n/a"
-                sources = ", ".join(bin_entry.get("sources", [])) or "auto"
-                lines.append(
-                    "      • "
-                    f"{bin_entry.get('side')} {bin_entry.get('strike')}: "
-                    f"Δ={delta_str} weight={weight_str} cap={cap_str} ({sources})"
+                sources_list = bin_entry.get("sources") or []
+                sources_str = ", ".join(sources_list) if sources_list else "auto"
+                flagged = "YES" if bin_entry.get("flagged") else "no"
+                row = EV_BIN_ROW_TEMPLATE.format(
+                    strike_str,
+                    side_str,
+                    delta_str,
+                    weight_str,
+                    cap_str,
+                    sources_str,
+                    flagged,
                 )
-                for note in bin_entry.get("notes", []) or []:
-                    lines.append(f"        - {note}")
+                lines.append(row)
 
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -548,6 +559,8 @@ DEFAULT_BIN_OVERRIDE_PATHS: tuple[Path, ...] = (
     Path("configs/ramp_overrides.yaml"),
     Path("configs/ramp_overrides.yml"),
 )
+
+EV_BIN_ROW_TEMPLATE = "        | {} | {} | {} | {} | {} | {} | {} |"
 
 
 def _load_pilot_session(path: Path | None) -> dict[str, Any] | None:

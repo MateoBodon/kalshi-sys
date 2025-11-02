@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Mapping
 
-from kalshi_alpha.core.kalshi_api import Event, Market, Orderbook, Series
+from kalshi_alpha.core.kalshi_api import Event, KalshiPublicClient, Market, Orderbook, Series
 from kalshi_alpha.datastore.paths import RAW_ROOT
 
 
 def archive_scan(  # noqa: PLR0913
     series: Series | str,
-    client,
+    client: KalshiPublicClient,
     events: Iterable[Event],
     markets: Iterable[Market],
     orderbooks: Mapping[str, Orderbook],

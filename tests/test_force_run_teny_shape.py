@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from argparse import Namespace
-from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -109,7 +108,6 @@ def test_force_run_teny_shape_creates_report(
         replay_path = artifacts_dir / "replay_ev.parquet"
         if not replay_path.exists():
             pl.DataFrame({"market_id": ["MKT-TNEY"], "ev": [0.0]}).write_parquet(replay_path)
-        return None
 
     monkeypatch.setattr(daily, "_archive_and_replay", fake_archive)
 

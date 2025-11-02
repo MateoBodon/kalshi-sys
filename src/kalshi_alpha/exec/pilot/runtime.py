@@ -30,10 +30,12 @@ class PilotSession:
     config: PilotConfig
 
     def metadata(self) -> dict[str, object]:
+        started_at = self.started_at.isoformat()
         return {
             "session_id": self.session_id,
             "series": self.series,
-            "started_at": self.started_at.isoformat(),
+            "family": self.series,
+            "started_at": started_at,
             "max_contracts_per_order": self.config.max_contracts_per_order,
             "max_unique_bins": self.config.max_unique_bins,
             "maker_only": self.config.enforce_maker_only,
@@ -207,15 +209,18 @@ def build_pilot_session_payload(  # noqa: PLR0913
 
     payload: dict[str, Any] = {
         **session.metadata(),
+        "family": session.series,
         "generated_at": timestamp.isoformat(),
         "n_trades": trades,
         "sample_size": sample_size,
         "mean_delta_bps_after_fees": mean_delta,
         "t_stat": t_stat,
-        "cusum_status": cusum_status,
+        "cusum_state": cusum_status,
         "fill_realism_gap": fill_gap,
         "alerts_summary": alerts_summary,
     }
+    if cusum_status is not None:
+        payload.setdefault("cusum_status", cusum_status)
     if monitors:
         ev_table = monitors.get("ev_honesty_table")
         if isinstance(ev_table, list):

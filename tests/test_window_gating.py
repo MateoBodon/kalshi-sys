@@ -22,7 +22,14 @@ class _FixedDateTime(datetime):
         return cls._now.astimezone(tz)
 
 
-def _minimal_args(mode: str, fixtures_root: Path, offline_root: Path, *, force_run: bool = False, report: bool = False) -> SimpleNamespace:
+def _minimal_args(
+    mode: str,
+    fixtures_root: Path,
+    offline_root: Path,
+    *,
+    force_run: bool = False,
+    report: bool = False,
+) -> SimpleNamespace:
     return SimpleNamespace(
         mode=mode,
         offline=True,

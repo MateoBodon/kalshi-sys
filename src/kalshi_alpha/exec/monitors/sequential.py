@@ -90,7 +90,7 @@ def evaluate_sequential_guard(
         max_pos_idx = -1
         min_neg_idx = -1
 
-        for idx, (delta, ts) in enumerate(zip(deltas, timestamps)):
+        for idx, (delta, ts) in enumerate(zip(deltas, timestamps, strict=False)):
             pos_sum = max(0.0, pos_sum + delta - params.drift)
             if pos_sum > max_pos:
                 max_pos = pos_sum

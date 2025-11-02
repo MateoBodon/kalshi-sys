@@ -10,7 +10,19 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule
-from .mispricing import KinkMetrics, implied_cdf_kinks, kink_spreads, prob_sum_gap
+
+from .mispricing import (
+    KinkMetrics as KinkMetrics,
+)
+from .mispricing import (
+    implied_cdf_kinks as implied_cdf_kinks,
+)
+from .mispricing import (
+    kink_spreads as kink_spreads,
+)
+from .mispricing import (
+    prob_sum_gap as prob_sum_gap,
+)
 
 MIN_PROB = 0.0
 MAX_PROB = 1.0

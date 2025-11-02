@@ -10,9 +10,8 @@ from statistics import mean as stat_mean
 from statistics import pstdev
 from typing import Any
 
-import yaml
-
 import polars as pl
+import yaml
 
 from kalshi_alpha.core.backtest import crps_from_pmf
 from kalshi_alpha.core.pricing import LadderBinProbability
@@ -39,7 +38,7 @@ class CPIV15Config:
 _CONFIG_CACHE: dict[Path, CPIV15Config] = {}
 
 
-def _safe_float(value: Any, fallback: float) -> float:
+def _safe_float(value: object, fallback: float) -> float:
     try:
         if value is None:
             return fallback

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import polars as pl
-from zoneinfo import ZoneInfo
 
 from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
 

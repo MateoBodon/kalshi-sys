@@ -8,7 +8,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import requests
 
@@ -91,7 +90,7 @@ def fetch_nowcast(
     return series
 
 
-def _to_series(payload: Mapping[str, Any]) -> NowcastSeries:
+def _to_series(payload: Mapping[str, object]) -> NowcastSeries:
     as_of_raw = payload["as_of"]
     value_raw = payload["value"]
     return NowcastSeries(
@@ -101,7 +100,7 @@ def _to_series(payload: Mapping[str, Any]) -> NowcastSeries:
     )
 
 
-def _parse_monthly_nowcast(json_text: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def _parse_monthly_nowcast(json_text: str) -> tuple[dict[str, object], dict[str, object]]:
     """Parse the Cleveland Fed chart JSON into headline and core payloads."""
     try:
         payload = json.loads(json_text)
@@ -135,10 +134,10 @@ def _parse_monthly_nowcast(json_text: str) -> tuple[dict[str, Any], dict[str, An
     )
 
 
-def _select_latest_entry(payload: Any) -> dict[str, Any]:
+def _select_latest_entry(payload: object) -> dict[str, object]:
     if not isinstance(payload, list):
         raise RuntimeError("Cleveland nowcast payload must be a list of chart entries")
-    dated_entries: list[tuple[datetime, dict[str, Any]]] = []
+    dated_entries: list[tuple[datetime, dict[str, object]]] = []
     for entry in payload:
         if not isinstance(entry, dict):
             continue
@@ -160,13 +159,14 @@ def _select_latest_entry(payload: Any) -> dict[str, Any]:
 
 
 def _extract_series(
-    dataset: Any,
+    dataset: object,
     target: str,
     as_of: datetime,
 ) -> tuple[float, datetime]:
     best_value: float | None = None
     best_date: datetime | None = None
-    for series in dataset or []:
+    series_list = dataset if isinstance(dataset, list) else []
+    for series in series_list:
         if not isinstance(series, dict):
             continue
         name = str(series.get("seriesname", "")).strip()
@@ -191,7 +191,7 @@ def _extract_series(
     return best_value, best_date
 
 
-def _parse_tooltext_date(tooltext: Any, fallback: datetime) -> datetime:
+def _parse_tooltext_date(tooltext: object, fallback: datetime) -> datetime:
     if isinstance(tooltext, str):
         parts = [part for part in tooltext.split("{br}") if part]
         if len(parts) >= 2:

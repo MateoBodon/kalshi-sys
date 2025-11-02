@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
 
 import polars as pl
 
@@ -17,6 +17,7 @@ from kalshi_alpha.core.archive.replay import (
     _resolve_driver_fixtures,
     _strategy_pmf_for_series,
 )
+from kalshi_alpha.core.kalshi_api import Orderbook
 from kalshi_alpha.core.pricing import implied_cdf_kinks, pmf_from_quotes, prob_sum_gap
 from kalshi_alpha.exec.scanners.utils import pmf_to_survival
 
@@ -54,8 +55,8 @@ def build_replay_scorecard(
     if not target_markets:
         target_markets = set(markets.keys())
 
-    summary_records: list[dict[str, Any]] = []
-    delta_records: list[dict[str, Any]] = []
+    summary_records: list[dict[str, object]] = []
+    delta_records: list[dict[str, object]] = []
 
     for market_id, market in markets.items():
         if target_markets and market_id not in target_markets:
@@ -137,7 +138,7 @@ def _compute_deltas(strategy_survival: Sequence[float], market_survival: Sequenc
     ]
 
 
-def _orderbook_depth(orderbook: Any | None) -> int:
+def _orderbook_depth(orderbook: Orderbook | None) -> int:
     if orderbook is None:
         return 0
     bids = getattr(orderbook, "bids", []) or []

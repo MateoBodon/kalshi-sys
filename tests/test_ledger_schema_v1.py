@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 import math
+from pathlib import Path
 
 import polars as pl
 
+from kalshi_alpha.core.kalshi_api import Orderbook
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.ledger.schema import LedgerRowV1
 from kalshi_alpha.exec.runners.scan_ladders import Proposal
-from kalshi_alpha.core.kalshi_api import Orderbook
 
 
 def _proposal() -> Proposal:

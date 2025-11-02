@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import math
 import statistics
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, Sequence
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checkers only
     from kalshi_alpha.core.pricing import LadderBinProbability
@@ -33,7 +33,10 @@ def implied_cdf_kinks(survival: Sequence[float]) -> KinkMetrics:
 
     max_kink = max(curvature, default=0.0)
     mean_abs = statistics.mean(abs(value) for value in curvature) if curvature else 0.0
-    monotonicity_penalty = sum(max(0.0, float(survival[idx]) - float(survival[idx - 1])) for idx in range(1, len(survival)))
+    monotonicity_penalty = sum(
+        max(0.0, float(survival[idx]) - float(survival[idx - 1]))
+        for idx in range(1, len(survival))
+    )
     kink_count = sum(1 for value in curvature if value > 0)
     return KinkMetrics(
         max_kink=max_kink,
@@ -56,8 +59,8 @@ def prob_sum_gap(pmf: Sequence[object]) -> float:
 
 
 def kink_spreads(
-    pmf: Sequence["LadderBinProbability"],
-    market_pmf: Sequence["LadderBinProbability"],
+    pmf: Sequence[LadderBinProbability],
+    market_pmf: Sequence[LadderBinProbability],
     *,
     max_legs: int = 4,
     min_abs_delta: float = 1e-6,

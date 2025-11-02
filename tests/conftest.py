@@ -32,14 +32,14 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     for path in (raw_root, proc_root, bootstrap_root):
         path.mkdir(parents=True, exist_ok=True)
 
+    from kalshi_alpha.core.archive import archiver
+    from kalshi_alpha.core.risk import drawdown as drawdown_module
     from kalshi_alpha.datastore import ingest as datastore_ingest
     from kalshi_alpha.datastore import paths as datastore_paths
     from kalshi_alpha.datastore import snapshots
-    from kalshi_alpha.drivers import bls_cpi, cleveland_nowcast, dol_claims, treasury_yields, nws_cli
+    from kalshi_alpha.drivers import bls_cpi, cleveland_nowcast, dol_claims, nws_cli, treasury_yields
     from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
     from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
-    from kalshi_alpha.core.archive import archiver
-    from kalshi_alpha.core.risk import drawdown as drawdown_module
     from kalshi_alpha.exec.pipelines import calendar as pipeline_calendar
     from kalshi_alpha.exec.runners import scan_ladders
     from kalshi_alpha.strategies import claims as claims_strategy

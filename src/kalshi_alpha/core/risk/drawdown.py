@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 from zoneinfo import ZoneInfo
 
 from kalshi_alpha.datastore.paths import PROC_ROOT

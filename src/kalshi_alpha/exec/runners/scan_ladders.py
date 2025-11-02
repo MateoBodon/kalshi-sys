@@ -6,7 +6,7 @@ import argparse
 import hashlib
 import json
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -163,6 +163,211 @@ class ScanOutcome:
     book_snapshot_completed_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class BinConstraintEntry:
+    """Represents a per-bin EV honesty constraint sourced from readiness outputs."""
+
+    series: str
+    market_id: str | None
+    market_ticker: str | None
+    strike: float | None
+    side: str
+    weight: float | None
+    cap: int | None
+    sources: tuple[str, ...] = ()
+
+
+class BinConstraintResolver:
+    """Lookup helper that applies per-bin contract caps/weights."""
+
+    def __init__(self, entries: Sequence[BinConstraintEntry], *, source_path: Path | None = None) -> None:
+        self._entries: tuple[BinConstraintEntry, ...] = tuple(entries)
+        self._by_market_id: dict[tuple[str, str], BinConstraintEntry] = {}
+        self._by_ticker: dict[tuple[str, float, str], BinConstraintEntry] = {}
+        for entry in self._entries:
+            normalized_side = entry.side.upper()
+            if entry.market_id:
+                self._by_market_id[(entry.market_id, normalized_side)] = entry
+            if entry.market_ticker and entry.strike is not None:
+                key = (entry.market_ticker.upper(), round(float(entry.strike), 4), normalized_side)
+                self._by_ticker[key] = entry
+        self._source_hits: Counter[str] = Counter()
+        self.applied: int = 0
+        self.dropped: int = 0
+        self.source_path = source_path
+
+    @property
+    def has_rules(self) -> bool:
+        return bool(self._entries)
+
+    def _record_sources(self, entry: BinConstraintEntry) -> None:
+        if entry.sources:
+            self._source_hits.update(entry.sources)
+        else:
+            self._source_hits.update(["unspecified"])
+
+    def _resolve(
+        self,
+        *,
+        market_id: str | None,
+        market_ticker: str | None,
+        strike: float | None,
+        side: str,
+    ) -> BinConstraintEntry | None:
+        normalized_side = side.upper()
+        if market_id:
+            entry = self._by_market_id.get((market_id, normalized_side))
+            if entry is not None:
+                return entry
+        if market_ticker is not None and strike is not None:
+            key = (market_ticker.upper(), round(float(strike), 4), normalized_side)
+            entry = self._by_ticker.get(key)
+            if entry is not None:
+                return entry
+        return None
+
+    def apply(
+        self,
+        *,
+        market_id: str,
+        market_ticker: str,
+        strike: float,
+        side: str,
+        contracts: int,
+    ) -> tuple[int, dict[str, object] | None]:
+        if contracts <= 0:
+            return contracts, None
+        entry = self._resolve(
+            market_id=market_id,
+            market_ticker=market_ticker,
+            strike=strike,
+            side=side,
+        )
+        if entry is None:
+            return contracts, None
+
+        original_contracts = contracts
+        new_contracts = contracts
+        details: dict[str, object] = {
+            "strike": entry.strike,
+            "side": entry.side,
+        }
+        if entry.market_id:
+            details["market_id"] = entry.market_id
+        if entry.market_ticker:
+            details["market_ticker"] = entry.market_ticker
+        if entry.sources:
+            details["sources"] = list(entry.sources)
+
+        if entry.weight is not None:
+            scaled = max(0, int(math.floor(original_contracts * entry.weight + 1e-9)))
+            details["recommended_weight"] = entry.weight
+            details["weight_contracts"] = scaled
+            new_contracts = min(new_contracts, scaled)
+        if entry.cap is not None:
+            cap_value = max(0, int(entry.cap))
+            details["recommended_cap"] = cap_value
+            new_contracts = min(new_contracts, cap_value)
+
+        changed = new_contracts != original_contracts
+        if changed:
+            details["original_contracts"] = original_contracts
+            details["adjusted_contracts"] = new_contracts
+            self.applied += 1
+            self._record_sources(entry)
+        if new_contracts <= 0:
+            self.dropped += 1
+            details["adjusted_contracts"] = 0
+            return 0, details
+        return new_contracts, (details if changed else None)
+
+    def summary(self) -> dict[str, object]:
+        data: dict[str, object] = {
+            "rules": len(self._entries),
+            "applied": self.applied,
+            "dropped": self.dropped,
+        }
+        if self._source_hits:
+            data["source_hits"] = dict(self._source_hits)
+        if self.source_path is not None:
+            data["source_path"] = self.source_path.as_posix()
+        return data
+
+
+def _load_ev_honesty_constraints(series: str, readiness_path: Path | None = None) -> BinConstraintResolver | None:
+    path = Path(readiness_path) if readiness_path is not None else Path("reports/pilot_ready.json")
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):  # pragma: no cover - defensive
+        return None
+    series_entries = payload.get("series")
+    if not isinstance(series_entries, list):
+        return None
+    normalized_series = series.strip().upper()
+    entries: list[BinConstraintEntry] = []
+    for record in series_entries:
+        if not isinstance(record, dict):
+            continue
+        record_series = str(record.get("series") or "").upper()
+        if record_series != normalized_series:
+            continue
+        bins = record.get("ev_honesty_bins")
+        if not isinstance(bins, list):
+            continue
+        for bin_entry in bins:
+            if not isinstance(bin_entry, dict):
+                continue
+            weight_raw = bin_entry.get("recommended_weight")
+            weight_val: float | None
+            if isinstance(weight_raw, (int, float)) and math.isfinite(float(weight_raw)):
+                weight_val = max(0.0, min(1.0, float(weight_raw)))
+            else:
+                weight_val = None
+            cap_raw = bin_entry.get("recommended_cap")
+            cap_val: int | None
+            if isinstance(cap_raw, (int, float)) and math.isfinite(float(cap_raw)):
+                cap_val = max(0, int(math.floor(float(cap_raw))))
+            else:
+                cap_val = None
+            if weight_val is None and cap_val is None:
+                continue
+            strike_val: float | None
+            try:
+                strike_candidate = bin_entry.get("strike")
+                strike_val = float(strike_candidate) if strike_candidate is not None else None
+            except (TypeError, ValueError):  # pragma: no cover - defensive
+                strike_val = None
+            side_raw = bin_entry.get("side")
+            side = str(side_raw).upper() if isinstance(side_raw, str) else "YES"
+            market_id_raw = bin_entry.get("market_id")
+            market_id = str(market_id_raw) if market_id_raw is not None else None
+            market_ticker_raw = bin_entry.get("market_ticker")
+            market_ticker = str(market_ticker_raw) if market_ticker_raw is not None else None
+            sources_value = bin_entry.get("sources")
+            sources: tuple[str, ...]
+            if isinstance(sources_value, list):
+                sources = tuple(str(item) for item in sources_value if isinstance(item, str) and item)
+            else:
+                sources = tuple()
+            entries.append(
+                BinConstraintEntry(
+                    series=normalized_series,
+                    market_id=market_id,
+                    market_ticker=market_ticker,
+                    strike=strike_val,
+                    side=side,
+                    weight=weight_val,
+                    cap=cap_val,
+                    sources=sources,
+                )
+            )
+    if not entries:
+        return None
+    return BinConstraintResolver(entries, source_path=path)
+
+
 class _LossBudget:
     def __init__(self, cap: float | None) -> None:
         self.cap = cap if cap is not None and cap > 0.0 else None
@@ -222,6 +427,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     pilot_session: PilotSession | None = apply_pilot_mode(args)
     pilot_config: PilotConfig | None = pilot_session.config if pilot_session else None
+    bin_constraints = _load_ev_honesty_constraints(args.series) if pilot_session else None
     fixtures_root = Path(args.fixtures_root).resolve()
     driver_fixtures = fixtures_root / "drivers"
 
@@ -272,6 +478,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         max_legs=args.max_legs,
         prob_sum_gap_threshold=args.prob_sum_gap_threshold,
         pilot_config=pilot_config,
+        bin_constraints=bin_constraints,
     )
 
     if pilot_session:
@@ -1248,6 +1455,7 @@ def scan_series(  # noqa: PLR0913
     prob_sum_gap_threshold: float = 0.0,
     model_version: str = "v15",
     pilot_config: PilotConfig | None = None,
+    bin_constraints: BinConstraintResolver | None = None,
 ) -> ScanOutcome:
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
@@ -1369,6 +1577,7 @@ def scan_series(  # noqa: PLR0913
                 uncertainty_penalty=uncertainty_penalty,
                 ob_imbalance_penalty=ob_imbalance_penalty,
                 daily_budget=daily_budget,
+                bin_constraints=bin_constraints,
             )
             if pilot_config is not None:
                 rung_proposals, trimmed = _limit_proposals_for_pilot(
@@ -1399,6 +1608,15 @@ def scan_series(  # noqa: PLR0913
         monitors.setdefault("pilot_max_contracts", pilot_config.max_contracts_per_order)
         if pilot_trimmed_bins:
             monitors["pilot_bins_trimmed"] = pilot_trimmed_bins
+    if bin_constraints is not None and bin_constraints.has_rules:
+        summary = bin_constraints.summary()
+        monitors["ev_honesty_constraints"] = summary
+        applied_count = summary.get("applied")
+        dropped_count = summary.get("dropped")
+        if applied_count:
+            monitors["ev_honesty_bins_adjusted"] = applied_count
+        if dropped_count:
+            monitors["ev_honesty_bins_blocked"] = dropped_count
     return ScanOutcome(
         proposals=proposals,
         monitors=monitors,
@@ -1606,6 +1824,7 @@ def _evaluate_market(  # noqa: PLR0913
     uncertainty_penalty: float,
     ob_imbalance_penalty: float,
     daily_budget: _LossBudget,
+    bin_constraints: BinConstraintResolver | None = None,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
     uncertainty_penalty = max(0.0, uncertainty_penalty)
@@ -1701,6 +1920,21 @@ def _evaluate_market(  # noqa: PLR0913
             contract_count = allowed_contracts
             total_max_loss = max_loss_single * contract_count
 
+        constraint_details = None
+        if bin_constraints is not None:
+            adjusted_contracts, constraint_details = bin_constraints.apply(
+                market_id=market_id,
+                market_ticker=market_ticker,
+                strike=rung.strike,
+                side=best_side.name,
+                contracts=contract_count,
+            )
+            if adjusted_contracts <= 0:
+                continue
+            if adjusted_contracts != contract_count:
+                contract_count = adjusted_contracts
+                total_max_loss = max_loss_single * contract_count
+
         total_ev = expected_value_summary(
             contracts=contract_count,
             yes_price=yes_price,
@@ -1726,6 +1960,22 @@ def _evaluate_market(  # noqa: PLR0913
         daily_budget.consume(total_max_loss)
         budget_after = daily_budget.remaining
 
+        proposal_metadata: dict[str, object] = {
+            "sizing": {
+                "kelly_raw": raw_fraction if sizing_mode == "kelly" else None,
+                "kelly_truncated": truncated_fraction if sizing_mode == "kelly" else None,
+                "kelly_scaled": scaled_fraction if sizing_mode == "kelly" else None,
+                "uncertainty_metric": uncertainty_metric,
+                "uncertainty_penalty": uncertainty_penalty,
+                "ob_imbalance_metric": imbalance_metric,
+                "ob_imbalance_penalty": ob_imbalance_penalty,
+                "daily_loss_before": budget_before,
+                "daily_loss_after": budget_after,
+            }
+        }
+        if constraint_details is not None:
+            proposal_metadata["bin_constraint"] = constraint_details
+
         proposal = Proposal(
             market_id=market_id,
             market_ticker=market_ticker,
@@ -1742,19 +1992,7 @@ def _evaluate_market(  # noqa: PLR0913
             survival_strategy=event_probability,
             max_loss=total_max_loss,
             strategy=strategy_name,
-            metadata={
-                "sizing": {
-                    "kelly_raw": raw_fraction if sizing_mode == "kelly" else None,
-                    "kelly_truncated": truncated_fraction if sizing_mode == "kelly" else None,
-                    "kelly_scaled": scaled_fraction if sizing_mode == "kelly" else None,
-                    "uncertainty_metric": uncertainty_metric,
-                    "uncertainty_penalty": uncertainty_penalty,
-                    "ob_imbalance_metric": imbalance_metric,
-                    "ob_imbalance_penalty": ob_imbalance_penalty,
-                    "daily_loss_before": budget_before,
-                    "daily_loss_after": budget_after,
-                }
-            },
+            metadata=proposal_metadata,
         )
         pal_guard.register(
             OrderProposal(

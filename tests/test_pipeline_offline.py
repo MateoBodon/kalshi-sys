@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-import os
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest

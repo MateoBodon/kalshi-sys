@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
-from typing import Mapping
 
 import polars as pl
 
@@ -62,7 +61,7 @@ def _gas_mtd_signal(base_dir: Path) -> float | None:
     for path in _resolve_candidates(base_dir, _AAA_DAILY):
         try:
             frame = pl.read_parquet(path)
-        except Exception:  # pragma: no cover - parquet read fallback
+        except Exception:  # pragma: no cover - parquet read fallback  # noqa: S112
             continue
         if {"date", "price"} - set(frame.columns):
             continue
@@ -88,7 +87,7 @@ def _shelter_lag_signal(base_dir: Path) -> float | None:
     for path in _resolve_candidates(base_dir, _SHELTER_PARQUET):
         try:
             frame = pl.read_parquet(path)
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # noqa: S112
             continue
         candidate_cols = {"period", "shelter_mom", "lag_proxy"}
         if candidate_cols - set(frame.columns):
@@ -109,7 +108,7 @@ def _used_car_signal(base_dir: Path) -> float | None:
     for path in _resolve_candidates(base_dir, _USED_CAR_PARQUET):
         try:
             frame = pl.read_parquet(path)
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # noqa: S112
             continue
         if {"period", "spread"} - set(frame.columns):
             continue

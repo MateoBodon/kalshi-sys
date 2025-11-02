@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import polars as pl
-from zoneinfo import ZoneInfo
 
 from kalshi_alpha.datastore.paths import PROC_ROOT
 
@@ -176,7 +176,7 @@ def _latest_parquet(directory: Path) -> Path | None:
     return files[-1]
 
 
-def _ensure_datetime(value: Any) -> datetime:
+def _ensure_datetime(value: object) -> datetime:
     if isinstance(value, datetime):
         return value
     raise TypeError(f"Expected datetime, got {type(value)!r}")
@@ -222,7 +222,7 @@ def _us_holidays(year: int) -> set[date]:
 
 
 def _nth_weekday_of_month(year: int, month: int, weekday: int, n: int) -> date:
-    # weekday: Monday=0
+    """Return the date of the nth weekday (Monday=0) for the given month."""
     first = date(year, month, 1)
     offset = (weekday - first.weekday()) % 7
     day = 1 + offset + (n - 1) * 7

@@ -6,11 +6,11 @@ import argparse
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
+from kalshi_alpha.datastore.paths import PROC_ROOT
+from kalshi_alpha.exec.heartbeat import write_heartbeat
 from kalshi_alpha.exec.pipelines import daily
 from kalshi_alpha.exec.pipelines.calendar import ET, RunWindow, resolve_run_window
-from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
-from kalshi_alpha.exec.heartbeat import write_heartbeat
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -259,7 +259,7 @@ def _paper_live_schedule(now: datetime, *, include_weather: bool) -> list[WeekRu
     return schedule
 
 
-def _window_date(window, *, fallback: date) -> date:
+def _window_date(window: RunWindow | None, *, fallback: date) -> date:
     if window and window.reference is not None:
         return window.reference.astimezone(ET).date()
     return fallback

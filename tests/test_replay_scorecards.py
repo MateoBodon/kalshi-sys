@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import polars as pl
-import pytest
 
 from kalshi_alpha.core.archive.archiver import archive_scan
 from kalshi_alpha.core.archive.scorecards import build_replay_scorecard

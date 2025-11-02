@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from kalshi_alpha.core.sizing.kelly import apply_caps, kelly_yes_no, truncate_kelly

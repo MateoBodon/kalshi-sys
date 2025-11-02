@@ -61,11 +61,14 @@ strict_equality = true
 plugins = ["pydantic.mypy"]
 follow_imports = "skip"
 files = [
-  "src/kalshi_alpha/exec/monitors/runtime.py",
-  "src/kalshi_alpha/exec/reports/ramp.py",
-  "src/kalshi_alpha/exec/policy/freeze.py",
-  "src/kalshi_alpha/exec/pilot_bundle.py",
+  "src/kalshi_alpha/exec/runners/scan_ladders.py",
   "src/kalshi_alpha/exec/pilot/runtime.py",
+  "src/kalshi_alpha/exec/pilot/config.py",
+  "src/kalshi_alpha/exec/pilot_bundle.py",
+  "src/kalshi_alpha/exec/reports/ramp.py",
+  "src/kalshi_alpha/exec/runners/pilot.py",
+  "src/kalshi_alpha/exec/pipelines/calendar.py",
+  "src/kalshi_alpha/exec/pipelines/week.py",
 ]
 
 [[tool.mypy.overrides]]
@@ -92,6 +95,10 @@ ignore_errors = true
 module = "tests.*"
 ignore_errors = true
 
+[[tool.mypy.overrides]]
+module = "kalshi_alpha.exec.runners.scan_ladders"
+ignore_errors = true
+
 [tool.ruff]
 line-length = 120
 target-version = "py311"
@@ -111,6 +118,7 @@ ignore = ["S101", "PLR2004"]
 "tests/test_heartbeat_refresh.py" = ["PLR0913"]
 "tests/test_preset_autoresolve.py" = ["PLR0913"]
 "src/kalshi_alpha/exec/monitors/runtime.py" = ["PLR0913"]
+"src/kalshi_alpha/exec/monitors/sequential.py" = ["PLR0912", "PLR0915"]
 "src/kalshi_alpha/exec/pipelines/week.py" = ["PLR0912", "PLR0915"]
 "tests/conftest.py" = ["PLR0915"]
 "tests/test_force_run_dry.py" = ["PLR0915"]

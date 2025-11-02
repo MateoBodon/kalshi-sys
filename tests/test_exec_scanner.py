@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import math
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioConfig, PortfolioRiskManager
@@ -12,6 +13,8 @@ from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.exec.ledger import simulate_fills
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
+    BinConstraintEntry,
+    BinConstraintResolver,
     _attach_series_metadata,
     _strategy_pmf_for_series,
     scan_series,
@@ -262,6 +265,158 @@ def test_strategy_router_weather_pmf(offline_fixtures_root: Path) -> None:
     assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
 
 
+def test_bin_constraints_scale_contracts(fixtures_root: Path, offline_fixtures_root: Path) -> None:
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    policy = PALPolicy(series="CPI", default_max_loss=10_000.0)
+    base_guard = PALGuard(policy)
+    base_outcome = scan_series(
+        series="CPI",
+        client=client,
+        min_ev=0.01,
+        contracts=5,
+        pal_guard=base_guard,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
+    )
+    assert base_outcome.proposals
+    reference = base_outcome.proposals[0]
+
+    weight = 0.4
+    expected_contracts = max(0, int(math.floor(reference.contracts * weight + 1e-9)))
+    assert expected_contracts > 0, "weight should not zero out contract for this test"
+
+    resolver = BinConstraintResolver(
+        [
+            BinConstraintEntry(
+                series="CPI",
+                market_id=reference.market_id,
+                market_ticker=reference.market_ticker,
+                strike=reference.strike,
+                side=reference.side,
+                weight=weight,
+                cap=None,
+                sources=("auto_ev_honesty",),
+            )
+        ]
+    )
+
+    client_adjusted = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    guard_adjusted = PALGuard(policy)
+    adjusted_outcome = scan_series(
+        series="CPI",
+        client=client_adjusted,
+        min_ev=0.01,
+        contracts=5,
+        pal_guard=guard_adjusted,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
+        bin_constraints=resolver,
+    )
+
+    matches = [
+        proposal
+        for proposal in adjusted_outcome.proposals
+        if proposal.market_id == reference.market_id
+        and proposal.strike == reference.strike
+        and proposal.side == reference.side
+    ]
+    assert matches
+    adjusted = matches[0]
+    assert adjusted.contracts == expected_contracts
+    metadata = adjusted.metadata or {}
+    assert "bin_constraint" in metadata
+    summary = adjusted_outcome.monitors.get("ev_honesty_constraints")
+    assert isinstance(summary, dict)
+    assert summary.get("applied", 0) >= 1
+    assert summary.get("dropped", 0) == 0
+
+
+def test_bin_constraints_drop_bins(fixtures_root: Path, offline_fixtures_root: Path) -> None:
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    policy = PALPolicy(series="CPI", default_max_loss=10_000.0)
+    guard = PALGuard(policy)
+    outcome = scan_series(
+        series="CPI",
+        client=client,
+        min_ev=0.01,
+        contracts=5,
+        pal_guard=guard,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
+    )
+    assert outcome.proposals
+    target = outcome.proposals[0]
+
+    resolver = BinConstraintResolver(
+        [
+            BinConstraintEntry(
+                series="CPI",
+                market_id=target.market_id,
+                market_ticker=target.market_ticker,
+                strike=target.strike,
+                side=target.side,
+                weight=0.0,
+                cap=0,
+                sources=("manual_override",),
+            )
+        ]
+    )
+
+    client_drop = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    guard_drop = PALGuard(policy)
+    dropped_outcome = scan_series(
+        series="CPI",
+        client=client_drop,
+        min_ev=0.01,
+        contracts=5,
+        pal_guard=guard_drop,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
+        bin_constraints=resolver,
+    )
+
+    assert all(
+        not (
+            proposal.market_id == target.market_id
+            and proposal.side == target.side
+            and proposal.strike == target.strike
+        )
+        for proposal in dropped_outcome.proposals
+    )
+    summary = dropped_outcome.monitors.get("ev_honesty_constraints")
+    assert isinstance(summary, dict)
+    assert summary.get("dropped", 0) >= 1
+    assert resolver.summary().get("dropped", 0) >= 1
+
+
 def test_scan_cli_offline_smoke(tmp_path: Path, fixtures_root: Path) -> None:
     output_dir = tmp_path / "proposals"
     cmd = [
@@ -285,4 +440,4 @@ def test_scan_cli_offline_smoke(tmp_path: Path, fixtures_root: Path) -> None:
         if not existing
         else os.pathsep.join([str(project_root / "src"), existing])
     )
-    subprocess.check_call(cmd, env=env)
+    subprocess.check_call(cmd, env=env)  # noqa: S603

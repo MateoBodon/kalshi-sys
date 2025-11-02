@@ -198,6 +198,20 @@ def _build_pilot_readme(reports_dir: Path) -> str | None:
         lines.append("- Global reasons: " + ", ".join(reason_list))
     else:
         lines.append("- Global reasons: none")
+    overall_go = all(
+        isinstance(entry, dict) and str(entry.get("recommendation")).upper() == "GO"
+        for entry in series_entries
+    ) and not reason_list
+    final_decision = "GO" if overall_go and go_series else "NO-GO"
+    rationale_bits: list[str] = []
+    if no_go_series:
+        rationale_bits.append("NO-GO series: " + ", ".join(no_go_series))
+    if reason_list:
+        rationale_bits.append("Global reasons: " + ", ".join(reason_list))
+    if not rationale_bits:
+        rationale_bits.append("All readiness criteria satisfied.")
+    lines.append(f"- Final decision: {final_decision}")
+    lines.append("- Decision rationale: " + "; ".join(rationale_bits))
     lines.append("")
 
     lines.append("## Session Snapshot")
@@ -210,7 +224,10 @@ def _build_pilot_readme(reports_dir: Path) -> str | None:
         lines.append(f"- Started at: {session.get('started_at', 'n/a')}")
         lines.append(f"- Trades: {session.get('n_trades', 'n/a')}")
         lines.append(f"- Mean Δbps after fees: {_fmt(session.get('mean_delta_bps_after_fees'))}")
-        lines.append(f"- CuSum status: {session.get('cusum_status', 'n/a')}")
+        cusum_state = session.get("cusum_state") if isinstance(session, dict) else None
+        if cusum_state is None and isinstance(session, dict):
+            cusum_state = session.get("cusum_status")
+        lines.append(f"- CuSum status: {_fmt(cusum_state)}")
         lines.append(f"- Fill realism gap: {_fmt(session.get('fill_realism_gap'))}")
         lines.append(
             "- Alerts: "
@@ -252,8 +269,10 @@ def _build_pilot_readme(reports_dir: Path) -> str | None:
     statuses = monitors_summary.get("statuses") if isinstance(monitors_summary, dict) else {}
     if not isinstance(statuses, dict):
         statuses = {}
-    seq_status = statuses.get("ev_seq_guard") or (session.get("cusum_status") if isinstance(session, dict) else None)
-    lines.append(f"- Sequential guard (CuSum): {seq_status or 'n/a'}")
+    seq_status = statuses.get("ev_seq_guard")
+    if seq_status is None and isinstance(session, dict):
+        seq_status = session.get("cusum_state") or session.get("cusum_status")
+    lines.append(f"- Sequential guard (CuSum): {_fmt(seq_status)}")
 
     freeze_series = overall.get("freeze_violation_series") if isinstance(overall, dict) else []
     if isinstance(freeze_series, list) and freeze_series:

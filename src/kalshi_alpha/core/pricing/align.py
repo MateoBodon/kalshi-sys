@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from bisect import bisect_right
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-import math
 
 from kalshi_alpha.core.pricing import LadderBinProbability, project_simplex
 

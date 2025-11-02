@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -110,9 +111,11 @@ def test_build_pilot_session_payload_with_metrics() -> None:
     )
 
     assert payload["session_id"] == session.session_id
+    assert payload["family"] == session.series
     assert payload["n_trades"] == 1
     assert payload["mean_delta_bps_after_fees"] == 4.0
     assert payload["t_stat"] is None
+    assert payload["cusum_state"] == "OK"
     assert payload["cusum_status"] == "OK"
     assert payload["fill_realism_gap"] == -4.2
     assert payload["alerts_summary"]["recent_alerts"] == ["kill_switch"]
@@ -143,9 +146,11 @@ def test_write_pilot_session_artifact(tmp_path: Path) -> None:
     )
 
     assert path.exists()
-    payload = path.read_text(encoding="utf-8")
-    assert "pilot-cpi-1" in payload
-    assert "dry" in payload
+    payload_text = path.read_text(encoding="utf-8")
+    payload = json.loads(payload_text)
+    assert payload["session_id"] == "pilot-cpi-1"
+    assert payload["family"] == "CPI"
+    assert payload["broker_mode"] == "dry"
     assert "alerts_summary" in payload
 
 def test_scan_ladders_invokes_pilot_session_writer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

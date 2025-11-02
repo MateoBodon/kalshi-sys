@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from kalshi_alpha.core.execution.order_queue import OrderQueue
 from kalshi_alpha.brokers.kalshi.base import BrokerOrder
+from kalshi_alpha.core.execution.order_queue import OrderQueue
 
 
 def _sample_order(key: str) -> BrokerOrder:

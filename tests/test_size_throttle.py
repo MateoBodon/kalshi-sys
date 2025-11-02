@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator
 from kalshi_alpha.core.kalshi_api import Orderbook
 from kalshi_alpha.exec.ledger import simulate_fills

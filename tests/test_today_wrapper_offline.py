@@ -58,7 +58,12 @@ def test_today_cli_invokes_daily(monkeypatch, fixtures_root: Path, offline_fixtu
         artifacts_dir = Path("reports/_artifacts")
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         (artifacts_dir / "go_no_go.json").write_text("{\"go\": true, \"reasons\": []}", encoding="utf-8")
-        (artifacts_dir / "latest_manifest.txt").write_text("/tmp/manifest.json", encoding="utf-8")
+        manifest_path = artifacts_dir / "manifest.json"
+        manifest_path.write_text("{}", encoding="utf-8")
+        (artifacts_dir / "latest_manifest.txt").write_text(
+            manifest_path.as_posix(),
+            encoding="utf-8",
+        )
 
     monkeypatch.setattr(daily, "main", fake_daily_main)
     monkeypatch.setattr(today, "_now", lambda: datetime(2025, 10, 28, 12, 0, tzinfo=UTC))

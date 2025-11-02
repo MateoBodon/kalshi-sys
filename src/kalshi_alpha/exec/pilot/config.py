@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import yaml
-
 
 DEFAULT_CONFIG_CANDIDATES: tuple[Path, ...] = (
     Path("configs/pilot.yaml"),
@@ -41,7 +41,7 @@ class PilotConfig:
         return not self.allowed_series
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "PilotConfig":
+    def from_dict(cls, payload: dict[str, Any]) -> PilotConfig:
         if not isinstance(payload, dict):
             raise TypeError("Pilot configuration payload must be a mapping")
         pilot_section = dict(payload)

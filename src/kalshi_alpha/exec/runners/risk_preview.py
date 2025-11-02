@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 from collections import defaultdict
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Iterable
 
 import polars as pl
 
@@ -83,7 +81,7 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _parse_date(value: str) -> date:
-    return datetime.strptime(value, "%Y-%m-%d").date()
+    return date.fromisoformat(value)
 
 
 def _load_portfolio_config(path: Path) -> PortfolioConfig | None:
