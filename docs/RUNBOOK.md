@@ -85,6 +85,10 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
 - **Clock guard**: system clock drift greater than 5 s raises a `KalshiClockSkewError` locally—sync with NTP before enabling `--broker live`.
 - **Logging**: structured log entries mask sensitive values (only last 4 characters of access keys/Idempotency-Key) and capture retry counts/status codes. Audit artifacts remain under `data/proc/audit/live_orders_*.jsonl`.
 
+## Live Smoke Check
+- Run `python -m kalshi_alpha.dev.sanity_check --live-smoke --env demo` to hit `/portfolio/balance` and `/markets` with authenticated headers (no submissions).
+- The command reports basic health information and surfaces non-JSON responses or HTTP errors before arming live pipelines.
+
 ## Interpreting Reports
 - **Proposals**: strike, side, contracts, and maker EV per contract.
 - **Paper Ledger Summary**: aggregated expected PnL, max loss, trade count using the configured slippage model.

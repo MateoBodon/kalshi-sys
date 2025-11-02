@@ -145,16 +145,9 @@ class KalshiHttpClient:
         last_error: Exception | None = None
 
         for attempt in range(1, self._max_retries + 1):
-            timestamp_ms, signature = self._sign(method_upper, canonical_path)
-
-            request_headers.update(
-                {
-                    "KALSHI-ACCESS-KEY": self._access_key_id,
-                    "KALSHI-ACCESS-TIMESTAMP": str(timestamp_ms),
-                    "KALSHI-ACCESS-SIGNATURE": signature,
-                    "Content-Type": "application/json",
-                }
-            )
+            signed_headers = self._auth_headers(method_upper, canonical_path)
+            request_headers.update(signed_headers)
+            request_headers["Content-Type"] = "application/json"
 
             url = f"{self._base_url}{canonical_path}"
             try:
@@ -211,6 +204,11 @@ class KalshiHttpClient:
         raise KalshiHttpError("Failed to execute Kalshi API request") from last_error
 
     # Internal helpers --------------------------------------------------------------------------
+
+    def build_auth_headers(self, method: str, path: str) -> dict[str, str]:
+        method_upper = method.upper()
+        canonical_path = self._canonical_path(path)
+        return self._auth_headers(method_upper, canonical_path)
     def _sign(self, method: str, path: str) -> tuple[int, str]:
         now = self._clock.now()
         now_utc = _ensure_utc(now)
@@ -228,6 +226,14 @@ class KalshiHttpClient:
         )
         signature_b64 = base64.b64encode(signature_bytes).decode("ascii")
         return current_ms, signature_b64
+
+    def _auth_headers(self, method_upper: str, canonical_path: str) -> dict[str, str]:
+        timestamp_ms, signature = self._sign(method_upper, canonical_path)
+        return {
+            "KALSHI-ACCESS-KEY": self._access_key_id,
+            "KALSHI-ACCESS-TIMESTAMP": str(timestamp_ms),
+            "KALSHI-ACCESS-SIGNATURE": signature,
+        }
 
     @staticmethod
     def _load_private_key(path: Path) -> RSAPrivateKey:

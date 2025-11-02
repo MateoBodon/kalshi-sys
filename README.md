@@ -82,6 +82,9 @@ make lint
 make typecheck
 make test          # runs pytest -q across the suite
 
+# Optional live smoke (no submits; requires credentials)
+python -m kalshi_alpha.dev.sanity_check --live-smoke --env demo
+
 # Repo hygiene (run locally & in CI)
 PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check
 
@@ -231,6 +234,7 @@ KALSHI_PRIVATE_KEY_PEM_PATH=/Users/example/kalshi_private_key.pem
 
 - Trading endpoints now live at `https://api.elections.kalshi.com/trade-api/v2`. Every request must include `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP` (milliseconds), and `KALSHI-ACCESS-SIGNATURE` (RSA-PSS over `timestamp + METHOD + PATH` with the query string removed).
 - The broker no longer exchanges bearer tokens. Each REST call is independently signed; HTTP 401 responses bubble up for operator action.
+- The websocket client shares the same signing scheme and automatically retries with exponential backoff when connections drop.
 - Clock drift >5 s is rejected locally with a descriptive error—sync NTP before arming.
 - Structured logs mask keys to the last 4 characters and include idempotency key tails, retry counts, and HTTP status codes.
 
