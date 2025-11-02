@@ -55,6 +55,13 @@ from kalshi_alpha.exec.heartbeat import (
     write_heartbeat,
 )
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.monitors.summary import (
+    DEFAULT_MONITOR_MAX_AGE_MINUTES,
+    DEFAULT_PANIC_ALERT_THRESHOLD,
+    DEFAULT_PANIC_ALERT_WINDOW_MINUTES,
+    MONITOR_ARTIFACTS_DIR,
+    summarize_monitor_artifacts,
+)
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
@@ -711,6 +718,11 @@ def _quality_gate_for_broker(
     monitors: dict[str, object],
 ) -> QualityGateResult:
     now_utc = datetime.now(tz=UTC)
+    monitor_summary = summarize_monitor_artifacts(
+        MONITOR_ARTIFACTS_DIR,
+        now=now_utc,
+        window=timedelta(minutes=DEFAULT_PANIC_ALERT_WINDOW_MINUTES),
+    )
     config = load_quality_gate_config(resolve_quality_gate_config_path())
     result = run_quality_gates(
         config=config,
@@ -727,16 +739,66 @@ def _quality_gate_for_broker(
 
     reasons = list(result.reasons)
     details = dict(result.details)
+
+    def _append_reason(reason: str) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+
+    runtime_monitor_details: dict[str, object] = {
+        "statuses": monitor_summary.statuses,
+        "alerts_recent": sorted(monitor_summary.alerts_recent),
+        "max_age_minutes": monitor_summary.max_age_minutes,
+        "file_count": monitor_summary.file_count,
+    }
+    if monitor_summary.metrics:
+        runtime_monitor_details["metrics"] = monitor_summary.metrics
+    details.setdefault("runtime_monitors", runtime_monitor_details)
     if drawdown_status.metrics:
         details.setdefault("drawdown", drawdown_status.metrics)
     go_flag = result.go and drawdown_status.ok
     if not drawdown_status.ok:
-        reasons.extend(drawdown_status.reasons)
+        for reason in drawdown_status.reasons:
+            _append_reason(reason)
+
+    monitor_reasons: list[str] = []
+    if monitor_summary.file_count == 0:
+        monitor_reasons.append("monitors_missing")
+    elif (
+        monitor_summary.max_age_minutes is not None
+        and monitor_summary.max_age_minutes > DEFAULT_MONITOR_MAX_AGE_MINUTES
+    ):
+        monitor_reasons.append("monitors_stale")
+    if (
+        DEFAULT_PANIC_ALERT_THRESHOLD > 0
+        and len(monitor_summary.alerts_recent) >= DEFAULT_PANIC_ALERT_THRESHOLD
+    ):
+        monitor_reasons.append("panic_backoff")
+    if monitor_summary.statuses.get("kill_switch") == "ALERT":
+        monitor_reasons.append("kill_switch_engaged")
+    if monitor_summary.statuses.get("drawdown") == "ALERT":
+        monitor_reasons.append("drawdown")
+    if monitor_summary.statuses.get("ev_seq_guard") == "ALERT":
+        monitor_reasons.append("sequential_alert")
+    if monitor_summary.statuses.get("freeze_window") == "ALERT":
+        monitor_reasons.append("freeze_window")
+
+    blocking_monitor_reasons = {
+        "monitors_missing",
+        "monitors_stale",
+        "panic_backoff",
+        "kill_switch_engaged",
+        "sequential_alert",
+        "freeze_window",
+    }
+    for reason in monitor_reasons:
+        _append_reason(reason)
+    if any(reason in blocking_monitor_reasons for reason in monitor_reasons):
+        go_flag = False
 
     kill_switch_path = resolve_kill_switch_path(getattr(args, "kill_switch_file", None))
     if kill_switch_engaged(kill_switch_path):
         go_flag = False
-        reasons.append("kill_switch_engaged")
+        _append_reason("kill_switch_engaged")
         details["kill_switch_path"] = kill_switch_path.as_posix()
         OutstandingOrdersState.load().mark_cancel_all(
             "kill_switch_engaged",
@@ -746,15 +808,14 @@ def _quality_gate_for_broker(
     stale, heartbeat_payload = heartbeat_stale(threshold=timedelta(minutes=5))
     if stale:
         go_flag = False
-        reasons.append("heartbeat_stale")
+        _append_reason("heartbeat_stale")
         if heartbeat_payload:
             details.setdefault("heartbeat", heartbeat_payload)
 
     ev_no_go = bool(monitors.get("ev_honesty_no_go")) if monitors is not None else False
     if ev_no_go:
         go_flag = False
-        if "ev_honesty_stale" not in reasons:
-            reasons.append("ev_honesty_stale")
+        _append_reason("ev_honesty_stale")
         ev_payload: dict[str, object] = {}
         if monitors is not None:
             max_delta = monitors.get("ev_honesty_max_delta")
@@ -1269,6 +1330,8 @@ def scan_series(  # noqa: PLR0913
         "tz_not_et": _tz_not_et(),
         "orderbook_snapshots": len(books_at_scan),
     }
+    if series_obj is not None:
+        monitors.setdefault("series", series_obj.ticker.upper())
     monitors.setdefault("model_version", model_version)
     if mispricing_records:
         monitors["max_prob_sum_gap"] = max(record["prob_sum_gap"] for record in mispricing_records)

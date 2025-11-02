@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,7 +10,24 @@ import pytest
 from kalshi_alpha.exec.runners import scan_ladders
 
 
-def test_ev_honesty_gate_flags_stale_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ev_honesty_gate_flags_stale_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir.joinpath("ev_gap.json").write_text(
+        json.dumps(
+            {
+                "name": "ev_gap",
+                "status": "OK",
+                "metrics": {},
+                "generated_at": datetime.now(tz=UTC).isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
     monitors: dict[str, object] = {
         "ev_honesty_max_delta": 0.25,
         "book_latency_ms": 1250.0,
