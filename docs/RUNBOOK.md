@@ -37,8 +37,9 @@
 
 ## Pilot Ramp Policy
 - `make pilot-readiness` (wrapper around `python -m kalshi_alpha.exec.reports.ramp`) evaluates ledger performance per series, enforces ramp guardrails, and emits:
-  - `reports/pilot_ready.json` — machine-readable GO/NO-GO + size multipliers.
+  - `reports/pilot_ready.json` — machine-readable GO/NO-GO + size multipliers, staleness fields (`freshness.ledger_age_minutes`, `freshness.monitors_age_minutes`), and per-bin EV honesty (`series[*].ev_honesty_bins`).
   - `reports/pilot_readiness.md` — operator-facing summary table with fills, Δbps, t-stat, guardrail breaches, and drawdown state.
+- `python -m kalshi_alpha.exec.runners.pilot --series <ticker> [--pilot-config configs/pilot.yaml] --broker live --i-understand-the-risks` launches the minimal maker-only pilot run. The wrapper snaps args to online mode, clamps contracts/bins per config, respects kill-switches, and writes `reports/_artifacts/pilot_session.json` for ramp review.
 - Thresholds follow the default policy (fills ≥300, Δbps ≥ +6, t-stat ≥ 2.0, zero guardrail breaches, drawdown intact). Override via CLI flags when testing new families.
 - For unattended runs, enable the `kalshi-alpha-runner.*` timer; it executes `make report` followed by `make pilot-readiness` each weekday at 05:30 ET.
 - Ramp readiness now incorporates freshness and safety gates:
@@ -182,10 +183,11 @@ GitHub Actions triggers the offline pipeline nightly:
    - `make report` (optional) to refresh scoreboards.
 2. **Bundle creation**
    - Run `make pilot-bundle` (wrapper for `python -m kalshi_alpha.exec.pilot_bundle`).
-   - Default output: `reports/pilot_bundle_YYYYMMDD_HHMMSS.tar.gz` containing pilot readiness JSON/Markdown, scoreboards, latest ladder report(s), monitor JSON artifacts, go/no-go state, and a telemetry slice (≤3 newest `data/raw/kalshi/.../exec.jsonl` files).
+   - Default output: `reports/pilot_bundle_YYYYMMDD_HHMMSS.tar.gz` containing pilot readiness JSON/Markdown, `reports/_artifacts/pilot_session.json`, the generated `README_pilot.md` checklist, scoreboards, latest ladder report(s), monitor JSON artifacts (including go/no-go state), and a telemetry slice (≤3 newest `data/raw/kalshi/.../exec.jsonl` files).
    - Inspect `manifest.json` inside the tarball for a machine-readable file list and timestamps.
 3. **Review checklist**
    - Confirm `overall.go` vs `overall.no_go`, and scan `overall.global_reasons`, `sequential_alert_series`, and `freeze_violation_series`.
+   - Review `README_pilot.md` for the automated checklist (EV honesty flags, CuSum status, freeze violations, drawdown, WS/auth health, freshness). Cross-check any `ev_honesty_bins` entries in `pilot_ready.json` for per-bin caps/weights before arming ramps.
    - Review monitor JSON for `panic_backoff`, `ev_seq_guard`, `freeze_window`, and `kill_switch` statuses. Any ALERT requires Ops sign-off before proceeding.
    - Verify ladder Markdown includes latest freeze window notes and sequential stats for the traded series.
    - Check telemetry tail for rejects/auth streaks; if missing, rerun `make monitors` to regenerate artifacts.

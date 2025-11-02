@@ -65,6 +65,7 @@ files = [
   "src/kalshi_alpha/exec/reports/ramp.py",
   "src/kalshi_alpha/exec/policy/freeze.py",
   "src/kalshi_alpha/exec/pilot_bundle.py",
+  "src/kalshi_alpha/exec/pilot/runtime.py",
 ]
 
 [[tool.mypy.overrides]]
@@ -115,6 +116,8 @@ ignore = ["S101", "PLR2004"]
 "tests/test_force_run_dry.py" = ["PLR0915"]
 "src/kalshi_alpha/exec/pipelines/today.py" = ["PLR0912"]
 "src/kalshi_alpha/exec/reports/ramp.py" = ["PLR0912", "PLR0913", "PLR0915"]
+"src/kalshi_alpha/exec/pilot/runtime.py" = ["PLR0912"]
+"src/kalshi_alpha/exec/pilot_bundle.py" = ["PLR0912", "PLR0915"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["kalshi_alpha"]

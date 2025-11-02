@@ -1,5 +1,12 @@
 # Changelog
 
+## 2025-11-02 (Sprint 6)
+- Introduced `python -m kalshi_alpha.exec.runners.pilot` as the single pilot entrypoint; it auto-enforces maker-only sizing, per-bin clamps from the pilot config, and records structured session metadata.
+- Pilot runs now persist `reports/_artifacts/pilot_session.json` with trades, Δbps/t-stat, CuSum status, fill realism, and recent monitor alerts. Ramp readiness ingests the session file to surface per-bin EV honesty alongside optional manual caps/weights.
+- `compute_ramp_policy` exposes `ledger_age_minutes` / `monitors_age_minutes` in `pilot_ready.json`, generates per-bin EV summaries (`ev_honesty_bins`), and carries per-bin overrides into the bundle README.
+- `python -m kalshi_alpha.exec.pilot_bundle` now packages the session artifact and a generated `README_pilot.md` checklist covering EV honesty flags, CuSum, freeze violations, drawdown, WS/auth health, and freshness thresholds.
+- Expanded mypy/ruff coverage to the new pilot modules and refreshed the pilot test suite (session JSON, bundle contents, staleness gates, per-bin overrides, kill-switch/freeze guards).
+
 ## 2025-11-02 (Sprint 4)
 - Added ledger/monitor freshness checks plus panic-backoff aggregation to the pilot ramp report; sequential CuSum and freeze-window violations now force series-level `NO-GO` decisions.
 - Extended runtime monitors with `ev_seq_guard`, `freeze_window`, and inline kill-switch visibility; panic backoff is emitted when three monitor families alert inside 30 minutes.

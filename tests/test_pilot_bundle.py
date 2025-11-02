@@ -16,12 +16,50 @@ def test_pilot_bundle_collects_artifacts(tmp_path: Path, monkeypatch) -> None:
     monitors_dir.mkdir(parents=True)
     ladders_dir.mkdir(parents=True)
 
-    reports_dir.joinpath("pilot_ready.json").write_text("{}", encoding="utf-8")
+    policy_payload = {
+        "series": [
+            {
+                "series": "CPI",
+                "recommendation": "GO",
+                "fills": 10,
+                "mean_delta_bps": 1.2,
+                "t_stat": 2.1,
+                "guardrail_breaches": 0,
+                "drawdown_ok": True,
+            }
+        ],
+        "overall": {"global_reasons": [], "ev_honesty_flags": {}},
+        "drawdown": {"ok": True},
+        "freshness": {
+            "ledger_age_minutes": 10,
+            "ledger_threshold_minutes": 120,
+            "monitors_age_minutes": 5,
+            "monitors_threshold_minutes": 30,
+        },
+        "monitors_summary": {
+            "statuses": {"ev_seq_guard": "OK", "ws_disconnects": "OK", "auth_errors": "OK"}
+        },
+    }
+    reports_dir.joinpath("pilot_ready.json").write_text(json.dumps(policy_payload), encoding="utf-8")
     reports_dir.joinpath("pilot_readiness.md").write_text("# Pilot Readiness", encoding="utf-8")
     reports_dir.joinpath("scoreboard_7d.md").write_text("# Scoreboard", encoding="utf-8")
     monitors_dir.joinpath("ev_gap.json").write_text("{}", encoding="utf-8")
     reports_dir.joinpath("_artifacts", "go_no_go.json").parent.mkdir(parents=True, exist_ok=True)
     reports_dir.joinpath("_artifacts", "go_no_go.json").write_text("{}", encoding="utf-8")
+    reports_dir.joinpath("_artifacts", "pilot_session.json").write_text(
+        json.dumps(
+            {
+                "session_id": "pilot-cpi-test",
+                "started_at": "2025-11-02T12:00:00Z",
+                "n_trades": 3,
+                "mean_delta_bps_after_fees": 1.5,
+                "cusum_status": "OK",
+                "fill_realism_gap": 0.05,
+                "alerts_summary": {"recent_alerts": []},
+            }
+        ),
+        encoding="utf-8",
+    )
     ladders_dir.joinpath("2025-11-02.md").write_text("# Ladder", encoding="utf-8")
 
     telemetry_dir = tmp_path / "data" / "raw" / "kalshi" / "2025" / "11" / "02"
@@ -54,8 +92,12 @@ def test_pilot_bundle_collects_artifacts(tmp_path: Path, monkeypatch) -> None:
         assert "reports/pilot_ready.json" in names
         assert "reports/_artifacts/monitors/ev_gap.json" in names
         assert "reports/ladders/CPI/2025-11-02.md" in names
+        assert "reports/_artifacts/pilot_session.json" in names
+        assert "README_pilot.md" in names
         assert "telemetry/2025/11/02/exec.jsonl" in names
         manifest = archive.extractfile("manifest.json")
         assert manifest is not None
         payload = json.loads(manifest.read().decode("utf-8"))
         assert "reports/pilot_ready.json" in payload["files"]
+        assert "reports/_artifacts/pilot_session.json" in payload["files"]
+        assert "README_pilot.md" in payload["files"]

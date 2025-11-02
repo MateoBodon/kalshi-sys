@@ -151,7 +151,7 @@ def test_ramp_policy_stale_ledger_no_go(tmp_path: Path, monkeypatch: pytest.Monk
     )
 
     assert "ledger_stale" in policy["overall"]["global_reasons"]
-    ledger_age = policy["freshness"]["ledger_minutes"]
+    ledger_age = policy["freshness"]["ledger_age_minutes"]
     assert ledger_age is not None and ledger_age > config.ledger_max_age_minutes
     for entry in policy["series"]:
         assert "ledger_stale" in entry["reasons"]
@@ -342,3 +342,198 @@ def test_ramp_policy_freeze_violation(tmp_path: Path, monkeypatch: pytest.Monkey
     series_entry = next(entry for entry in policy["series"] if entry["series"] == "CPI")
     assert "freeze_window" in series_entry["reasons"]
     assert series_entry["recommendation"] == "NO_GO"
+
+def test_ramp_policy_stale_monitors_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    now = datetime(2025, 11, 2, 15, 0, tzinfo=UTC)
+
+    ledger_path = tmp_path / "data" / "proc" / "ledger_all.parquet"
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger = pl.DataFrame(
+        {
+            "series": ["CPI", "CLAIMS"],
+            "ev_expected_bps": [10.0, 8.0],
+            "ev_realized_bps": [11.0, 8.5],
+            "expected_fills": [10, 12],
+            "timestamp_et": [now - timedelta(hours=1), now - timedelta(hours=1)],
+        }
+    )
+    ledger.write_parquet(ledger_path)
+
+    monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir.joinpath("ev_gap.json").write_text(
+        json.dumps(
+            {
+                "name": "ev_gap",
+                "status": "OK",
+                "metrics": {},
+                "generated_at": (now - timedelta(minutes=240)).isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = RampPolicyConfig(
+        lookback_days=7,
+        min_fills=0,
+        min_delta_bps=-10,
+        min_t_stat=-10,
+        ledger_max_age_minutes=120,
+        monitor_max_age_minutes=60,
+        seq_guard_threshold=100.0,
+    )
+
+    policy = compute_ramp_policy(
+        ledger_path=ledger_path,
+        artifacts_dir=tmp_path / "reports" / "_artifacts",
+        monitor_artifacts_dir=monitors_dir,
+        config=config,
+        now=now,
+    )
+
+    freshness = policy["freshness"]
+    monitors_age = freshness.get("monitors_age_minutes")
+    assert monitors_age is not None and monitors_age > config.monitor_max_age_minutes
+    assert "monitors_stale" in policy["overall"]["global_reasons"]
+    for entry in policy["series"]:
+        assert "monitors_stale" in entry["reasons"]
+        assert entry["recommendation"] == "NO_GO"
+
+def test_ramp_policy_includes_ev_honesty_bins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    now = datetime(2025, 11, 2, 12, 0, tzinfo=UTC)
+
+    ledger_path = tmp_path / "data" / "proc" / "ledger_all.parquet"
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    pl.DataFrame(
+        {
+            "series": ["CPI"],
+            "ev_expected_bps": [10.0],
+            "ev_realized_bps": [12.0],
+            "expected_fills": [50],
+            "timestamp_et": [now - timedelta(hours=1)],
+        }
+    ).write_parquet(ledger_path)
+
+    artifacts_dir = tmp_path / "reports" / "_artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    pilot_session_path = artifacts_dir / "pilot_session.json"
+    pilot_session_path.write_text(
+        json.dumps(
+            {
+                "session_id": "pilot-cpi-test",
+                "series": "CPI",
+                "ev_honesty_threshold": 0.1,
+                "ev_honesty_table": [
+                    {
+                        "market_ticker": "CPI-TEST",
+                        "market_id": "M1",
+                        "strike": 270.0,
+                        "side": "YES",
+                        "delta": 0.2,
+                        "maker_ev_per_contract_original": 0.5,
+                        "maker_ev_per_contract_replay": 0.3,
+                        "maker_ev_per_contract_proposal": 0.45,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir.joinpath("ev_gap.json").write_text(
+        json.dumps(
+            {
+                "name": "ev_gap",
+                "status": "OK",
+                "metrics": {"mean_delta_bps": 1.0},
+                "generated_at": now.isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    policy = compute_ramp_policy(
+        ledger_path=ledger_path,
+        artifacts_dir=artifacts_dir,
+        monitor_artifacts_dir=monitors_dir,
+        config=RampPolicyConfig(min_fills=0, min_delta_bps=-10, min_t_stat=-10),
+        now=now,
+    )
+
+    series_entries = {entry["series"]: entry for entry in policy["series"]}
+    bin_entries = series_entries["CPI"].get("ev_honesty_bins")
+    assert bin_entries
+    bin_entry = bin_entries[0]
+    assert bin_entry["flagged"] is True
+    assert pytest.approx(bin_entry["recommended_weight"], 0.001) == 0.5
+    assert policy["overall"]["ev_honesty_flags"]["CPI"]
+
+def test_ramp_policy_applies_manual_bin_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    now = datetime(2025, 11, 2, 12, 0, tzinfo=UTC)
+
+    ledger_path = tmp_path / "data" / "proc" / "ledger_all.parquet"
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    pl.DataFrame(
+        {
+            "series": ["CPI"],
+            "ev_expected_bps": [9.0],
+            "ev_realized_bps": [9.5],
+            "expected_fills": [20],
+            "timestamp_et": [now - timedelta(hours=2)],
+        }
+    ).write_parquet(ledger_path)
+
+    artifacts_dir = tmp_path / "reports" / "_artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    overrides_path = tmp_path / "ramp_overrides.yaml"
+    overrides_path.write_text(
+        """
+        series:
+          CPI:
+            - strike: 270
+              side: YES
+              weight: 0.2
+              cap: 5
+              reason: manual downgrade
+        """.strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir.joinpath("ev_gap.json").write_text(
+        json.dumps(
+            {
+                "name": "ev_gap",
+                "status": "OK",
+                "metrics": {},
+                "generated_at": now.isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    policy = compute_ramp_policy(
+        ledger_path=ledger_path,
+        artifacts_dir=artifacts_dir,
+        monitor_artifacts_dir=monitors_dir,
+        config=RampPolicyConfig(min_fills=0, min_delta_bps=-10, min_t_stat=-10),
+        now=now,
+        bin_overrides_path=overrides_path,
+    )
+
+    series_entries = {entry["series"]: entry for entry in policy["series"]}
+    bin_entries = series_entries["CPI"].get("ev_honesty_bins")
+    assert bin_entries
+    target = [entry for entry in bin_entries if entry.get("strike") == 270.0 and entry.get("side") == "YES"][0]
+    assert pytest.approx(target["recommended_weight"], 0.001) == 0.2
+    assert target.get("recommended_cap") == 5.0
+    assert "manual_override" in target.get("sources", [])
+    assert any("manual downgrade" in note for note in target.get("notes", []))

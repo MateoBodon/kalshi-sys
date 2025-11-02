@@ -62,6 +62,12 @@ from kalshi_alpha.exec.monitors.summary import (
     MONITOR_ARTIFACTS_DIR,
     summarize_monitor_artifacts,
 )
+from kalshi_alpha.exec.pilot import (
+    PilotConfig,
+    PilotSession,
+    apply_pilot_mode,
+    write_pilot_session_artifact,
+)
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
@@ -214,6 +220,8 @@ def _clear_dry_orders_start(
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
+    pilot_session: PilotSession | None = apply_pilot_mode(args)
+    pilot_config: PilotConfig | None = pilot_session.config if pilot_session else None
     fixtures_root = Path(args.fixtures_root).resolve()
     driver_fixtures = fixtures_root / "drivers"
 
@@ -263,7 +271,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         mispricing_only=args.mispricing_only,
         max_legs=args.max_legs,
         prob_sum_gap_threshold=args.prob_sum_gap_threshold,
+        pilot_config=pilot_config,
     )
+
+    if pilot_session:
+        outcome.monitors.setdefault("pilot_session_id", pilot_session.session_id)
+        outcome.monitors.setdefault("pilot_session_started_at", pilot_session.started_at.isoformat())
 
     proposals = outcome.proposals
     books_at_scan = dict(getattr(outcome, "books_at_scan", {}))
@@ -412,6 +425,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         "fill_alpha": fill_alpha_value,
         "outstanding_total": sum(outstanding_summary.values()),
     }
+    if pilot_session:
+        pilot_metadata.update(pilot_session.metadata())
     _maybe_write_report(
         args,
         proposals,
@@ -426,15 +441,38 @@ def main(argv: Sequence[str] | None = None) -> None:
         outstanding_summary=outstanding_summary,
         pilot_metadata=pilot_metadata,
     )
+    heartbeat_extra = {
+        "outstanding": outstanding_summary,
+        "broker": broker_status,
+        "series": args.series.upper(),
+    }
+    if pilot_session:
+        heartbeat_extra.update(
+            {
+                "pilot_session_id": pilot_session.session_id,
+                "pilot_session_started_at": pilot_session.started_at.isoformat(),
+                "pilot_mode": True,
+            }
+        )
     write_heartbeat(
         mode=f"scan_ladders:{args.series.upper()}",
         monitors=outcome.monitors,
-        extra={
-            "outstanding": outstanding_summary,
-            "broker": broker_status,
-            "series": args.series.upper(),
-        },
+        extra=heartbeat_extra,
     )
+
+    monitor_snapshot = summarize_monitor_artifacts(
+        MONITOR_ARTIFACTS_DIR,
+        now=datetime.now(tz=UTC),
+        window=timedelta(minutes=DEFAULT_PANIC_ALERT_WINDOW_MINUTES),
+    )
+    if pilot_session:
+        write_pilot_session_artifact(
+            session=pilot_session,
+            ledger=ledger,
+            monitors=outcome.monitors,
+            monitor_summary=monitor_snapshot,
+            broker_status=broker_status,
+        )
 
     if not proposals:
         return
@@ -1159,6 +1197,16 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Path to kill-switch sentinel file (default: data/proc/state/kill_switch).",
     )
     parser.add_argument(
+        "--pilot",
+        action="store_true",
+        help="Enable live pilot mode with restricted sizing and tagging.",
+    )
+    parser.add_argument(
+        "--pilot-config",
+        type=Path,
+        help="Override pilot configuration YAML (defaults to configs/pilot.yaml).",
+    )
+    parser.add_argument(
         "--paper-ledger",
         action="store_true",
         help="Simulate paper fills using top-of-book data.",
@@ -1199,6 +1247,7 @@ def scan_series(  # noqa: PLR0913
     max_legs: int = 4,
     prob_sum_gap_threshold: float = 0.0,
     model_version: str = "v15",
+    pilot_config: PilotConfig | None = None,
 ) -> ScanOutcome:
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
@@ -1214,6 +1263,7 @@ def scan_series(  # noqa: PLR0913
     books_at_scan: dict[str, Orderbook] = {}
     book_snapshot_failures = 0
     book_snapshot_started_at = datetime.now(tz=UTC)
+    pilot_trimmed_bins = 0
 
     model_metadata: dict[str, object] = {}
     for event in events:
@@ -1320,6 +1370,12 @@ def scan_series(  # noqa: PLR0913
                 ob_imbalance_penalty=ob_imbalance_penalty,
                 daily_budget=daily_budget,
             )
+            if pilot_config is not None:
+                rung_proposals, trimmed = _limit_proposals_for_pilot(
+                    rung_proposals,
+                    max_unique_bins=pilot_config.max_unique_bins,
+                )
+                pilot_trimmed_bins += trimmed
             proposals.extend(rung_proposals)
 
     book_snapshot_completed_at = datetime.now(tz=UTC)
@@ -1337,6 +1393,12 @@ def scan_series(  # noqa: PLR0913
         monitors["max_prob_sum_gap"] = max(record["prob_sum_gap"] for record in mispricing_records)
     if book_snapshot_failures:
         monitors["orderbook_snapshot_failures"] = book_snapshot_failures
+    if pilot_config is not None:
+        monitors["pilot_mode"] = True
+        monitors.setdefault("pilot_max_unique_bins", pilot_config.max_unique_bins)
+        monitors.setdefault("pilot_max_contracts", pilot_config.max_contracts_per_order)
+        if pilot_trimmed_bins:
+            monitors["pilot_bins_trimmed"] = pilot_trimmed_bins
     return ScanOutcome(
         proposals=proposals,
         monitors=monitors,
@@ -1496,6 +1558,28 @@ def _adjacent_indices(
         end = min(idx + 1, rung_count - 1)
         allowed.update(range(start, end + 1))
     return allowed
+
+
+def _limit_proposals_for_pilot(
+    proposals: list[Proposal],
+    *,
+    max_unique_bins: int,
+) -> tuple[list[Proposal], int]:
+    if max_unique_bins <= 0 or len(proposals) <= max_unique_bins:
+        return proposals, 0
+    ranked = sorted(
+        proposals,
+        key=lambda item: item.maker_ev_per_contract,
+        reverse=True,
+    )
+    allowed_keys = {
+        (proposal.market_id, proposal.side, proposal.strike) for proposal in ranked[:max_unique_bins]
+    }
+    filtered: list[Proposal] = [
+        proposal for proposal in proposals if (proposal.market_id, proposal.side, proposal.strike) in allowed_keys
+    ]
+    trimmed = len(proposals) - len(filtered)
+    return filtered, trimmed
 
 
 def _is_monotone(sequence: Sequence[float]) -> bool:

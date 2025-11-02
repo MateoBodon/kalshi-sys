@@ -156,16 +156,24 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
   --broker dry
 ```
 
-Example **live pilot** run (use only when ready and kill-switch cleared):
+### Pilot Session CLI
+
+For a guarded maker-only pilot, use the dedicated wrapper. It enables `--pilot`, clamps contracts/bins according to `configs/pilot.yaml`, flips to online mode, and writes a structured session artifact.
+
 ```bash
-python -m kalshi_alpha.exec.runners.scan_ladders \
+python -m kalshi_alpha.exec.runners.pilot \
   --series CPI \
-  --online \
+  --pilot-config configs/pilot.yaml \
   --broker live \
   --i-understand-the-risks \
   --kill-switch-file data/proc/state/kill_switch \
   --report
 ```
+
+Outputs land under `reports/_artifacts/`:
+- `pilot_session.json` captures trades, Δbps/t-stat, CuSum status, fill realism, and monitor alerts for the run.
+- `pilot_ready.json` / `pilot_readiness.md` include `freshness.ledger_age_minutes`, `freshness.monitors_age_minutes`, and `series[*].ev_honesty_bins` (per-bin EV honesty with any caps/weights).
+- `make pilot-bundle` now adds both the session file and a generated `README_pilot.md` checklist summarising EV honesty flags, CuSum, freeze violations, drawdown, WS/auth, and staleness before you escalate a GO.
 
 ### Pipelines
 - `kalshi_alpha.exec.pipelines.daily` – full ingestion → calibration → scan workflow for a single mode (e.g., `pre_cpi`). Persists heartbeats, outstanding order state, reports, replay scorecards, and ledger artifacts.
