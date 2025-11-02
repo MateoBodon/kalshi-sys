@@ -1,5 +1,11 @@
 # Changelog
 
+## 2025-11-02 (Sprint 7)
+- `pilot_session.json` now records the target `family`, normalized `cusum_state`, fill realism gap, and full alert summary; tests cover payload structure and artifact writes.
+- Pilot scans import `ev_honesty_bins` from `reports/pilot_ready.json` and enforce the recommended per-bin weights/caps before sizing orders, even when the series-level decision is GO.
+- `pilot_readiness.md` renders a per-bin EV honesty table alongside the existing summary metrics, and `README_pilot.md` includes an explicit final GO/NO-GO decision with rationale.
+- Bundle checklist and runbook guidance updated to highlight per-bin enforcement, freshness gates, and the richer session metadata.
+
 ## 2025-11-02 (Sprint 6)
 - Introduced `python -m kalshi_alpha.exec.runners.pilot` as the single pilot entrypoint; it auto-enforces maker-only sizing, per-bin clamps from the pilot config, and records structured session metadata.
 - Pilot runs now persist `reports/_artifacts/pilot_session.json` with trades, Δbps/t-stat, CuSum status, fill realism, and recent monitor alerts. Ramp readiness ingests the session file to surface per-bin EV honesty alongside optional manual caps/weights.

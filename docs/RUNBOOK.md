@@ -37,9 +37,11 @@
 
 ## Pilot Ramp Policy
 - `make pilot-readiness` (wrapper around `python -m kalshi_alpha.exec.reports.ramp`) evaluates ledger performance per series, enforces ramp guardrails, and emits:
-  - `reports/pilot_ready.json` — machine-readable GO/NO-GO + size multipliers, staleness fields (`freshness.ledger_age_minutes`, `freshness.monitors_age_minutes`), and per-bin EV honesty (`series[*].ev_honesty_bins`).
-  - `reports/pilot_readiness.md` — operator-facing summary table with fills, Δbps, t-stat, guardrail breaches, and drawdown state.
+- `reports/pilot_ready.json` — machine-readable GO/NO-GO + size multipliers, staleness fields (`freshness.ledger_age_minutes`, `freshness.monitors_age_minutes`), and per-bin EV honesty (`series[*].ev_honesty_bins`) including the recommended weights/caps.
+- `reports/pilot_readiness.md` — operator-facing summary table with fills, Δbps, t-stat, guardrail breaches, drawdown state, and a rendered per-bin EV honesty table.
 - `python -m kalshi_alpha.exec.runners.pilot --series <ticker> [--pilot-config configs/pilot.yaml] --broker live --i-understand-the-risks` launches the minimal maker-only pilot run. The wrapper snaps args to online mode, clamps contracts/bins per config, respects kill-switches, and writes `reports/_artifacts/pilot_session.json` for ramp review.
+- `pilot_session.json` now surfaces `family`, `cusum_state`, `fill_realism_gap`, and the full `alerts_summary` alongside trade counts and Δbps metrics—treat these as the single source of truth for the latest pilot run.
+- Pilot scans automatically import the latest per-bin EV honesty weights/caps from `reports/pilot_ready.json` and apply them before placing proposals, even when the family-level decision is GO.
 - Thresholds follow the default policy (fills ≥300, Δbps ≥ +6, t-stat ≥ 2.0, zero guardrail breaches, drawdown intact). Override via CLI flags when testing new families.
 - For unattended runs, enable the `kalshi-alpha-runner.*` timer; it executes `make report` followed by `make pilot-readiness` each weekday at 05:30 ET.
 - Ramp readiness now incorporates freshness and safety gates:
@@ -187,7 +189,7 @@ GitHub Actions triggers the offline pipeline nightly:
    - Inspect `manifest.json` inside the tarball for a machine-readable file list and timestamps.
 3. **Review checklist**
    - Confirm `overall.go` vs `overall.no_go`, and scan `overall.global_reasons`, `sequential_alert_series`, and `freeze_violation_series`.
-   - Review `README_pilot.md` for the automated checklist (EV honesty flags, CuSum status, freeze violations, drawdown, WS/auth health, freshness). Cross-check any `ev_honesty_bins` entries in `pilot_ready.json` for per-bin caps/weights before arming ramps.
+  - Review `README_pilot.md` for the automated checklist—now including the final GO/NO-GO verdict with rationale—plus EV honesty flags, CuSum status, freeze violations, drawdown, WS/auth health, and freshness. Cross-check any `ev_honesty_bins` entries in `pilot_ready.json` for per-bin caps/weights before arming ramps.
    - Review monitor JSON for `panic_backoff`, `ev_seq_guard`, `freeze_window`, and `kill_switch` statuses. Any ALERT requires Ops sign-off before proceeding.
    - Verify ladder Markdown includes latest freeze window notes and sequential stats for the traded series.
    - Check telemetry tail for rejects/auth streaks; if missing, rerun `make monitors` to regenerate artifacts.

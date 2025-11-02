@@ -171,9 +171,10 @@ python -m kalshi_alpha.exec.runners.pilot \
 ```
 
 Outputs land under `reports/_artifacts/`:
-- `pilot_session.json` captures trades, Δbps/t-stat, CuSum status, fill realism, and monitor alerts for the run.
-- `pilot_ready.json` / `pilot_readiness.md` include `freshness.ledger_age_minutes`, `freshness.monitors_age_minutes`, and `series[*].ev_honesty_bins` (per-bin EV honesty with any caps/weights).
-- `make pilot-bundle` now adds both the session file and a generated `README_pilot.md` checklist summarising EV honesty flags, CuSum, freeze violations, drawdown, WS/auth, and staleness before you escalate a GO.
+- `pilot_session.json` captures trades, Δbps/t-stat, the CuSum state (`cusum_state`), fill realism gap, alerts, and the target `family` for the run.
+- `pilot_ready.json` / `pilot_readiness.md` include `freshness.ledger_age_minutes`, `freshness.monitors_age_minutes`, and full per-bin EV honesty tables (`series[*].ev_honesty_bins`) with the recommended weights/caps now rendered in Markdown.
+- Pilot scans load those per-bin weights/caps on startup and clamp proposal sizes even when a family-level GO is in effect.
+- `make pilot-bundle` adds the session file plus a generated `README_pilot.md` checklist with an explicit final GO/NO-GO decision, rationale, EV honesty adjustments, CuSum status, freeze violations, drawdown, websocket/auth health, and staleness before you escalate live orders.
 
 ### Pipelines
 - `kalshi_alpha.exec.pipelines.daily` – full ingestion → calibration → scan workflow for a single mode (e.g., `pre_cpi`). Persists heartbeats, outstanding order state, reports, replay scorecards, and ledger artifacts.
