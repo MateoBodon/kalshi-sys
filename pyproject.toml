@@ -14,6 +14,7 @@ authors = [
 license = { text = "MIT" }
 dependencies = [
   "requests>=2.32.3",
+  "cryptography>=43.0.0",
   "pydantic>=2.7.0",
   "polars>=1.6.0",
   "duckdb>=0.10.2",
@@ -34,6 +35,7 @@ dev = [
   "types-python-dateutil>=2.9.0.20240821",
   "types-pyyaml>=6.0.12.20240813",
   "pre-commit>=3.7.1",
+  "requests-mock>=1.12.1",
 ]
 
 [project.scripts]
@@ -57,7 +59,7 @@ strict_equality = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["duckdb", "polars", "cachetools"]
+module = ["duckdb", "polars", "cachetools", "cryptography.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

@@ -10,40 +10,28 @@ from kalshi_alpha.brokers.kalshi.base import BrokerOrder
 from kalshi_alpha.brokers.kalshi.live import LiveBroker
 
 
-class _StubResponse:
-    def __init__(self, status_code: int = 200, payload: dict[str, object] | None = None) -> None:
-        self.status_code = status_code
-        self._payload = payload or {"ok": True}
-
-    def json(self) -> dict[str, object]:
-        return self._payload
-
-
-class _StubSession:
+class _RecordingHttpClient:
     def __init__(self) -> None:
-        self.headers: dict[str, str] = {}
-        self.auth = None
         self.requests: list[dict[str, object]] = []
 
     def request(
         self,
         method: str,
-        url: str,
+        path: str,
         *,
-        json: dict[str, object] | None = None,
-        headers: dict[str, str] | None = None,
-        timeout: float | None = None,
-    ) -> _StubResponse:
+        json_body: dict[str, object] | None = None,
+        idempotency_key: str | None = None,
+        **_: object,
+    ) -> None:
         self.requests.append(
             {
                 "method": method,
-                "url": url,
-                "json": json,
-                "headers": headers or {},
-                "timeout": timeout,
+                "path": path,
+                "json": json_body,
+                "idempotency_key": idempotency_key,
             }
         )
-        return _StubResponse()
+
 
 
 def _sample_order() -> BrokerOrder:
@@ -78,12 +66,10 @@ def test_create_broker_live_with_acknowledgement(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("KALSHI_API_KEY", "KEY123")
-    monkeypatch.setenv("KALSHI_API_SECRET", "SECRET456")
 
     artifacts = tmp_path / "reports" / "_artifacts"
     audit_dir = tmp_path / "data" / "proc" / "audit"
-    session = _StubSession()
+    http_client = _RecordingHttpClient()
 
     broker = create_broker(
         "live",
@@ -91,7 +77,7 @@ def test_create_broker_live_with_acknowledgement(
         audit_dir=audit_dir,
         acknowledge_risks=True,
         live_kwargs={
-            "session": session,
+            "http_client": http_client,
             "rate_limit_per_second": 10,
             "queue_capacity": 8,
             "max_retries": 1,
@@ -108,14 +94,12 @@ def test_live_broker_does_not_log_secrets_and_writes_audit(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("KALSHI_API_KEY", "SUPERSECRETKEY")
-    monkeypatch.setenv("KALSHI_API_SECRET", "SUPERSECRETSECRET")
 
-    session = _StubSession()
+    http_client = _RecordingHttpClient()
     broker = LiveBroker(
         artifacts_dir=tmp_path / "reports" / "_artifacts",
         audit_dir=tmp_path / "data" / "proc" / "audit",
-        session=session,
+        http_client=http_client,
         rate_limit_per_second=10,
         queue_capacity=8,
         max_retries=1,
@@ -127,12 +111,11 @@ def test_live_broker_does_not_log_secrets_and_writes_audit(
     broker.place([order])
 
     log_messages = " ".join(record.getMessage() for record in caplog.records)
-    assert "SUPERSECRETKEY" not in log_messages
-    assert "SUPERSECRETSECRET" not in log_messages
+    assert order.idempotency_key not in log_messages
 
-    assert session.requests, "request should have been recorded"
-    request_meta = session.requests[0]
-    assert request_meta["headers"].get("Idempotency-Key") == order.idempotency_key
+    assert http_client.requests, "request should have been recorded"
+    request_meta = http_client.requests[0]
+    assert request_meta["idempotency_key"] == order.idempotency_key
 
     audit_files = sorted((tmp_path / "data" / "proc" / "audit").glob("live_orders_*.jsonl"))
     assert len(audit_files) == 1
@@ -147,14 +130,12 @@ def test_live_broker_cancel_serializes_intent(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("KALSHI_API_KEY", "KEY123")
-    monkeypatch.setenv("KALSHI_API_SECRET", "SECRET456")
 
-    session = _StubSession()
+    http_client = _RecordingHttpClient()
     broker = LiveBroker(
         artifacts_dir=tmp_path / "reports" / "_artifacts",
         audit_dir=tmp_path / "data" / "proc" / "audit",
-        session=session,
+        http_client=http_client,
         rate_limit_per_second=10,
         queue_capacity=8,
         max_retries=1,
@@ -162,6 +143,7 @@ def test_live_broker_cancel_serializes_intent(
     )
 
     broker.cancel(["ORD-1"])
+    assert http_client.requests[0]["path"] == "/orders/ORD-1/cancel"
     audit_files = sorted((tmp_path / "data" / "proc" / "audit").glob("live_orders_*.jsonl"))
     assert audit_files, "cancel intent should have been recorded"
     lines = [json.loads(line) for line in audit_files[0].read_text().splitlines()]

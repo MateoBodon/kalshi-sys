@@ -8,17 +8,20 @@ import os
 import threading
 import time
 from collections import deque
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import requests
-from requests import Response
-from requests.auth import HTTPBasicAuth
-from requests.exceptions import RequestException
 
-from kalshi_alpha.core.execution.order_queue import OrderQueue
 from kalshi_alpha.brokers.kalshi.base import Broker, BrokerOrder, ensure_directory
+from kalshi_alpha.brokers.kalshi.http_client import (
+    KalshiClockSkewError,
+    KalshiHttpClient,
+    KalshiHttpError,
+)
+from kalshi_alpha.core.execution.order_queue import OrderQueue
 from kalshi_alpha.utils.env import load_env
 
 LOGGER = logging.getLogger(__name__)
@@ -55,40 +58,35 @@ class LiveBroker(Broker):
 
     mode = "live"
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - broker wiring requires multiple knobs
         self,
         *,
         artifacts_dir: Path,
         audit_dir: Path,
         session: requests.Session | None = None,
-        base_url: str = "https://api.elections.kalshi.com/v1",
+        base_url: str = "https://api.elections.kalshi.com/trade-api/v2",
         rate_limit_per_second: int = 5,
         queue_capacity: int = 64,
         max_retries: int = 3,
         timeout: float = 10.0,
+        retry_backoff: float = 0.5,
+        http_client: KalshiHttpClient | None = None,
         order_queue: OrderQueue | None = None,
     ) -> None:
         if os.environ.get("CI"):
             raise RuntimeError("Live broker is disabled while running under CI.")
 
         load_env()
-        api_key = os.getenv("KALSHI_API_KEY")
-        api_secret = os.getenv("KALSHI_API_SECRET")
-        if not api_key or not api_secret:
-            raise RuntimeError(
-                "Missing Kalshi live credentials. Set KALSHI_API_KEY and KALSHI_API_SECRET in .env.local."
-            )
-
         self._artifacts_dir = ensure_directory(artifacts_dir)
         self._audit_dir = ensure_directory(audit_dir)
-        self._session = session or requests.Session()
-        self._session.headers.setdefault("Content-Type", "application/json")
-        self._session.auth = HTTPBasicAuth(api_key, api_secret)
-
-        self._base_url = base_url.rstrip("/")
-        self._timeout = timeout
+        self._http = http_client or KalshiHttpClient(
+            base_url=base_url,
+            session=session,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_backoff=retry_backoff,
+        )
         self._rate_limiter = _RateLimiter(rate_limit_per_second, 1.0)
-        self._max_retries = max(1, max_retries)
         self._seen_idempotency: set[str] = set()
         self._lock = threading.Lock()
         self._order_queue = order_queue or OrderQueue(
@@ -104,18 +102,26 @@ class LiveBroker(Broker):
     def place(self, orders: Sequence[BrokerOrder]) -> None:
         accepted: list[BrokerOrder] = []
         for order in orders:
-            if order.idempotency_key in self._seen_idempotency:
-                LOGGER.debug("Skipping duplicate order with idempotency %s", order.idempotency_key)
-                continue
-            self._seen_idempotency.add(order.idempotency_key)
+            with self._lock:
+                if order.idempotency_key in self._seen_idempotency:
+                    LOGGER.debug(
+                        "Skipping duplicate order with idempotency %s",
+                        order.idempotency_key,
+                    )
+                    continue
+                self._seen_idempotency.add(order.idempotency_key)
             accepted.append(order)
         if not accepted:
             return
 
         for order in accepted:
             payload = self._order_payload(order)
-            headers = {"Idempotency-Key": order.idempotency_key}
-            self._request("POST", "/orders", json_body=payload, extra_headers=headers)
+            self._request(
+                "POST",
+                "/orders",
+                json_body=payload,
+                idempotency_key=order.idempotency_key,
+            )
             self._write_audit("place_intent", order)
 
     def cancel(self, order_ids: Sequence[str]) -> None:
@@ -161,9 +167,13 @@ class LiveBroker(Broker):
 
     def _submit_replace(self, order_id: str, order: BrokerOrder) -> None:
         payload = self._order_payload(order)
-        headers = {"Idempotency-Key": order.idempotency_key} if order.idempotency_key else None
         endpoint = f"/orders/{order_id}/replace"
-        self._request("POST", endpoint, json_body=payload, extra_headers=headers)
+        self._request(
+            "POST",
+            endpoint,
+            json_body=payload,
+            idempotency_key=order.idempotency_key,
+        )
         self._write_audit(
             "replace_intent",
             extra={"order_id": order_id, "idempotency_key": order.idempotency_key},
@@ -186,39 +196,20 @@ class LiveBroker(Broker):
         endpoint: str,
         *,
         json_body: dict[str, Any] | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> Response:
-        url = f"{self._base_url}{endpoint}"
-        last_error: Exception | None = None
-        for attempt in range(1, self._max_retries + 1):
-            self._rate_limiter.wait()
-            try:
-                response = self._session.request(
-                    method,
-                    url,
-                    json=json_body,
-                    headers=extra_headers,
-                    timeout=self._timeout,
-                )
-            except RequestException as exc:
-                last_error = exc
-                self._sleep_backoff(attempt)
-                continue
-
-            if 200 <= response.status_code < 300:
-                return response
-            last_error = RuntimeError(
-                f"Kalshi trading API returned {response.status_code} for {endpoint}"
+        idempotency_key: str | None = None,
+    ) -> None:
+        self._rate_limiter.wait()
+        try:
+            self._http.request(
+                method,
+                endpoint,
+                json_body=json_body,
+                idempotency_key=idempotency_key,
             )
-            if response.status_code in {429, 500, 502, 503, 504} and attempt < self._max_retries:
-                self._sleep_backoff(attempt)
-                continue
-            break
-        raise RuntimeError("Failed to execute Kalshi trading API request") from last_error
-
-    def _sleep_backoff(self, attempt: int) -> None:
-        delay = min(5.0, 0.5 * (2 ** (attempt - 1)))
-        time.sleep(delay)
+        except KalshiClockSkewError:
+            raise
+        except KalshiHttpError as exc:
+            raise RuntimeError("Failed to execute Kalshi trading API request") from exc
 
     def _write_audit(
         self,

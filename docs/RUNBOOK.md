@@ -7,6 +7,7 @@
   uv pip install -e .[dev]
   ```
   (If `uv` is unavailable, use `pip install -e .[dev]`.)
+- Populate `.env.local` with required credentials. For live Kalshi trading set `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PEM_PATH` (absolute path to the RSA private key used for signing). Never commit secrets; `.env.local` is git-ignored.
 - Copy any local credentials into `.env.local` (never commit). The application automatically loads `.env.local` and `.env` via `kalshi_alpha.utils.env`.
 
 ## Offline vs. Online Data
@@ -76,6 +77,13 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
   - Paper ledger summary.
   - Monitors block (drift, TZ mismatch, non-monotone ladders).
   - Strategy metadata (AAA gas MTD, suspicious deltas, etc.).
+
+## Live Trading Connectivity
+- **Endpoints**: REST `https://api.elections.kalshi.com/trade-api/v2`, WebSocket `wss://api.elections.kalshi.com/trade-api/ws/v2`.
+- **Token issuance**: `LiveBroker` signs `timestamp_ms + METHOD + PATH` (RSA-PSS, SHA-256) against the path being requested, then calls `/auth/token` with headers `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP`, `KALSHI-ACCESS-SIGNATURE`. The short-lived bearer token is cached and refreshed transparently on HTTP 401.
+- **Per-request signing**: every REST call reuses the same canonical string, adds the cached bearer token to `Authorization: Bearer <token>`, and includes idempotency keys on order submissions.
+- **Clock guard**: system clock drift greater than 5 s raises a `KalshiClockSkewError` locally—sync with NTP before enabling `--broker live`.
+- **Logging**: structured log entries mask sensitive values (only last 4 characters of access keys/Idempotency-Key) and capture retry counts/status codes. Audit artifacts remain under `data/proc/audit/live_orders_*.jsonl`.
 
 ## Interpreting Reports
 - **Proposals**: strike, side, contracts, and maker EV per contract.

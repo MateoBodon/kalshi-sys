@@ -65,7 +65,7 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
    ```
 
 2. **Secrets & environment variables**
-   - Copy credentials into `.env.local` (git-ignored). The live broker expects `KALSHI_API_KEY` and `KALSHI_API_SECRET`. Values are never logged; they load via `kalshi_alpha.utils.env.load_env()`.
+   - Copy credentials into `.env.local` (git-ignored). The live broker expects `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PEM_PATH` (path to an RSA private key used for RSA-PSS signatures). Values are never logged; they load via `kalshi_alpha.utils.env.load_env()`.
    - If `.env.local` is absent, the code falls back to `.env` then environment variables.
 
 3. **Data directories**
@@ -200,8 +200,8 @@ Create `.env.local` (git-ignored) with API keys. Multi-line secrets must be quot
 EIA_API_KEY=...
 FRED_API_KEY=...
 NASDAQ_API_KEY=...
-KALSHI_API_KEY=...
-KALSHI_API_SECRET="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+KALSHI_API_KEY_ID=...
+KALSHI_PRIVATE_KEY_PEM_PATH=/Users/example/kalshi_private_key.pem
 ```
 
 `kalshi_alpha.utils.env.load_env()` loads `.env.local` first, `.env` next, then falls back to environment variables.
@@ -227,18 +227,14 @@ KALSHI_API_SECRET="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KE
    - `data/proc/audit/live_orders_YYYY-MM-DD.jsonl` – audit trail.
    - `reports/_artifacts/go_no_go.json` – final gate decision.
 
-### 3. Known blocker
+### 3. Connectivity checklist
 
-Kalshi moved their trading API to `https://api.elections.kalshi.com/v1`. The legacy Basic Auth flow now returns HTTP 401 with the message “API has been moved to https://api.elections.kalshi.com/”. The elections API likely expects a JWT/OAuth handshake or different credential format. Until we have documentation for the new login flow, live submissions will fail with:
+- Trading endpoints now live at `https://api.elections.kalshi.com/trade-api/v2`. Requests must include `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP` (ms), `KALSHI-ACCESS-SIGNATURE` (RSA-PSS over `timestamp + METHOD + PATH`), and an `Authorization: Bearer <token>` header.
+- `LiveBroker` exchanges credentials with `/auth/token`, caches the short-lived bearer token, and transparently refreshes on HTTP 401.
+- Clock drift >5 s is rejected locally with a descriptive error—sync NTP before arming.
+- Structured logs mask keys to the last 4 characters and include idempotency key tails, retry counts, and HTTP status codes.
 
-```
-[broker] Failed to execute Kalshi trading API request
-```
-
-**Next actions:**
-- Obtain updated auth instructions (client ID/secret, token endpoint, etc.).
-- Update `LiveBroker` to exchange credentials for a bearer token and retry the request flow.
-- Re-run the live scan once the new authentication succeeds; confirm `orders_recorded` increments and audit JSONL captures the submissions.
+If connectivity fails, re-run with `--broker dry` to keep monitoring live data without order flow while troubleshooting credentials or clock issues.
 
 ---
 
