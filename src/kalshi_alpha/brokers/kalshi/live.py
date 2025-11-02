@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from requests import Response
 
 from kalshi_alpha.brokers.kalshi.base import Broker, BrokerOrder, ensure_directory
 from kalshi_alpha.brokers.kalshi.http_client import (
@@ -22,6 +23,7 @@ from kalshi_alpha.brokers.kalshi.http_client import (
     KalshiHttpError,
 )
 from kalshi_alpha.core.execution.order_queue import OrderQueue
+from kalshi_alpha.exec.telemetry.sink import TelemetrySink
 from kalshi_alpha.utils.env import load_env
 
 LOGGER = logging.getLogger(__name__)
@@ -72,6 +74,7 @@ class LiveBroker(Broker):
         retry_backoff: float = 0.5,
         http_client: KalshiHttpClient | None = None,
         order_queue: OrderQueue | None = None,
+        telemetry_sink: TelemetrySink | None = None,
     ) -> None:
         if os.environ.get("CI"):
             raise RuntimeError("Live broker is disabled while running under CI.")
@@ -94,6 +97,7 @@ class LiveBroker(Broker):
             max_retries=max_retries,
             audit_callback=self._queue_audit,
         )
+        self._telemetry = telemetry_sink
 
         LOGGER.info("Live broker initialized; submissions remain feature-gated.")
 
@@ -116,12 +120,23 @@ class LiveBroker(Broker):
 
         for order in accepted:
             payload = self._order_payload(order)
-            self._request(
-                "POST",
-                "/orders",
-                json_body=payload,
-                idempotency_key=order.idempotency_key,
-            )
+            event_payload = self._telemetry_payload(order, payload)
+            self._emit_telemetry("sent", event_payload)
+            try:
+                response = self._request(
+                    "POST",
+                    "/orders",
+                    json_body=payload,
+                    idempotency_key=order.idempotency_key,
+                )
+            except Exception as exc:  # pragma: no cover - verified via tests
+                error_payload = dict(event_payload)
+                error_payload["error"] = str(exc)
+                self._emit_telemetry("reject", error_payload)
+                raise
+            ack_payload = dict(event_payload)
+            ack_payload["status_code"] = response.status_code
+            self._emit_telemetry("ack", ack_payload)
             self._write_audit("place_intent", order)
 
     def cancel(self, order_ids: Sequence[str]) -> None:
@@ -159,21 +174,51 @@ class LiveBroker(Broker):
         payload = dict(metadata)
         payload.setdefault("queue_action", action)
         self._write_audit("queue_drop", extra=payload)
+        if metadata:
+            telem_payload = {
+                "queue_action": action,
+                "idempotency_key": metadata.get("idempotency_key"),
+                "order_id": metadata.get("order_id"),
+            }
+            self._emit_telemetry("reject", telem_payload)
 
     def _submit_cancel(self, order_id: str) -> None:
         endpoint = f"/orders/{order_id}/cancel"
-        self._request("POST", endpoint, json_body={})
+        try:
+            response = self._request("POST", endpoint, json_body={})
+        except Exception as exc:  # pragma: no cover - network errors surfaced in tests
+            self._emit_telemetry(
+                "reject",
+                {"order_id": order_id, "action": "cancel", "error": str(exc)},
+            )
+            raise
+        self._emit_telemetry(
+            "cancel",
+            {"order_id": order_id, "status_code": response.status_code},
+        )
         self._write_audit("cancel_intent", extra={"order_id": order_id})
 
     def _submit_replace(self, order_id: str, order: BrokerOrder) -> None:
         payload = self._order_payload(order)
         endpoint = f"/orders/{order_id}/replace"
-        self._request(
-            "POST",
-            endpoint,
-            json_body=payload,
-            idempotency_key=order.idempotency_key,
-        )
+        event_payload = self._telemetry_payload(order, payload)
+        event_payload["replace_of"] = order_id
+        self._emit_telemetry("sent", event_payload)
+        try:
+            response = self._request(
+                "POST",
+                endpoint,
+                json_body=payload,
+                idempotency_key=order.idempotency_key,
+            )
+        except Exception as exc:  # pragma: no cover
+            error_payload = dict(event_payload)
+            error_payload["error"] = str(exc)
+            self._emit_telemetry("reject", error_payload)
+            raise
+        ack_payload = dict(event_payload)
+        ack_payload["status_code"] = response.status_code
+        self._emit_telemetry("ack", ack_payload)
         self._write_audit(
             "replace_intent",
             extra={"order_id": order_id, "idempotency_key": order.idempotency_key},
@@ -190,6 +235,28 @@ class LiveBroker(Broker):
             "strike": order.strike,
         }
 
+    def _telemetry_payload(self, order: BrokerOrder, payload: dict[str, Any]) -> dict[str, Any]:
+        metadata = dict(order.metadata or {})
+        book_snapshot = metadata.get("book_snapshot") or metadata.get("orderbook")
+        event_payload: dict[str, Any] = {
+            "idempotency_key": order.idempotency_key,
+            "market_id": order.market_id,
+            "side": order.side,
+            "contracts": order.contracts,
+            "price": order.price,
+            "payload": payload,
+        }
+        if "order_id" in metadata:
+            event_payload["order_id"] = metadata.get("order_id")
+        if book_snapshot is not None:
+            event_payload["book_snapshot"] = book_snapshot
+        return event_payload
+
+    def _emit_telemetry(self, event_type: str, data: dict[str, Any]) -> None:
+        if self._telemetry is None:
+            return
+        self._telemetry.emit(event_type, source="rest", data=data)
+
     def _request(
         self,
         method: str,
@@ -197,10 +264,10 @@ class LiveBroker(Broker):
         *,
         json_body: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
-    ) -> None:
+    ) -> Response:
         self._rate_limiter.wait()
         try:
-            self._http.request(
+            response = self._http.request(
                 method,
                 endpoint,
                 json_body=json_body,
@@ -210,6 +277,7 @@ class LiveBroker(Broker):
             raise
         except KalshiHttpError as exc:
             raise RuntimeError("Failed to execute Kalshi trading API request") from exc
+        return response
 
     def _write_audit(
         self,

@@ -8,12 +8,13 @@ from pathlib import Path
 import pytest
 import requests
 import websockets
-from websockets.datastructures import Headers
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from websockets.datastructures import Headers
 
 from kalshi_alpha.brokers.kalshi.http_client import KalshiHttpClient
 from kalshi_alpha.brokers.kalshi.ws_client import KalshiWebsocketClient
+from kalshi_alpha.exec.telemetry.sink import TelemetrySink
 
 
 def _write_rsa_key(tmp_path: Path) -> Path:
@@ -55,23 +56,42 @@ async def test_websocket_client_connects_and_subscribes(
         except websockets.ConnectionClosedOK:  # pragma: no cover - defensive
             return
         received_messages.append(message)
-        await websocket.send(json.dumps({"status": "ok"}))
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "order_update",
+                    "status": "acknowledged",
+                    "order_id": "O-1",
+                    "idempotency_key": "idem-123",
+                    "book_snapshot": {"best_bid": 0.45},
+                    "ts_ms": 1700000000000,
+                }
+            )
+        )
+        await websocket.send(json.dumps({"type": "heartbeat", "ts": 1700000001000}))
 
     async with websockets.serve(handler, "localhost", 0) as server:
         port = server.sockets[0].getsockname()[1]
         ws_url = f"ws://localhost:{port}/trade-api/ws/v2"
 
         http_client = KalshiHttpClient(session=requests.Session(), clock=_RealtimeClock())
+        telemetry = TelemetrySink(
+            base_dir=tmp_path / "telemetry_ws",
+            clock=lambda: datetime(2025, 11, 2, tzinfo=UTC),
+        )
         ws_client = KalshiWebsocketClient(
             base_url=ws_url,
             http_client=http_client,
             max_retries=1,
             retry_backoff=0.05,
+            telemetry_sink=telemetry,
         )
 
         await ws_client.subscribe({"type": "subscribe", "channels": ["markets"]})
         response = await ws_client.receive()
-        assert json.loads(response)["status"] == "ok"
+        assert response["status"] == "acknowledged"
+        heartbeat = await ws_client.receive()
+        assert heartbeat["type"] == "heartbeat"
         await ws_client.close()
 
     assert received_headers is not None
@@ -91,3 +111,10 @@ async def test_websocket_client_connects_and_subscribes(
     )
 
     assert received_messages == [json.dumps({"type": "subscribe", "channels": ["markets"]})]
+
+    telemetry_files = sorted((tmp_path / "telemetry_ws").rglob("exec.jsonl"))
+    assert telemetry_files
+    entries = [json.loads(line) for line in telemetry_files[0].read_text().splitlines()]
+    event_types = {entry["event_type"] for entry in entries}
+    assert "ack" in event_types
+    assert "heartbeat" in event_types
