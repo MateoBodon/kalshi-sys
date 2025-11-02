@@ -29,6 +29,11 @@
 - Run `make monitors` (or `python -m kalshi_alpha.exec.monitors.cli`) to evaluate EV gap, fill realism, drawdown, websocket health, and auth streaks. JSON artifacts are written to `reports/_artifacts/monitors/` and the summary block in `REPORT.md` is refreshed automatically.
 - Configure optional Slack notifications by exporting `KALSHI_MONITOR_SLACK_WEBHOOK`; the CLI posts a compact alert message when any monitor breaches.
 - Install the provided systemd unit/timer (`configs/systemd/kalshi-alpha-monitors.*`) to execute monitors every five minutes. Adjust thresholds via CLI flags as needed.
+- The monitor suite now includes:
+  - `ev_seq_guard`: one-sided CuSum detector on Δbps streams. Any ALERT forces a ramp `NO-GO` and trips the panic-backoff gate.
+  - `freeze_window`: enforces the pre-event freeze schedule (CPI T-24h @ 06:00 ET, Claims Wednesday 18:00 ET, TenY 13:30 ET, Weather cycle start). ALERT means submissions must halt until the freeze lifts.
+  - Kill-switch and drawdown state are surfaced directly in monitor payloads so the final broker gate has a single source of truth.
+- When three or more distinct monitors alert within a 30-minute window the CLI emits a `panic_backoff=true` flag; the ramp policy treats this as a day-long `NO-GO` unless an ops override is signed off.
 
 ## Pilot Ramp Policy
 - `make pilot-readiness` (wrapper around `python -m kalshi_alpha.exec.reports.ramp`) evaluates ledger performance per series, enforces ramp guardrails, and emits:
@@ -36,6 +41,11 @@
   - `reports/pilot_readiness.md` — operator-facing summary table with fills, Δbps, t-stat, guardrail breaches, and drawdown state.
 - Thresholds follow the default policy (fills ≥300, Δbps ≥ +6, t-stat ≥ 2.0, zero guardrail breaches, drawdown intact). Override via CLI flags when testing new families.
 - For unattended runs, enable the `kalshi-alpha-runner.*` timer; it executes `make report` followed by `make pilot-readiness` each weekday at 05:30 ET.
+- Ramp readiness now incorporates freshness and safety gates:
+  - Ledger and monitor artifacts must be ≤2 hours old; stale inputs automatically produce `ledger_stale` / `monitors_stale` reasons.
+  - Panic backoff (`panic_backoff`) mirrors the runtime monitor aggregation and blocks submission for the trading day.
+  - The sequential EV guard adds a per-series CuSum detector; any `sequential_alert` appears in JSON/Markdown and overrides legacy t-stat logic.
+  - Freeze windows appear as `freeze_window` reasons when Ops is inside the T-24h/T-18h pre-event freezes. See [Freeze Windows & Pre-Event Policy](#freeze-windows--pre-event-policy).
 
 ## Ops Glue & Log Rotation
 - Systemd unit templates under `configs/systemd/` cover the daily runner, recurring monitors sweep, and telemetry shipper. Deploy with `systemctl enable --now kalshi-alpha-monitors.timer` (and analogous commands for runner/telemetry).
@@ -157,3 +167,29 @@ GitHub Actions triggers the offline pipeline nightly:
 - Runs `daily.py --mode full --offline` using fixtures.
 - Uploads Markdown reports and ledger artifacts as workflow artifacts (`offline-reports`).
 - See `.github/workflows/ci.yml` for configuration.
+
+## Freeze Windows & Pre-Event Policy
+- **CPI**: Freeze begins T-24h at 06:00 ET the day before release; scans run between 06:00 and release minus 10 minutes.
+- **Claims**: Freeze begins Wednesday 18:00 ET even on holiday shifts; Thursday morning scans close 5 minutes before 08:30 ET release.
+- **TenY**: Freeze begins 13:30 ET on trading day; window closes at 15:25 ET.
+- **Weather**: Freeze aligns with the four-cycle hours (00Z/06Z/12Z/18Z); submissions must start and end inside the 45-minute window.
+- The `freeze_window` monitor and ramp report surface active freezes; brokers must respect `NO-GO` until the window clears or Ops issues an explicit override memo.
+
+## Pilot Bundle Workflow & Review Checklist
+1. **Pre-flight**
+   - `make monitors` and confirm no ALERTs besides known issues.
+   - `make pilot-readiness` to refresh `reports/pilot_ready.json` / `pilot_readiness.md`.
+   - `make report` (optional) to refresh scoreboards.
+2. **Bundle creation**
+   - Run `make pilot-bundle` (wrapper for `python -m kalshi_alpha.exec.pilot_bundle`).
+   - Default output: `reports/pilot_bundle_YYYYMMDD_HHMMSS.tar.gz` containing pilot readiness JSON/Markdown, scoreboards, latest ladder report(s), monitor JSON artifacts, go/no-go state, and a telemetry slice (≤3 newest `data/raw/kalshi/.../exec.jsonl` files).
+   - Inspect `manifest.json` inside the tarball for a machine-readable file list and timestamps.
+3. **Review checklist**
+   - Confirm `overall.go` vs `overall.no_go`, and scan `overall.global_reasons`, `sequential_alert_series`, and `freeze_violation_series`.
+   - Review monitor JSON for `panic_backoff`, `ev_seq_guard`, `freeze_window`, and `kill_switch` statuses. Any ALERT requires Ops sign-off before proceeding.
+   - Verify ladder Markdown includes latest freeze window notes and sequential stats for the traded series.
+   - Check telemetry tail for rejects/auth streaks; if missing, rerun `make monitors` to regenerate artifacts.
+4. **Rollback procedure**
+   - Touch the kill-switch sentinel (`python -m kalshi_alpha.exec.heartbeat --kill-switch on`) or create `data/proc/state/kill_switch` to hard-stop submissions.
+   - rerun `make monitors` and `make pilot-bundle` to capture the stop decision in artifacts.
+   - Document the rollback rationale in Ops notes and archive the bundle for audit.
