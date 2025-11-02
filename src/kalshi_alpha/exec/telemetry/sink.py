@@ -24,6 +24,80 @@ EVENT_TYPES = {
     "ws_heartbeat_timeout",
 }
 
+DEFAULT_BOOK_DEPTH = 5
+
+
+def sanitize_book_snapshot(
+    snapshot: object,
+    *,
+    depth: int = DEFAULT_BOOK_DEPTH,
+) -> dict[str, Any] | list[dict[str, Any]] | None:
+    """Return a depth-limited, JSON-serialisable book snapshot."""
+
+    if snapshot is None:
+        return None
+
+    if isinstance(snapshot, Mapping):
+        sanitized: dict[str, Any] = {}
+        for key, value in snapshot.items():
+            lowered = key.lower()
+            if lowered in {"bids", "asks"}:
+                sanitized[key] = _sanitize_book_levels(value, depth=depth)
+                continue
+            sanitized[key] = _coerce(value)
+        return sanitized
+
+    if isinstance(snapshot, Sequence) and not isinstance(snapshot, (str, bytes, bytearray)):
+        return _sanitize_book_levels(snapshot, depth=depth)
+
+    return {"value": _coerce(snapshot)}
+
+
+def _sanitize_book_levels(
+    levels: Sequence[object] | Mapping[str, object],
+    *,
+    depth: int,
+) -> list[dict[str, Any]]:
+    items: list[object]
+    if isinstance(levels, Mapping):
+        items = [dict(price=key, size=value) for key, value in levels.items()]
+    else:
+        items = list(levels)
+
+    limited = items[: max(depth, 0)]
+    result: list[dict[str, Any]] = []
+    for entry in limited:
+        if isinstance(entry, Mapping):
+            price = _safe_float(entry.get("price"))
+            size = _safe_float(entry.get("size"))
+        elif isinstance(entry, Sequence) and len(entry) >= 2:
+            price = _safe_float(entry[0])
+            size = _safe_float(entry[1])
+        else:
+            price = _safe_float(entry)
+            size = None
+        payload: dict[str, Any] = {}
+        if price is not None:
+            payload["price"] = price
+        if size is not None:
+            payload["size"] = size
+        if payload:
+            result.append(payload)
+    return result
+
+
+def _safe_float(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, (float, int)):
+            return float(value)
+        if isinstance(value, str):
+            return float(value)
+    except (TypeError, ValueError):
+        return None
+    return None
+
 DEFAULT_BASE_DIR = Path("data/raw/kalshi")
 
 
@@ -51,7 +125,10 @@ def _sanitize(mapping: Mapping[str, Any]) -> dict[str, Any]:
     for key, value in mapping.items():
         lowered = key.lower()
         if isinstance(value, str) and (
-            "signature" in lowered or "access-key" in lowered or "private" in lowered
+            "signature" in lowered
+            or "access-key" in lowered
+            or "private" in lowered
+            or "idempotency" in lowered
         ):
             sanitized[key] = _mask(value)
             continue

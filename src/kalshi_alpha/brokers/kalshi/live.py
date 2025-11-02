@@ -23,7 +23,7 @@ from kalshi_alpha.brokers.kalshi.http_client import (
     KalshiHttpError,
 )
 from kalshi_alpha.core.execution.order_queue import OrderQueue
-from kalshi_alpha.exec.telemetry.sink import TelemetrySink
+from kalshi_alpha.exec.telemetry import TelemetrySink, sanitize_book_snapshot
 from kalshi_alpha.utils.env import load_env
 
 LOGGER = logging.getLogger(__name__)
@@ -122,6 +122,7 @@ class LiveBroker(Broker):
             payload = self._order_payload(order)
             event_payload = self._telemetry_payload(order, payload)
             self._emit_telemetry("sent", event_payload)
+            start_ns = time.perf_counter_ns()
             try:
                 response = self._request(
                     "POST",
@@ -132,10 +133,14 @@ class LiveBroker(Broker):
             except Exception as exc:  # pragma: no cover - verified via tests
                 error_payload = dict(event_payload)
                 error_payload["error"] = str(exc)
+                if exc.__cause__ is not None:
+                    error_payload["error_cause"] = str(exc.__cause__)
+                error_payload["latency_ms"] = self._elapsed_ms(start_ns)
                 self._emit_telemetry("reject", error_payload)
                 raise
             ack_payload = dict(event_payload)
             ack_payload["status_code"] = response.status_code
+            ack_payload["latency_ms"] = self._elapsed_ms(start_ns)
             self._emit_telemetry("ack", ack_payload)
             self._write_audit("place_intent", order)
 
@@ -184,17 +189,28 @@ class LiveBroker(Broker):
 
     def _submit_cancel(self, order_id: str) -> None:
         endpoint = f"/orders/{order_id}/cancel"
+        start_ns = time.perf_counter_ns()
         try:
             response = self._request("POST", endpoint, json_body={})
         except Exception as exc:  # pragma: no cover - network errors surfaced in tests
             self._emit_telemetry(
                 "reject",
-                {"order_id": order_id, "action": "cancel", "error": str(exc)},
+                {
+                    "order_id": order_id,
+                    "action": "cancel",
+                    "error": str(exc),
+                    "error_cause": str(exc.__cause__) if exc.__cause__ is not None else None,
+                    "latency_ms": self._elapsed_ms(start_ns),
+                },
             )
             raise
         self._emit_telemetry(
             "cancel",
-            {"order_id": order_id, "status_code": response.status_code},
+            {
+                "order_id": order_id,
+                "status_code": response.status_code,
+                "latency_ms": self._elapsed_ms(start_ns),
+            },
         )
         self._write_audit("cancel_intent", extra={"order_id": order_id})
 
@@ -204,6 +220,7 @@ class LiveBroker(Broker):
         event_payload = self._telemetry_payload(order, payload)
         event_payload["replace_of"] = order_id
         self._emit_telemetry("sent", event_payload)
+        start_ns = time.perf_counter_ns()
         try:
             response = self._request(
                 "POST",
@@ -214,10 +231,14 @@ class LiveBroker(Broker):
         except Exception as exc:  # pragma: no cover
             error_payload = dict(event_payload)
             error_payload["error"] = str(exc)
+            if exc.__cause__ is not None:
+                error_payload["error_cause"] = str(exc.__cause__)
+            error_payload["latency_ms"] = self._elapsed_ms(start_ns)
             self._emit_telemetry("reject", error_payload)
             raise
         ack_payload = dict(event_payload)
         ack_payload["status_code"] = response.status_code
+        ack_payload["latency_ms"] = self._elapsed_ms(start_ns)
         self._emit_telemetry("ack", ack_payload)
         self._write_audit(
             "replace_intent",
@@ -238,24 +259,34 @@ class LiveBroker(Broker):
     def _telemetry_payload(self, order: BrokerOrder, payload: dict[str, Any]) -> dict[str, Any]:
         metadata = dict(order.metadata or {})
         book_snapshot = metadata.get("book_snapshot") or metadata.get("orderbook")
+        sanitized_snapshot = sanitize_book_snapshot(book_snapshot)
+        metadata.pop("book_snapshot", None)
+        metadata.pop("orderbook", None)
         event_payload: dict[str, Any] = {
             "idempotency_key": order.idempotency_key,
             "market_id": order.market_id,
             "side": order.side,
             "contracts": order.contracts,
             "price": order.price,
-            "payload": payload,
+            "size": order.contracts,
+            "probability": order.probability,
         }
         if "order_id" in metadata:
             event_payload["order_id"] = metadata.get("order_id")
-        if book_snapshot is not None:
-            event_payload["book_snapshot"] = book_snapshot
+        if sanitized_snapshot is not None:
+            event_payload["book_snapshot"] = sanitized_snapshot
+        if metadata:
+            event_payload["metadata"] = metadata
         return event_payload
 
     def _emit_telemetry(self, event_type: str, data: dict[str, Any]) -> None:
         if self._telemetry is None:
             return
         self._telemetry.emit(event_type, source="rest", data=data)
+
+    @staticmethod
+    def _elapsed_ms(start_ns: int) -> float:
+        return max(0.0, (time.perf_counter_ns() - start_ns) / 1_000_000.0)
 
     def _request(
         self,

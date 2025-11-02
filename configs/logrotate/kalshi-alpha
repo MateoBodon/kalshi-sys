@@ -1,0 +1,8 @@
+/opt/kalshi-alpha/data/raw/kalshi/*/*/*/exec.jsonl {
+    daily
+    rotate 14
+    compress
+    missingok
+    copytruncate
+    notifempty
+}

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-
 from typing import Any
 
 from kalshi_alpha.brokers.kalshi.base import Broker
@@ -31,7 +30,7 @@ def create_broker(
             raise RuntimeError(
                 "Live broker requires explicit acknowledgement via --i-understand-the-risks."
             )
-        from kalshi_alpha.brokers.kalshi.live import LiveBroker
+        from kalshi_alpha.brokers.kalshi.live import LiveBroker  # noqa: PLC0415
 
         options = dict(live_kwargs or {})
         options.setdefault("artifacts_dir", artifacts_dir)

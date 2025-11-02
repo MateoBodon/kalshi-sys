@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from kalshi_alpha.exec.heartbeat import write_heartbeat
 from kalshi_alpha.exec.pipelines import daily
 from kalshi_alpha.exec.pipelines.calendar import ET, resolve_run_window
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
-from kalshi_alpha.exec.heartbeat import write_heartbeat
+
+LOGGER = logging.getLogger(__name__)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -229,8 +232,8 @@ def _plan_runs(
             diff = (release_date - today_et).days
             if diff == 0 or (diff == 1 and cpi_window.freeze_active(now)):
                 add("pre_cpi", release_date)
-    except Exception:  # pragma: no cover - calendar missing
-        pass
+    except Exception as exc:  # pragma: no cover - calendar missing
+        LOGGER.debug("Skipping CPI run planning: %s", exc)
 
     # Claims (Wed PM / Thu AM)
     try:
@@ -242,8 +245,8 @@ def _plan_runs(
                 add("pre_claims", claims_date)
             elif diff == 1 and claims_window.freeze_active(now):
                 add("pre_claims", claims_date)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as exc:  # pragma: no cover
+        LOGGER.debug("Skipping claims run planning: %s", exc)
 
     # Ten-year close (business days only)
     try:
@@ -251,8 +254,8 @@ def _plan_runs(
             teny_window = resolve_run_window(mode="teny_close", target_date=today_et, now=now)
             if teny_window.reference and teny_window.reference.astimezone(ET).date() == today_et:
                 add("teny_close", today_et)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as exc:  # pragma: no cover
+        LOGGER.debug("Skipping ten-year run planning: %s", exc)
 
     if include_weather:
         add("weather_cycle", today_et)

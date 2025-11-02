@@ -6,9 +6,10 @@ import argparse
 import json
 import statistics
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from kalshi_alpha.core.archive.scorecards import build_replay_scorecard
@@ -28,7 +29,7 @@ from kalshi_alpha.exec.heartbeat import (
     write_heartbeat,
 )
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
-from kalshi_alpha.exec.pipelines.calendar import resolve_run_window
+from kalshi_alpha.exec.pipelines.calendar import RunWindow, resolve_run_window
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
     _apply_ev_honesty_gate,
@@ -48,6 +49,10 @@ from kalshi_alpha.strategies.claims import calibrate as calibrate_claims
 from kalshi_alpha.strategies.cpi import calibrate as calibrate_cpi
 from kalshi_alpha.strategies.teny import calibrate as calibrate_teny
 from kalshi_alpha.strategies.weather import calibrate as calibrate_weather
+from kalshi_alpha.utils.secrets import ensure_safe_payload
+
+if TYPE_CHECKING:  # pragma: no cover
+    from kalshi_alpha.exec.pipelines.today import ScheduledRun
 
 ET = ZoneInfo("America/New_York")
 
@@ -319,30 +324,29 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
                 reason = ",".join(run_window.notes)
             log.setdefault("scan_notes", {})[mode] = reason
             return
+        elif series is None:
+            log.setdefault("scan_notes", {})[mode] = "series_not_supported"
         else:
-            if series is None:
-                log.setdefault("scan_notes", {})[mode] = "series_not_supported"
-            else:
-                if not scan_allowed and force_run_enabled:
-                    log.setdefault("scan_notes", {})[mode] = "force_run_dry"
-                _refresh_heartbeat(
-                    "pre_scan",
-                    {
-                        "series": series,
-                        "run_window": run_window.to_dict(now_utc),
-                        "force_run": force_run_enabled,
-                        "outside_window": not scan_allowed,
-                        "when": (args.when.isoformat() if getattr(args, "when", None) else None),
-                    },
-                )
-                run_scan(
-                    mode,
-                    args,
-                    log,
-                    series=series,
-                    fill_alpha_value=fill_alpha_value,
-                    fill_alpha_auto=fill_alpha_auto,
-                )
+            if not scan_allowed and force_run_enabled:
+                log.setdefault("scan_notes", {})[mode] = "force_run_dry"
+            _refresh_heartbeat(
+                "pre_scan",
+                {
+                    "series": series,
+                    "run_window": run_window.to_dict(now_utc),
+                    "force_run": force_run_enabled,
+                    "outside_window": not scan_allowed,
+                    "when": (args.when.isoformat() if getattr(args, "when", None) else None),
+                },
+            )
+            run_scan(
+                mode,
+                args,
+                log,
+                series=series,
+                fill_alpha_value=fill_alpha_value,
+                fill_alpha_auto=fill_alpha_auto,
+            )
     except Exception as exc:  # pragma: no cover - orchestration guard
         log.setdefault("errors", []).append(str(exc))
         raise
@@ -390,13 +394,17 @@ def run_calibrations(
         "weather": load_history("weather"),
     }
 
-    def calibrate_wrapper(name: str, func, history) -> None:
+    def calibrate_wrapper(
+        name: str,
+        func: Callable[[Sequence[dict[str, object]]], None],
+        history: Sequence[dict[str, object]] | None,
+    ) -> None:
         if not history:
             log.setdefault("calibration_skipped", {})[name] = "missing_history"
             if heartbeat_cb:
                 heartbeat_cb("post_calibrate", {"calibration": name, "status": "skipped"})
             return
-        run_step(name=f"calibrate_{name}", log=log, func=lambda: func(history))
+        run_step(name=f"calibrate_{name}", log=log, func=lambda: func(list(history)))
         if heartbeat_cb:
             heartbeat_cb("post_calibrate", {"calibration": name})
 
@@ -496,7 +504,7 @@ def _write_latest_manifest(manifest_path: Path | None) -> None:
 
 def _parse_date(value: str) -> date:
     try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
+        return date.fromisoformat(value)
     except ValueError as exc:  # pragma: no cover - surfaced via argparse
         raise argparse.ArgumentTypeError(f"Invalid date for --when: {value}") from exc
 
@@ -541,7 +549,7 @@ def _compute_next_window(
     start_date: date,
     now_utc: datetime,
     max_days: int = 14,
-) -> tuple[date, "RunWindow"]:
+) -> tuple[date, RunWindow]:
     """Find the next run window on or after ``start_date`` that closes in the future."""
 
     candidate_date = start_date
@@ -554,7 +562,12 @@ def _compute_next_window(
     return candidate_date - timedelta(days=1), window
 
 
-def _format_window_line(prefix: str, run_window, *, include_notes: bool = False) -> str:
+def _format_window_line(
+    prefix: str,
+    run_window: ScheduledRun,
+    *,
+    include_notes: bool = False,
+) -> str:
     scan_open = run_window.scan_open.astimezone(ET).isoformat() if run_window.scan_open else "n/a"
     scan_close = run_window.scan_close.astimezone(ET).isoformat() if run_window.scan_close else "n/a"
     line = f"{prefix}: open={scan_open} close={scan_close}"
@@ -563,7 +576,7 @@ def _format_window_line(prefix: str, run_window, *, include_notes: bool = False)
     return line
 
 
-def _print_next_window(mode: str, window_date: date, run_window) -> None:
+def _print_next_window(mode: str, window_date: date, run_window: ScheduledRun) -> None:
     print(f"[snap] Next window for {mode.upper()} on {window_date.isoformat()}")
     print(_format_window_line("[snap] Window (ET)", run_window, include_notes=True))
 
@@ -573,7 +586,7 @@ def _apply_snap_option(
     mode: str,
     args: argparse.Namespace,
     now_utc: datetime,
-) -> tuple[datetime, date, "RunWindow", bool] | None:
+) -> tuple[datetime, date, RunWindow, bool] | None:
     """Handle snap-to-window logic. Returns (now, date, window, waited) or None if we should exit."""
 
     target_date: date = args.when if getattr(args, "when", None) else now_utc.astimezone(ET).date()
@@ -970,7 +983,12 @@ def resolve_series(mode: str) -> str | None:
     return None
 
 
-def run_step(name: str, log: dict[str, object], func, metadata: dict | None = None) -> None:
+def run_step(
+    name: str,
+    log: dict[str, object],
+    func: Callable[[], object | None],
+    metadata: dict | None = None,
+) -> None:
     entry = {"step": name, "started": datetime.now(tz=UTC).isoformat()}
     if metadata:
         entry["metadata"] = metadata
@@ -991,8 +1009,6 @@ def write_log(mode: str, log: dict[str, object], now_utc: datetime) -> None:
     date_dir = PROC_ROOT / "logs" / now_utc.date().isoformat()
     date_dir.mkdir(parents=True, exist_ok=True)
     filename = date_dir / f"{now_utc.strftime('%H%M%S')}_{mode}.json"
-    from kalshi_alpha.utils.secrets import ensure_safe_payload
-
     ensure_safe_payload(log)
     filename.write_text(json.dumps(log, indent=2, sort_keys=True), encoding="utf-8")
 

@@ -1,0 +1,9 @@
+[Unit]
+Description=Ship Kalshi telemetry hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

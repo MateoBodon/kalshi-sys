@@ -4,6 +4,7 @@ import base64
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import requests
@@ -12,9 +13,9 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from websockets.datastructures import Headers
 
-from kalshi_alpha.brokers.kalshi.http_client import KalshiHttpClient
+from kalshi_alpha.brokers.kalshi.http_client import Clock, KalshiHttpClient
 from kalshi_alpha.brokers.kalshi.ws_client import KalshiWebsocketClient
-from kalshi_alpha.exec.telemetry.sink import TelemetrySink
+from kalshi_alpha.exec.telemetry import TelemetrySink
 
 
 def _write_rsa_key(tmp_path: Path) -> Path:
@@ -29,7 +30,7 @@ def _write_rsa_key(tmp_path: Path) -> Path:
     return path
 
 
-class _RealtimeClock:
+class _RealtimeClock(Clock):
     def now(self) -> datetime:
         return datetime.now(tz=UTC)
 
@@ -48,7 +49,7 @@ async def test_websocket_client_connects_and_subscribes(
     received_headers: Headers | None = None
     received_messages: list[str] = []
 
-    async def handler(websocket: websockets.WebSocketServerProtocol) -> None:
+    async def handler(websocket: Any) -> None:
         nonlocal received_headers
         received_headers = websocket.request.headers
         try:
@@ -71,7 +72,8 @@ async def test_websocket_client_connects_and_subscribes(
         await websocket.send(json.dumps({"type": "heartbeat", "ts": 1700000001000}))
 
     async with websockets.serve(handler, "localhost", 0) as server:
-        port = server.sockets[0].getsockname()[1]
+        sockets = list(server.sockets or [])
+        port = sockets[0].getsockname()[1]
         ws_url = f"ws://localhost:{port}/trade-api/ws/v2"
 
         http_client = KalshiHttpClient(session=requests.Session(), clock=_RealtimeClock())
@@ -103,7 +105,8 @@ async def test_websocket_client_connects_and_subscribes(
     signature = base64.b64decode(signature_header)
 
     payload = f"{timestamp_ms}GET/trade-api/ws/v2".encode()
-    public_key.verify(
+    rsa_public = cast(rsa.RSAPublicKey, public_key)
+    rsa_public.verify(
         signature,
         payload,
         padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
@@ -114,7 +117,14 @@ async def test_websocket_client_connects_and_subscribes(
 
     telemetry_files = sorted((tmp_path / "telemetry_ws").rglob("exec.jsonl"))
     assert telemetry_files
-    entries = [json.loads(line) for line in telemetry_files[0].read_text().splitlines()]
-    event_types = {entry["event_type"] for entry in entries}
-    assert "ack" in event_types
-    assert "heartbeat" in event_types
+    entries = [cast(dict[str, Any], json.loads(line)) for line in telemetry_files[0].read_text().splitlines()]
+    event_map = {
+        entry["event_type"]: cast(dict[str, Any], entry["data"])
+        for entry in entries
+    }
+    ack_payload = event_map["ack"]
+    assert ack_payload["order_id"] == "O-1"
+    assert ack_payload["latency_ms"] >= 0.0
+    assert ack_payload["book_snapshot"]["best_bid"] == 0.45
+    heartbeat_payload = event_map["heartbeat"]
+    assert heartbeat_payload["latency_ms"] >= 0.0

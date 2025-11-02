@@ -18,7 +18,12 @@ def test_cleveland_nowcast_online_parsing(monkeypatch: pytest.MonkeyPatch) -> No
     json_bytes = fixtures.joinpath("sample_nowcast.json").read_bytes()
     responses = [page_bytes, json_bytes]
 
-    def fake_fetch(url: str, cache_path: Path, session=None, force_refresh=False):  # type: ignore[override]
+    def fake_fetch(
+        url: str,
+        cache_path: Path,
+        session: object | None = None,
+        force_refresh: bool = False,
+    ) -> bytes:
         return responses.pop(0)
 
     monkeypatch.setattr(cleveland_nowcast, "fetch_with_cache", fake_fetch)

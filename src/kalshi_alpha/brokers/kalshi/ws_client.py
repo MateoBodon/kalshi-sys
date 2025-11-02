@@ -17,7 +17,7 @@ from websockets.asyncio.connection import State as WebsocketState
 from websockets.exceptions import ConnectionClosedError
 
 from kalshi_alpha.brokers.kalshi.http_client import KalshiHttpClient
-from kalshi_alpha.exec.telemetry.sink import TelemetrySink
+from kalshi_alpha.exec.telemetry import TelemetrySink, sanitize_book_snapshot
 
 LOGGER = logging.getLogger(__name__)
 
@@ -242,7 +242,11 @@ class KalshiWebsocketClient:
         msg_type = str(message.get("type") or "").lower()
         if msg_type == "heartbeat":
             self._last_heartbeat = self._clock()
-            self._emit_ws_event("heartbeat", {"ts": message.get("ts")})
+            payload: dict[str, Any] = {"ts": message.get("ts")}
+            ts_ms = _safe_int(message.get("ts"))
+            if ts_ms is not None:
+                payload["latency_ms"] = self._message_latency(ts_ms)
+            self._emit_ws_event("heartbeat", payload)
             return
         if msg_type == "order_update":
             status = str(message.get("status") or "").lower()
@@ -253,16 +257,7 @@ class KalshiWebsocketClient:
                     {"reason": "unknown_status", "status": status, "message": message},
                 )
                 return
-            payload = {
-                "order_id": message.get("order_id"),
-                "idempotency_key": message.get("idempotency_key"),
-                "status": status,
-                "filled_size": message.get("filled_size"),
-                "remaining_size": message.get("remaining_size"),
-                "fill_price": message.get("fill_price"),
-                "book_snapshot": message.get("book_snapshot"),
-                "ts_ms": message.get("ts_ms"),
-            }
+            payload = self._build_order_payload(status=status, message=message)
             self._emit_ws_event(event, payload)
             return
         if msg_type == "error":
@@ -273,4 +268,66 @@ class KalshiWebsocketClient:
                 "ws_malformed",
                 {"reason": "unknown_type", "type": msg_type, "message": message},
             )
+
+    def _build_order_payload(
+        self,
+        *,
+        status: str,
+        message: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "order_id": message.get("order_id"),
+            "idempotency_key": message.get("idempotency_key"),
+            "status": status,
+            "filled_size": _safe_float(message.get("filled_size")),
+            "remaining_size": _safe_float(message.get("remaining_size")),
+        }
+        side = message.get("side")
+        if isinstance(side, str) and side:
+            payload["side"] = side.upper()
+        price_source = message.get("fill_price", message.get("price"))
+        price_value = _safe_float(price_source)
+        if price_value is not None:
+            payload["price"] = price_value
+        size_source = message.get("contracts", message.get("size"))
+        size_value = _safe_float(size_source)
+        if size_value is not None:
+            payload["size"] = size_value
+        ts_ms = _safe_int(message.get("ts_ms"))
+        if ts_ms is not None:
+            payload["ts_ms"] = ts_ms
+            payload["latency_ms"] = self._message_latency(ts_ms)
+        snapshot = message.get("book_snapshot")
+        sanitized_snapshot = sanitize_book_snapshot(snapshot)
+        if sanitized_snapshot is not None:
+            payload["book_snapshot"] = sanitized_snapshot
+        return payload
+
+    def _message_latency(self, ts_ms: int) -> float:
+        now = self._clock()
+        return max(0.0, now.timestamp() * 1000.0 - float(ts_ms))
 _HAS_ADDITIONAL_HEADERS = "additional_headers" in inspect.signature(websockets.connect).parameters
+
+
+def _safe_float(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str) and value.strip():
+            return float(value)
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _safe_int(value: object) -> int | None:
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float, str)):
+            return int(value)
+    except (TypeError, ValueError):
+        return None
+    return None

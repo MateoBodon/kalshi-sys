@@ -7,88 +7,74 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from kalshi_alpha.exec import scoreboard
+from kalshi_alpha.core.risk import drawdown
+from kalshi_alpha.exec.reports.ramp import RampPolicyConfig, compute_ramp_policy, write_ramp_outputs
 
 
-def test_pilot_readiness_report(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
+def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
+    now = datetime(2025, 11, 2, tzinfo=UTC)
 
-    data_dir = tmp_path / "data" / "proc"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(tz=UTC)
-
+    ledger_path = tmp_path / "data" / "proc" / "ledger_all.parquet"
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
     ledger = pl.DataFrame(
         {
-            "series": ["CPI", "CPI", "CLAIMS"],
-            "ev_after_fees": [12.0, -3.0, 5.0],
-            "pnl_simulated": [11.0, -2.5, 4.0],
-            "expected_fills": [80, 40, 30],
-            "size": [100, 50, 40],
-            "fill_ratio": [0.8, 0.6, 0.7],
-            "t_fill_ms": [100.0, 140.0, 180.0],
-            "size_partial": [0, 5, 3],
-            "slippage_ticks": [1.0, -0.8, 0.5],
-            "ev_expected_bps": [110.0, -45.0, 60.0],
-            "ev_realized_bps": [105.0, -40.0, 55.0],
-            "fees_bps": [3.0, 4.0, 5.0],
-            "timestamp_et": [
-                now - timedelta(days=1),
-                now - timedelta(days=2),
-                now - timedelta(days=3),
-            ],
+            "series": ["CPI"] * 6 + ["CLAIMS"] * 6,
+            "ev_expected_bps": [10.0] * 6 + [8.0] * 6,
+            "ev_realized_bps": [18.0, 17.5, 18.6, 18.1, 17.9, 18.4, 6.0, 6.2, 5.8, 6.1, 5.9, 6.0],
+            "expected_fills": [60, 55, 50, 52, 58, 62, 20, 18, 22, 19, 21, 23],
+            "timestamp_et": [now - timedelta(days=idx) for idx in range(1, 7)]
+            + [now - timedelta(days=idx) for idx in range(1, 7)],
         }
     )
-    ledger.write_parquet(data_dir / "ledger_all.parquet")
-
-    alpha_state = {
-        "series": {
-            "CPI": {"alpha": 0.65, "ts": (now - timedelta(hours=1)).isoformat()},
-            "CLAIMS": {"alpha": 0.55, "ts": (now - timedelta(hours=1)).isoformat()},
-        }
-    }
-    state_dir = data_dir / "state"
-    state_dir.mkdir(parents=True, exist_ok=True)
-    state_dir.joinpath("fill_alpha.json").write_text(json.dumps(alpha_state), encoding="utf-8")
+    ledger.write_parquet(ledger_path)
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    go_events = [
-        {"go": True, "series": "CPI", "timestamp": (now - timedelta(days=1)).isoformat()},
-        {"go": False, "series": "CPI", "timestamp": (now - timedelta(days=1)).isoformat()},
-        {"go": True, "series": "CLAIMS", "timestamp": (now - timedelta(days=2)).isoformat()},
-    ]
-    for idx, payload in enumerate(go_events, start=1):
-        artifacts_dir.joinpath(f"go_no_go_{idx}.json").write_text(
-            json.dumps(payload),
-            encoding="utf-8",
-        )
+    artifacts_dir.joinpath("go_no_go_1.json").write_text(
+        json.dumps(
+            {
+                "go": False,
+                "series": "CLAIMS",
+                "timestamp": (now - timedelta(days=2)).isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
 
-    scorecard_dir = artifacts_dir / "scorecards"
-    scorecard_dir.mkdir(parents=True, exist_ok=True)
-    pl.DataFrame(
-        {
-            "market_id": ["M1"],
-            "market_ticker": ["CPI-T"],
-            "mean_abs_cdf_delta": [0.025],
-            "max_abs_cdf_delta": [0.080],
-            "prob_sum_gap": [0.01],
-            "max_kink": [0.02],
-            "mean_abs_kink": [0.01],
-            "kink_count": [2],
-            "monotonicity_penalty": [0.0],
-            "model_version": ["v15"],
-        }
-    ).write_parquet(scorecard_dir / "CPI_summary.parquet")
+    proc_root = tmp_path / "data" / "proc"
+    drawdown_state_dir = proc_root
+    drawdown.record_pnl(500.0, timestamp=now, state_dir=drawdown_state_dir)
 
-    scoreboard.main(["--window", "7"])
+    config = RampPolicyConfig(
+        lookback_days=30,
+        min_fills=200,
+        min_delta_bps=6.0,
+        min_t_stat=1.5,
+        go_multiplier=1.5,
+        base_multiplier=1.0,
+    )
 
-    pilot_report = tmp_path / "reports" / "pilot_readiness.md"
-    assert pilot_report.exists()
-    text = pilot_report.read_text(encoding="utf-8")
-    assert "GO Rate" in text
-    assert "Fill realism" in text
-    assert "Replay mean" in text
-    assert "| CPI" in text
+    policy = compute_ramp_policy(
+        ledger_path=ledger_path,
+        artifacts_dir=artifacts_dir,
+        drawdown_state_dir=drawdown_state_dir,
+        config=config,
+        now=now,
+    )
+
+    assert policy["drawdown"]["ok"] is True
+    series = {entry["series"]: entry for entry in policy["series"]}
+    assert series["CPI"]["recommendation"] == "GO"
+    assert series["CPI"]["size_multiplier"] == config.go_multiplier
+    assert series["CLAIMS"]["recommendation"] == "NO_GO"
+    assert "guardrail_breaches" in series["CLAIMS"]
+    assert series["CLAIMS"]["size_multiplier"] == config.base_multiplier
+
+    json_path = tmp_path / "reports" / "pilot_ready.json"
+    markdown_path = tmp_path / "reports" / "pilot_readiness.md"
+    write_ramp_outputs(policy, json_path=json_path, markdown_path=markdown_path)
+    assert json.loads(json_path.read_text(encoding="utf-8"))["series"]
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "Pilot Ramp Readiness" in markdown
+    assert "| CPI" in markdown

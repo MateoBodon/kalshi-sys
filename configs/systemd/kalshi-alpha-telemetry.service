@@ -1,0 +1,10 @@
+[Unit]
+Description=Kalshi Alpha telemetry shipper
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kalshi-alpha
+EnvironmentFile=/opt/kalshi-alpha/.env
+ExecStart=/usr/bin/env python -m kalshi_alpha.exec.telemetry.shipper --day yesterday --compress
+Nice=15

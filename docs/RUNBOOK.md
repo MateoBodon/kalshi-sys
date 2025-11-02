@@ -23,6 +23,23 @@
 - Live execution emits JSONL telemetry under `data/raw/kalshi/YYYY/MM/DD/exec.jsonl`. Each line contains an UTC timestamp, event type (`sent`, `fill`, `partial_fill`, `reject`, heartbeat events, etc.), and a sanitized payload (signatures/keys masked to the last four characters).
 - Use `make telemetry-smoke` to append a synthetic telemetry sequence without touching Kalshi—useful for verifying filesystem permissions and log shipping.
 - The sink auto-rotates daily; batch jobs can glob directories by date to collect execution traces for analytics.
+- `python -m kalshi_alpha.exec.telemetry.shipper --day yesterday --compress` packages the latest JSONL into `reports/_artifacts/telemetry/`. A systemd unit template is available under `configs/systemd/kalshi-alpha-telemetry.*`.
+
+## Runtime Monitors & Alerts
+- Run `make monitors` (or `python -m kalshi_alpha.exec.monitors.cli`) to evaluate EV gap, fill realism, drawdown, websocket health, and auth streaks. JSON artifacts are written to `reports/_artifacts/monitors/` and the summary block in `REPORT.md` is refreshed automatically.
+- Configure optional Slack notifications by exporting `KALSHI_MONITOR_SLACK_WEBHOOK`; the CLI posts a compact alert message when any monitor breaches.
+- Install the provided systemd unit/timer (`configs/systemd/kalshi-alpha-monitors.*`) to execute monitors every five minutes. Adjust thresholds via CLI flags as needed.
+
+## Pilot Ramp Policy
+- `make pilot-readiness` (wrapper around `python -m kalshi_alpha.exec.reports.ramp`) evaluates ledger performance per series, enforces ramp guardrails, and emits:
+  - `reports/pilot_ready.json` — machine-readable GO/NO-GO + size multipliers.
+  - `reports/pilot_readiness.md` — operator-facing summary table with fills, Δbps, t-stat, guardrail breaches, and drawdown state.
+- Thresholds follow the default policy (fills ≥300, Δbps ≥ +6, t-stat ≥ 2.0, zero guardrail breaches, drawdown intact). Override via CLI flags when testing new families.
+- For unattended runs, enable the `kalshi-alpha-runner.*` timer; it executes `make report` followed by `make pilot-readiness` each weekday at 05:30 ET.
+
+## Ops Glue & Log Rotation
+- Systemd unit templates under `configs/systemd/` cover the daily runner, recurring monitors sweep, and telemetry shipper. Deploy with `systemctl enable --now kalshi-alpha-monitors.timer` (and analogous commands for runner/telemetry).
+- `configs/logrotate/kalshi-alpha` rotates telemetry JSONL files daily, retaining two weeks of history. Drop the file into `/etc/logrotate.d/` and adjust the absolute paths if the repo lives outside `/opt/kalshi-alpha`.
 
 ## Calibration
 - Calibrate Tier-1 strategies from fixtures:

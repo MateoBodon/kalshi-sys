@@ -10,3 +10,6 @@
 - Added automatic fill ratio and slippage calibration from live ledgers with persisted state (`fill_alpha.json`, `slippage.json`) and regression tests.
 - Landed production risk configs (`pal_policy.yaml`, `portfolio.yaml`, `quality_gates.yaml`) with CI guardrails to prevent accidental loosening of limits.
 - Introduced the telemetry sink (`data/raw/kalshi/.../exec.jsonl`) plus helper make targets (`make telemetry-smoke`, `make report`, `make live-smoke`).
+- Extended telemetry to capture REST/WS latency, sanitized order books, and auth streak metadata; new monitor CLI (`make monitors`) produces JSON artifacts and optional Slack alerts.
+- Added a ramp policy engine (`make pilot-readiness`) that enforces fill/Δbps/t-stat criteria, emits GO/NO-GO multipliers, and writes machine-readable readiness JSON.
+- Published systemd timers and logrotate templates under `configs/` for daily runs, telemetry shipping, and recurring monitors.

@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -72,6 +72,20 @@ PY
 
 report:
 	$(PYTHON) -m kalshi_alpha.exec.scoreboard
+
+monitors:
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run python -m kalshi_alpha.exec.monitors.cli; \
+	else \
+		$(PYTHON) -m kalshi_alpha.exec.monitors.cli; \
+	fi
+
+pilot-readiness:
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run python -m kalshi_alpha.exec.reports.ramp; \
+	else \
+		$(PYTHON) -m kalshi_alpha.exec.reports.ramp; \
+	fi
 
 live-smoke:
 	$(PYTHON) -m kalshi_alpha.dev.sanity_check --live-smoke --env demo

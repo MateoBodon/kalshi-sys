@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Kalshi Alpha daily pipeline at 05:30 ET
+
+[Timer]
+OnCalendar=Mon..Fri 09:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

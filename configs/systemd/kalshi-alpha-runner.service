@@ -1,0 +1,11 @@
+[Unit]
+Description=Kalshi Alpha daily pipeline runner
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kalshi-alpha
+EnvironmentFile=/opt/kalshi-alpha/.env
+ExecStart=/usr/bin/env make report
+ExecStartPost=/usr/bin/env make pilot-readiness
+Nice=5

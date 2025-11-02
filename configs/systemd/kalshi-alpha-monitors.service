@@ -1,0 +1,10 @@
+[Unit]
+Description=Kalshi Alpha runtime monitors sweep
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kalshi-alpha
+EnvironmentFile=/opt/kalshi-alpha/.env
+ExecStart=/usr/bin/env make monitors
+Nice=10
