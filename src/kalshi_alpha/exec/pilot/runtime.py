@@ -71,9 +71,11 @@ def apply_pilot_mode(
         raise ValueError(f"Series {normalized_series} not permitted for pilot mode (allowed: {allowed})")
 
     broker = getattr(args, "broker", "dry").strip().lower()
-    if config.require_live_broker and broker != "live":
+    paper_ledger = bool(getattr(args, "paper_ledger", False))
+    if config.require_live_broker and broker != "live" and not paper_ledger:
         raise ValueError("Pilot mode requires --broker live")
-    if config.require_acknowledgement and not getattr(args, "i_understand_the_risks", False):
+    needs_ack = config.require_acknowledgement and not (paper_ledger and broker != "live")
+    if needs_ack and not getattr(args, "i_understand_the_risks", False):
         raise ValueError("Pilot mode requires --i-understand-the-risks acknowledgement")
     if getattr(args, "offline", False):
         raise ValueError("Pilot mode cannot run with --offline fixtures")
