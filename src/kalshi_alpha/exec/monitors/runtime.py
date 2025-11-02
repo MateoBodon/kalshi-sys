@@ -13,14 +13,26 @@ from typing import Any, Literal
 import polars as pl
 
 from kalshi_alpha.core.risk import drawdown
+from kalshi_alpha.exec.heartbeat import kill_switch_engaged, resolve_kill_switch_path
+from kalshi_alpha.exec.monitors.sequential import (
+    DEFAULT_SEQ_DRIFT,
+    DEFAULT_SEQ_MIN_SAMPLE,
+    DEFAULT_SEQ_THRESHOLD,
+    SequentialGuardParams,
+    SequentialGuardResult,
+    evaluate_sequential_guard,
+)
+from kalshi_alpha.exec.monitors.summary import MONITOR_ARTIFACTS_DIR
+from kalshi_alpha.exec.policy.freeze import FreezeEvaluation, evaluate_freeze_for_series
 
 TELEMETRY_ROOT = Path("data/raw/kalshi")
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 ALPHA_STATE_PATH = Path("data/proc/state/fill_alpha.json")
-MONITOR_ARTIFACTS_DIR = Path("reports/_artifacts/monitors")
 
 
 MonitorStatus = Literal["OK", "ALERT", "NO_DATA"]
+
+DEFAULT_FREEZE_SERIES = ["CPI", "CLAIMS", "TENY"]
 
 
 @dataclass(slots=True)
@@ -48,6 +60,10 @@ class RuntimeMonitorConfig:
     weekly_loss_cap: float = 6000.0
     ws_disconnect_rate_threshold: float = 1.0
     auth_error_streak_threshold: int = 3
+    kill_switch_path: Path | None = None
+    seq_cusum_threshold: float = DEFAULT_SEQ_THRESHOLD
+    seq_cusum_drift: float = DEFAULT_SEQ_DRIFT
+    seq_min_sample: int = DEFAULT_SEQ_MIN_SAMPLE
 
 
 def compute_runtime_monitors(
@@ -74,11 +90,37 @@ def compute_runtime_monitors(
     results: list[MonitorResult] = []
     results.append(_monitor_ev_gap(ledger_frame, cfg, moment))
     results.append(_monitor_fill_vs_alpha(ledger_frame, alpha_state, cfg, moment))
+    seq_params = SequentialGuardParams(
+        threshold=cfg.seq_cusum_threshold,
+        drift=cfg.seq_cusum_drift,
+        min_sample=cfg.seq_min_sample,
+    )
+    seq_result = evaluate_sequential_guard(
+        ledger_frame,
+        params=seq_params,
+        window_start=moment - timedelta(days=cfg.ledger_lookback_days),
+    )
+    results.append(_monitor_ev_sequential(seq_result, seq_params))
+    freeze_series = set(DEFAULT_FREEZE_SERIES)
+    if "series" in ledger_frame.columns:
+        derived = (
+            ledger_frame.select(pl.col("series").str.to_uppercase().alias("series"))
+            .unique()
+            .to_series()
+            .to_list()
+        )
+        freeze_series.update(derived)
+    freeze_evaluations = [
+        evaluate_freeze_for_series(series, now=moment)
+        for series in sorted(freeze_series)
+    ]
+    results.append(_monitor_freeze_windows(freeze_evaluations))
     results.append(
         _monitor_drawdown(drawdown_state_dir, cfg, moment)
     )
     results.append(_monitor_ws_disconnects(telemetry_events, cfg, moment))
     results.append(_monitor_auth_errors(telemetry_events, cfg))
+    results.append(_monitor_kill_switch(cfg.kill_switch_path))
 
     return results
 
@@ -237,6 +279,71 @@ def _monitor_fill_vs_alpha(
     return MonitorResult("fill_vs_alpha", status, metrics, message)
 
 
+def _monitor_ev_sequential(
+    result: SequentialGuardResult,
+    params: SequentialGuardParams,
+) -> MonitorResult:
+    if not result.series_stats:
+        return MonitorResult(
+            "ev_seq_guard",
+            "NO_DATA",
+            {"reason": "ledger_empty"},
+        )
+
+    sufficient_data = any(
+        stats.get("sample_size", 0) >= params.min_sample
+        and not stats.get("insufficient", False)
+        for stats in result.series_stats.values()
+    )
+
+    if not sufficient_data:
+        return MonitorResult(
+            "ev_seq_guard",
+            "NO_DATA",
+            {
+                "reason": "insufficient_samples",
+                "min_sample": params.min_sample,
+                "series_stats": result.series_stats,
+            },
+        )
+
+    status: MonitorStatus = "ALERT" if result.alert else "OK"
+    message = None
+    if result.alert:
+        impacted = sorted({trigger["series"] for trigger in result.triggers})
+        message = "Sequential EV drift in " + ", ".join(impacted)
+
+    metrics = {
+        "threshold": params.threshold,
+        "drift": params.drift,
+        "min_sample": params.min_sample,
+        "max_stat": result.max_stat,
+        "triggers": result.triggers,
+        "series_stats": result.series_stats,
+    }
+    return MonitorResult("ev_seq_guard", status, metrics, message)
+
+
+def _monitor_freeze_windows(
+    evaluations: list[FreezeEvaluation],
+) -> MonitorResult:
+    if not evaluations:
+        return MonitorResult(
+            "freeze_window",
+            "NO_DATA",
+            {"reason": "no_series"},
+        )
+
+    metrics = {
+        "evaluations": [evaluation.to_dict() for evaluation in evaluations],
+    }
+    active_series = [evaluation.series for evaluation in evaluations if evaluation.freeze_active]
+    if not active_series:
+        return MonitorResult("freeze_window", "OK", metrics)
+    message = "Freeze active for " + ", ".join(sorted(active_series))
+    return MonitorResult("freeze_window", "ALERT", metrics, message)
+
+
 def _monitor_drawdown(
     drawdown_state_dir: Path | None,
     cfg: RuntimeMonitorConfig,
@@ -320,6 +427,18 @@ def _monitor_auth_errors(
         "last_error_ts": last_error_ts.isoformat() if last_error_ts else None,
     }
     return MonitorResult("auth_error_streak", status, metrics, message)
+
+
+def _monitor_kill_switch(path: Path | None) -> MonitorResult:
+    resolved = resolve_kill_switch_path(path)
+    engaged = kill_switch_engaged(resolved)
+    status: MonitorStatus = "ALERT" if engaged else "OK"
+    message = "Kill switch engaged" if engaged else None
+    metrics = {
+        "path": resolved.as_posix(),
+        "engaged": engaged,
+    }
+    return MonitorResult("kill_switch", status, metrics, message)
 
 
 # --- data loading helpers ---------------------------------------------------

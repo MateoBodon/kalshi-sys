@@ -15,6 +15,8 @@ from kalshi_alpha.exec.monitors import (
     write_monitor_artifacts,
 )
 from kalshi_alpha.exec.pipelines import daily
+from kalshi_alpha.exec.policy import freeze as freeze_policy
+from kalshi_alpha.exec.policy.freeze import FreezeEvaluation
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners import scan_ladders
 
@@ -121,6 +123,11 @@ def test_runtime_monitors_emit_alerts(tmp_path: Path, monkeypatch: pytest.Monkey
     proc_root = tmp_path / "data" / "proc"
     drawdown.record_pnl(-2500.0, timestamp=now, state_dir=proc_root)
 
+    def _fake_freeze(series: str, *, now: datetime, proc_root: str | None = None) -> FreezeEvaluation:
+        return FreezeEvaluation(series.upper(), "mock", now, True, None, None, None, ["test-freeze"])
+
+    monkeypatch.setattr(freeze_policy, "evaluate_freeze_for_series", _fake_freeze)
+
     config = RuntimeMonitorConfig(
         telemetry_lookback_hours=1,
         ledger_lookback_days=2,
@@ -129,6 +136,9 @@ def test_runtime_monitors_emit_alerts(tmp_path: Path, monkeypatch: pytest.Monkey
         fill_min_contracts=50,
         daily_loss_cap=2000.0,
         weekly_loss_cap=6000.0,
+        kill_switch_path=proc_root / "state" / "kill_switch",
+        seq_min_sample=5,
+        seq_cusum_threshold=5.0,
     )
 
     results = compute_runtime_monitors(
@@ -147,6 +157,13 @@ def test_runtime_monitors_emit_alerts(tmp_path: Path, monkeypatch: pytest.Monkey
     assert by_name["ws_disconnect_rate"].status == "ALERT"
     assert by_name["auth_error_streak"].status == "ALERT"
     assert by_name["auth_error_streak"].metrics["max_streak"] == 3
+    assert by_name["kill_switch"].status == "OK"
+    assert by_name["ev_seq_guard"].status == "ALERT"
+    seq_metrics = by_name["ev_seq_guard"].metrics
+    assert seq_metrics["triggers"], "Expected sequential guard triggers"
+    freeze_monitor = by_name["freeze_window"]
+    assert freeze_monitor.metrics["evaluations"], "Expected freeze evaluations"
+    assert freeze_monitor.status in {"OK", "ALERT"}
 
     artifacts_dir = tmp_path / "reports" / "_artifacts" / "monitors"
     written = write_monitor_artifacts(results, artifacts_dir=artifacts_dir, generated_at=now)

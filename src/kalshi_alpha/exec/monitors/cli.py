@@ -11,6 +11,8 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
+from kalshi_alpha.exec.heartbeat import resolve_kill_switch_path
+
 from .runtime import (
     ALPHA_STATE_PATH,
     LEDGER_PATH,
@@ -89,6 +91,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Weekly drawdown cap in USD.",
     )
     parser.add_argument(
+        "--kill-switch-file",
+        type=Path,
+        default=None,
+        help="Path to kill-switch sentinel file (default: data/proc/state/kill_switch).",
+    )
+    parser.add_argument(
         "--ws-disconnect-threshold",
         type=float,
         default=defaults.ws_disconnect_rate_threshold,
@@ -106,12 +114,31 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=defaults.fill_min_contracts,
         help="Minimum requested contracts to include a series in fill monitors.",
     )
+    parser.add_argument(
+        "--seq-threshold",
+        type=float,
+        default=defaults.seq_cusum_threshold,
+        help="Sequential CuSum alert threshold in Δbps.",
+    )
+    parser.add_argument(
+        "--seq-drift",
+        type=float,
+        default=defaults.seq_cusum_drift,
+        help="Sequential CuSum drift parameter in Δbps.",
+    )
+    parser.add_argument(
+        "--seq-min-sample",
+        type=int,
+        default=defaults.seq_min_sample,
+        help="Minimum trades per series for sequential guard evaluation.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     moment = datetime.now(tz=UTC)
+    kill_switch_path = resolve_kill_switch_path(args.kill_switch_file)
     config = RuntimeMonitorConfig(
         telemetry_lookback_hours=args.lookback_hours,
         ledger_lookback_days=args.ledger_lookback_days,
@@ -120,6 +147,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         ws_disconnect_rate_threshold=args.ws_disconnect_threshold,
         auth_error_streak_threshold=args.auth_error_threshold,
         fill_min_contracts=args.fill_min_contracts,
+        kill_switch_path=kill_switch_path,
+        seq_cusum_threshold=args.seq_threshold,
+        seq_cusum_drift=args.seq_drift,
+        seq_min_sample=args.seq_min_sample,
     )
 
     results = compute_runtime_monitors(
