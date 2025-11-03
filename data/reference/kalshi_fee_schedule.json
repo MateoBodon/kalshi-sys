@@ -1,0 +1,21 @@
+{
+  "effective_date": "2025-10-01",
+  "maker_rate": 0.0175,
+  "taker_rate": 0.07,
+  "series_half_rate": [
+    "SP500",
+    "SPX",
+    "NASDAQ",
+    "NDX",
+    "NAS100"
+  ],
+  "half_rate_keywords": [
+    "S&P",
+    "SP500",
+    "SPX",
+    "NASDAQ",
+    "NDX",
+    "NAS100"
+  ],
+  "series_overrides": []
+}

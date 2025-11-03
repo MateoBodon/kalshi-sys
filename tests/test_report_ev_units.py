@@ -28,6 +28,7 @@ def _make_proposal(strike: float, maker_ev: float, maker_ev_per_contract: float)
         survival_strategy=0.6,
         max_loss=2.0,
         strategy="TNEY",
+        series="TNEY",
         metadata={},
     )
 

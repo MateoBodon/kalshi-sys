@@ -31,6 +31,7 @@ def _sample_proposals() -> list[Proposal]:
             survival_strategy=0.60,
             max_loss=45.0,
             strategy="CPI",
+            series="CPI",
             metadata=None,
         ),
         Proposal(
@@ -49,6 +50,7 @@ def _sample_proposals() -> list[Proposal]:
             survival_strategy=0.40,
             max_loss=40.0,
             strategy="TENY",
+            series="TENY",
             metadata=None,
         ),
     ]

@@ -256,6 +256,7 @@ def simulate_fills(  # noqa: PLR0913, PLR0912, PLR0915
                 fees_dec = maker_fee(
                     expected_contracts,
                     price_for_fee,
+                    series=proposal.series,
                     schedule=schedule,
                 )
             except ValueError:
@@ -355,12 +356,26 @@ def _expected_value_with_fill(
     if contracts <= 0:
         return 0.0
     if proposal.side == "YES":
-        fee = float(maker_fee(contracts, price, schedule=schedule))
+        fee = float(
+            maker_fee(
+                contracts,
+                price,
+                series=proposal.series if hasattr(proposal, "series") else None,
+                schedule=schedule,
+            )
+        )
         payoff_win = (1 - price) * contracts
         payoff_loss = -price * contracts
         return probability * payoff_win + (1 - probability) * payoff_loss - fee
     no_price = 1 - price
-    fee = float(maker_fee(contracts, no_price, schedule=schedule))
+    fee = float(
+        maker_fee(
+            contracts,
+            no_price,
+            series=proposal.series if hasattr(proposal, "series") else None,
+            schedule=schedule,
+        )
+    )
     payoff_win = (1 - no_price) * contracts
     payoff_loss = -no_price * contracts
     return (1 - probability) * payoff_win + probability * payoff_loss - fee

@@ -23,6 +23,7 @@ def _proposal(contracts: int) -> Proposal:
         survival_strategy=0.6,
         max_loss=5.0,
         strategy="TNEY",
+        series="TNEY",
         metadata={},
     )
 

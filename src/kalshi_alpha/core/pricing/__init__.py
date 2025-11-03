@@ -220,6 +220,7 @@ def expected_value_after_fees(  # noqa: PLR0913
     side: OrderSide,
     liquidity: Liquidity,
     schedule: FeeSchedule = DEFAULT_FEE_SCHEDULE,
+    series: str | None = None,
     market_name: str | None = None,
 ) -> float:
     """Compute the expected value of a trade after trading fees."""
@@ -231,13 +232,27 @@ def expected_value_after_fees(  # noqa: PLR0913
     fee_fn = schedule.maker_fee if liquidity is Liquidity.MAKER else schedule.taker_fee
 
     if side is OrderSide.YES:
-        fee = float(fee_fn(contracts, price, market_name=market_name))
+        fee = float(
+            fee_fn(
+                contracts,
+                price,
+                series=series,
+                market_name=market_name,
+            )
+        )
         payoff_if_win = (1.0 - price) * contracts_f
         payoff_if_lose = -price * contracts_f
         expected = probability * payoff_if_win + (1.0 - probability) * payoff_if_lose
     elif side is OrderSide.NO:
         no_price = 1.0 - price
-        fee = float(fee_fn(contracts, no_price, market_name=market_name))
+        fee = float(
+            fee_fn(
+                contracts,
+                no_price,
+                series=series,
+                market_name=market_name,
+            )
+        )
         payoff_if_win = (1.0 - no_price) * contracts_f  # event fails
         payoff_if_lose = -no_price * contracts_f
         expected = (1.0 - probability) * payoff_if_win + probability * payoff_if_lose
@@ -254,6 +269,7 @@ def yes_no_expected_values(  # noqa: PLR0913
     event_probability: float,
     liquidity: Liquidity,
     schedule: FeeSchedule = DEFAULT_FEE_SCHEDULE,
+    series: str | None = None,
     market_name: str | None = None,
 ) -> dict[OrderSide, float]:
     """Return both YES and NO EVs after fees."""
@@ -265,6 +281,7 @@ def yes_no_expected_values(  # noqa: PLR0913
             side=OrderSide.YES,
             liquidity=liquidity,
             schedule=schedule,
+            series=series,
             market_name=market_name,
         ),
         OrderSide.NO: expected_value_after_fees(
@@ -274,6 +291,7 @@ def yes_no_expected_values(  # noqa: PLR0913
             side=OrderSide.NO,
             liquidity=liquidity,
             schedule=schedule,
+            series=series,
             market_name=market_name,
         ),
     }

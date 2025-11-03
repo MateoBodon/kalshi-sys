@@ -29,6 +29,7 @@ def _proposal(side: str, contracts: int) -> Proposal:
         survival_strategy=0.6,
         max_loss=contracts * 0.55,
         strategy="CPI",
+        series="CPI",
         metadata=None,
     )
 

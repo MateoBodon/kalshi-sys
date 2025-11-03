@@ -123,6 +123,7 @@ def replay_manifest(
             yes_price=fill_price,
             event_probability=event_probability,
             schedule=DEFAULT_FEE_SCHEDULE,
+            series=series.ticker,
             market_name=market.ticker,
         )
         summary_per = expected_value_summary(
@@ -130,6 +131,7 @@ def replay_manifest(
             yes_price=fill_price,
             event_probability=event_probability,
             schedule=DEFAULT_FEE_SCHEDULE,
+            series=series.ticker,
             market_name=market.ticker,
         )
 

@@ -47,6 +47,7 @@ class OrderProposal:
     side: OrderSide
     liquidity: Liquidity
     market_name: str | None = None
+    series: str | None = None
 
 
 def max_loss_for_order(
@@ -61,11 +62,25 @@ def max_loss_for_order(
         raise ValueError("contracts must be positive")
 
     if order.side is OrderSide.YES:
-        fee = float(schedule.taker_fee(contracts, price, market_name=order.market_name))
+        fee = float(
+            schedule.taker_fee(
+                contracts,
+                price,
+                series=order.series,
+                market_name=order.market_name,
+            )
+        )
         loss = contracts * price
     elif order.side is OrderSide.NO:
         no_price = 1.0 - price
-        fee = float(schedule.taker_fee(contracts, no_price, market_name=order.market_name))
+        fee = float(
+            schedule.taker_fee(
+                contracts,
+                no_price,
+                series=order.series,
+                market_name=order.market_name,
+            )
+        )
         loss = contracts * no_price
     else:
         raise ValueError(f"Unsupported order side: {order.side}")

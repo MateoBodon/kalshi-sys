@@ -156,6 +156,7 @@ class Proposal:
     survival_strategy: float
     max_loss: float
     strategy: str
+    series: str
     metadata: dict[str, object] | None = None
 
 
@@ -946,6 +947,7 @@ def _enforce_broker_guards(proposals: Sequence[Proposal], args: argparse.Namespa
             side=OrderSide[proposal.side.upper()],
             liquidity=Liquidity.MAKER,
             market_name=proposal.market_ticker,
+            series=proposal.series,
         )
         if not pal_guard.can_accept(order):
             raise RuntimeError(f"PAL guard rejected order for {order_id}")
@@ -1208,6 +1210,7 @@ def _compute_ev_honesty_rows(
             yes_price=fill_price,
             event_probability=float(proposal.strategy_probability),
             schedule=DEFAULT_FEE_SCHEDULE,
+            series=proposal.series,
             market_name=proposal.market_ticker,
         )
         maker_key = "maker_yes" if proposal.side.upper() == "YES" else "maker_no"
@@ -1599,6 +1602,7 @@ def scan_series(  # noqa: PLR0913
                 uncertainty_penalty=uncertainty_penalty,
                 ob_imbalance_penalty=ob_imbalance_penalty,
                 daily_budget=daily_budget,
+                series_ticker=series_obj.ticker,
                 bin_constraints=bin_constraints,
             )
             if pilot_config is not None:
@@ -1925,11 +1929,13 @@ def _evaluate_market(  # noqa: PLR0913
     uncertainty_penalty: float,
     ob_imbalance_penalty: float,
     daily_budget: _LossBudget,
+    series_ticker: str,
     bin_constraints: BinConstraintResolver | None = None,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
     uncertainty_penalty = max(0.0, uncertainty_penalty)
     ob_imbalance_penalty = max(0.0, ob_imbalance_penalty)
+    series_upper = series_ticker.upper()
 
     for index, rung in enumerate(rungs):
         if allowed_indices is not None and index not in allowed_indices:
@@ -1948,6 +1954,7 @@ def _evaluate_market(  # noqa: PLR0913
             yes_price=yes_price,
             event_probability=event_probability,
             schedule=DEFAULT_FEE_SCHEDULE,
+            series=series_ticker,
             market_name=market_ticker,
         )
         best_side, best_ev = _choose_side(per_contract, maker_only=maker_only)
@@ -1963,6 +1970,7 @@ def _evaluate_market(  # noqa: PLR0913
                 side=best_side,
                 liquidity=Liquidity.MAKER,
                 market_name=market_ticker,
+                series=series_ticker,
             )
         )
         strike_cap = pal_guard.policy.limit_for_strike(order_id)
@@ -2041,6 +2049,7 @@ def _evaluate_market(  # noqa: PLR0913
             yes_price=yes_price,
             event_probability=event_probability,
             schedule=DEFAULT_FEE_SCHEDULE,
+            series=series_ticker,
             market_name=market_ticker,
         )
 
@@ -2093,6 +2102,7 @@ def _evaluate_market(  # noqa: PLR0913
             survival_strategy=event_probability,
             max_loss=total_max_loss,
             strategy=strategy_name,
+            series=series_upper,
             metadata=proposal_metadata,
         )
         pal_guard.register(
@@ -2103,6 +2113,7 @@ def _evaluate_market(  # noqa: PLR0913
                 side=best_side,
                 liquidity=Liquidity.MAKER,
                 market_name=market_ticker,
+                series=series_ticker,
             )
         )
         proposals.append(proposal)

@@ -28,6 +28,7 @@ def _proposal(contracts: int = 12) -> Proposal:
         survival_strategy=0.55,
         max_loss=contracts * 0.6,
         strategy="CLAIMS",
+        series="CLAIMS",
         metadata=None,
     )
 

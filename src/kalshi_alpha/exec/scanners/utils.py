@@ -25,12 +25,13 @@ def pmf_to_survival(pmf: Sequence[LadderBinProbability], strikes: Sequence[float
     return list(reversed(survival))
 
 
-def expected_value_summary(
+def expected_value_summary(  # noqa: PLR0913
     *,
     contracts: int,
     yes_price: float,
     event_probability: float,
     schedule: FeeSchedule = DEFAULT_FEE_SCHEDULE,
+    series: str | None = None,
     market_name: str | None = None,
 ) -> dict[str, float]:
     maker_yes = expected_value_after_fees(
@@ -40,6 +41,7 @@ def expected_value_summary(
         side=OrderSide.YES,
         liquidity=Liquidity.MAKER,
         schedule=schedule,
+        series=series,
         market_name=market_name,
     )
     taker_yes = expected_value_after_fees(
@@ -49,6 +51,7 @@ def expected_value_summary(
         side=OrderSide.YES,
         liquidity=Liquidity.TAKER,
         schedule=schedule,
+        series=series,
         market_name=market_name,
     )
     maker_no = expected_value_after_fees(
@@ -58,6 +61,7 @@ def expected_value_summary(
         side=OrderSide.NO,
         liquidity=Liquidity.MAKER,
         schedule=schedule,
+        series=series,
         market_name=market_name,
     )
     taker_no = expected_value_after_fees(
@@ -67,6 +71,7 @@ def expected_value_summary(
         side=OrderSide.NO,
         liquidity=Liquidity.TAKER,
         schedule=schedule,
+        series=series,
         market_name=market_name,
     )
     return {

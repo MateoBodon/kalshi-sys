@@ -83,6 +83,7 @@ def test_snapshot_parity(
             yes_price=fill_price,
             event_probability=float(proposal.strategy_probability),
             schedule=DEFAULT_FEE_SCHEDULE,
+            series=outcome.series.ticker,
             market_name=proposal.market_ticker,
         )
         maker_key = "maker_yes" if proposal.side.upper() == "YES" else "maker_no"

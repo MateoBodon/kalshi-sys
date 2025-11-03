@@ -44,6 +44,7 @@ def test_simulate_fills_with_estimator() -> None:
         survival_strategy=0.6,
         max_loss=5.5,
         strategy="CPI",
+        series="CPI",
         metadata=None,
     )
     orderbook = Orderbook(
@@ -68,6 +69,7 @@ def test_simulate_fills_with_estimator() -> None:
         yes_price=record.fill_price,
         event_probability=proposal.strategy_probability,
         schedule=DEFAULT_FEE_SCHEDULE,
+        series=proposal.series,
         market_name=proposal.market_ticker,
     )
     assert record.expected_value == pytest.approx(expected_summary["maker_yes"])

@@ -25,6 +25,7 @@ def _sample_proposals() -> list[Proposal]:
             survival_strategy=0.55,
             max_loss=0.5,
             strategy="TENY",
+            series="TENY",
             metadata=None,
         )
     ]

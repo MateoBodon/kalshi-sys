@@ -28,6 +28,7 @@ def _proposal(market_id: str, strike: float, side: str = "YES") -> Proposal:
         survival_strategy=0.55,
         max_loss=4.5,
         strategy="CPI",
+        series="CPI",
         metadata=None,
     )
 

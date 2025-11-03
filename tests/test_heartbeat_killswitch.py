@@ -34,6 +34,7 @@ def _sample_proposal() -> Proposal:
         survival_strategy=0.55,
         max_loss=100.0,
         strategy="CPI",
+        series="CPI",
         metadata={},
     )
 
