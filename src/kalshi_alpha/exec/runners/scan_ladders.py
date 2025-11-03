@@ -17,6 +17,7 @@ import polars as pl
 
 from kalshi_alpha.brokers import create_broker
 from kalshi_alpha.brokers.kalshi.base import BrokerOrder
+from kalshi_alpha.core import kalshi_ws
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
 from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
@@ -1733,11 +1734,15 @@ def _strategy_pmf_for_series(
         )
         date_key = _normalize_macro_date(latest.get("date")) if history else None
         macro_dummies = macro_lookup.get(date_key, {}) if date_key is not None else {}
+        imbalance_entry = kalshi_ws.load_latest_imbalance(ticker)
+        orderbook_imbalance = imbalance_entry[0] if imbalance_entry is not None else None
         inputs = teny_strategy.TenYInputs(
             prior_close=prior_close,
             macro_shock=macro_shock,
             trailing_history=trailing,
             macro_shock_dummies=macro_dummies,
+            orderbook_imbalance=orderbook_imbalance,
+            event_timestamp=datetime.now(tz=UTC),
         )
         if version == "v15":
             pmf_values = teny_strategy.pmf_v15(strikes, inputs=inputs)

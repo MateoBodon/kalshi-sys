@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 import polars as pl
 
+from kalshi_alpha.core import kalshi_ws
 from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import Market, Orderbook, Series
@@ -287,11 +288,15 @@ def _strategy_pmf_for_series(
         macro_lookup = _macro_calendar_lookup(history, fixtures_dir=fixtures_dir)
         date_key = _normalize_macro_date(latest.get("date")) if history else None
         macro_dummies = macro_lookup.get(date_key, {}) if date_key is not None else {}
+        imbalance_entry = kalshi_ws.load_latest_imbalance(ticker)
+        orderbook_imbalance = imbalance_entry[0] if imbalance_entry else None
         inputs = teny_strategy.TenYInputs(
             prior_close=prior_close,
             macro_shock=macro_shock,
             trailing_history=trailing,
             macro_shock_dummies=macro_dummies,
+            orderbook_imbalance=orderbook_imbalance,
+            event_timestamp=datetime.now(tz=UTC),
         )
         if version == "v15":
             return teny_strategy.pmf_v15(strikes, inputs=inputs)

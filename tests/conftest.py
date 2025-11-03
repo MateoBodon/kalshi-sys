@@ -32,6 +32,7 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     for path in (raw_root, proc_root, bootstrap_root):
         path.mkdir(parents=True, exist_ok=True)
 
+    from kalshi_alpha.core import kalshi_ws
     from kalshi_alpha.core.archive import archiver
     from kalshi_alpha.core.risk import drawdown as drawdown_module
     from kalshi_alpha.datastore import ingest as datastore_ingest
@@ -97,5 +98,12 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     monkeypatch.setattr(archiver, "RAW_ROOT", raw_root)
     monkeypatch.setattr(pipeline_calendar, "PROC_ROOT", proc_root)
     monkeypatch.setattr(drawdown_module, "PROC_ROOT", proc_root)
+
+    raw_orderbook_root = raw_root / "kalshi" / "orderbook"
+    proc_imbalance_root = proc_root / "kalshi" / "orderbook_imbalance"
+    raw_orderbook_root.mkdir(parents=True, exist_ok=True)
+    proc_imbalance_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(kalshi_ws, "RAW_ORDERBOOK_ROOT", raw_orderbook_root)
+    monkeypatch.setattr(kalshi_ws, "PROC_IMBALANCE_ROOT", proc_imbalance_root)
 
     return raw_root, proc_root
