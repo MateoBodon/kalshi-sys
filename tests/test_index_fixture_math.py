@@ -13,9 +13,9 @@ from kalshi_alpha.core.execution import fillratio, slippage
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.drivers.calendar.loader import calendar_tags_for
 from kalshi_alpha.exec.scanners.scan_index_close import evaluate_close
-from kalshi_alpha.exec.scanners.scan_index_noon import evaluate_noon
+from kalshi_alpha.exec.scanners.scan_index_hourly import evaluate_hourly
 from kalshi_alpha.exec.scanners.utils import pmf_to_survival
-from kalshi_alpha.strategies.index import CloseInputs, NoonInputs
+from kalshi_alpha.strategies.index import CloseInputs, HourlyInputs
 
 ET = ZoneInfo("America/New_York")
 
@@ -39,7 +39,7 @@ def _strike_grid(center: float, step: float = 50.0) -> list[float]:
 
 
 @pytest.mark.parametrize("fixture_name", _SPX_NOON_FIXTURES)
-def test_spx_noon_survival_matches_fixture(
+def test_spx_hourly_survival_matches_fixture(
     fixture_name: str,
     fixtures_root: Path,
     isolated_data_roots: tuple[Path, Path],
@@ -55,8 +55,8 @@ def test_spx_noon_survival_matches_fixture(
     strike = round(float(sample["close"]), 2)
     target_time = datetime.fromisoformat(f"{fixture_name[6:16]}T12:00:00").replace(tzinfo=ET)
     minutes_to_noon = int((target_time - sample["timestamp"]).total_seconds() // 60)
-    inputs = NoonInputs(series="INXU", current_price=strike, minutes_to_noon=minutes_to_noon)
-    result = evaluate_noon([strike], [0.5], inputs, contracts=1, min_ev=0.0)
+    inputs = HourlyInputs(series="INXU", current_price=strike, minutes_to_noon=minutes_to_noon)
+    result = evaluate_hourly([strike], [0.5], inputs, contracts=1, min_ev=0.0)
     survival = pmf_to_survival(result.pmf, [strike])[0]
     assert survival == pytest.approx(0.5, abs=1e-6)
 

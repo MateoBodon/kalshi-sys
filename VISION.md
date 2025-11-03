@@ -126,7 +126,7 @@ python -m kalshi_alpha.jobs.calibrate_close --symbols I:SPX I:NDX --months 12
 
 ### 7.3 Scan (paper)
 ```
-python -m kalshi_alpha.exec.scanners.scan_index_noon  --offline --report
+python -m kalshi_alpha.exec.scanners.scan_index_hourly  --offline --report
 python -m kalshi_alpha.exec.scanners.scan_index_close --offline --report
 ```
 
@@ -149,9 +149,9 @@ python -m kalshi_alpha.exec.runners.pilot --series INXU --broker live --i-unders
 ```
 src/kalshi_alpha/
   drivers/polygon_index/{client.py,symbols.py,snapshots.py}
-  strategies/index/{noon_above_below.py,close_range.py,cdf.py,params.py}
+  strategies/index/{hourly_above_below.py,close_range.py,cdf.py,params.py}
   core/{fees.py, ev.py, kelly.py, slippage.py, fills.py}
-  exec/scanners/{scan_index_noon.py, scan_index_close.py}
+  exec/scanners/{scan_index_hourly.py, scan_index_close.py}
   jobs/{calibrate_noon.py, calibrate_close.py}
   utils/{keys.py, tz.py}
 data/{raw,proc,proc/calib/index,...}
@@ -230,9 +230,9 @@ def fee_inx_series(p: float) -> float:
     ...
 ```
 
-### Appendix C — Noon Probability (sketch)
+### Appendix C — Hourly Probability (sketch)
 ```python
-# strategies/index/noon_above_below.py
+# strategies/index/hourly_above_below.py
 def p_above_noon(S_t, K, tau_min, sigma_now, m_tod, mu=0.0):
     import math
     from .cdf import norm_cdf

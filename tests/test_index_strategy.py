@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from kalshi_alpha.core.pricing import LadderBinProbability
-from kalshi_alpha.strategies.index import CloseInputs, NoonInputs, close_pmf, noon_pmf
+from kalshi_alpha.strategies.index import CloseInputs, HourlyInputs, close_pmf, hourly_pmf
 from kalshi_alpha.strategies.index import cdf as index_cdf
 
 
@@ -14,14 +14,14 @@ def _copy_calibration(src: Path, dest: Path) -> None:
     dest.write_bytes(src.read_bytes())
 
 
-def test_noon_strategy_uses_calibration(isolated_data_roots: tuple[Path, Path]) -> None:
+def test_hourly_strategy_uses_calibration(isolated_data_roots: tuple[Path, Path]) -> None:
     _, proc_root = isolated_data_roots
     fixture = Path("tests/fixtures/index/spx/noon/params.json")
     target = proc_root / "calib" / "index" / "spx" / "noon" / "params.json"
     _copy_calibration(fixture, target)
     strikes = [5000.0, 5020.0, 5040.0]
-    inputs = NoonInputs(series="INXU", current_price=5035.0, minutes_to_noon=30)
-    pmf = noon_pmf(strikes, inputs)
+    inputs = HourlyInputs(series="INXU", current_price=5035.0, minutes_to_noon=30)
+    pmf = hourly_pmf(strikes, inputs)
     assert len(pmf) == len(strikes) + 1
     probabilities = [bin_prob.probability for bin_prob in pmf]
     assert pytest.approx(sum(probabilities), rel=1e-6) == 1.0

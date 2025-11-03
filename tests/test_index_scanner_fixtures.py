@@ -10,10 +10,10 @@ import pytest
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy
 from kalshi_alpha.exec.runners import scan_ladders
-from kalshi_alpha.exec.scanners import scan_index_close, scan_index_noon
+from kalshi_alpha.exec.scanners import scan_index_close, scan_index_hourly
 from kalshi_alpha.strategies import index as index_strategy
 from kalshi_alpha.strategies.index import cdf as index_cdf
-from kalshi_alpha.strategies.index import close_range, noon_above_below
+from kalshi_alpha.strategies.index import close_range, hourly_above_below
 
 ET = ZoneInfo("America/New_York")
 UTC = ZoneInfo("UTC")
@@ -21,11 +21,12 @@ UTC = ZoneInfo("UTC")
 
 def _configure_index_calibration(proc_root: Path) -> None:
     base = proc_root / "calib" / "index"
+    index_strategy.HOURLY_CALIBRATION_PATH = base
     index_strategy.NOON_CALIBRATION_PATH = base
     index_strategy.CLOSE_CALIBRATION_PATH = base
-    scan_index_noon.NOON_CALIBRATION_PATH = base
+    scan_index_hourly.HOURLY_CALIBRATION_PATH = base
     scan_index_close.CLOSE_CALIBRATION_PATH = base
-    noon_above_below.NOON_CALIBRATION_PATH = base
+    hourly_above_below.HOURLY_CALIBRATION_PATH = base
     close_range.CLOSE_CALIBRATION_PATH = base
     index_cdf._load_calibration_cached.cache_clear()
 

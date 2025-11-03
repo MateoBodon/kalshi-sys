@@ -2058,14 +2058,14 @@ def _strategy_pmf_for_series(
         now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
         minutes_to_target = _minutes_to_target(now, _TARGET_NOON)
         event_tags = calendar_tags_for(now)
-        inputs = index_strategy.NoonInputs(
+        inputs = index_strategy.HourlyInputs(
             series=ticker,
             current_price=_resolve_index_price(snapshot),
             minutes_to_noon=minutes_to_target,
             prev_close=snapshot.previous_close,
             event_tags=event_tags,
         )
-        pmf_values = index_strategy.noon_pmf(strikes, inputs=inputs)
+        pmf_values = index_strategy.hourly_pmf(strikes, inputs=inputs)
         metadata.update(
             {
                 "polygon_ticker": meta.polygon_ticker,

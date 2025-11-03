@@ -49,7 +49,7 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     from kalshi_alpha.strategies import teny as teny_strategy
     from kalshi_alpha.strategies import weather as weather_strategy
     from kalshi_alpha.strategies.index import close_range as index_close_strategy
-    from kalshi_alpha.strategies.index import noon_above_below as index_noon_strategy
+    from kalshi_alpha.strategies.index import hourly_above_below as index_hourly_strategy
 
     monkeypatch.setattr(datastore_paths, "RAW_ROOT", raw_root)
     monkeypatch.setattr(datastore_paths, "PROC_ROOT", proc_root)
@@ -98,9 +98,11 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     monkeypatch.setattr(weather_strategy, "CALIBRATION_PATH", proc_root / "weather_calib.parquet")
     index_calib_root = proc_root / "calib" / "index"
     index_calib_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(index_strategy, "HOURLY_CALIBRATION_PATH", index_calib_root)
     monkeypatch.setattr(index_strategy, "NOON_CALIBRATION_PATH", index_calib_root)
     monkeypatch.setattr(index_strategy, "CLOSE_CALIBRATION_PATH", index_calib_root)
-    monkeypatch.setattr(index_noon_strategy, "NOON_CALIBRATION_PATH", index_calib_root)
+    monkeypatch.setattr(index_hourly_strategy, "HOURLY_CALIBRATION_PATH", index_calib_root)
+    monkeypatch.setattr(index_hourly_strategy, "NOON_CALIBRATION_PATH", index_calib_root)
     monkeypatch.setattr(index_close_strategy, "CLOSE_CALIBRATION_PATH", index_calib_root)
     monkeypatch.setattr(scan_ladders, "PROC_ROOT", proc_root)
     monkeypatch.setattr(scan_ladders, "RAW_ROOT", raw_root)

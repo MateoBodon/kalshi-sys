@@ -1,29 +1,55 @@
-"""Scanner helpers for daily close index ladders."""
+"""Scanner helpers for intraday hourly index ladders."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
-from kalshi_alpha.config import lookup_index_rule
+from kalshi_alpha.config import IndexRule, lookup_index_rule
+from kalshi_alpha.core.pricing import LadderBinProbability, OrderSide
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
 from kalshi_alpha.exec.scanners.utils import expected_value_summary
-from kalshi_alpha.strategies.index import CLOSE_CALIBRATION_PATH, CloseInputs, close_pmf
+from kalshi_alpha.strategies.index import (
+    HOURLY_CALIBRATION_PATH as _HOURLY_CALIBRATION_PATH,
+)
+from kalshi_alpha.strategies.index import HourlyInputs, hourly_pmf
 from kalshi_alpha.strategies.index import cdf as index_cdf
 
-from .scan_index_hourly import IndexScanResult, QuoteOpportunity
+HOURLY_CALIBRATION_PATH = _HOURLY_CALIBRATION_PATH
 
 
-def evaluate_close(  # noqa: PLR0913
+@dataclass(frozen=True)
+class QuoteOpportunity:
+    strike: float
+    yes_price: float
+    model_probability: float
+    maker_ev: float
+    contracts: int
+    range_mass: float
+    side: OrderSide = OrderSide.YES
+
+
+@dataclass(frozen=True)
+class IndexScanResult:
+    pmf: list[LadderBinProbability]
+    survival: dict[float, float]
+    opportunities: list[QuoteOpportunity]
+    below_first_mass: float
+    tail_mass: float
+    rule: IndexRule | None = None
+
+
+def evaluate_hourly(  # noqa: PLR0913
     strikes: Sequence[float],
     yes_prices: Sequence[float],
-    inputs: CloseInputs,
+    inputs: HourlyInputs,
     *,
     contracts: int = 1,
     min_ev: float = 0.05,
 ) -> IndexScanResult:
     if len(strikes) != len(yes_prices):
         raise ValueError("strikes and prices must have equal length")
-    pmf = close_pmf(strikes, inputs)
+    pmf = hourly_pmf(strikes, inputs)
     survival = index_cdf.survival_map(strikes, pmf)
     tail_lower = float(pmf[0].probability) if pmf else 0.0
     tail_upper = float(pmf[-1].probability) if pmf else 0.0
@@ -31,9 +57,9 @@ def evaluate_close(  # noqa: PLR0913
     try:
         meta = resolve_index_series(inputs.series)
         calibration = index_cdf.load_calibration(
-            CLOSE_CALIBRATION_PATH,
+            HOURLY_CALIBRATION_PATH,
             meta.polygon_ticker,
-            horizon="close",
+            horizon="noon",
         )
     except Exception:  # pragma: no cover - defensive fallback
         calibration = None
@@ -79,4 +105,4 @@ def evaluate_close(  # noqa: PLR0913
     )
 
 
-__all__ = ["evaluate_close"]
+__all__ = ["HOURLY_CALIBRATION_PATH", "QuoteOpportunity", "IndexScanResult", "evaluate_hourly"]
