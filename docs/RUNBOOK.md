@@ -152,7 +152,7 @@ Pipeline steps per run:
   python -m jobs.calibrate_noon --series INXU NASDAQ100U --days 45
   python -m jobs.calibrate_close --series INX NASDAQ100 --days 60
   ```
-  Outputs land in `data/proc/index_noon_calibration.parquet` and `data/proc/index_close_calibration.parquet`; raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
+  Outputs land in `data/proc/calib/index/<symbol>/{noon,close}/params.json`; raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
 - Pre-flight:
   1. `python -m kalshi_alpha.exec.heartbeat` → Polygon + Kalshi freshness <5 min; kill-switch absent.
   2. Confirm calibration parquet mtimes ≤7 days.

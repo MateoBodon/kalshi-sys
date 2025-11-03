@@ -21,28 +21,28 @@ def test_scoreboard_generates_markdown(
     now = datetime.now(tz=UTC)
     ledger = pl.DataFrame(
         {
-            "series": ["CPI", "CLAIMS"],
-            "ev_after_fees": [12.3, -5.4],
-            "pnl_simulated": [11.0, -6.0],
-            "expected_fills": [80, 40],
-            "size": [100, 60],
-            "fill_ratio": [0.8, 0.6],
-            "t_fill_ms": [150.0, 220.0],
-            "size_partial": [5, 8],
-            "slippage_ticks": [1.0, -0.5],
-            "ev_expected_bps": [110.0, -60.0],
-            "ev_realized_bps": [105.0, -55.0],
-            "fees_bps": [4.0, 5.0],
-            "timestamp_et": [now - timedelta(days=2), now - timedelta(days=6)],
+            "series": ["INX", "INXU", "NASDAQ100", "NASDAQ100U"],
+            "ev_after_fees": [15.2, 9.8, 11.4, 12.1],
+            "pnl_simulated": [14.0, 8.5, 10.2, 11.0],
+            "expected_fills": [320, 280, 340, 360],
+            "size": [350, 300, 360, 380],
+            "fill_ratio": [0.9, 0.85, 0.88, 0.92],
+            "t_fill_ms": [120.0, 140.0, 130.0, 125.0],
+            "size_partial": [5, 6, 4, 5],
+            "slippage_ticks": [0.5, 0.6, 0.4, 0.5],
+            "ev_expected_bps": [120.0, 98.0, 110.0, 115.0],
+            "ev_realized_bps": [130.0, 105.0, 118.0, 122.0],
+            "fees_bps": [3.5, 3.2, 3.8, 3.6],
+            "timestamp_et": [now - timedelta(days=2)] * 4,
         }
     )
     ledger.write_parquet(ledger_dir / "ledger_all.parquet")
 
     calib = pl.DataFrame(
         {
-            "series": ["CPI", "CLAIMS"],
-            "crps_advantage": [0.12, -0.03],
-            "brier_advantage": [0.05, -0.01],
+            "series": ["INX", "INXU", "NASDAQ100", "NASDAQ100U"],
+            "crps_advantage": [0.12, 0.10, 0.08, 0.09],
+            "brier_advantage": [0.05, 0.04, 0.03, 0.04],
         }
     )
     calib.write_parquet(ledger_dir / "calibration_metrics.parquet")
@@ -53,8 +53,10 @@ def test_scoreboard_generates_markdown(
         json.dumps(
             {
                 "series": {
-                    "CPI": {"alpha": 0.62, "ts": now.isoformat()},
-                    "CLAIMS": {"alpha": 0.48, "ts": now.isoformat()},
+                    "INX": {"alpha": 0.65, "ts": now.isoformat()},
+                    "INXU": {"alpha": 0.58, "ts": now.isoformat()},
+                    "NASDAQ100": {"alpha": 0.6, "ts": now.isoformat()},
+                    "NASDAQ100U": {"alpha": 0.63, "ts": now.isoformat()},
                 }
             }
         ),
@@ -65,7 +67,7 @@ def test_scoreboard_generates_markdown(
     artifacts.mkdir(parents=True, exist_ok=True)
     go_payload = {
         "go": False,
-        "series": "CLAIMS",
+        "series": "NASDAQ100",
         "timestamp": (now - timedelta(days=1)).isoformat(),
     }
     artifacts.joinpath("go_no_go_20250101.json").write_text(
@@ -81,7 +83,7 @@ def test_scoreboard_generates_markdown(
     assert report_30d.exists()
 
     contents = report_7d.read_text(encoding="utf-8")
-    assert "## CPI" in contents
+    assert "## INX" in contents
     assert "CRPS Advantage" in contents
     assert "Avg α" in contents
     assert "NO-GO Count" in contents
@@ -92,4 +94,5 @@ def test_scoreboard_generates_markdown(
     assert pilot_report.exists()
     pilot_text = pilot_report.read_text(encoding="utf-8")
     assert "Pilot Readiness" in pilot_text
-    assert "| CPI" in pilot_text
+    assert "| INX" in pilot_text
+    assert "Ready?" in pilot_text

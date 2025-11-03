@@ -212,7 +212,7 @@ Each pipeline writes:
   python -m jobs.calibrate_noon --series INXU NASDAQ100U --days 45
   python -m jobs.calibrate_close --series INX NASDAQ100 --days 60
   ```
-  Both jobs fetch Polygon minute bars, persist parquet curves in `data/proc/index_*_calibration.parquet`, and snapshot raw payloads under `data/raw/polygon_index/` for audit.
+  Both jobs fetch Polygon minute bars, persist JSON params in `data/proc/calib/index/<symbol>/{noon,close}/params.json`, and snapshot raw payloads under `data/raw/polygon_index/` for audit.
 - **Dry scans:**
   ```bash
   python -m kalshi_alpha.exec.runners.scan_ladders \

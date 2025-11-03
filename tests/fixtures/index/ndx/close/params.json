@@ -1,0 +1,12 @@
+{
+  "symbol": "I:NDX",
+  "horizon": "close",
+  "generated_at": "2025-11-03T00:00:00Z",
+  "minutes_to_target": {
+    "0": {"sigma": 22.0, "drift": 0.0},
+    "60": {"sigma": 27.0, "drift": 0.4},
+    "120": {"sigma": 32.0, "drift": 0.6}
+  },
+  "residual_std": 1.8,
+  "pit_bias": null
+}

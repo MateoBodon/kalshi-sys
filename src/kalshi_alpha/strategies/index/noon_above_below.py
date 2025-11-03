@@ -12,7 +12,8 @@ from kalshi_alpha.drivers.polygon_index.symbols import IndexSymbol, resolve_seri
 
 from .cdf import SigmaCalibration, gaussian_pmf, load_calibration
 
-NOON_CALIBRATION_PATH = PROC_ROOT / "index_noon_calibration.parquet"
+INDEX_CALIBRATION_ROOT = PROC_ROOT / "calib" / "index"
+NOON_CALIBRATION_PATH = INDEX_CALIBRATION_ROOT
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ def _resolve_series(series: str) -> IndexSymbol:
 
 @lru_cache(maxsize=4)
 def _load_default_calibration(meta: IndexSymbol) -> SigmaCalibration:
-    return load_calibration(NOON_CALIBRATION_PATH, meta.polygon_ticker)
+    return load_calibration(NOON_CALIBRATION_PATH, meta.polygon_ticker, horizon="noon")
 
 
 __all__ = ["NoonInputs", "pmf", "NOON_CALIBRATION_PATH"]

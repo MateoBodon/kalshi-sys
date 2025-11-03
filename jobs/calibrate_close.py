@@ -5,8 +5,11 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 from collections.abc import Sequence
+import json
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+
+import polars as pl
 
 from kalshi_alpha.drivers.polygon_index.client import MinuteBar, PolygonIndicesClient
 from kalshi_alpha.drivers.polygon_index.snapshots import write_minute_bars
@@ -39,7 +42,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--output",
         type=Path,
         default=CLOSE_CALIBRATION_PATH,
-        help="Output parquet path for calibration table.",
+        help="Output directory root for calibration parameters (default: data/proc/calib/index).",
     )
     parser.add_argument(
         "--skip-snapshots",
@@ -67,8 +70,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise RuntimeError("No minute bars fetched for calibration")
 
     frame = build_sigma_curve(bars_by_symbol, target_time=TARGET_TIME, residual_window=RESIDUAL_WINDOW_MINUTES)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    frame.write_parquet(args.output)
+    _write_params(frame, args.output, horizon="close")
 
 
 def _resolve_tickers(series_list: Sequence[str]) -> list[str]:
@@ -103,6 +105,38 @@ def _time_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]:
     start_dt = datetime.combine(start_date, time(8, 0), tzinfo=ET).astimezone(UTC)
     end_dt = datetime.combine(end_date + timedelta(days=1), time(6, 0), tzinfo=ET).astimezone(UTC)
     return start_dt, end_dt
+
+
+def _write_params(frame, output: Path, *, horizon: str) -> None:
+    output = output.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    unique_symbols = frame.get_column("symbol").unique().to_list()
+    generated_at = datetime.now(tz=UTC).isoformat()
+    for symbol in unique_symbols:
+        subset = frame.filter(pl.col("symbol") == symbol).sort("minutes_to_target")
+        slug = symbol.split(":")[-1].lower()
+        target_dir = output / slug / horizon
+        target_dir.mkdir(parents=True, exist_ok=True)
+        minutes_map: dict[str, dict[str, float]] = {}
+        for row in subset.iter_rows(named=True):
+            minute = int(row["minutes_to_target"])
+            minutes_map[str(minute)] = {
+                "sigma": float(row.get("sigma", 0.0)),
+                "drift": float(row.get("drift", 0.0)),
+            }
+        residual_column = subset.get_column("residual_std") if "residual_std" in subset.columns else None
+        residual_values = residual_column.drop_nulls().to_list() if residual_column is not None else []
+        residual_std = float(residual_values[0]) if residual_values else 0.0
+        payload = {
+            "symbol": symbol,
+            "horizon": horizon,
+            "generated_at": generated_at,
+            "minutes_to_target": minutes_map,
+            "residual_std": residual_std,
+            "pit_bias": None,
+        }
+        target_path = target_dir / "params.json"
+        target_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

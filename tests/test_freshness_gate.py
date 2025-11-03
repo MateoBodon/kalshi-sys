@@ -97,6 +97,13 @@ def _seed_feed_snapshots(
         weather_frame = pl.DataFrame(weather_records)
         _write_snapshot(proc_root / "nws_cli" / "daily_climate", weather_frame, now)
 
+    raw_root = proc_root.parent / "raw"
+    snapshot_dir = raw_root / f"{now.year:04d}" / f"{now.month:02d}" / f"{now.day:02d}" / "polygon_index"
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    stamp = now.strftime("%Y%m%dT%H%M%S")
+    payload = {"ticker": "I:SPX", "last_price": 5000.0, "timestamp": now.isoformat()}
+    (snapshot_dir / f"{stamp}_I_SPX_snapshot.json").write_text(json.dumps(payload), encoding="utf-8")
+
 
 def _seed_monitor_artifacts(monitors_dir: Path, now: datetime) -> None:
     monitors_dir.mkdir(parents=True, exist_ok=True)
@@ -328,5 +335,6 @@ def test_freshness_weather_gate_respects_active_stations(
         now=now,
     )
     assert policy["overall"]["decision"] == "NO_GO"
-    reason = policy["data_freshness"]["feeds"][-1].get("reason")
+    feeds = {entry["id"]: entry for entry in policy["data_freshness"]["feeds"]}
+    reason = feeds.get("nws_daily_climate", {}).get("reason")
     assert reason and "KBOS" in reason

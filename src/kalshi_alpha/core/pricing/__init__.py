@@ -10,7 +10,13 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum, auto
 
-from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule, round_up_to_cent
+from kalshi_alpha.core.fees import (
+    DEFAULT_FEE_SCHEDULE,
+    FeeSchedule,
+    get_index_fee_curve,
+    load_index_fee_curves,
+    round_up_to_cent,
+)
 
 from .mispricing import (
     KinkMetrics as KinkMetrics,
@@ -27,8 +33,9 @@ from .mispricing import (
 
 MIN_PROB = 0.0
 MAX_PROB = 1.0
-_INDEX_FEE_RATE = Decimal("0.035")
-_INDEX_SERIES = {"INX", "INXU", "NASDAQ100", "NASDAQ100U"}
+_INDEX_FEE_CURVES = load_index_fee_curves()
+_INDEX_SERIES = frozenset(_INDEX_FEE_CURVES.keys())
+_DEFAULT_INDEX_COEFFICIENT = Decimal("0.035")
 
 
 class Liquidity(Enum):
@@ -67,14 +74,16 @@ class LadderBinProbability:
     probability: float
 
 
-def _index_fee(contracts: int, price: float) -> float:
+def _index_fee(contracts: int, price: float, series_key: str) -> float:
     if price < MIN_PROB or price > MAX_PROB:
         raise ValueError("price must lie in [0, 1]")
     if contracts <= 0:
         raise ValueError("contracts must be positive")
     price_dec = Decimal(str(price))
     contracts_dec = Decimal(str(contracts))
-    raw_fee = _INDEX_FEE_RATE * contracts_dec * price_dec * (Decimal("1") - price_dec)
+    curve = get_index_fee_curve(series_key)
+    coefficient = curve.coefficient if curve else _DEFAULT_INDEX_COEFFICIENT
+    raw_fee = coefficient * contracts_dec * price_dec * (Decimal("1") - price_dec)
     rounded = round_up_to_cent(raw_fee)
     return float(rounded)
 
@@ -249,7 +258,7 @@ def expected_value_after_fees(  # noqa: PLR0913
 
     if side is OrderSide.YES:
         if series_key in _INDEX_SERIES:
-            fee = _index_fee(contracts, price)
+            fee = _index_fee(contracts, price, series_key)
         else:
             fee = float(
                 fee_fn(
@@ -265,7 +274,7 @@ def expected_value_after_fees(  # noqa: PLR0913
     elif side is OrderSide.NO:
         no_price = 1.0 - price
         if series_key in _INDEX_SERIES:
-            fee = _index_fee(contracts, no_price)
+            fee = _index_fee(contracts, no_price, series_key)
         else:
             fee = float(
                 fee_fn(

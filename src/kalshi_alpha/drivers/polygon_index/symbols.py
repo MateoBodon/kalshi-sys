@@ -12,6 +12,7 @@ class IndexSymbol:
     polygon_ticker: str
     description: str
     window: str
+    fallback_ticker: str | None = None
 
 
 _SYMBOLS: dict[str, IndexSymbol] = {
@@ -20,24 +21,28 @@ _SYMBOLS: dict[str, IndexSymbol] = {
         polygon_ticker="I:SPX",
         description="S&P 500 index close (Polygon I:SPX)",
         window="daily-close",
+        fallback_ticker="SPY",
     ),
     "INXU": IndexSymbol(
         kalshi_series="INXU",
         polygon_ticker="I:SPX",
         description="S&P 500 index noon snapshot (Polygon I:SPX)",
         window="intraday-noon",
+        fallback_ticker="SPY",
     ),
     "NASDAQ100": IndexSymbol(
         kalshi_series="NASDAQ100",
         polygon_ticker="I:NDX",
         description="NASDAQ 100 index close (Polygon I:NDX)",
         window="daily-close",
+        fallback_ticker="QQQ",
     ),
     "NASDAQ100U": IndexSymbol(
         kalshi_series="NASDAQ100U",
         polygon_ticker="I:NDX",
         description="NASDAQ 100 index noon snapshot (Polygon I:NDX)",
         window="intraday-noon",
+        fallback_ticker="QQQ",
     ),
 }
 

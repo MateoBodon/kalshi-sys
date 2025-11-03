@@ -6,6 +6,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from decimal import Decimal
+
+from kalshi_alpha.core.fees import get_index_fee_curve, round_up_to_cent
 from kalshi_alpha.core.pricing import (
     LadderRung,
     Liquidity,
@@ -80,6 +83,55 @@ def test_expected_value_index_fee_curve() -> None:
         series="INX",
     )
     assert ev == pytest.approx(0.41, rel=1e-6)
+
+
+def test_index_fee_curve_matches_reference() -> None:
+    curve = get_index_fee_curve("INX")
+    assert curve is not None
+    contracts = 3
+    price = 0.42
+    fee_from_ev = -expected_value_after_fees(
+        contracts=contracts,
+        yes_price=price,
+        event_probability=price,
+        side=OrderSide.YES,
+        liquidity=Liquidity.MAKER,
+        series="INX",
+    )
+    expected_fee = round_up_to_cent(
+        curve.coefficient * Decimal(str(contracts)) * Decimal(str(price)) * (Decimal("1") - Decimal(str(price)))
+    )
+    assert fee_from_ev == pytest.approx(float(expected_fee))
+
+
+def test_index_fee_curve_monotonic_segments() -> None:
+    increasing = []
+    for idx in range(0, 51):
+        price = idx / 100
+        fee = -expected_value_after_fees(
+            contracts=1,
+            yes_price=price,
+            event_probability=price,
+            side=OrderSide.YES,
+            liquidity=Liquidity.MAKER,
+            series="INXU",
+        )
+        increasing.append(fee)
+    assert all(a <= b + 1e-9 for a, b in zip(increasing, increasing[1:]))
+
+    decreasing = []
+    for idx in range(50, 101):
+        price = idx / 100
+        fee = -expected_value_after_fees(
+            contracts=1,
+            yes_price=price,
+            event_probability=price,
+            side=OrderSide.YES,
+            liquidity=Liquidity.MAKER,
+            series="NASDAQ100",
+        )
+        decreasing.append(fee)
+    assert all(a >= b - 1e-9 for a, b in zip(decreasing, decreasing[1:]))
 
 
 @given(st.lists(st.floats(min_value=-1, max_value=2), min_size=3, max_size=8))

@@ -18,6 +18,8 @@ ALPHA_STATE_PATH = Path("data/proc/state/fill_alpha.json")
 ARTIFACTS_DIR = Path("reports/_artifacts")
 SCORECARD_DIR = ARTIFACTS_DIR / "scorecards"
 LOGGER = logging.getLogger(__name__)
+INDEX_SERIES_ORDER = ["INXU", "NASDAQ100U", "INX", "NASDAQ100"]
+INDEX_SERIES = set(INDEX_SERIES_ORDER)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -150,6 +152,8 @@ def _build_summary(
         }
     for row in grouped.to_dicts():
         series = str(row["series"]).upper()
+        if series not in INDEX_SERIES:
+            continue
         requested = row.get("requested_contracts") or 0.0
         expected_fills = row.get("expected_fills") or 0.0
         fill_ratio = (expected_fills / requested) if requested else 0.0
@@ -188,7 +192,7 @@ def _build_summary(
             metrics["crps_advantage"] = calib.get("crps_advantage")
             metrics["brier_advantage"] = calib.get("brier_advantage")
         records.append(metrics)
-    return sorted(records, key=lambda row: row["series"])
+    return sorted(records, key=lambda row: (INDEX_SERIES_ORDER.index(row["series"]) if row["series"] in INDEX_SERIES else row["series"]))
 
 
 def _load_gate_metrics(window_days: int) -> dict[str, dict[str, int]]:
@@ -317,9 +321,12 @@ def _build_pilot_readiness(
     total_requested = 0.0
     alpha_weight_sum = 0.0
     alpha_weight_den = 0.0
+    ready_count = 0
 
     for row in summary:
         series = str(row.get("series", "")).upper()
+        if series not in INDEX_SERIES:
+            continue
         go = int(row.get("go_count", 0) or 0)
         no_go = int(row.get("no_go_count", 0) or 0)
         total = go + no_go
@@ -340,6 +347,23 @@ def _build_pilot_readiness(
         mean_delta = replay.get("mean_abs_cdf_delta")
         max_delta = replay.get("max_abs_cdf_delta")
 
+        sample_size = int(row.get("sample_size", 0) or 0)
+        realized_bps = float(row.get("ev_realized_bps_mean", 0.0) or 0.0)
+        t_stat = float(row.get("t_stat", 0.0) or 0.0)
+        ready_reasons: list[str] = []
+        ready_flag = True
+        if sample_size < 300:
+            ready_flag = False
+            ready_reasons.append(f"insufficient paper fills ({sample_size}/300)")
+        if realized_bps < 6.0:
+            ready_flag = False
+            ready_reasons.append(f"realized Δbps {realized_bps:.1f} < 6")
+        if t_stat < 2.0:
+            ready_flag = False
+            ready_reasons.append(f"t-stat {t_stat:.2f} < 2")
+        if ready_flag:
+            ready_count += 1
+
         per_series.append(
             {
                 "series": series,
@@ -352,6 +376,9 @@ def _build_pilot_readiness(
                 "fill_gap": fill_gap,
                 "replay_mean": mean_delta,
                 "replay_max": max_delta,
+                "ready": ready_flag,
+                "ready_reasons": ready_reasons,
+                "sample_size": sample_size,
             }
         )
 
@@ -388,6 +415,8 @@ def _build_pilot_readiness(
             "alpha": overall_alpha,
             "replay_mean": overall_replay_mean,
             "replay_max": overall_replay_max,
+            "ready_series": ready_count,
+            "total_series": len(per_series),
         },
         "series": sorted(per_series, key=lambda row: row["series"]),
     }
@@ -420,11 +449,11 @@ def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:  # 
             lines.append(f"- Replay mean Δ: {replay_mean:.4f} (max {replay_max:.4f})")
         lines.append("")
         header = (
-            "| Series | GO Rate | GO/Total | EV after fees | Fill ratio | α | "
+            "| Series | Ready? | GO Rate | GO/Total | EV after fees | Fill ratio | α | "
             "Δfill | Replay mean Δ | Replay max Δ |"
         )
         lines.append(header)
-        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for row in series_rows:
             go = int(row.get("go", 0))
             no_go = int(row.get("no_go", 0))
@@ -449,12 +478,25 @@ def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:  # 
                 replay_max_text = "n/a"
             total_text = f"{go}/{total}" if total else "0/0"
             series_name = row.get("series", "-")
+            ready_flag = bool(row.get("ready", False))
+            ready_text = "READY" if ready_flag else "NO"
             row_line = (
-                f"| {series_name} | {go_rate_text} | {total_text} | {ev_text} | "
+                f"| {series_name} | {ready_text} | {go_rate_text} | {total_text} | {ev_text} | "
                 f"{fill_text} | {alpha_text} | {gap_text} | {replay_mean_text} | "
                 f"{replay_max_text} |"
             )
             lines.append(row_line)
+
+        not_ready = [row for row in series_rows if not row.get("ready", False)]
+        if not_ready:
+            lines.append("")
+            lines.append("### Readiness Gaps")
+            for row in not_ready:
+                reasons = row.get("ready_reasons") or []
+                if not reasons:
+                    continue
+                joined = "; ".join(reasons)
+                lines.append(f"- {row.get('series')}: {joined}")
 
     output.write_text("\n".join(lines), encoding="utf-8")
 

@@ -16,8 +16,8 @@ def _copy_calibration(src: Path, dest: Path) -> None:
 def test_evaluate_noon_yields_opportunities(isolated_data_roots: tuple[Path, Path]) -> None:
     _, proc_root = isolated_data_roots
     _copy_calibration(
-        Path("tests/fixtures/index/index_noon_calibration.parquet"),
-        proc_root / "index_noon_calibration.parquet",
+        Path("tests/fixtures/index/spx/noon/params.json"),
+        proc_root / "calib" / "index" / "spx" / "noon" / "params.json",
     )
     strikes = [5000.0, 5020.0, 5040.0]
     yes_prices = [0.45, 0.35, 0.25]
@@ -27,13 +27,16 @@ def test_evaluate_noon_yields_opportunities(isolated_data_roots: tuple[Path, Pat
     first = result.opportunities[0]
     assert first.side is OrderSide.YES
     assert first.range_mass >= 0.0
+    assert result.rule is not None
+    assert result.rule.series == "INXU"
+    assert "12:00" in result.rule.evaluation_time_et
 
 
 def test_evaluate_close_range_mass(isolated_data_roots: tuple[Path, Path]) -> None:
     _, proc_root = isolated_data_roots
     _copy_calibration(
-        Path("tests/fixtures/index/index_close_calibration.parquet"),
-        proc_root / "index_close_calibration.parquet",
+        Path("tests/fixtures/index/ndx/close/params.json"),
+        proc_root / "calib" / "index" / "ndx" / "close" / "params.json",
     )
     strikes = [17800.0, 17900.0]
     yes_prices = [0.4, 0.25]
@@ -41,3 +44,6 @@ def test_evaluate_close_range_mass(isolated_data_roots: tuple[Path, Path]) -> No
     result = evaluate_close(strikes, yes_prices, inputs, contracts=1, min_ev=0.0)
     assert result.tail_mass > 0.0
     assert any(op.maker_ev >= 0.0 for op in result.opportunities)
+    assert result.rule is not None
+    assert result.rule.series == "NASDAQ100"
+    assert "16:00" in result.rule.evaluation_time_et

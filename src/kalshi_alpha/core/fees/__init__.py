@@ -9,6 +9,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from .index_series import IndexFeeCurve, get_index_fee_curve, load_index_fee_curves
+
 getcontext().prec = 16
 
 CENT = Decimal("0.01")
@@ -233,4 +235,7 @@ __all__ = [
     "maker_fee",
     "taker_fee",
     "round_up_to_cent",
+    "IndexFeeCurve",
+    "load_index_fee_curves",
+    "get_index_fee_curve",
 ]

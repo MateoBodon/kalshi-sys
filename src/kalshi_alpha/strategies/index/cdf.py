@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-
-import polars as pl
 
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.strategies import base
@@ -18,12 +18,21 @@ class SigmaCalibration:
     sigma_curve: Mapping[int, float]
     drift_curve: Mapping[int, float]
     residual_std: float
+    pit_bias: float | None = None
 
     def sigma(self, minutes_to_target: int) -> float:
         return _nearest(self.sigma_curve, minutes_to_target)
 
     def drift(self, minutes_to_target: int) -> float:
         return _nearest(self.drift_curve, minutes_to_target)
+
+    def apply_pit(self, probability: float) -> float:
+        prob = min(max(float(probability), 1e-9), 1.0 - 1e-9)
+        if self.pit_bias is None:
+            return prob
+        logit = math.log(prob / (1.0 - prob))
+        adjusted = 1.0 / (1.0 + math.exp(-(logit + self.pit_bias)))
+        return min(max(adjusted, 0.0), 1.0)
 
 
 def gaussian_pmf(
@@ -80,23 +89,57 @@ def probability_between(
     return max(probability, 0.0)
 
 
-def load_calibration(path: Path, symbol: str) -> SigmaCalibration:
-    resolved = path.resolve()
-    return _load_calibration_cached(str(resolved), symbol.upper())
+def load_calibration(path: Path, symbol: str, *, horizon: str) -> SigmaCalibration:
+    resolved_file = _resolve_calibration_file(path, symbol, horizon)
+    return _load_calibration_cached(str(resolved_file))
 
 
 @lru_cache(maxsize=12)
-def _load_calibration_cached(path: str, symbol: str) -> SigmaCalibration:
-    frame = pl.read_parquet(path)
-    filtered = frame.filter(pl.col("symbol") == symbol)
-    if filtered.is_empty():
-        raise FileNotFoundError(f"Calibration for {symbol} not found in {path}")
-    rows = list(filtered.iter_rows(named=True))
-    sigma_curve = {int(row["minutes_to_target"]): float(row["sigma"]) for row in rows}
-    drift_curve = {int(row["minutes_to_target"]): float(row.get("drift", 0.0)) for row in rows}
-    residual_values = [float(row.get("residual_std", 0.0)) for row in rows if row.get("residual_std") is not None]
-    residual_std = max(residual_values) if residual_values else 0.0
-    return SigmaCalibration(sigma_curve=sigma_curve, drift_curve=drift_curve, residual_std=residual_std)
+def _load_calibration_cached(file_path: str) -> SigmaCalibration:
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Calibration file not found at {file_path}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    minutes_section = data.get("minutes_to_target", {})
+    sigma_curve = {}
+    drift_curve = {}
+    for minutes, entry in minutes_section.items():
+        try:
+            minutes_int = int(minutes)
+        except (TypeError, ValueError):  # pragma: no cover - defensive parsing
+            continue
+        sigma_curve[minutes_int] = float(entry.get("sigma", 0.0))
+        drift_curve[minutes_int] = float(entry.get("drift", 0.0))
+    if not sigma_curve:
+        raise ValueError(f"Calibration payload missing sigma curve: {file_path}")
+    residual_std = float(data.get("residual_std", 0.0))
+    pit_bias = data.get("pit_bias")
+    if pit_bias is not None:
+        try:
+            pit_bias = float(pit_bias)
+        except (TypeError, ValueError):
+            pit_bias = None
+    return SigmaCalibration(
+        sigma_curve=sigma_curve,
+        drift_curve=drift_curve,
+        residual_std=residual_std,
+        pit_bias=pit_bias,
+    )
+
+
+def _resolve_calibration_file(path: Path, symbol: str, horizon: str) -> Path:
+    resolved = path.resolve()
+    if resolved.is_file():
+        return resolved
+    slug = _symbol_slug(symbol)
+    file_path = resolved / slug / horizon / "params.json"
+    if not file_path.exists():
+        raise FileNotFoundError(f"Calibration params not found: {file_path}")
+    return file_path
+
+
+def _symbol_slug(symbol: str) -> str:
+    return symbol.split(":")[-1].lower()
 
 
 def _nearest(curve: Mapping[int, float], minutes: int) -> float:

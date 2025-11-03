@@ -8,12 +8,14 @@ from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Mapping
+from urllib.parse import parse_qs, urlparse
 
 import requests
 import websockets
 from requests import Response
 from websockets.asyncio.client import ClientConnection
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
 from kalshi_alpha.utils.keys import load_polygon_api_key
 
@@ -89,7 +91,10 @@ class PolygonIndicesClient:
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         api_key = self._resolved_api_key()
-        url = f"{self._rest_base_url}{path}"
+        if path.startswith("http://") or path.startswith("https://"):
+            url = path
+        else:
+            url = f"{self._rest_base_url}{path}"
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Accept": "application/json",
@@ -130,25 +135,97 @@ class PolygonIndicesClient:
     ) -> list[MinuteBar]:
         """Fetch aggregated minute bars for the given index."""
 
+        return self._fetch_aggregate_bars(
+            symbol=symbol,
+            start=start,
+            end=end,
+            multiplier=1,
+            timespan="minute",
+            adjusted=adjusted,
+            limit=limit,
+        )
+
+    def fetch_second_bars(
+        self,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+        *,
+        adjusted: bool = True,
+        limit: int = 50_000,
+    ) -> list[MinuteBar]:
+        """Fetch aggregated second bars for the given index."""
+
+        return self._fetch_aggregate_bars(
+            symbol=symbol,
+            start=start,
+            end=end,
+            multiplier=1,
+            timespan="second",
+            adjusted=adjusted,
+            limit=limit,
+        )
+
+    def _fetch_aggregate_bars(
+        self,
+        *,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+        multiplier: int,
+        timespan: str,
+        adjusted: bool,
+        limit: int,
+    ) -> list[MinuteBar]:
         if start.tzinfo is None or end.tzinfo is None:
             raise ValueError("start and end must be timezone-aware")
         if end <= start:
             raise ValueError("end must be after start")
 
-        path = f"/v2/aggs/ticker/{symbol}/range/1/minute/{int(start.timestamp()*1000)}/{int(end.timestamp()*1000)}"
+        start_ms = int(start.timestamp() * 1000)
+        end_ms = int(end.timestamp() * 1000)
+        path = f"/v2/aggs/ticker/{symbol}/range/{int(multiplier)}/{timespan}/{start_ms}/{end_ms}"
         params = {
             "adjusted": str(bool(adjusted)).lower(),
             "sort": "asc",
             "limit": int(limit),
         }
-        payload = self._request("GET", path, params=params)
+        bars: list[MinuteBar] = []
+        for payload in self._paginate(path, params):
+            bars.extend(self._parse_aggregate_payload(payload))
+        return bars
+
+    def _paginate(
+        self,
+        path: str,
+        params: dict[str, Any] | None,
+    ) -> Iterable[dict[str, Any]]:
+        next_path = path
+        next_params = dict(params) if params else None
+        while True:
+            payload = self._request("GET", next_path, params=next_params)
+            yield payload
+            next_url = payload.get("next_url")
+            if not next_url:
+                break
+            next_path, next_params = self._parse_next_url(str(next_url))
+
+    def _parse_next_url(self, url: str) -> tuple[str, dict[str, Any]]:
+        parsed = urlparse(url)
+        path = parsed.path or url
+        if not path.startswith("http") and not path.startswith("/"):
+            path = f"/{path}"
+        params = {key: values[-1] for key, values in parse_qs(parsed.query).items()}
+        return path, params
+
+    def _parse_aggregate_payload(self, payload: Mapping[str, Any]) -> list[MinuteBar]:
         results = payload.get("results") or []
         bars: list[MinuteBar] = []
         for entry in results:
             try:
                 timestamp = datetime.fromtimestamp(float(entry["t"]) / 1000.0, tz=UTC)
             except (KeyError, TypeError, ValueError) as exc:
-                raise PolygonAPIError(f"invalid minute bar payload: {entry}") from exc
+                raise PolygonAPIError(f"invalid aggregate payload: {entry}") from exc
             bars.append(
                 MinuteBar(
                     timestamp=timestamp,
@@ -234,6 +311,48 @@ class PolygonIndicesClient:
         params = ",".join(f"{INDEX_MINUTE_CHANNEL}.{ticker}" for ticker in tickers)
         message = json.dumps({"action": "subscribe", "params": params})
         await connection.send(message)
+
+    async def stream_minute_aggregates(
+        self,
+        symbols: Iterable[str],
+        *,
+        reconnect_attempts: int | None = 5,
+        initial_backoff: float = 0.5,
+        max_backoff: float = 8.0,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield websocket aggregate payloads with automatic reconnect/backoff."""
+
+        base_backoff = max(0.1, float(initial_backoff))
+        ceiling = max(base_backoff, float(max_backoff))
+        attempts = 0
+        tickers = [symbol.strip() for symbol in symbols if symbol.strip()]
+
+        while True:
+            try:
+                async with self.websocket() as connection:
+                    if tickers:
+                        await self.subscribe_minute_channels(connection, tickers)
+                    attempts = 0
+                    backoff = base_backoff
+                    while True:
+                        raw = await connection.recv()
+                        try:
+                            message = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        event_type = str(message.get("ev") or "").upper()
+                        if event_type != INDEX_MINUTE_CHANNEL:
+                            continue
+                        yield message
+            except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
+                raise
+            except (ConnectionClosedError, ConnectionClosedOK, PolygonAPIError, TimeoutError, asyncio.TimeoutError, OSError) as exc:
+                attempts += 1
+                if reconnect_attempts is not None and attempts > reconnect_attempts:
+                    raise
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, ceiling)
+                continue
 
 
 __all__ = [

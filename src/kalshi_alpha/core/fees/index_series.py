@@ -1,0 +1,59 @@
+"""Index series fee curve loader."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
+from typing import Mapping
+
+ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_INDEX_FEE_PATH = ROOT / "data" / "reference" / "index_fee_curves.json"
+
+
+@dataclass(frozen=True)
+class IndexFeeCurve:
+    """Parametric fee curve for a specific index ladder series."""
+
+    series: str
+    coefficient: Decimal
+
+
+def load_index_fee_curves(path: Path | None = None) -> Mapping[str, IndexFeeCurve]:
+    """Load all index fee curves from the reference JSON file."""
+
+    resolved = (path or DEFAULT_INDEX_FEE_PATH).resolve()
+    return _load_index_fee_curves_cached(str(resolved))
+
+
+def get_index_fee_curve(series: str, path: Path | None = None) -> IndexFeeCurve | None:
+    """Return the fee curve for *series*, or ``None`` if not configured."""
+
+    curves = load_index_fee_curves(path)
+    return curves.get(series.upper())
+
+
+@lru_cache(maxsize=4)
+def _load_index_fee_curves_cached(resolved_path: str) -> dict[str, IndexFeeCurve]:
+    path = Path(resolved_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Index fee configuration not found at {resolved_path}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    series_section = data.get("series", {})
+    if not isinstance(series_section, dict):
+        raise ValueError("index fee configuration must include a 'series' mapping")
+    curves: dict[str, IndexFeeCurve] = {}
+    for key, value in series_section.items():
+        try:
+            coefficient = Decimal(str(value["coefficient"]))
+        except KeyError as exc:  # pragma: no cover - defensive
+            raise ValueError(f"missing coefficient for index series {key}") from exc
+        curves[key.upper()] = IndexFeeCurve(series=key.upper(), coefficient=coefficient)
+    if not curves:
+        raise ValueError("index fee configuration contained no series entries")
+    return curves
+
+
+__all__ = ["IndexFeeCurve", "load_index_fee_curves", "get_index_fee_curve"]

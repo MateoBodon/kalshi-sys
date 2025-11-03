@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from kalshi_alpha.config import IndexRule, lookup_index_rule
 from kalshi_alpha.core.pricing import LadderBinProbability, OrderSide
+from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
 from kalshi_alpha.exec.scanners.utils import expected_value_summary
-from kalshi_alpha.strategies.index import NoonInputs, noon_pmf
+from kalshi_alpha.strategies.index import NOON_CALIBRATION_PATH, NoonInputs, noon_pmf
 from kalshi_alpha.strategies.index import cdf as index_cdf
 
 
@@ -29,6 +31,7 @@ class IndexScanResult:
     opportunities: list[QuoteOpportunity]
     below_first_mass: float
     tail_mass: float
+    rule: IndexRule | None = None
 
 
 def evaluate_noon(  # noqa: PLR0913
@@ -45,10 +48,22 @@ def evaluate_noon(  # noqa: PLR0913
     survival = index_cdf.survival_map(strikes, pmf)
     tail_lower = float(pmf[0].probability) if pmf else 0.0
     tail_upper = float(pmf[-1].probability) if pmf else 0.0
+    calibration = None
+    try:
+        meta = resolve_index_series(inputs.series)
+        calibration = index_cdf.load_calibration(
+            NOON_CALIBRATION_PATH,
+            meta.polygon_ticker,
+            horizon="noon",
+        )
+    except Exception:  # pragma: no cover - defensive fallback
+        calibration = None
 
     opportunities: list[QuoteOpportunity] = []
     for idx, (strike, yes_price) in enumerate(zip(strikes, yes_prices, strict=True)):
         model_prob = float(survival[float(strike)])
+        if calibration is not None:
+            model_prob = calibration.apply_pit(model_prob)
         ev_summary = expected_value_summary(
             contracts=contracts,
             yes_price=float(yes_price),
@@ -70,12 +85,18 @@ def evaluate_noon(  # noqa: PLR0913
             )
         )
 
+    try:
+        rule = lookup_index_rule(inputs.series)
+    except KeyError:
+        rule = None
+
     return IndexScanResult(
         pmf=pmf,
         survival=survival,
         opportunities=opportunities,
         below_first_mass=tail_lower,
         tail_mass=tail_upper,
+        rule=rule,
     )
 
 

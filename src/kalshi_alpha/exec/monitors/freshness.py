@@ -13,7 +13,7 @@ from typing import Any
 import polars as pl
 import yaml
 
-from kalshi_alpha.datastore.paths import PROC_ROOT
+from kalshi_alpha.datastore import paths as datastore_paths
 from kalshi_alpha.exec.monitors.summary import MONITOR_ARTIFACTS_DIR
 
 FRESHNESS_CONFIG_PATH = Path("configs/freshness.yaml")
@@ -108,6 +108,12 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "active_stations": [],
             "namespace": ("nws_cli", "daily_climate"),
         },
+        "polygon_index.websocket": {
+            "label": "Polygon index websocket",
+            "age_seconds": 2.0,
+            "required": True,
+            "namespace": "polygon_index",
+        },
     }
 
     raw_config: Mapping[str, Any] = {}
@@ -150,14 +156,15 @@ def compute_freshness(
 
     cfg = config or load_config()
     moment = _ensure_utc(now or datetime.now(tz=UTC))
-    base_proc = proc_root or PROC_ROOT
+    base_proc = proc_root or datastore_paths.PROC_ROOT
+    base_raw = datastore_paths.RAW_ROOT if proc_root is None else proc_root.parent / "raw"
 
     feed_states: list[FeedState] = []
     for feed_id in cfg.required_order:
         feed_cfg = cfg.feeds.get(feed_id)
         if not isinstance(feed_cfg, dict):
             continue
-        feed_state = _evaluate_feed(feed_id, feed_cfg, moment, base_proc)
+        feed_state = _evaluate_feed(feed_id, feed_cfg, moment, base_proc, base_raw)
         feed_states.append(feed_state)
 
     required_feeds = [state for state in feed_states if state.required]
@@ -307,6 +314,7 @@ def _evaluate_feed(
     cfg: Mapping[str, Any],
     now: datetime,
     proc_root: Path,
+    raw_root: Path,
 ) -> FeedState:
     label = str(cfg.get("label") or feed_id)
     required = bool(cfg.get("required", True))
@@ -317,11 +325,50 @@ def _evaluate_feed(
         "cleveland_nowcast.monthly": _evaluate_cleveland,
         "aaa_gas.daily": _evaluate_aaa,
         "nws_daily_climate": _evaluate_weather,
+        "polygon_index.websocket": lambda c, l, r, n, p: _evaluate_polygon_ws(c, l, r, n, raw_root),
     }
     handler = handlers.get(feed_id)
     if handler is None:
         return FeedState(feed_id, label, required, None, None, not required, "UNKNOWN_FEED")
     return handler(cfg, label, required, now, proc_root)
+
+
+def _evaluate_polygon_ws(
+    cfg: Mapping[str, Any],
+    label: str,
+    required: bool,
+    now: datetime,
+    raw_root: Path,
+) -> FeedState:
+    namespace = str(cfg.get("namespace", "polygon_index"))
+    threshold_seconds = _to_float(cfg.get("age_seconds"), default=2.0)
+    latest_path = _latest_snapshot_path(raw_root, namespace)
+    if latest_path is None:
+        return FeedState("polygon_index.websocket", label, required, None, None, not required, "NO_SNAPSHOTS")
+    last_ts = _parse_snapshot_timestamp(latest_path.name)
+    if last_ts is None:
+        return FeedState("polygon_index.websocket", label, required, None, None, False, "BAD_TIMESTAMP")
+    age_seconds = max((now - last_ts).total_seconds(), 0.0)
+    age_minutes = age_seconds / 60.0
+    ok = True
+    if threshold_seconds is not None and age_seconds > threshold_seconds:
+        ok = False
+    reason = None if ok else f"STALE>{threshold_seconds}s"
+    details = {
+        "age_seconds": round(age_seconds, 3),
+        "threshold_seconds": threshold_seconds,
+        "snapshot_path": str(latest_path),
+    }
+    return FeedState(
+        "polygon_index.websocket",
+        label,
+        required,
+        last_ts,
+        age_minutes,
+        ok or not required,
+        reason,
+        details,
+    )
 
 
 def _evaluate_bls(
@@ -655,6 +702,24 @@ def _latest_parquet(proc_root: Path, namespace: Iterable[str | Path]) -> Path | 
         return None
     files = sorted(directory.glob("*.parquet"))
     return files[-1] if files else None
+
+
+def _latest_snapshot_path(raw_root: Path, namespace: str) -> Path | None:
+    base = raw_root if raw_root.exists() else datastore_paths.RAW_ROOT
+    pattern = base.glob(f"*/*/*/{namespace}/*.json")
+    files = list(pattern)
+    if not files:
+        return None
+    return max(files, key=lambda path: path.stat().st_mtime)
+
+
+def _parse_snapshot_timestamp(name: str) -> datetime | None:
+    prefix = name.split("_", 1)[0]
+    try:
+        parsed = datetime.strptime(prefix, "%Y%m%dT%H%M%S")
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC)
 
 
 def _extract_datetime(value: datetime | date | None) -> datetime | None:
