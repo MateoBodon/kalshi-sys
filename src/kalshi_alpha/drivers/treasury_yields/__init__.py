@@ -6,7 +6,7 @@ import csv
 import io
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -109,7 +109,10 @@ def _parse_treasury_csv(csv_text: str) -> list[ParYield]:
         if "Date" not in row:
             continue
         try:
-            as_of = datetime.strptime(row["Date"], "%m/%d/%Y").replace(tzinfo=UTC)
+            as_of_dt = datetime.strptime(row["Date"], "%m/%d/%Y").replace(tzinfo=UTC)
+            as_of_date = as_of_dt.date()
+            close_et = datetime.combine(as_of_date, time(16, 0), tzinfo=ET)
+            as_of = close_et.astimezone(UTC)
         except ValueError:
             continue
         for maturity, value in row.items():

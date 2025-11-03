@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -290,7 +290,11 @@ class _QualityGateEvaluator:
                 as_of = value
             else:
                 # accept polars date objects
-                as_of = datetime.combine(value, datetime.min.time(), tzinfo=UTC)
+                close_time = time(16, 0)
+                if item.require_et:
+                    as_of = datetime.combine(value, close_time, tzinfo=ET).astimezone(UTC)
+                else:
+                    as_of = datetime.combine(value, close_time, tzinfo=UTC)
             if as_of.tzinfo is None:
                 self._reasons.append(f"{key_prefix}.timezone_missing")
                 as_of = as_of.replace(tzinfo=ET if item.require_et else UTC)
