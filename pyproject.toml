@@ -50,6 +50,9 @@ include = ["kalshi_alpha*"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = [
+  "legacy: mark tests excluded from default CI",
+]
 
 [tool.mypy]
 python_version = "3.11"

@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_INXU_H1200_A",
+      "event_id": "EVT_INXU_H1200",
+      "ticker": "KXINXU-25NOV03H1200-T5000",
+      "title": "SPX >= 5000 by 12:00",
+      "ladder_strikes": [5000.0, 5010.0],
+      "ladder_yes_prices": [0.42, 0.3]
+    }
+  ]
+}

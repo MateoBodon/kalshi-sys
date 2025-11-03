@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_INX_H1600_RANGE",
+      "event_id": "EVT_INX_H1600",
+      "ticker": "KXINX-25NOV03H1600-B5000",
+      "title": "SPX close 5000-5100",
+      "ladder_strikes": [5000.0, 5100.0, 5200.0],
+      "ladder_yes_prices": [0.48, 0.35, 0.15]
+    }
+  ]
+}

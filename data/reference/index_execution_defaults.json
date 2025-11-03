@@ -1,0 +1,54 @@
+{
+  "updated": "2025-11-03",
+  "notes": "Bootstrap maker execution parameters for index ladders. Alpha represents expected fill probability for 1-lot maker quotes. Slippage depth curves expressed in USD impact.",
+  "series": {
+    "INXU": {
+      "alpha": 0.45,
+      "slippage": {
+        "mode": "depth",
+        "impact_cap": 0.025,
+        "depth_curve": [
+          [0.0, 0.0],
+          [0.5, 0.010],
+          [1.0, 0.018]
+        ]
+      }
+    },
+    "NASDAQ100U": {
+      "alpha": 0.42,
+      "slippage": {
+        "mode": "depth",
+        "impact_cap": 0.028,
+        "depth_curve": [
+          [0.0, 0.0],
+          [0.5, 0.012],
+          [1.0, 0.020]
+        ]
+      }
+    },
+    "INX": {
+      "alpha": 0.40,
+      "slippage": {
+        "mode": "depth",
+        "impact_cap": 0.030,
+        "depth_curve": [
+          [0.0, 0.0],
+          [0.5, 0.012],
+          [1.0, 0.022]
+        ]
+      }
+    },
+    "NASDAQ100": {
+      "alpha": 0.38,
+      "slippage": {
+        "mode": "depth",
+        "impact_cap": 0.032,
+        "depth_curve": [
+          [0.0, 0.0],
+          [0.5, 0.013],
+          [1.0, 0.024]
+        ]
+      }
+    }
+  }
+}

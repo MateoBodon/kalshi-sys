@@ -1,0 +1,11 @@
+{
+  "market_id": "MKT_INX_H1600_RANGE",
+  "bids": [
+    {"price": 0.62, "size": 5},
+    {"price": 0.58, "size": 4}
+  ],
+  "asks": [
+    {"price": 0.48, "size": 6},
+    {"price": 0.52, "size": 5}
+  ]
+}

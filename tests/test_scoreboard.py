@@ -86,6 +86,8 @@ def test_scoreboard_generates_markdown(
     assert "## INX" in contents
     assert "CRPS Advantage" in contents
     assert "Avg α" in contents
+    assert "Avg Slippage (ticks)" in contents
+    assert "Fill - α" in contents
     assert "NO-GO Count" in contents
     assert "Sample Size" in contents
     assert "Confidence" in contents

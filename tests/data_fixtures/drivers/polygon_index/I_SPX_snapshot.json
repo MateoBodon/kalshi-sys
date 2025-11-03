@@ -1,0 +1,8 @@
+{
+  "ticker": "I:SPX",
+  "last_price": 5025.0,
+  "change": 5.1,
+  "change_percent": 0.1,
+  "previous_close": 5019.9,
+  "timestamp": "2025-11-03T16:55:00Z"
+}

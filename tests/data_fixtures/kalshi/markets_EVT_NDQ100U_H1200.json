@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_NDQ100U_H1200_A",
+      "event_id": "EVT_NDQ100U_H1200",
+      "ticker": "KXNASDAQ100U-25NOV03H1200-T15000",
+      "title": "NDX >= 15000 by 12:00",
+      "ladder_strikes": [15000.0, 15050.0],
+      "ladder_yes_prices": [0.44, 0.32]
+    }
+  ]
+}

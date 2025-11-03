@@ -147,6 +147,7 @@ Pipeline steps per run:
 - Scope: intraday noon (`INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only, 1-lot sizing, ≤2 bins per market. Runs remain DRY/paper until pilot promotion.
 - Secrets: Polygon API key loads from macOS Keychain `kalshi-sys:POLYGON_API_KEY`; fallback env `POLYGON_API_KEY` (CI only). Never commit keys.
 - Windows: noon ladders 11:40–12:05 ET (Polygon snapshot age <30 s); close ladders 15:45–16:10 ET (minute feed tick <20 s old). Abort if freshness checks fail.
+- Fixtures: `scripts/make_index_fixtures.sh` wraps `scripts/polygon_dump.py` to capture Polygon minute bars for `I:SPX`/`I:NDX` over 11:45–12:05 ET and 15:45–16:05 ET windows. Generated Parquets + metadata live under `tests/data_fixtures/index/` and back the math/scanner tests.
 - Calibrations:
   ```bash
   python -m jobs.calibrate_noon --series INXU NASDAQ100U --days 45
@@ -157,7 +158,10 @@ Pipeline steps per run:
   1. `python -m kalshi_alpha.exec.heartbeat` → Polygon + Kalshi freshness <5 min; kill-switch absent.
   2. Confirm calibration parquet mtimes ≤7 days.
   3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, and EV after fees.
+- U-series rotation: scans at :40/:55 discover the **next** hour market and emit `[u-roll] ROLLED U-SERIES: HHHMM -> HHHMM`. When the boundary is within two seconds, the runner marks cancel-all before replaying proposals.
 - Fees: makers pay `0.035 × contracts × price × (1 − price)` rounded up to the cent. All EV honesty, ledger, and proposal checks use this curve.
+- Freshness & clocks: the scanner refuses to arm when `reports/_artifacts/freshness.json` shows stale Polygon websocket heartbeats (>2 s) or when ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` mirror this guard and surface in GO/NO-GO artifacts.
+- Execution metrics: reports now include a `Fill & Slippage` section (mean fill ratio, α target, slippage ticks/USD, EV bps). Defaults seed from `data/reference/index_execution_defaults.json` until the ledger-based stores (`data/proc/state/fill_alpha.json`, `data/proc/state/slippage.json`) are populated.
 - Post-run: archive proposals under `exec/proposals/index_*`, keep paper ledger CSV/JSON, regenerate readiness via `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`.
 
 ### First Microlive Clip

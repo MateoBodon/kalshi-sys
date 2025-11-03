@@ -1,0 +1,11 @@
+{
+  "market_id": "MKT_INXU_H1300_A",
+  "bids": [
+    {"price": 0.55, "size": 9},
+    {"price": 0.51, "size": 7}
+  ],
+  "asks": [
+    {"price": 0.39, "size": 11},
+    {"price": 0.43, "size": 8}
+  ]
+}

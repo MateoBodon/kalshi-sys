@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
@@ -18,6 +19,7 @@ import polars as pl
 
 from kalshi_alpha.brokers import create_broker
 from kalshi_alpha.brokers.kalshi.base import BrokerOrder
+from kalshi_alpha.config import IndexRule, lookup_index_rule
 from kalshi_alpha.core import kalshi_ws
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
@@ -59,7 +61,7 @@ from kalshi_alpha.exec.heartbeat import (
     resolve_kill_switch_path,
     write_heartbeat,
 )
-from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.ledger import ExecutionMetrics, PaperLedger, simulate_fills
 from kalshi_alpha.exec.monitors.freshness import (
     FRESHNESS_ARTIFACT_PATH,
 )
@@ -100,6 +102,9 @@ _POLYGON_FIXTURE_DIR = "polygon_index"
 _TARGET_NOON = time(12, 0)
 _TARGET_CLOSE = time(16, 0)
 _ET_ZONE = ZoneInfo("America/New_York")
+_U_SERIES = {"INXU", "NASDAQ100U"}
+_HOUR_PATTERN = re.compile(r"H(?P<hour>\d{2})(?P<minute>\d{2})")
+CLOCK_SKEW_THRESHOLD_SECONDS = 1.5
 
 
 def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float, bool]:  # noqa: PLR0912
@@ -182,6 +187,8 @@ class ScanOutcome:
     books_at_scan: dict[str, Orderbook] = field(default_factory=dict)
     book_snapshot_started_at: datetime | None = None
     book_snapshot_completed_at: datetime | None = None
+    roll_info: dict[str, object] | None = None
+    execution_metrics: ExecutionMetrics | None = None
 
 
 @dataclass(frozen=True)
@@ -477,6 +484,21 @@ def main(argv: Sequence[str] | None = None) -> None:
             print(f"[drawdown] Skipping scan due to {reasons}")
         return
 
+    now_override = datetime.now(tz=UTC)
+    clock_skew_seconds = _clock_skew_seconds(now_override)
+    cancel_requested = False
+    if args.series.upper() in _U_SERIES:
+        roll_decision = _u_series_roll_decision(now_override)
+        if roll_decision.get("cancel_required"):
+            state = OutstandingOrdersState.load()
+            state.mark_cancel_all("u_series_hourly_roll", modes=[args.broker])
+            cancel_requested = True
+            if not args.quiet:
+                target_label = _format_hour_label(int(roll_decision.get("target_hour", 0)))
+                print(f"[u-roll] Cancel-all requested for {args.series.upper()} ahead of {target_label}")
+    else:
+        roll_decision = None
+
     outcome = scan_series(
         series=args.series,
         client=client,
@@ -501,11 +523,33 @@ def main(argv: Sequence[str] | None = None) -> None:
         prob_sum_gap_threshold=args.prob_sum_gap_threshold,
         pilot_config=pilot_config,
         bin_constraints=bin_constraints,
+        now_override=now_override,
     )
 
     if pilot_session:
         outcome.monitors.setdefault("pilot_session_id", pilot_session.session_id)
         outcome.monitors.setdefault("pilot_session_started_at", pilot_session.started_at.isoformat())
+
+    outcome.monitors.setdefault("clock_skew_seconds", round(float(clock_skew_seconds), 6))
+    if clock_skew_seconds > CLOCK_SKEW_THRESHOLD_SECONDS:
+        outcome.monitors.setdefault("clock_skew_exceeded", True)
+
+    if (
+        outcome.roll_info
+        and outcome.series
+        and outcome.series.ticker.upper() in _U_SERIES
+        and bool(outcome.roll_info.get("rolled"))
+    ):
+        if not args.quiet:
+            current_label = str(outcome.roll_info.get("current_hour_label") or "")
+            target_label = str(outcome.roll_info.get("target_hour_label") or "")
+            print(f"[u-roll] ROLLED U-SERIES: {current_label} -> {target_label}")
+    elif cancel_requested and not args.quiet and outcome.series and outcome.series.ticker.upper() in _U_SERIES:
+        # Ensure we at least log current targeting if cancel triggered but no roll occurred
+        current_label = str(outcome.roll_info.get("current_hour_label") if outcome.roll_info else "")
+        target_label = str(outcome.roll_info.get("target_hour_label") if outcome.roll_info else "")
+        if current_label or target_label:
+            print(f"[u-roll] TARGETING U-SERIES: {current_label or '?'} -> {target_label or '?'}")
 
     proposals = outcome.proposals
     books_at_scan = dict(getattr(outcome, "books_at_scan", {}))
@@ -551,8 +595,28 @@ def main(argv: Sequence[str] | None = None) -> None:
         events=outcome.events,
         markets=outcome.markets,
     )
+    execution_metrics: dict[str, object] | None = None
     if ledger:
         drawdown.record_pnl(ledger.total_expected_pnl())
+        execution_metrics = ledger.execution_metrics()
+        if execution_metrics:
+            outcome.monitors.setdefault(
+                "fill_ratio_avg",
+                execution_metrics.get("fill_ratio_avg"),
+            )
+            outcome.monitors.setdefault(
+                "fill_alpha_target_avg",
+                execution_metrics.get("alpha_target_avg"),
+            )
+            outcome.monitors.setdefault(
+                "slippage_ticks_avg",
+                execution_metrics.get("slippage_ticks_avg"),
+            )
+            outcome.monitors.setdefault(
+                "ev_realized_bps_avg",
+                execution_metrics.get("ev_realized_bps_avg"),
+            )
+    outcome.execution_metrics = execution_metrics
     exposure_summary = _compute_exposure_summary(proposals)
     _write_cdf_diffs(outcome.cdf_diffs)
     if proposals:
@@ -679,6 +743,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         model_metadata=outcome.model_metadata,
         outstanding_summary=outstanding_summary,
         pilot_metadata=pilot_metadata,
+        execution_metrics=execution_metrics,
     )
     heartbeat_extra = {
         "outstanding": outstanding_summary,
@@ -865,6 +930,7 @@ def _maybe_write_report(
     model_metadata: dict[str, object] | None = None,
     outstanding_summary: dict[str, int] | None = None,
     pilot_metadata: dict[str, object] | None = None,
+    execution_metrics: ExecutionMetrics | None = None,
 ) -> None:
     if not args.report:
         return
@@ -890,6 +956,7 @@ def _maybe_write_report(
         model_metadata=model_metadata,
         outstanding_summary=outstanding_summary,
         pilot_metadata=pilot_metadata,
+        execution_metrics=execution_metrics,
     )
     if not args.quiet:
         print(f"Wrote report to {report_path}")
@@ -1032,6 +1099,12 @@ def _quality_gate_for_broker(
     reasons = list(result.reasons)
     details = dict(result.details)
     details.setdefault("data_freshness", data_freshness_summary)
+    clock_skew = None
+    if monitors is not None:
+        value = monitors.get("clock_skew_seconds")
+        if isinstance(value, (int, float)):
+            clock_skew = float(value)
+            details.setdefault("clock_skew_seconds", clock_skew)
 
     def _append_reason(reason: str) -> None:
         if reason not in reasons:
@@ -1049,6 +1122,16 @@ def _quality_gate_for_broker(
     if drawdown_status.metrics:
         details.setdefault("drawdown", drawdown_status.metrics)
     go_flag = result.go and drawdown_status.ok and data_freshness_summary.get("required_feeds_ok", True)
+    if clock_skew is not None and clock_skew > CLOCK_SKEW_THRESHOLD_SECONDS:
+        go_flag = False
+        _append_reason("clock_skew_exceeded")
+        details.setdefault("clock_skew_threshold", CLOCK_SKEW_THRESHOLD_SECONDS)
+    if monitors is not None and not bool(monitors.get("index_rules_ok", True)):
+        go_flag = False
+        _append_reason("index_rules_mismatch")
+        reasons_payload = monitors.get("index_rules_reasons")
+        if reasons_payload:
+            details.setdefault("index_rules_reasons", list(reasons_payload))
     if not drawdown_status.ok:
         for reason in drawdown_status.reasons:
             _append_reason(reason)
@@ -1056,7 +1139,6 @@ def _quality_gate_for_broker(
         _append_reason("STALE_FEEDS")
         if data_freshness_summary.get("status") == "MISSING":
             _append_reason("data_freshness_missing")
-
     monitor_reasons: list[str] = []
     if monitor_summary.file_count == 0:
         monitor_reasons.append("monitors_missing")
@@ -1494,6 +1576,118 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _parse_hour_label(ticker: str | None) -> tuple[int, int] | None:
+    if not ticker:
+        return None
+    match = _HOUR_PATTERN.search(ticker.upper())
+    if match is None:
+        return None
+    try:
+        hour = int(match.group("hour"))
+        minute = int(match.group("minute"))
+    except (KeyError, ValueError):
+        return None
+    return hour % 24, minute % 60
+
+
+def _format_hour_label(hour: int) -> str:
+    return f"H{hour % 24:02d}00"
+
+
+def _u_series_roll_decision(now_utc: datetime) -> dict[str, object]:
+    now_et = now_utc.astimezone(_ET_ZONE)
+    current_hour = now_et.hour
+    minute = now_et.minute
+    target_hour = current_hour
+    if minute >= 40:
+        target_hour = (current_hour + 1) % 24
+    rolled = target_hour != current_hour
+    boundary = now_et.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    seconds_to_boundary = max((boundary - now_et).total_seconds(), 0.0)
+    cancel_required = seconds_to_boundary <= 2.0
+    return {
+        "current_hour": current_hour,
+        "target_hour": target_hour,
+        "rolled": rolled,
+        "now_et": now_et,
+        "seconds_to_boundary": seconds_to_boundary,
+        "cancel_required": cancel_required,
+    }
+
+
+def _filter_u_series_events(
+    events: Sequence[Event],
+    *,
+    decision: dict[str, object],
+) -> list[Event]:
+    if not events:
+        return []
+    target_hour = int(decision.get("target_hour", 0)) % 24
+    parsed: list[tuple[int, int, Event]] = []
+    unmatched: list[Event] = []
+    for event in events:
+        parsed_hour = _parse_hour_label(event.ticker)
+        if parsed_hour is None:
+            unmatched.append(event)
+            continue
+        parsed.append((parsed_hour[0], parsed_hour[1], event))
+    if parsed:
+        matching = [entry for entry in parsed if entry[0] == target_hour]
+        if matching:
+            matching.sort(key=lambda item: (item[1], item[0]))
+            return [entry[2] for entry in matching]
+        parsed.sort(key=lambda item: ((item[0] - target_hour) % 24, item[1]))
+        return [parsed[0][2]]
+    if unmatched:
+        return list(unmatched)
+    return list(events)
+
+
+def _expected_rule_hour(series_code: str) -> int | None:
+    code = series_code.upper()
+    if code in _U_SERIES:
+        return 12
+    if code in {"INX", "NASDAQ100"}:
+        return 16
+    return None
+
+
+def _validate_index_rules(
+    series: Series | None,
+    events: Sequence[Event],
+    rule: IndexRule | None,
+) -> dict[str, object]:
+    if series is None or rule is None:
+        return {"ok": True, "reasons": []}
+    expected_hour = _expected_rule_hour(series.ticker)
+    reasons: list[str] = []
+    ok = True
+    if expected_hour is not None:
+        if f"{expected_hour:02d}:00" not in rule.evaluation_time_et:
+            ok = False
+            reasons.append("evaluation_time_mismatch")
+    fallback_text = str(rule.fallback_clause or "").strip()
+    if not fallback_text:
+        ok = False
+        reasons.append("fallback_missing")
+    event_hours = {
+        (_parse_hour_label(event.ticker) or (None, None))[0]
+        for event in events
+    }
+    event_hours.discard(None)
+    if expected_hour is not None and event_hours and expected_hour not in event_hours:
+        ok = False
+        reasons.append("event_hour_mismatch")
+    return {"ok": ok, "reasons": reasons}
+
+
+def _clock_skew_seconds(reference_utc: datetime | None = None) -> float:
+    now_utc = reference_utc or datetime.now(tz=UTC)
+    et_from_reference = now_utc.astimezone(_ET_ZONE)
+    local_et = datetime.now(tz=_ET_ZONE)
+    return abs((local_et - et_from_reference).total_seconds())
+
+
 def scan_series(  # noqa: PLR0913
     *,
     series: str,
@@ -1520,9 +1714,23 @@ def scan_series(  # noqa: PLR0913
     model_version: str = "v15",
     pilot_config: PilotConfig | None = None,
     bin_constraints: BinConstraintResolver | None = None,
+    now_override: datetime | None = None,
 ) -> ScanOutcome:
+    now_utc = now_override if now_override is not None else datetime.now(tz=UTC)
     series_obj = _find_series(client, series)
     events = client.get_events(series_obj.id)
+    try:
+        rule_config = lookup_index_rule(series_obj.ticker)
+    except KeyError:
+        rule_config = None
+    events_to_scan = list(events)
+    roll_decision: dict[str, object] | None = None
+    if series_obj.ticker.upper() in _U_SERIES:
+        roll_decision = _u_series_roll_decision(now_utc)
+        filtered = _filter_u_series_events(events_to_scan, decision=roll_decision)
+        if filtered:
+            events_to_scan = filtered
+    rule_validation = _validate_index_rules(series_obj, events_to_scan, rule_config)
     max_legs = max(2, int(max_legs))
     prob_sum_gap_threshold = float(max(prob_sum_gap_threshold, 0.0))
 
@@ -1534,12 +1742,12 @@ def scan_series(  # noqa: PLR0913
     all_markets: list[Market] = []
     books_at_scan: dict[str, Orderbook] = {}
     book_snapshot_failures = 0
-    book_snapshot_started_at = datetime.now(tz=UTC)
+    book_snapshot_started_at = now_utc
     pilot_trimmed_bins = 0
 
     model_metadata: dict[str, object] = {}
     imbalance_cache: dict[str, float | None] = {}
-    for event in events:
+    for event in events_to_scan:
         markets = client.get_markets(event.id)
         all_markets.extend(markets)
         for market in markets:
@@ -1563,7 +1771,7 @@ def scan_series(  # noqa: PLR0913
             market_survival = _market_survival_from_pmf(market_pmf, rungs)
 
             orderbook_imbalance: float | None = None
-            event_timestamp = datetime.now(tz=UTC)
+            event_timestamp = now_utc
             if series_obj is not None and series_obj.ticker.upper() == "TNEY":
                 ticker_key = market.ticker
                 if ticker_key in imbalance_cache:
@@ -1675,6 +1883,21 @@ def scan_series(  # noqa: PLR0913
         "orderbook_snapshots": len(books_at_scan),
         "ev_honesty_shrink": ev_honesty_shrink,
     }
+    if rule_validation is not None:
+        monitors.setdefault("index_rules_ok", bool(rule_validation.get("ok", True)))
+        if not rule_validation.get("ok", True) and rule_validation.get("reasons"):
+            monitors["index_rules_reasons"] = tuple(rule_validation.get("reasons", ()))
+    else:
+        monitors.setdefault("index_rules_ok", True)
+    if roll_decision is not None:
+        monitors["u_series_roll_from"] = _format_hour_label(int(roll_decision.get("current_hour", 0)))
+        monitors["u_series_roll_to"] = _format_hour_label(int(roll_decision.get("target_hour", 0)))
+        monitors["u_series_rolled"] = bool(roll_decision.get("rolled", False))
+        monitors["u_series_seconds_to_boundary"] = round(
+            float(roll_decision.get("seconds_to_boundary", 0.0)),
+            3,
+        )
+        monitors["u_series_cancel_required"] = bool(roll_decision.get("cancel_required", False))
     if series_obj is not None:
         monitors.setdefault("series", series_obj.ticker.upper())
     monitors.setdefault("model_version", model_version)
@@ -1697,18 +1920,32 @@ def scan_series(  # noqa: PLR0913
             monitors["ev_honesty_bins_adjusted"] = applied_count
         if dropped_count:
             monitors["ev_honesty_bins_blocked"] = dropped_count
+    roll_payload: dict[str, object] | None = None
+    if roll_decision is not None:
+        now_et_value = roll_decision.get("now_et")
+        roll_payload = {
+            "current_hour": int(roll_decision.get("current_hour", 0)),
+            "target_hour": int(roll_decision.get("target_hour", 0)),
+            "current_hour_label": _format_hour_label(int(roll_decision.get("current_hour", 0))),
+            "target_hour_label": _format_hour_label(int(roll_decision.get("target_hour", 0))),
+            "rolled": bool(roll_decision.get("rolled", False)),
+            "seconds_to_boundary": round(float(roll_decision.get("seconds_to_boundary", 0.0)), 3),
+            "cancel_required": bool(roll_decision.get("cancel_required", False)),
+            "now_et": now_et_value.isoformat() if isinstance(now_et_value, datetime) else None,
+        }
     return ScanOutcome(
         proposals=proposals,
         monitors=monitors,
         cdf_diffs=cdf_diffs,
         mispricings=mispricing_records,
         series=series_obj,
-        events=events,
+        events=list(events_to_scan),
         markets=all_markets,
         model_metadata=model_metadata,
         books_at_scan=books_at_scan,
         book_snapshot_started_at=book_snapshot_started_at,
         book_snapshot_completed_at=book_snapshot_completed_at,
+        roll_info=roll_payload,
     )
 
 

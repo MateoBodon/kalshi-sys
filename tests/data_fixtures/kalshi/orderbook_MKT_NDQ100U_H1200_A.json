@@ -1,0 +1,11 @@
+{
+  "market_id": "MKT_NDQ100U_H1200_A",
+  "bids": [
+    {"price": 0.57, "size": 10},
+    {"price": 0.53, "size": 8}
+  ],
+  "asks": [
+    {"price": 0.44, "size": 10},
+    {"price": 0.48, "size": 7}
+  ]
+}

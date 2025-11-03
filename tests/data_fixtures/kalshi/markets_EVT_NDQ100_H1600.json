@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_NDQ100_H1600_RANGE",
+      "event_id": "EVT_NDQ100_H1600",
+      "ticker": "KXNASDAQ100-25NOV03H1600-B15000",
+      "title": "NDX close 15000-15150",
+      "ladder_strikes": [15000.0, 15150.0, 15300.0],
+      "ladder_yes_prices": [0.45, 0.33, 0.14]
+    }
+  ]
+}

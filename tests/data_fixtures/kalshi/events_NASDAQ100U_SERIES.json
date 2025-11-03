@@ -1,0 +1,16 @@
+{
+  "events": [
+    {
+      "id": "EVT_NDQ100U_H1200",
+      "series_id": "NASDAQ100U_SERIES",
+      "ticker": "KXNASDAQ100U-25NOV03H1200",
+      "title": "Nasdaq-100 Noon Above/Below H1200"
+    },
+    {
+      "id": "EVT_NDQ100U_H1300",
+      "series_id": "NASDAQ100U_SERIES",
+      "ticker": "KXNASDAQ100U-25NOV03H1300",
+      "title": "Nasdaq-100 Noon Above/Below H1300"
+    }
+  ]
+}

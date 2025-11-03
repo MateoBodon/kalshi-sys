@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "id": "EVT_INX_H1600",
+      "series_id": "INX_SERIES",
+      "ticker": "KXINX-25NOV03H1600",
+      "title": "S&P 500 Close Range H1600"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import polars as pl
 
+from kalshi_alpha.core.execution import defaults as execution_defaults
 from kalshi_alpha.core.execution.series_utils import canonical_series_family
 from kalshi_alpha.core.kalshi_api import Orderbook
 
@@ -119,17 +120,17 @@ def load_alpha(series: str) -> float | None:
 
     family = canonical_series_family(series)
     if not STATE_PATH.exists():
-        return None
+        return execution_defaults.default_alpha(family)
     try:
         payload = json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return None
+        return execution_defaults.default_alpha(family)
     series_map = payload.get("series", {})
     if not isinstance(series_map, dict):
-        return None
+        return execution_defaults.default_alpha(family)
     entry = series_map.get(family)
     if entry is None:
-        return None
+        return execution_defaults.default_alpha(family)
     if isinstance(entry, dict):
         value = entry.get("alpha")
     else:
@@ -137,7 +138,7 @@ def load_alpha(series: str) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
-        return None
+        return execution_defaults.default_alpha(family)
 
 
 @dataclass(frozen=True)

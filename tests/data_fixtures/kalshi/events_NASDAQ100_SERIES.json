@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "id": "EVT_NDQ100_H1600",
+      "series_id": "NASDAQ100_SERIES",
+      "ticker": "KXNASDAQ100-25NOV03H1600",
+      "title": "Nasdaq-100 Close Range H1600"
+    }
+  ]
+}

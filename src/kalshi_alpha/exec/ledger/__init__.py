@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 from zoneinfo import ZoneInfo
 
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, _visible_depth, alpha_row
@@ -26,6 +26,19 @@ if TYPE_CHECKING:  # pragma: no cover
 
 ET = ZoneInfo("America/New_York")
 CENT = Decimal("0.01")
+
+
+class ExecutionMetrics(TypedDict, total=False):
+    fill_ratio_avg: float
+    alpha_target_avg: float
+    fill_ratio_minus_alpha: float
+    slippage_ticks_avg: float
+    slippage_usd_avg: float
+    ev_expected_bps_avg: float
+    ev_realized_bps_avg: float
+    records: int
+    total_contracts: int
+    expected_fills: int
 
 
 @dataclass
@@ -168,6 +181,47 @@ class PaperLedger:
         }
         json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return json_path, csv_path
+
+    def execution_metrics(self) -> ExecutionMetrics:
+        """Aggregate fill/slippage metrics across ledger records."""
+
+        if not self.records:
+            return {}
+        total_contracts = sum(record.proposal.contracts for record in self.records if record.proposal.contracts)
+        total_expected = sum(record.expected_fills for record in self.records)
+        avg_fill_ratio = (
+            total_expected / total_contracts if total_contracts > 0 else 0.0
+        )
+        avg_alpha = (
+            sum(record.alpha_row for record in self.records) / len(self.records)
+            if self.records
+            else 0.0
+        )
+        avg_slippage_ticks = (
+            sum(record.slippage_ticks for record in self.records) / len(self.records)
+        )
+        avg_slippage = (
+            sum(record.slippage for record in self.records) / len(self.records)
+        )
+        avg_realized_bps = (
+            sum(record.ev_realized_bps for record in self.records) / len(self.records)
+        )
+        avg_expected_bps = (
+            sum(record.ev_expected_bps for record in self.records) / len(self.records)
+        )
+        metrics: ExecutionMetrics = {
+            "fill_ratio_avg": round(float(avg_fill_ratio), 6),
+            "alpha_target_avg": round(float(avg_alpha), 6),
+            "fill_ratio_minus_alpha": round(float(avg_fill_ratio - avg_alpha), 6),
+            "slippage_ticks_avg": round(float(avg_slippage_ticks), 6),
+            "slippage_usd_avg": round(float(avg_slippage), 6),
+            "ev_expected_bps_avg": round(float(avg_expected_bps), 6),
+            "ev_realized_bps_avg": round(float(avg_realized_bps), 6),
+            "records": len(self.records),
+            "total_contracts": int(total_contracts),
+            "expected_fills": int(total_expected),
+        }
+        return metrics
 
 
 def simulate_fills(  # noqa: PLR0913, PLR0912, PLR0915

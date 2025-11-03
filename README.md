@@ -21,6 +21,7 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 - **Broker adapters (`exec/brokers`)** offer dry-run recording by default and a live Kalshi adapter that is locked behind dual CLI flags, environment credentials, kill-switch enforcement, and a bounded cancel/replace queue.
 - **State management (`exec/state`)** persists outstanding orders under `data/proc/state/orders.json` for restart recovery and reporting.
 - **Heartbeat & kill-switch (`exec/heartbeat.py`)** emit JSON heartbeats and gate execution when stale; presence of the kill-switch file forces NO-GO + cancel-all intent.
+- **Index ladder ops (`INX`, `INXU`, `NASDAQ100`, `NASDAQ100U`)** add hourly-U rotation with T−2s cancel-all, websocket freshness enforcement, ET clock-skew guards, and `Fill & Slippage` metrics in reports. Use `scripts/polygon_dump.py` or `scripts/make_index_fixtures.sh` to materialize Polygon minutes (11:45–12:05 ET and 15:45–16:05 ET) into `tests/data_fixtures/index/` for deterministic math + scanner tests.
 
 ### Reporting & Monitoring
 - **Markdown reports (`reports/<SERIES>/`)** include GO/NO-GO badge, Live Pilot header, exposure stats, mispricings, replay scorecards, and outstanding order counts.
@@ -48,6 +49,7 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 | `src/kalshi_alpha/core/execution/order_queue.py` | FIFO cancel/replace queue with retry + audit. |
 | `configs/` | PAL policy templates, quality gate overrides, etc. |
 | `data/raw`, `data/proc` | Auto-generated data/processing stores (ignored in Git). |
+| `data/reference/index_execution_defaults.json` | Default α/slippage curves for index ladders. |
 | `reports/` | Markdown reports, scoreboard outputs, pilot readiness summaries. |
 | `exec/proposals/` | Scanner proposal JSON artifacts. |
 | `tests/` | Pytest suites covering core subsystems, brokers, pipelines, and safety checks. |
@@ -81,7 +83,7 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 make fmt
 make lint
 make typecheck
-make test          # runs pytest -q across the suite
+make test          # runs pytest -q -m "not legacy" across the suite
 
 # Optional live smoke (no submits; requires credentials)
 python -m kalshi_alpha.dev.sanity_check --live-smoke --env demo

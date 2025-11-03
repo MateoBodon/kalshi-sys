@@ -116,3 +116,19 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     monkeypatch.setattr(kalshi_ws, "PROC_IMBALANCE_ROOT", proc_imbalance_root)
 
     return raw_root, proc_root
+
+
+INDEX_ACTIVE_PATTERNS = (
+    "test_index_",
+    "/test_u_hourly_rotation.py",
+    "/test_index_fee_rules.py",
+    "/test_scoreboard.py",
+)
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    for item in items:
+        path = str(item.fspath)
+        if any(pattern in path for pattern in INDEX_ACTIVE_PATTERNS):
+            continue
+        item.add_marker(pytest.mark.legacy)

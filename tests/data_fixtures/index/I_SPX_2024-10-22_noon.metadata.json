@@ -1,0 +1,10 @@
+{
+  "symbol": "I_SPX",
+  "window": "noon",
+  "date": "2024-10-22",
+  "start_et": "2024-10-22T11:45:00-04:00",
+  "end_et": "2024-10-22T12:05:00-04:00",
+  "rows": 21,
+  "checksum": "1c1d2b33c8826af59957fbc5a1ea84e7be14e221ed46fe61200574a4f3634cdd",
+  "generated_by": "synthetic"
+}

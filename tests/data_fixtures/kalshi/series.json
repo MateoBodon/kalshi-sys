@@ -19,6 +19,26 @@
       "id": "WEATHER_SERIES",
       "ticker": "WEATHER",
       "name": "Weather High Temps"
+    },
+    {
+      "id": "INXU_SERIES",
+      "ticker": "INXU",
+      "name": "S&P 500 Noon Above/Below"
+    },
+    {
+      "id": "NASDAQ100U_SERIES",
+      "ticker": "NASDAQ100U",
+      "name": "Nasdaq-100 Noon Above/Below"
+    },
+    {
+      "id": "INX_SERIES",
+      "ticker": "INX",
+      "name": "S&P 500 Close Ranges"
+    },
+    {
+      "id": "NASDAQ100_SERIES",
+      "ticker": "NASDAQ100",
+      "name": "Nasdaq-100 Close Ranges"
     }
   ]
 }

@@ -13,9 +13,23 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from kalshi_alpha.exec.ledger import PaperLedger
+from kalshi_alpha.exec.ledger import ExecutionMetrics, PaperLedger
 
 GO_ARTIFACT_PATH = Path("reports/_artifacts/go_no_go.json")
+
+
+def _float_metric(metrics: ExecutionMetrics, key: str) -> float | None:
+    value = metrics.get(key)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _int_metric(metrics: ExecutionMetrics, key: str) -> int:
+    value = metrics.get(key)
+    if isinstance(value, (int, float)):
+        return int(value)
+    return 0
 
 
 def _resolve_latest_go_artifact(candidate: Path) -> Path | None:
@@ -81,6 +95,7 @@ def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
     scorecard_summary: Sequence[dict[str, object]] | None = None,
     outstanding_summary: dict[str, int] | None = None,
     pilot_metadata: dict[str, object] | None = None,
+    execution_metrics: ExecutionMetrics | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=UTC)
@@ -312,6 +327,32 @@ def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
                 )
                 lines.append(row_line)
             lines.append("")
+    if execution_metrics:
+        lines.append("## Fill & Slippage")
+        records = _int_metric(execution_metrics, "records")
+        lines.append(f"- Samples: {records}")
+        fill_ratio_value = _float_metric(execution_metrics, "fill_ratio_avg")
+        if fill_ratio_value is not None:
+            lines.append(f"- Fill Ratio: {fill_ratio_value:.3f}")
+        alpha_value = _float_metric(execution_metrics, "alpha_target_avg")
+        if alpha_value is not None:
+            lines.append(f"- Alpha Target: {alpha_value:.3f}")
+        delta_value = _float_metric(execution_metrics, "fill_ratio_minus_alpha")
+        if delta_value is not None:
+            lines.append(f"- Fill - Alpha: {delta_value:+.3f}")
+        slippage_ticks = _float_metric(execution_metrics, "slippage_ticks_avg")
+        if slippage_ticks is not None:
+            lines.append(f"- Avg Slippage (ticks): {slippage_ticks:.3f}")
+        slippage_usd = _float_metric(execution_metrics, "slippage_usd_avg")
+        if slippage_usd is not None:
+            lines.append(f"- Avg Slippage (USD): {slippage_usd:.4f}")
+        expected_bps = _float_metric(execution_metrics, "ev_expected_bps_avg")
+        if expected_bps is not None:
+            lines.append(f"- Expected EV (bps): {expected_bps:.2f}")
+        realized_bps = _float_metric(execution_metrics, "ev_realized_bps_avg")
+        if realized_bps is not None:
+            lines.append(f"- Simulated EV (bps): {realized_bps:.2f}")
+        lines.append("")
     lines.append("## Proposal Details")
     for proposal in proposals:
         lines.append(f"### Strike {proposal.strike:.2f}")

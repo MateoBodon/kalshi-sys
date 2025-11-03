@@ -12,6 +12,8 @@ from pathlib import Path
 
 import polars as pl
 
+from kalshi_alpha.core.execution import defaults as execution_defaults
+
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 CALIBRATION_PATH = Path("data/proc/calibration_metrics.parquet")
 ALPHA_STATE_PATH = Path("data/proc/state/fill_alpha.json")
@@ -123,8 +125,10 @@ def _build_summary(
     if ledger.is_empty():
         return []
     filtered = ledger
-    if "timestamp_et" in ledger.columns:
-        filtered = ledger.filter(pl.col("timestamp_et") >= window_start)
+    if "slippage_ticks" not in filtered.columns:
+        filtered = filtered.with_columns(pl.lit(0.0).alias("slippage_ticks"))
+    if "timestamp_et" in filtered.columns:
+        filtered = filtered.filter(pl.col("timestamp_et") >= window_start)
     if filtered.is_empty():
         return []
     grouped = filtered.group_by("series").agg(
@@ -133,6 +137,7 @@ def _build_summary(
         pl.sum("expected_fills").alias("expected_fills"),
         pl.sum("size").alias("requested_contracts"),
         pl.mean("fill_ratio").alias("avg_fill_ratio"),
+        pl.mean("slippage_ticks").alias("slippage_ticks_mean"),
         pl.len().alias("sample_size"),
         (pl.col("ev_realized_bps") - pl.col("ev_expected_bps"))
         .mean()
@@ -158,6 +163,8 @@ def _build_summary(
         expected_fills = row.get("expected_fills") or 0.0
         fill_ratio = (expected_fills / requested) if requested else 0.0
         avg_alpha = alpha_state.get(series)
+        if avg_alpha is None:
+            avg_alpha = execution_defaults.default_alpha(series)
         gate_stats = gate_metrics.get(series, {"go": 0, "no_go": 0})
         sample_size = int(row.get("sample_size") or 0)
         ev_expected_mean = float(row.get("ev_expected_bps_mean") or 0.0)
@@ -169,6 +176,10 @@ def _build_summary(
             t_stat = delta_mean / (delta_std / math.sqrt(sample_size))
         badge = _confidence_badge(sample_size, t_stat)
         ev_plot_lines = _ev_plot_lines(ev_expected_mean, ev_realized_mean)
+        slippage_ticks_mean = float(row.get("slippage_ticks_mean") or 0.0)
+        fill_minus_alpha = None
+        if isinstance(avg_alpha, (int, float)) and avg_alpha is not None:
+            fill_minus_alpha = fill_ratio - float(avg_alpha)
         metrics = {
             "series": series,
             "ev_after_fees": row.get("ev_after_fees", 0.0),
@@ -178,6 +189,8 @@ def _build_summary(
             "fill_ratio": fill_ratio,
             "avg_fill_ratio": row.get("avg_fill_ratio", 0.0),
             "avg_alpha": avg_alpha,
+            "fill_ratio_vs_alpha": fill_minus_alpha,
+            "slippage_ticks_mean": slippage_ticks_mean,
             "no_go_count": gate_stats.get("no_go", 0),
             "go_count": gate_stats.get("go", 0),
             "sample_size": sample_size,
@@ -192,7 +205,14 @@ def _build_summary(
             metrics["crps_advantage"] = calib.get("crps_advantage")
             metrics["brier_advantage"] = calib.get("brier_advantage")
         records.append(metrics)
-    return sorted(records, key=lambda row: (INDEX_SERIES_ORDER.index(row["series"]) if row["series"] in INDEX_SERIES else row["series"]))
+    return sorted(
+        records,
+        key=lambda row: (
+            INDEX_SERIES_ORDER.index(row["series"])
+            if row["series"] in INDEX_SERIES
+            else row["series"]
+        ),
+    )
 
 
 def _load_gate_metrics(window_days: int) -> dict[str, dict[str, int]]:
@@ -261,6 +281,8 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
             f"{row['expected_fills']:.1f} / {row['requested_contracts']:.1f}"
         )
         lines.append(f"- Avg Fill Ratio: {row['avg_fill_ratio']:.3f}")
+        if row.get("fill_ratio_vs_alpha") is not None:
+            lines.append(f"- Fill - α: {row['fill_ratio_vs_alpha']:+.3f}")
         lines.append(f"- Sample Size: {row.get('sample_size', 0)} trades")
         lines.append(
             f"- Expected EV (bps): {row.get('ev_expected_bps_mean', 0.0):+.1f}"
@@ -268,6 +290,10 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
         lines.append(
             f"- Realized EV (bps): {row.get('ev_realized_bps_mean', 0.0):+.1f}"
         )
+        if row.get("slippage_ticks_mean") is not None:
+            lines.append(
+                f"- Avg Slippage (ticks): {row.get('slippage_ticks_mean', 0.0):.3f}"
+            )
         t_stat = row.get("t_stat")
         badge = row.get("confidence_badge", "✗")
         if isinstance(t_stat, float):
@@ -303,7 +329,7 @@ def _load_replay_metrics() -> dict[str, dict[str, float]]:
     return metrics
 
 
-def _build_pilot_readiness(
+def _build_pilot_readiness(  # noqa: PLR0915
     summary: list[dict[str, object]],
     ledger: pl.DataFrame,
     alpha_state: dict[str, float],
@@ -422,7 +448,7 @@ def _build_pilot_readiness(
     }
 
 
-def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:  # noqa: PLR0915
+def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:  # noqa: PLR0915, PLR0912
     lines: list[str] = ["# Pilot Readiness (last 7 days)", ""]
     overall = report.get("overall", {})
     series_rows: list[dict[str, object]] = report.get("series", [])  # type: ignore[assignment]

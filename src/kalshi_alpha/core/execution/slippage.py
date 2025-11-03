@@ -10,6 +10,7 @@ from pathlib import Path
 
 import polars as pl
 
+from kalshi_alpha.core.execution import defaults as execution_defaults
 from kalshi_alpha.core.execution.series_utils import canonical_series_family
 from kalshi_alpha.core.kalshi_api import Orderbook
 
@@ -281,7 +282,25 @@ def load_slippage_model(series: str, *, mode: str = "depth") -> SlippageModel | 
 
     calibration = load_slippage_calibration(series)
     if calibration is None:
-        return None
+        config = execution_defaults.slippage_config(series)
+        if not config:
+            return None
+        impact_cap = float(config.get("impact_cap", 0.02))
+        depth_curve = tuple(
+            (float(depth), float(value))
+            for depth, value in sorted(config.get("depth_curve", []), key=lambda item: item[0])
+        )
+        if not depth_curve:
+            depth_curve = ((0.0, 0.0), (1.0, impact_cap))
+        fallback_mode = str(config.get("mode", mode or "depth")).lower()
+        try:
+            return SlippageModel(
+                mode=fallback_mode if fallback_mode in {"depth", "top"} else mode,
+                impact_cap=impact_cap,
+                depth_curve=depth_curve,
+            )
+        except ValueError:
+            return SlippageModel(mode=mode, impact_cap=impact_cap, depth_curve=depth_curve)
     return calibration.as_model(mode=mode)
 
 

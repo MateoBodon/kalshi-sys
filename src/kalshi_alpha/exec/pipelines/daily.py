@@ -31,14 +31,16 @@ from kalshi_alpha.exec.heartbeat import (
     resolve_kill_switch_path,
     write_heartbeat,
 )
-from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.ledger import ExecutionMetrics, PaperLedger, simulate_fills
 from kalshi_alpha.exec.pipelines.calendar import RunWindow, resolve_run_window
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
+    CLOCK_SKEW_THRESHOLD_SECONDS,
     _apply_ev_honesty_gate,
     _archive_and_replay,
     _attach_series_metadata,
     _clear_dry_orders_start,
+    _clock_skew_seconds,
     _compute_ev_honesty_rows,
     _compute_exposure_summary,
     _load_replay_for_ev_honesty,
@@ -698,6 +700,8 @@ def run_scan(
             "window_et": getattr(args, "window_et", None),
         },
     )
+    now_override = datetime.now(tz=UTC)
+    clock_skew_seconds = _clock_skew_seconds(now_override)
     try:
         outcome = scan_series(
             series=series,
@@ -720,6 +724,7 @@ def run_scan(
             prob_sum_gap_threshold=args.prob_sum_gap_threshold,
             model_version=args.model_version,
             ev_honesty_shrink=getattr(args, "ev_honesty_shrink", 0.9),
+            now_override=now_override,
         )
     except SkipScan as exc:
         reason_text = getattr(exc, "reason", str(exc))
@@ -745,6 +750,10 @@ def run_scan(
             },
         )
         return
+
+    outcome.monitors.setdefault("clock_skew_seconds", round(float(clock_skew_seconds), 6))
+    if clock_skew_seconds > CLOCK_SKEW_THRESHOLD_SECONDS:
+        outcome.monitors.setdefault("clock_skew_exceeded", True)
 
     proposals = outcome.proposals
     books_at_scan = dict(getattr(outcome, "books_at_scan", {}))
@@ -904,6 +913,15 @@ def run_scan(
 
     _write_latest_manifest(manifest_path)
 
+    execution_metrics: ExecutionMetrics | None = None
+    if ledger:
+        execution_metrics = ledger.execution_metrics()
+        if execution_metrics:
+            monitors.setdefault("fill_ratio_avg", execution_metrics.get("fill_ratio_avg"))
+            monitors.setdefault("fill_alpha_target_avg", execution_metrics.get("alpha_target_avg"))
+            monitors.setdefault("slippage_ticks_avg", execution_metrics.get("slippage_ticks_avg"))
+            monitors.setdefault("ev_realized_bps_avg", execution_metrics.get("ev_realized_bps_avg"))
+    outcome.execution_metrics = execution_metrics
     if ledger and (args.paper_ledger or args.report):
         ledger.write_artifacts(Path("reports/_artifacts"), manifest_path=manifest_path)
 
@@ -996,6 +1014,7 @@ def run_scan(
             scorecard_summary=scorecard_summary_section,
             outstanding_summary=outstanding_summary,
             pilot_metadata=pilot_metadata,
+            execution_metrics=execution_metrics,
         )
 
     write_heartbeat(
