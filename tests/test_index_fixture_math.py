@@ -139,6 +139,34 @@ def test_close_range_metrics_non_regressive(
         assert event_tail >= updated_tail
 
 
+def test_close_variance_bump_window_only(
+    fixtures_root: Path,
+    isolated_data_roots: tuple[Path, Path],
+) -> None:
+    _, proc_root = isolated_data_roots
+    _copy_calibration(Path("tests/fixtures/index/ndx/close/params.json"), proc_root, "ndx", "close")
+
+    frame = pl.read_parquet(fixtures_root / "index" / "I_NDX_2024-10-21_close.parquet")
+    rows = frame.with_columns(pl.col("timestamp").dt.convert_time_zone("America/New_York"))
+    sample_time = datetime(2024, 10, 21, 15, 45, tzinfo=ET)
+    close_time = datetime(2024, 10, 21, 16, 0, tzinfo=ET)
+    sample = rows.filter(pl.col("timestamp") == sample_time).row(0, named=True)
+    strikes = [15000.0, 15050.0, 15100.0]
+    minutes_to_close = int((close_time - sample_time).total_seconds() // 60)
+    current_price = float(sample["close"])
+    default_inputs = CloseInputs(series="NASDAQ100", current_price=current_price, minutes_to_close=minutes_to_close)
+    baseline_inputs = CloseInputs(
+        series="NASDAQ100",
+        current_price=current_price,
+        minutes_to_close=minutes_to_close,
+        late_day_bump_override=0.0,
+    )
+    pmf_default = evaluate_close(strikes, [0.4, 0.3, 0.2], default_inputs, contracts=1, min_ev=0.0).pmf
+    pmf_baseline = evaluate_close(strikes, [0.4, 0.3, 0.2], baseline_inputs, contracts=1, min_ev=0.0).pmf
+    for default_prob, baseline_prob in zip(pmf_default, pmf_baseline, strict=True):
+        assert float(default_prob.probability) == pytest.approx(float(baseline_prob.probability), abs=1e-9)
+
+
 def test_default_alpha_slippage_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     state_dir = tmp_path / "state"
     state_dir.mkdir(parents=True, exist_ok=True)

@@ -15,6 +15,7 @@ from .cdf import SigmaCalibration, gaussian_pmf, load_calibration
 
 INDEX_CALIBRATION_ROOT = PROC_ROOT / "calib" / "index"
 CLOSE_CALIBRATION_PATH = INDEX_CALIBRATION_ROOT
+LATE_DAY_WINDOW_MINUTES = 10
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,8 @@ def _late_day_variance(inputs: CloseInputs, calibration: SigmaCalibration, minut
     if override is not None:
         return max(float(override), 0.0)
     config = calibration.late_day_variance
+    if minutes_to_target > LATE_DAY_WINDOW_MINUTES:
+        return 0.0
     if config is None or minutes_to_target > config.minutes_threshold:
         return 0.0
     return max(float(config.lambda_value), 0.0)
