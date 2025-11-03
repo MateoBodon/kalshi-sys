@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from kalshi_alpha.exec.reports import write_markdown_report
@@ -49,6 +50,33 @@ def test_report_uses_artifact_go_status(tmp_path: Path) -> None:
         manifest_path=None,
         go_status=True,
         go_artifact_path=artifact_path,
+    )
+
+    first_line = report_path.read_text(encoding="utf-8").splitlines()[0]
+    assert "**GO/NO-GO:** NO-GO" in first_line
+
+
+def test_report_respects_latest_timestamped_artifact(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "reports" / "_artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    older = artifact_dir / "go_no_go_20250101.json"
+    older.write_text(json.dumps({"go": True}), encoding="utf-8")
+    newer = artifact_dir / "go_no_go_20250201.json"
+    newer.write_text(json.dumps({"go": False}), encoding="utf-8")
+    os.utime(older, (1, 1))
+    os.utime(newer, (2, 2))
+
+    report_dir = tmp_path / "reports" / "TENY"
+    report_path = write_markdown_report(
+        series="TENY",
+        proposals=_sample_proposals(),
+        ledger=None,
+        output_dir=report_dir,
+        monitors={},
+        exposure_summary={},
+        manifest_path=None,
+        go_status=True,
+        go_artifact_path=artifact_dir / "go_no_go.json",
     )
 
     first_line = report_path.read_text(encoding="utf-8").splitlines()[0]

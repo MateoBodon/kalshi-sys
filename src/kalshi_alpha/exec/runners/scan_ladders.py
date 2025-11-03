@@ -859,6 +859,14 @@ def _maybe_write_report(
 ) -> None:
     if not args.report:
         return
+    effective_go = go_status
+    if effective_go is None:
+        try:
+            gate_result = _quality_gate_for_broker(args, monitors or {})
+        except Exception:  # pragma: no cover - defensive fallback
+            gate_result = None
+        else:
+            effective_go = gate_result.go
     report_path = write_markdown_report(
         series=args.series,
         proposals=proposals,
@@ -867,7 +875,7 @@ def _maybe_write_report(
         monitors=monitors,
         exposure_summary=exposure_summary,
         manifest_path=manifest_path,
-        go_status=go_status,
+        go_status=effective_go,
         fill_alpha=fill_alpha,
         mispricings=mispricings,
         model_metadata=model_metadata,

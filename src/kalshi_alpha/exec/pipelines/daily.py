@@ -971,6 +971,13 @@ def run_scan(
                 details=dict(quality_entry.get("details", {})),
             )
         )
+    report_go_status = getattr(realism_result, "go", None)
+    if report_go_status is None and isinstance(quality_entry, dict):
+        go_candidate = quality_entry.get("go")
+        if isinstance(go_candidate, bool):
+            report_go_status = go_candidate
+        elif go_candidate is not None:
+            report_go_status = bool(go_candidate)
     report_path = None
     write_report = bool(args.report or force_run_enabled)
     if write_report:
@@ -982,7 +989,7 @@ def run_scan(
             monitors=monitors,
             exposure_summary=exposure_summary,
             manifest_path=manifest_path,
-            go_status=log.get("quality_gates", {}).get("go", True),
+            go_status=report_go_status,
             fill_alpha=fill_alpha_value,
             mispricings=outcome.mispricings,
             model_metadata=outcome.model_metadata,

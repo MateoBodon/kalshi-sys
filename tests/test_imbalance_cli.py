@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-import kalshi_alpha.dev.imbalance_snap as imbalance_snap
+from kalshi_alpha.dev import imbalance_snap
 
 
 @pytest.mark.asyncio

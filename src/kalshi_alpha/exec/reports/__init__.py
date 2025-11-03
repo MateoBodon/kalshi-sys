@@ -18,13 +18,39 @@ from kalshi_alpha.exec.ledger import PaperLedger
 GO_ARTIFACT_PATH = Path("reports/_artifacts/go_no_go.json")
 
 
+def _resolve_latest_go_artifact(candidate: Path) -> Path | None:
+    """Return the most recent go/no-go artifact matching ``candidate``."""
+
+    path = Path(candidate)
+    if path.exists():
+        return path
+
+    directory = path.parent
+    if not directory.exists():
+        return None
+
+    pattern = f"{path.stem}*.json"
+    latest_path: Path | None = None
+    latest_mtime: float | None = None
+    for entry in sorted(directory.glob(pattern)):
+        try:
+            mtime = entry.stat().st_mtime
+        except OSError:  # pragma: no cover - filesystem race
+            continue
+        if latest_mtime is None or mtime >= latest_mtime:
+            latest_path = entry
+            latest_mtime = mtime
+    return latest_path
+
+
 def _load_go_status(artifact_path: Path) -> bool | None:
     """Return GO/NO-GO boolean from artifact, or ``None`` if unavailable."""
 
-    if not artifact_path.exists():
+    resolved = _resolve_latest_go_artifact(artifact_path)
+    if resolved is None:
         return None
     try:
-        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+        payload = json.loads(resolved.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):  # pragma: no cover - defensive
         return None
     go_value = payload.get("go") if isinstance(payload, dict) else None
