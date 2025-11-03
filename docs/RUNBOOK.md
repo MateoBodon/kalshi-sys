@@ -138,7 +138,7 @@ Pipeline steps per run:
 ## TENY Close Ops Checklist
 - Window: 14:30–15:25 ET. Confirm `--snap-to-window wait` or live clock alignment before moving to maker-only clips. Outside the window run dry scans only.
 - Kill switch: ensure `data/proc/state/kill_switch` does **not** exist; if present, halt immediately and page ops.
-- Data freshness: `data/proc/treasury_yields/latest.parquet` should carry today’s close timestamp; `data/proc/treasury_yields/daily/*.parquet` must include the current trade date; `data/proc/macro_calendar/macro_day_dummies.parquet` must contain today’s row with any `is_fomc/is_cpi/is_jobs/is_claims` markers.
+- Data freshness: `data/proc/treasury_yields/latest.parquet` should carry today’s close timestamp; `data/proc/treasury_yields/daily/*.parquet` must include the current trade date; `data/proc/macro_calendar/latest.parquet` must contain today’s row with any `is_fomc/is_cpi/is_jobs/is_claims` markers.
 - Orderbook imbalance: run the websocket smoke (`python -m kalshi_alpha.dev.ws_smoke --ticker TNEY-<contract>`) and confirm new JSON snapshots land under `data/raw/kalshi/orderbook/<ticker>/` and `data/proc/kalshi/orderbook_imbalance/<ticker>.json` updates within two minutes.
 - Report ↔ gate: regenerate offline (`python -m kalshi_alpha.exec.pipelines.daily --mode teny_close --offline --report`) and verify the GO/NO-GO badge in `reports/TNEY/.../REPORT.md` matches `reports/_artifacts/go_no_go.json`.
 - EV honesty: default shrink is 0.9; override via `--ev-honesty-shrink` on `scan_ladders` or the daily pipeline when ops requests. Monitor block should include `ev_honesty_shrink` plus `ev_shrink` metadata per proposal.

@@ -24,9 +24,9 @@ def test_emit_day_dummies_offline(
     path = emit_day_dummies(
         date(2025, 10, 1),
         date(2025, 10, 31),
+        output,
         offline=True,
         fixtures_dir=offline_fixtures_root,
-        output_path=output,
     )
     assert path == output
     frame = pl.read_parquet(path)
@@ -44,4 +44,4 @@ def test_emit_day_dummies_offline(
 
 def test_emit_day_dummies_invalid_range(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
-        emit_day_dummies(date(2025, 10, 31), date(2025, 10, 1), output_path=tmp_path / "x.parquet")
+        emit_day_dummies(date(2025, 10, 31), date(2025, 10, 1), tmp_path / "x.parquet")

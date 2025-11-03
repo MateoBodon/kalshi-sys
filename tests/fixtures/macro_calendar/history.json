@@ -1,0 +1,32 @@
+{
+  "history": [
+    {
+      "date": "2025-08-08",
+      "is_cpi": true
+    },
+    {
+      "date": "2025-08-14",
+      "is_claims": true
+    },
+    {
+      "date": "2025-09-06",
+      "is_jobs": true
+    },
+    {
+      "date": "2025-09-17",
+      "is_fomc": true
+    },
+    {
+      "date": "2025-10-02",
+      "is_claims": true
+    },
+    {
+      "date": "2025-10-10",
+      "is_cpi": true
+    },
+    {
+      "date": "2025-10-31",
+      "is_jobs": true
+    }
+  ]
+}

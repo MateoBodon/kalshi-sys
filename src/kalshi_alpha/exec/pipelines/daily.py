@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
+import polars as pl
+
 from kalshi_alpha.core.archive.scorecards import build_replay_scorecard
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
 from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
@@ -768,6 +770,18 @@ def run_scan(
     else:
         monitors.setdefault("fill_alpha", fill_alpha_value)
     monitors.setdefault("model_version", args.model_version)
+    if series.upper() == "TNEY":
+        macro_path = macro_calendar.DEFAULT_OUTPUT
+        if macro_path.exists():
+            monitors.setdefault("macro_calendar_path", macro_path.as_posix())
+            try:
+                macro_frame = pl.read_parquet(macro_path)
+            except Exception:
+                monitors.setdefault("macro_calendar_error", "read_failed")
+            else:
+                monitors.setdefault("macro_calendar_rows", macro_frame.height)
+        else:
+            monitors.setdefault("macro_calendar_missing", True)
     exposure_summary = _compute_exposure_summary(proposals)
     cdf_path = _write_cdf_diffs(outcome.cdf_diffs)
     should_archive = args.report or args.paper_ledger or force_run_enabled

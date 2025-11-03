@@ -12,7 +12,8 @@ import polars as pl
 from kalshi_alpha.drivers import bls_cpi
 
 PROC_ROOT = Path("data/proc/macro_calendar")
-DEFAULT_OUTPUT = PROC_ROOT / "macro_day_dummies.parquet"
+DEFAULT_OUTPUT = PROC_ROOT / "latest.parquet"
+EVENT_COLUMNS: tuple[str, ...] = ("is_fomc", "is_cpi", "is_jobs", "is_claims")
 
 FOMC_SCHEDULE: dict[int, Sequence[date]] = {
     2024: (
@@ -51,10 +52,10 @@ FOMC_SCHEDULE: dict[int, Sequence[date]] = {
 def emit_day_dummies(
     start: date | datetime,
     end: date | datetime,
+    out_path: Path | str | None = None,
     *,
     offline: bool = False,
-    fixtures_dir: Path | None = None,
-    output_path: Path | None = None,
+    fixtures_dir: Path | str | None = None,
 ) -> Path:
     start_date = _coerce_date(start)
     end_date = _coerce_date(end)
@@ -62,8 +63,9 @@ def emit_day_dummies(
         raise ValueError("macro calendar start must be on or before end")
 
     all_dates = list(_date_range(start_date, end_date))
-    cpi_dates = _cpi_release_dates(start_date, end_date, offline=offline, fixtures_dir=fixtures_dir)
-    fomc_dates = _fomc_release_dates(start_date, end_date, fixtures_dir=fixtures_dir)
+    fixture_root = Path(fixtures_dir) if fixtures_dir is not None else None
+    cpi_dates = _cpi_release_dates(start_date, end_date, offline=offline, fixtures_dir=fixture_root)
+    fomc_dates = _fomc_release_dates(start_date, end_date, fixtures_dir=fixture_root)
     jobs_dates = _jobs_release_dates(start_date, end_date)
     claims_dates = _claims_release_dates(start_date, end_date)
 
@@ -75,7 +77,7 @@ def emit_day_dummies(
         pl.col("date").is_in(sorted(claims_dates)).alias("is_claims"),
     )
 
-    target = output_path or DEFAULT_OUTPUT
+    target = Path(out_path) if out_path is not None else DEFAULT_OUTPUT
     target.parent.mkdir(parents=True, exist_ok=True)
     frame.write_parquet(target)
     return target

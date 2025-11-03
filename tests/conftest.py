@@ -87,7 +87,7 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     macro_root = proc_root / "macro_calendar"
     macro_root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(macro_calendar, "PROC_ROOT", macro_root)
-    monkeypatch.setattr(macro_calendar, "DEFAULT_OUTPUT", macro_root / "macro_day_dummies.parquet")
+    monkeypatch.setattr(macro_calendar, "DEFAULT_OUTPUT", macro_root / "latest.parquet")
 
     monkeypatch.setattr(cpi_strategy, "CALIBRATION_PATH", proc_root / "cpi_calib.parquet")
     monkeypatch.setattr(claims_strategy, "CALIBRATION_PATH", proc_root / "claims_calib.parquet")
