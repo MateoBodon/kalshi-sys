@@ -2,7 +2,7 @@ from decimal import ROUND_DOWN, Decimal
 
 import pytest
 
-from kalshi_alpha.core.fees import FeeSchedule, maker_fee, taker_fee
+from kalshi_alpha.core.fees import FeeSchedule, maker_fee, round_up_to_cent, taker_fee
 
 
 def _raw_fee(rate: Decimal, contracts: int, price: float) -> Decimal:
@@ -25,6 +25,43 @@ def test_half_rate_path() -> None:
     schedule = FeeSchedule()
     half = schedule.taker_fee(100, 0.35, market_name="S&P 500")
     assert half == Decimal("0.80")
+
+
+def test_series_override_rates() -> None:
+    config = {
+        "effective_date": "2025-10-01",
+        "maker_rate": 0.02,
+        "taker_rate": 0.08,
+        "series_half_rate": [],
+        "half_rate_keywords": [],
+        "series_overrides": [
+            {"series": "TNEY", "maker_rate": 0.0125, "taker_rate": 0.05},
+        ],
+    }
+    schedule = FeeSchedule(config=config)
+    maker_fee_value = schedule.maker_fee(50, 0.45, series="TNEY")
+    expected = round_up_to_cent(_raw_fee(Decimal("0.0125"), 50, 0.45))
+    assert maker_fee_value == expected
+
+
+def test_series_override_half_rate() -> None:
+    config = {
+        "effective_date": "2025-10-01",
+        "maker_rate": 0.02,
+        "taker_rate": 0.08,
+        "series_half_rate": [],
+        "half_rate_keywords": [],
+        "series_overrides": [
+            {"series": "CPI", "half_rate": True},
+        ],
+    }
+    schedule = FeeSchedule(config=config)
+    baseline = schedule.taker_fee(100, 0.4, series="SP500")
+    override = schedule.taker_fee(100, 0.4, series="CPI")
+    expected_baseline = round_up_to_cent(_raw_fee(schedule.taker_rate, 100, 0.4))
+    expected_override = round_up_to_cent(_raw_fee(schedule.taker_rate / 2, 100, 0.4))
+    assert baseline == expected_baseline
+    assert override == expected_override
 
 
 @pytest.mark.parametrize("contracts", [1, 10, 100, 1000])
