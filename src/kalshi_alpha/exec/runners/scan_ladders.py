@@ -9,7 +9,7 @@ import math
 from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -45,6 +45,7 @@ from kalshi_alpha.core.risk import (
 )
 from kalshi_alpha.core.sizing import apply_caps, kelly_yes_no, scale_kelly, truncate_kelly
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
+from kalshi_alpha.drivers import macro_calendar
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
@@ -1724,10 +1725,19 @@ def _strategy_pmf_for_series(
             prior_close = None
             macro_shock = 0.0
             trailing = None
+            latest = {}
+        macro_lookup = _macro_calendar_lookup(
+            history,
+            offline=offline,
+            fixtures_dir=fixtures_dir,
+        )
+        date_key = _normalize_macro_date(latest.get("date")) if history else None
+        macro_dummies = macro_lookup.get(date_key, {}) if date_key is not None else {}
         inputs = teny_strategy.TenYInputs(
             prior_close=prior_close,
             macro_shock=macro_shock,
             trailing_history=trailing,
+            macro_shock_dummies=macro_dummies,
         )
         if version == "v15":
             pmf_values = teny_strategy.pmf_v15(strikes, inputs=inputs)
@@ -1766,6 +1776,72 @@ def _load_history(fixtures_dir: Path, namespace: str) -> list[dict[str, object]]
     if isinstance(history, list):
         return [item for item in history if isinstance(item, dict)]
     return []
+
+
+def _macro_calendar_lookup(
+    history: list[dict[str, object]] | None,
+    *,
+    offline: bool,
+    fixtures_dir: Path,
+) -> dict[str, dict[str, float]]:
+    lookup: dict[str, dict[str, float]] = {}
+    if not history:
+        return lookup
+    dates: list[date] = []
+    for row in history:
+        raw_date = row.get("date")
+        if isinstance(raw_date, str):
+            try:
+                dates.append(date.fromisoformat(raw_date))
+            except ValueError:
+                continue
+    if dates:
+        start_date, end_date = min(dates), max(dates)
+        try:
+            macro_calendar.emit_day_dummies(
+                start_date,
+                end_date,
+                offline=offline,
+                fixtures_dir=fixtures_dir if offline else None,
+            )
+        except Exception:  # pragma: no cover - macro calendar is optional
+            return lookup
+    path = macro_calendar.DEFAULT_OUTPUT
+    if path.exists():
+        try:
+            frame = pl.read_parquet(path)
+        except Exception:  # pragma: no cover - corrupt parquet
+            frame = None
+        if frame is not None and not frame.is_empty():
+            columns = [name for name in frame.columns if name != "date"]
+            for row in frame.iter_rows(named=True):
+                key = _normalize_macro_date(row.get("date"))
+                if key is None:
+                    continue
+                lookup[key] = {
+                    _strip_dummy_prefix(column): float(row.get(column) or 0.0)
+                    for column in columns
+                }
+    return lookup
+
+
+def _normalize_macro_date(value: object | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value).isoformat()
+        except ValueError:
+            return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return None
+
+
+def _strip_dummy_prefix(column: str) -> str:
+    return column[3:] if column.startswith("is_") else column
 
 
 def _market_survival_from_pmf(

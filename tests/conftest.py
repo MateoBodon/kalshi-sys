@@ -37,7 +37,7 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     from kalshi_alpha.datastore import ingest as datastore_ingest
     from kalshi_alpha.datastore import paths as datastore_paths
     from kalshi_alpha.datastore import snapshots
-    from kalshi_alpha.drivers import bls_cpi, cleveland_nowcast, dol_claims, nws_cli, treasury_yields
+    from kalshi_alpha.drivers import bls_cpi, cleveland_nowcast, dol_claims, macro_calendar, nws_cli, treasury_yields
     from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
     from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
     from kalshi_alpha.exec.pipelines import calendar as pipeline_calendar
@@ -82,6 +82,11 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     monkeypatch.setattr(aaa_fetch, "MONTHLY_PATH", aaa_monthly)
     monkeypatch.setattr(aaa_ingest, "PROC_ROOT", proc_root)
     monkeypatch.setattr(aaa_ingest, "BOOTSTRAP_ROOT", bootstrap_root)
+
+    macro_root = proc_root / "macro_calendar"
+    macro_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(macro_calendar, "PROC_ROOT", macro_root)
+    monkeypatch.setattr(macro_calendar, "DEFAULT_OUTPUT", macro_root / "macro_day_dummies.parquet")
 
     monkeypatch.setattr(cpi_strategy, "CALIBRATION_PATH", proc_root / "cpi_calib.parquet")
     monkeypatch.setattr(claims_strategy, "CALIBRATION_PATH", proc_root / "claims_calib.parquet")

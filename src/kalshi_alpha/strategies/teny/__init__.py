@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import date, datetime, time
 from math import sqrt
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -14,6 +14,7 @@ import polars as pl
 from kalshi_alpha.core.backtest import crps_from_pmf
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.datastore.paths import PROC_ROOT
+from kalshi_alpha.drivers import macro_calendar
 from kalshi_alpha.strategies import base
 
 CALIBRATION_PATH = PROC_ROOT / "teny_calib.parquet"
@@ -197,6 +198,7 @@ def calibrate(history: Sequence[dict[str, float]]) -> pl.DataFrame:
     records: list[dict[str, Any]] = []
     model_crps: list[float] = []
     baseline_crps: list[float] = []
+    macro_lookup, macro_columns = _macro_dummies_lookup(history)
 
     closes = [float(entry["actual_close"]) for entry in history]
     for idx in range(1, len(history)):
@@ -225,10 +227,13 @@ def calibrate(history: Sequence[dict[str, float]]) -> pl.DataFrame:
         prior = closes[idx - 1]
         macro_value = float(history[idx]["macro_shock"])
         trailing = closes[:idx]
+        date_key = _normalize_history_date(history[idx].get("date"))
+        macro_dummies = macro_lookup.get(date_key, {}) if date_key is not None else {}
         inputs = TenYInputs(
             prior_close=prior,
             macro_shock=macro_value,
             trailing_history=trailing,
+            macro_shock_dummies=macro_dummies,
         )
         pmf_values = pmf(strikes, inputs=inputs, calibration=params)
         crps_value = crps_from_pmf(pmf_values, closes[idx])
@@ -243,19 +248,20 @@ def calibrate(history: Sequence[dict[str, float]]) -> pl.DataFrame:
         baseline_value = crps_from_pmf(baseline_pmf, closes[idx])
         baseline_crps.append(baseline_value)
 
-        records.append(
-            {
-                "record_type": "evaluation",
-                "date": history[idx].get("date"),
-                "macro_shock": macro_value,
-                "slope_factor": slope_terms[idx - 1],
-                "mean": prior + beta_macro * macro_value + beta_slope * slope_terms[idx - 1],
-                "std": max(_sample_std(trailing[-6:]), residual_std or 0.05),
-                "actual_close": closes[idx],
-                "crps": crps_value,
-                "baseline_crps": baseline_value,
-            }
-        )
+        record = {
+            "record_type": "evaluation",
+            "date": history[idx].get("date"),
+            "macro_shock": macro_value,
+            "slope_factor": slope_terms[idx - 1],
+            "mean": prior + beta_macro * macro_value + beta_slope * slope_terms[idx - 1],
+            "std": max(_sample_std(trailing[-6:]), residual_std or 0.05),
+            "actual_close": closes[idx],
+            "crps": crps_value,
+            "baseline_crps": baseline_value,
+        }
+        for column in macro_columns:
+            record[column] = float(macro_dummies.get(_strip_dummy_prefix(column), 0.0))
+        records.append(record)
 
     summary_row = {
         "record_type": "params",
@@ -271,6 +277,8 @@ def calibrate(history: Sequence[dict[str, float]]) -> pl.DataFrame:
         "slope_beta": params["slope_beta"],
         "residual_std": params["residual_std"],
     }
+    for column in macro_columns:
+        summary_row[column] = None
     records.insert(0, summary_row)
 
     frame = pl.DataFrame(records)
@@ -315,3 +323,47 @@ def _load_calibration() -> dict[str, float] | None:
         if row.get(key) is not None:
             result[key] = float(row[key])
     return result or None
+
+
+def _macro_dummies_lookup(history: Sequence[dict[str, Any]]) -> tuple[dict[str, dict[str, float]], list[str]]:
+    if not history:
+        return {}, []
+    path = macro_calendar.DEFAULT_OUTPUT
+    if not path.exists():
+        return {}, []
+    try:
+        frame = pl.read_parquet(path)
+    except Exception:  # pragma: no cover - allow missing macro dummies
+        return {}, []
+    if frame.is_empty():
+        return {}, []
+    columns = [name for name in frame.columns if name != "date"]
+    lookup: dict[str, dict[str, float]] = {}
+    for row in frame.iter_rows(named=True):
+        key = _normalize_history_date(row.get("date"))
+        if key is None:
+            continue
+        lookup[key] = {
+            _strip_dummy_prefix(column): float(row.get(column) or 0.0)
+            for column in columns
+        }
+    return lookup, columns
+
+
+def _normalize_history_date(value: object | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value).isoformat()
+        except ValueError:
+            return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return None
+
+
+def _strip_dummy_prefix(column: str) -> str:
+    return column[3:] if column.startswith("is_") else column

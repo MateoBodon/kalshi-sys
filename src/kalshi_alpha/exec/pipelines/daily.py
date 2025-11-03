@@ -21,6 +21,7 @@ from kalshi_alpha.core.pricing.align import SkipScan
 from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioRiskManager, drawdown
 from kalshi_alpha.datastore import ingest as datastore_ingest
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
+from kalshi_alpha.drivers import macro_calendar
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
 from kalshi_alpha.exec.heartbeat import (
     heartbeat_stale,
@@ -393,6 +394,34 @@ def run_calibrations(
         "teny": load_history("teny"),
         "weather": load_history("weather"),
     }
+
+    def history_bounds(sequence: Sequence[dict[str, object]] | None) -> tuple[date, date] | None:
+        if not sequence:
+            return None
+        dates: list[date] = []
+        for row in sequence:
+            raw_date = row.get("date")
+            if isinstance(raw_date, str):
+                try:
+                    dates.append(date.fromisoformat(raw_date))
+                except ValueError:
+                    continue
+        if not dates:
+            return None
+        return min(dates), max(dates)
+
+    teny_bounds = history_bounds(histories["teny"])
+    if teny_bounds is not None:
+        start_date, end_date = teny_bounds
+        try:
+            macro_calendar.emit_day_dummies(
+                start_date,
+                end_date,
+                offline=args.offline,
+                fixtures_dir=fixtures_root if args.offline else None,
+            )
+        except Exception:  # pragma: no cover - macro calendar is non-critical for calibration
+            log.setdefault("calibration_warnings", {})["teny_macro_calendar"] = "emit_failed"
 
     def calibrate_wrapper(
         name: str,
