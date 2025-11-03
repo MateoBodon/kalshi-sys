@@ -1975,7 +1975,7 @@ def _evaluate_market(  # noqa: PLR0913
         uncertainty_metric = max(0.0, min(1.0, 1.0 - abs(event_probability - 0.5) * 2.0))
         imbalance_metric = max(0.0, min(1.0, abs(survival_market - 0.5) * 2.0))
 
-        per_contract = expected_value_summary(
+        per_contract_raw = expected_value_summary(
             contracts=1,
             yes_price=yes_price,
             event_probability=event_probability,
@@ -1983,10 +1983,11 @@ def _evaluate_market(  # noqa: PLR0913
             series=series_ticker,
             market_name=market_ticker,
         )
+        per_contract_eval = dict(per_contract_raw)
         if apply_shrink:
-            per_contract["maker_yes"] *= ev_shrink
-            per_contract["maker_no"] *= ev_shrink
-        best_side, best_ev = _choose_side(per_contract, maker_only=maker_only)
+            per_contract_eval["maker_yes"] *= ev_shrink
+            per_contract_eval["maker_no"] *= ev_shrink
+        best_side, best_ev = _choose_side(per_contract_eval, maker_only=maker_only)
         if best_ev < min_ev:
             continue
 
@@ -2073,7 +2074,7 @@ def _evaluate_market(  # noqa: PLR0913
                 contract_count = adjusted_contracts
                 total_max_loss = max_loss_single * contract_count
 
-        total_ev = expected_value_summary(
+        total_ev_raw = expected_value_summary(
             contracts=contract_count,
             yes_price=yes_price,
             event_probability=event_probability,
@@ -2081,15 +2082,18 @@ def _evaluate_market(  # noqa: PLR0913
             series=series_ticker,
             market_name=market_ticker,
         )
+        total_ev_eval = dict(total_ev_raw)
         if apply_shrink:
-            total_ev["maker_yes"] *= ev_shrink
-            total_ev["maker_no"] *= ev_shrink
+            total_ev_eval["maker_yes"] *= ev_shrink
+            total_ev_eval["maker_no"] *= ev_shrink
 
         maker_key = "maker_yes" if best_side is OrderSide.YES else "maker_no"
         taker_key = "taker_yes" if best_side is OrderSide.YES else "taker_no"
         if maker_only:
-            total_ev[taker_key] = 0.0
-            per_contract[taker_key] = 0.0
+            total_ev_eval[taker_key] = 0.0
+            per_contract_eval[taker_key] = 0.0
+            total_ev_raw[taker_key] = 0.0
+            per_contract_raw[taker_key] = 0.0
 
         total_max_loss = max_loss_single * contract_count
         if risk_manager and not risk_manager.can_accept(
@@ -2117,6 +2121,13 @@ def _evaluate_market(  # noqa: PLR0913
         }
         if apply_shrink:
             proposal_metadata["ev_shrink"] = ev_shrink
+            proposal_metadata.setdefault(
+                "ev_shrunk",
+                {
+                    "maker_per_contract": per_contract_eval[maker_key],
+                    "maker_total": total_ev_eval[maker_key],
+                },
+            )
         if constraint_details is not None:
             proposal_metadata["bin_constraint"] = constraint_details
 
@@ -2126,10 +2137,10 @@ def _evaluate_market(  # noqa: PLR0913
             strike=rung.strike,
             side=best_side.name,
             contracts=contract_count,
-            maker_ev=total_ev[maker_key],
-            taker_ev=total_ev[taker_key],
-            maker_ev_per_contract=per_contract[maker_key],
-            taker_ev_per_contract=per_contract[taker_key],
+            maker_ev=total_ev_raw[maker_key],
+            taker_ev=total_ev_raw[taker_key],
+            maker_ev_per_contract=per_contract_raw[maker_key],
+            taker_ev_per_contract=per_contract_raw[taker_key],
             strategy_probability=event_probability,
             market_yes_price=yes_price,
             survival_market=survival_market,

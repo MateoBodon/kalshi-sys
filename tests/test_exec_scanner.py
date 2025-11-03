@@ -294,7 +294,20 @@ def test_teny_ev_shrink_applies_to_proposals(
         )
         key = "maker_yes" if proposal.side.upper() == "YES" else "maker_no"
         raw_ev_per_contract = ev_values[key]
-        assert proposal.maker_ev_per_contract == pytest.approx(raw_ev_per_contract * 0.5, rel=1e-6)
+        assert proposal.maker_ev_per_contract == pytest.approx(raw_ev_per_contract, rel=1e-6)
+        shrunk = metadata.get("ev_shrunk")
+        assert isinstance(shrunk, dict)
+        assert shrunk.get("maker_per_contract") == pytest.approx(raw_ev_per_contract * 0.5, rel=1e-6)
+        total_values = expected_value_summary(
+            contracts=proposal.contracts,
+            yes_price=proposal.market_yes_price,
+            event_probability=proposal.strategy_probability,
+            series=proposal.series,
+            market_name=proposal.market_ticker,
+        )
+        raw_total = total_values[key]
+        assert proposal.maker_ev == pytest.approx(raw_total, rel=1e-6)
+        assert shrunk.get("maker_total") == pytest.approx(raw_total * 0.5, rel=1e-6)
 
 
 def test_strategy_router_weather_pmf(offline_fixtures_root: Path) -> None:
