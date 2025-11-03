@@ -1,0 +1,18 @@
+{
+  "generated_at": "2025-11-03T00:14:08.889010+00:00",
+  "message": null,
+  "metrics": {
+    "min_sample": 12,
+    "reason": "insufficient_samples",
+    "series_stats": {
+      "CPI": {
+        "insufficient": true,
+        "max_negative": -37738.73174582709,
+        "max_positive": 0.0,
+        "sample_size": 8
+      }
+    }
+  },
+  "name": "ev_seq_guard",
+  "status": "NO_DATA"
+}

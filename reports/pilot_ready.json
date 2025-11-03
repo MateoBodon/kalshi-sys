@@ -1,0 +1,315 @@
+{
+  "criteria": {
+    "base_multiplier": 1.0,
+    "daily_loss_cap": 2000.0,
+    "ev_honesty_threshold": 0.1,
+    "go_multiplier": 1.5,
+    "ledger_max_age_minutes": 120,
+    "lookback_days": 14,
+    "min_delta_bps": 6.0,
+    "min_fills": 300,
+    "min_t_stat": 2.0,
+    "monitor_max_age_minutes": 30,
+    "panic_alert_threshold": 3,
+    "panic_alert_window_minutes": 30,
+    "seq_guard_drift": 1.0,
+    "seq_guard_min_sample": 12,
+    "seq_guard_threshold": 10.0,
+    "weekly_loss_cap": 6000.0
+  },
+  "drawdown": {
+    "metrics": {
+      "daily_pnl": 24.0,
+      "weekly_pnl": 150.33244842668913
+    },
+    "ok": true,
+    "reasons": []
+  },
+  "freshness": {
+    "ledger_age_minutes": 0.16,
+    "ledger_minutes": 0.16,
+    "ledger_path": "data/proc/ledger_all.parquet",
+    "ledger_threshold_minutes": 120,
+    "monitors_age_minutes": 0.08,
+    "monitors_dir": "reports/_artifacts/monitors",
+    "monitors_generated_at": "2025-11-03T00:14:08.889010+00:00",
+    "monitors_minutes": 0.08,
+    "monitors_threshold_minutes": 30,
+    "pilot_session_path": "reports/_artifacts/pilot_session.json"
+  },
+  "generated_at": "2025-11-03T00:14:13.618213+00:00",
+  "monitors_summary": {
+    "alerts_recent": [
+      "ev_gap"
+    ],
+    "file_count": 8,
+    "freeze_status": {
+      "CPI": {
+        "freeze_active": false,
+        "freeze_start": {
+          "et": "2025-11-11T06:00:00-05:00",
+          "utc": "2025-11-11T11:00:00+00:00"
+        },
+        "mode": "pre_cpi",
+        "notes": [],
+        "reference": {
+          "et": "2025-11-12T08:30:00-05:00",
+          "utc": "2025-11-12T13:30:00+00:00"
+        },
+        "scan_close": {
+          "et": "2025-11-12T08:20:00-05:00",
+          "utc": "2025-11-12T13:20:00+00:00"
+        },
+        "scan_open": {
+          "et": "2025-11-12T06:00:00-05:00",
+          "utc": "2025-11-12T11:00:00+00:00"
+        },
+        "series": "CPI"
+      }
+    },
+    "freeze_violation_series": [],
+    "kill_switch_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/proc/state/kill_switch",
+    "latest_generated_at": "2025-11-03T00:14:08.889010+00:00",
+    "max_age_minutes": 0.08,
+    "metrics": {
+      "auth_error_streak": {
+        "current_streak": 0,
+        "last_error_ts": null,
+        "max_streak": 0
+      },
+      "drawdown": {
+        "daily_cap": 2000.0,
+        "daily_pnl": 24.0,
+        "weekly_cap": 6000.0,
+        "weekly_pnl": 150.33244842668913
+      },
+      "ev_gap": {
+        "mean_delta_bps": -4718.3414682283865,
+        "sample_size": 8,
+        "t_stat": -44.321604771192
+      },
+      "ev_seq_guard": {
+        "min_sample": 12,
+        "reason": "insufficient_samples",
+        "series_stats": {
+          "CPI": {
+            "insufficient": true,
+            "max_negative": -37738.73174582709,
+            "max_positive": 0.0,
+            "sample_size": 8
+          }
+        }
+      },
+      "fill_vs_alpha": {
+        "reason": "missing_data"
+      },
+      "freeze_window": {
+        "evaluations": [
+          {
+            "freeze_active": false,
+            "freeze_start": {
+              "et": "2025-11-05T18:00:00-05:00",
+              "utc": "2025-11-05T23:00:00+00:00"
+            },
+            "mode": "pre_claims",
+            "notes": [],
+            "reference": {
+              "et": "2025-11-06T08:30:00-05:00",
+              "utc": "2025-11-06T13:30:00+00:00"
+            },
+            "scan_close": {
+              "et": "2025-11-06T08:25:00-05:00",
+              "utc": "2025-11-06T13:25:00+00:00"
+            },
+            "scan_open": {
+              "et": "2025-11-06T06:00:00-05:00",
+              "utc": "2025-11-06T11:00:00+00:00"
+            },
+            "series": "CLAIMS"
+          },
+          {
+            "freeze_active": false,
+            "freeze_start": {
+              "et": "2025-11-11T06:00:00-05:00",
+              "utc": "2025-11-11T11:00:00+00:00"
+            },
+            "mode": "pre_cpi",
+            "notes": [],
+            "reference": {
+              "et": "2025-11-12T08:30:00-05:00",
+              "utc": "2025-11-12T13:30:00+00:00"
+            },
+            "scan_close": {
+              "et": "2025-11-12T08:20:00-05:00",
+              "utc": "2025-11-12T13:20:00+00:00"
+            },
+            "scan_open": {
+              "et": "2025-11-12T06:00:00-05:00",
+              "utc": "2025-11-12T11:00:00+00:00"
+            },
+            "series": "CPI"
+          },
+          {
+            "freeze_active": false,
+            "freeze_start": {
+              "et": "2025-11-03T13:30:00-05:00",
+              "utc": "2025-11-03T18:30:00+00:00"
+            },
+            "mode": "teny_close",
+            "notes": [],
+            "reference": {
+              "et": "2025-11-03T15:30:00-05:00",
+              "utc": "2025-11-03T20:30:00+00:00"
+            },
+            "scan_close": {
+              "et": "2025-11-03T15:25:00-05:00",
+              "utc": "2025-11-03T20:25:00+00:00"
+            },
+            "scan_open": {
+              "et": "2025-11-03T14:30:00-05:00",
+              "utc": "2025-11-03T19:30:00+00:00"
+            },
+            "series": "TENY"
+          }
+        ]
+      },
+      "kill_switch": {
+        "engaged": false,
+        "path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/proc/state/kill_switch"
+      },
+      "ws_disconnect_rate": {
+        "count": 0,
+        "lookback_hours": 1,
+        "rate_per_hour": 0.0
+      }
+    },
+    "panic_backoff": false,
+    "panic_threshold": 3,
+    "panic_window_minutes": 30,
+    "sequential_max_stat": 37738.73174582709,
+    "sequential_params": {
+      "drift": 1.0,
+      "min_sample": 12,
+      "threshold": 10.0
+    },
+    "sequential_series_stats": {
+      "CPI": {
+        "insufficient": true,
+        "max_negative": -37738.73174582709,
+        "max_positive": 0.0,
+        "sample_size": 8
+      }
+    },
+    "sequential_triggers": [],
+    "statuses": {
+      "auth_error_streak": "OK",
+      "drawdown": "OK",
+      "ev_gap": "ALERT",
+      "ev_seq_guard": "NO_DATA",
+      "fill_vs_alpha": "NO_DATA",
+      "freeze_window": "OK",
+      "kill_switch": "OK",
+      "ws_disconnect_rate": "OK"
+    }
+  },
+  "overall": {
+    "freeze_violation_series": [],
+    "global_reasons": [],
+    "go": 0,
+    "no_go": 1,
+    "panic_backoff": false,
+    "sequential_alert_series": []
+  },
+  "pilot_session": {
+    "cusum_state": "NO_DATA",
+    "family": "CPI",
+    "fill_realism_gap": null,
+    "generated_at": "2025-11-03T00:13:36.900252+00:00",
+    "mean_delta_bps_after_fees": -4718.3414682283865,
+    "path": "reports/_artifacts/pilot_session.json",
+    "series": "CPI",
+    "session_id": "pilot-cpi-20251103T001334Z-f3253a",
+    "t_stat": -16.751991990266834
+  },
+  "series": [
+    {
+      "drawdown_ok": true,
+      "ev_honesty_bins": [
+        {
+          "delta": 0.0,
+          "ev_original": 0.26366829364567723,
+          "ev_proposal": 0.44366829364567734,
+          "ev_replay": 0.26366829364567723,
+          "fill_price": 0.39,
+          "flagged": false,
+          "maker_ev_original": 0.44366829364567734,
+          "maker_ev_replay": 0.26366829364567723,
+          "market_id": "MKT_CPI_OCT2025_MM",
+          "market_ticker": "CPI-2025-10-MOM",
+          "series": "CPI",
+          "side": "YES",
+          "sources": [],
+          "strike": 0.18
+        },
+        {
+          "delta": 0.0,
+          "ev_original": 0.36,
+          "ev_proposal": 0.5,
+          "ev_replay": 0.36,
+          "fill_price": 0.37,
+          "flagged": false,
+          "maker_ev_original": 0.5,
+          "maker_ev_replay": 0.36,
+          "market_id": "MKT_CPI_OCT2025_MM",
+          "market_ticker": "CPI-2025-10-MOM",
+          "series": "CPI",
+          "side": "NO",
+          "sources": [],
+          "strike": 0.47
+        }
+      ],
+      "fills": 0,
+      "freeze": {
+        "freeze_active": false,
+        "freeze_start": {
+          "et": "2025-11-11T06:00:00-05:00",
+          "utc": "2025-11-11T11:00:00+00:00"
+        },
+        "mode": "pre_cpi",
+        "notes": [],
+        "reference": {
+          "et": "2025-11-12T08:30:00-05:00",
+          "utc": "2025-11-12T13:30:00+00:00"
+        },
+        "scan_close": {
+          "et": "2025-11-12T08:20:00-05:00",
+          "utc": "2025-11-12T13:20:00+00:00"
+        },
+        "scan_open": {
+          "et": "2025-11-12T06:00:00-05:00",
+          "utc": "2025-11-12T11:00:00+00:00"
+        },
+        "series": "CPI"
+      },
+      "guardrail_breaches": 0,
+      "mean_delta_bps": -4718.3414682283865,
+      "reasons": [
+        "fills<300",
+        "\u0394bps<6.0",
+        "t<2.0"
+      ],
+      "recommendation": "NO_GO",
+      "sequential_stats": {
+        "insufficient": true,
+        "max_negative": -37738.73174582709,
+        "max_positive": 0.0,
+        "note": "insufficient_samples",
+        "sample_size": 8
+      },
+      "series": "CPI",
+      "size_multiplier": 1.0,
+      "t_stat": -44.321604771192,
+      "trades": 8
+    }
+  ]
+}

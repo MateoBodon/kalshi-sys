@@ -1,0 +1,11 @@
+{
+  "generated_at": "2025-11-03T00:14:08.889010+00:00",
+  "message": null,
+  "metrics": {
+    "current_streak": 0,
+    "last_error_ts": null,
+    "max_streak": 0
+  },
+  "name": "auth_error_streak",
+  "status": "OK"
+}
