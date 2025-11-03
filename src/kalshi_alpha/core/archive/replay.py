@@ -232,6 +232,8 @@ def _strategy_pmf_for_series(
     override: str,
     offline: bool,
     model_version: str = "v15",
+    orderbook_imbalance: float | None = None,
+    event_timestamp: datetime | None = None,
 ) -> list[LadderBinProbability]:
     pick = override.lower()
     ticker = series.upper()
@@ -290,15 +292,19 @@ def _strategy_pmf_for_series(
         macro_lookup = _macro_calendar_lookup(history, fixtures_dir=fixtures_dir)
         date_key = _normalize_macro_date(latest.get("date")) if history else None
         macro_dummies = macro_lookup.get(date_key, {}) if date_key is not None else {}
-        imbalance_entry = kalshi_ws.load_latest_imbalance(ticker)
-        orderbook_imbalance = imbalance_entry[0] if imbalance_entry else None
+        imbalance_value = orderbook_imbalance
+        if imbalance_value is None:
+            imbalance_entry = kalshi_ws.load_latest_imbalance(ticker)
+            if imbalance_entry is not None:
+                imbalance_value = float(imbalance_entry[0])
+        timestamp = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
         inputs = teny_strategy.TenYInputs(
             prior_close=prior_close,
             macro_shock=macro_shock,
             trailing_history=trailing,
             macro_shock_dummies=macro_dummies,
-            orderbook_imbalance=orderbook_imbalance,
-            event_timestamp=datetime.now(tz=UTC),
+            orderbook_imbalance=imbalance_value,
+            event_timestamp=timestamp,
         )
         if version == "v15":
             return teny_strategy.pmf_v15(strikes, inputs=inputs)

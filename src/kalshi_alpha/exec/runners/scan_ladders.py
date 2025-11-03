@@ -1529,6 +1529,7 @@ def scan_series(  # noqa: PLR0913
     pilot_trimmed_bins = 0
 
     model_metadata: dict[str, object] = {}
+    imbalance_cache: dict[str, float | None] = {}
     for event in events:
         markets = client.get_markets(event.id)
         all_markets.extend(markets)
@@ -1552,6 +1553,16 @@ def scan_series(  # noqa: PLR0913
             market_pmf = pmf_from_quotes(rungs)
             market_survival = _market_survival_from_pmf(market_pmf, rungs)
 
+            orderbook_imbalance: float | None = None
+            event_timestamp = datetime.now(tz=UTC)
+            if series_obj is not None and series_obj.ticker.upper() == "TNEY":
+                ticker_key = market.ticker
+                if ticker_key in imbalance_cache:
+                    orderbook_imbalance = imbalance_cache[ticker_key]
+                else:
+                    imbalance_entry = kalshi_ws.load_latest_imbalance(ticker_key)
+                    orderbook_imbalance = float(imbalance_entry[0]) if imbalance_entry is not None else None
+                    imbalance_cache[ticker_key] = orderbook_imbalance
             strategy_pmf, metadata = _strategy_pmf_for_series(
                 series=series_obj.ticker,
                 strikes=[rung.strike for rung in rungs],
@@ -1559,6 +1570,8 @@ def scan_series(  # noqa: PLR0913
                 override=strategy_name,
                 offline=offline,
                 model_version=model_version,
+                orderbook_imbalance=orderbook_imbalance,
+                event_timestamp=event_timestamp,
             )
             if metadata and not model_metadata:
                 model_metadata = dict(metadata)
@@ -1698,6 +1711,8 @@ def _strategy_pmf_for_series(
     override: str,
     offline: bool,
     model_version: str = "v15",
+    orderbook_imbalance: float | None = None,
+    event_timestamp: datetime | None = None,
 ) -> tuple[list[LadderBinProbability], dict[str, object]]:
     pick = override.lower()
     ticker = series.upper()
@@ -1770,16 +1785,22 @@ def _strategy_pmf_for_series(
         )
         date_key = _normalize_macro_date(latest.get("date")) if history else None
         macro_dummies = macro_lookup.get(date_key, {}) if date_key is not None else {}
-        imbalance_entry = kalshi_ws.load_latest_imbalance(ticker)
-        orderbook_imbalance = imbalance_entry[0] if imbalance_entry is not None else None
+        imbalance_value = orderbook_imbalance
+        if imbalance_value is None:
+            imbalance_entry = kalshi_ws.load_latest_imbalance(ticker)
+            if imbalance_entry is not None:
+                imbalance_value = float(imbalance_entry[0])
+        timestamp = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
         inputs = teny_strategy.TenYInputs(
             prior_close=prior_close,
             macro_shock=macro_shock,
             trailing_history=trailing,
             macro_shock_dummies=macro_dummies,
-            orderbook_imbalance=orderbook_imbalance,
-            event_timestamp=datetime.now(tz=UTC),
+            orderbook_imbalance=imbalance_value,
+            event_timestamp=timestamp,
         )
+        if imbalance_value is not None:
+            metadata.setdefault("teny_orderbook_imbalance", float(imbalance_value))
         if version == "v15":
             pmf_values = teny_strategy.pmf_v15(strikes, inputs=inputs)
         else:
@@ -2121,8 +2142,8 @@ def _evaluate_market(  # noqa: PLR0913
                 "kelly_scaled": scaled_fraction if sizing_mode == "kelly" else None,
                 "uncertainty_metric": uncertainty_metric,
                 "uncertainty_penalty": uncertainty_penalty,
-                "ob_imbalance_metric": imbalance_metric,
-                "ob_imbalance_penalty": ob_imbalance_penalty,
+                "ob_imbalance_metric": float(imbalance_metric),
+                "ob_imbalance_penalty": float(ob_imbalance_penalty) if ob_imbalance_penalty else 0.0,
                 "daily_loss_before": budget_before,
                 "daily_loss_after": budget_after,
             }
