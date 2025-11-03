@@ -135,6 +135,28 @@ Pipeline steps per run:
 5. Paper ledger simulation (configurable slippage model, CSV/JSON artifacts under `reports/_artifacts`).
 6. Markdown report + JSON log in `data/proc/logs/YYYY-MM-DD/`.
 
+## TENY Close Ops Checklist
+- Window: 14:30–15:25 ET. Confirm `--snap-to-window wait` or live clock alignment before moving to maker-only clips. Outside the window run dry scans only.
+- Kill switch: ensure `data/proc/state/kill_switch` does **not** exist; if present, halt immediately and page ops.
+- Data freshness: `data/proc/treasury_yields/latest.parquet` should carry today’s close timestamp; `data/proc/treasury_yields/daily/*.parquet` must include the current trade date; `data/proc/macro_calendar/macro_day_dummies.parquet` must contain today’s row with any `is_fomc/is_cpi/is_jobs/is_claims` markers.
+- Orderbook imbalance: run the websocket smoke (`python -m kalshi_alpha.dev.ws_smoke --ticker TNEY-<contract>`) and confirm new JSON snapshots land under `data/raw/kalshi/orderbook/<ticker>/` and `data/proc/kalshi/orderbook_imbalance/<ticker>.json` updates within two minutes.
+- Report ↔ gate: regenerate offline (`python -m kalshi_alpha.exec.pipelines.daily --mode teny_close --offline --report`) and verify the GO/NO-GO badge in `reports/TNEY/.../REPORT.md` matches `reports/_artifacts/go_no_go.json`.
+- EV honesty: default shrink is 0.9; override via `--ev-honesty-shrink` on `scan_ladders` or the daily pipeline when ops requests. Monitor block should include `ev_honesty_shrink` plus `ev_shrink` metadata per proposal.
+
+### First Microlive Clip
+1. Run the offline pipeline with `--report --paper-ledger`; confirm the markdown summarizes GO with clean EV honesty metrics.
+2. Execute `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30` and review trend/fill stats for TNEY.
+3. Launch `python -m kalshi_alpha.dev.ws_smoke --ticker TNEY-<today>` for at least five minutes; ensure imbalance JSON updates and no websocket drops are logged.
+4. Validate monitors: `python -m kalshi_alpha.exec.monitors.cli --series TNEY` (or `make monitors`) should return all green; heartbeat file `data/proc/state/heartbeat.json` must be <5 min old.
+5. Confirm PAL exposure room and set Kelly cap ≤0.25; keep `--maker-only` and 1-lot sizing until ramp sign-off.
+6. Flip to live only after repeating the report run with `--online --broker live --paper-ledger` and ensuring kill switch absent.
+
+### Quick Verify Commands
+- `python -m kalshi_alpha.exec.pipelines.daily --mode teny_close --offline --report`
+- `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`
+- `python -m kalshi_alpha.dev.ws_smoke --ticker TNEY-<contract>`
+- `python -m kalshi_alpha.exec.runners.scan_ladders --series TNEY --offline --fixtures-root tests/data_fixtures --ev-honesty-shrink 0.9 --quiet`
+
 ## Fill Ratio & Slippage Calibration
 - Fill alpha values are auto-tuned from the aggregated ledger (`data/proc/ledger_all.parquet`) and persisted to `data/proc/state/fill_alpha.json`. The scanner and daily pipelines automatically load the most recent alpha when `--fill-alpha` is omitted; `--fill-alpha auto` forces a refresh before scanning.
 - Depth slippage curves are fitted from the same ledger and stored in `data/proc/state/slippage.json`. When `--slippage-mode depth` is selected the pipelines will hydrate a `SlippageModel` from this state; pass `--impact-cap` to override at runtime.
