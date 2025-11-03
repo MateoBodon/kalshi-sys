@@ -139,14 +139,14 @@ Pipeline steps per run:
 - Window: 14:30–15:25 ET. Confirm `--snap-to-window wait` or live clock alignment before moving to maker-only clips. Outside the window run dry scans only.
 - Kill switch: ensure `data/proc/state/kill_switch` does **not** exist; if present, halt immediately and page ops.
 - Data freshness: `data/proc/treasury_yields/latest.parquet` should carry today’s close timestamp; `data/proc/treasury_yields/daily/*.parquet` must include the current trade date; `data/proc/macro_calendar/latest.parquet` must contain today’s row with any `is_fomc/is_cpi/is_jobs/is_claims` markers.
-- Orderbook imbalance: run the websocket smoke (`python -m kalshi_alpha.dev.ws_smoke --ticker TNEY-<contract>`) and confirm new JSON snapshots land under `data/raw/kalshi/orderbook/<ticker>/` and `data/proc/kalshi/orderbook_imbalance/<ticker>.json` updates within two minutes.
+- Orderbook imbalance: run the websocket smoke (`python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<contract>`) and confirm new JSON snapshots land under `data/raw/kalshi/orderbook/<ticker>/` and `data/proc/kalshi/orderbook_imbalance/<ticker>.json` updates within two minutes.
 - Report ↔ gate: regenerate offline (`python -m kalshi_alpha.exec.pipelines.daily --mode teny_close --offline --report`) and verify the GO/NO-GO badge in `reports/TNEY/.../REPORT.md` matches `reports/_artifacts/go_no_go.json`.
 - EV honesty: default shrink is 0.9; override via `--ev-honesty-shrink` on `scan_ladders` or the daily pipeline when ops requests. Monitor block should include `ev_honesty_shrink` plus `ev_shrink` metadata per proposal.
 
 ### First Microlive Clip
 1. Run the offline pipeline with `--report --paper-ledger`; confirm the markdown summarizes GO with clean EV honesty metrics.
 2. Execute `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30` and review trend/fill stats for TNEY.
-3. Launch `python -m kalshi_alpha.dev.ws_smoke --ticker TNEY-<today>` for at least five minutes; ensure imbalance JSON updates and no websocket drops are logged.
+3. Launch `python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<today>` for at least five minutes; ensure imbalance JSON updates and no websocket drops are logged.
 4. Validate monitors: `python -m kalshi_alpha.exec.monitors.cli --series TNEY` (or `make monitors`) should return all green; heartbeat file `data/proc/state/heartbeat.json` must be <5 min old.
 5. Confirm PAL exposure room and set Kelly cap ≤0.25; keep `--maker-only` and 1-lot sizing until ramp sign-off.
 6. Flip to live only after repeating the report run with `--online --broker live --paper-ledger` and ensuring kill switch absent.
@@ -154,8 +154,22 @@ Pipeline steps per run:
 ### Quick Verify Commands
 - `python -m kalshi_alpha.exec.pipelines.daily --mode teny_close --offline --report`
 - `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`
-- `python -m kalshi_alpha.dev.ws_smoke --ticker TNEY-<contract>`
+- `python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<contract>`
 - `python -m kalshi_alpha.exec.runners.scan_ladders --series TNEY --offline --fixtures-root tests/data_fixtures --ev-honesty-shrink 0.9 --quiet`
+
+## TENY Smoke Harness
+1. `python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<today> --run-seconds 600`
+   - Pass: JSONL snapshots appended under `data/raw/kalshi/orderbook/TNEY-<today>/` and `data/proc/kalshi/orderbook_imbalance/TNEY-<today>.json` timestamp refreshes within two minutes.
+   - Fail: websocket disconnects, no new snapshot rows, or stale imbalance metric.
+2. `python -m kalshi_alpha.exec.pipelines.daily --mode teny_close --online --report --paper-ledger --ev-honesty-shrink 0.9`
+   - Pass: GO/NO-GO badge in `reports/TNEY/*.md` matches `reports/_artifacts/go_no_go.json` and monitor block lists `ev_honesty_shrink`.
+   - Fail: pipeline exits with NO-GO, missing report, or monitors omit shrink metadata.
+3. `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`
+   - Pass: `reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`, and `reports/pilot_readiness.md` regenerate without errors.
+   - Fail: scoreboard markdown missing or stale metrics.
+4. `python scripts/pilot_teny.py`
+   - Pass: script prints paths for the latest TENY report, GO/NO-GO artifact, and scoreboard outputs after running the full smoke sequence.
+   - Fail: missing path output or any subprocess non-zero exit.
 
 ## Fill Ratio & Slippage Calibration
 - Fill alpha values are auto-tuned from the aggregated ledger (`data/proc/ledger_all.parquet`) and persisted to `data/proc/state/fill_alpha.json`. The scanner and daily pipelines automatically load the most recent alpha when `--fill-alpha` is omitted; `--fill-alpha auto` forces a refresh before scanning.
