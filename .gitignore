@@ -15,7 +15,21 @@ __pycache__/
 .env.local
 
 data/raw/
-data/proc/
+data/proc/*
+!data/proc/calib/
+data/proc/calib/*
+!data/proc/calib/index/
+data/proc/calib/index/*
+!data/proc/calib/index/spx/
+data/proc/calib/index/spx/*
+!data/proc/calib/index/spx/close/
+data/proc/calib/index/spx/close/*
+!data/proc/calib/index/spx/close/params.json
+!data/proc/calib/index/ndx/
+data/proc/calib/index/ndx/*
+!data/proc/calib/index/ndx/close/
+data/proc/calib/index/ndx/close/*
+!data/proc/calib/index/ndx/close/params.json
 exec/proposals/
 notebooks/.ipynb_checkpoints/
 

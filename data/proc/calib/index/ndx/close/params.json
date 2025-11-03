@@ -1,16 +1,16 @@
 {
   "symbol": "I:NDX",
   "horizon": "close",
-  "generated_at": "2025-11-03T00:00:00Z",
+  "generated_at": "2025-10-31T00:00:00Z",
   "minutes_to_target": {
     "0": {"sigma": 22.0, "drift": 0.0},
-    "60": {"sigma": 27.0, "drift": 0.4},
-    "120": {"sigma": 32.0, "drift": 0.6}
+    "30": {"sigma": 25.5, "drift": 0.3},
+    "90": {"sigma": 28.5, "drift": 0.6}
   },
   "residual_std": 1.8,
   "pit_bias": null,
   "late_day_variance": {
-    "minutes_threshold": 20,
+    "minutes_threshold": 25,
     "lambda": 1.35
   },
   "event_tail": {

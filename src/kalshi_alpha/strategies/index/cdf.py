@@ -8,9 +8,22 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.strategies import base
+
+
+@dataclass(frozen=True)
+class LateDayVariance:
+    minutes_threshold: int
+    lambda_value: float
+
+
+@dataclass(frozen=True)
+class EventTail:
+    tags: tuple[str, ...]
+    kappa: float
 
 
 @dataclass(frozen=True)
@@ -19,6 +32,8 @@ class SigmaCalibration:
     drift_curve: Mapping[int, float]
     residual_std: float
     pit_bias: float | None = None
+    late_day_variance: LateDayVariance | None = None
+    event_tail: EventTail | None = None
 
     def sigma(self, minutes_to_target: int) -> float:
         return _nearest(self.sigma_curve, minutes_to_target)
@@ -94,15 +109,10 @@ def load_calibration(path: Path, symbol: str, *, horizon: str) -> SigmaCalibrati
     return _load_calibration_cached(str(resolved_file))
 
 
-@lru_cache(maxsize=12)
-def _load_calibration_cached(file_path: str) -> SigmaCalibration:
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Calibration file not found at {file_path}")
-    data = json.loads(path.read_text(encoding="utf-8"))
+def _extract_minutes_curves(data: Mapping[str, Any], file_path: str) -> tuple[dict[int, float], dict[int, float]]:
     minutes_section = data.get("minutes_to_target", {})
-    sigma_curve = {}
-    drift_curve = {}
+    sigma_curve: dict[int, float] = {}
+    drift_curve: dict[int, float] = {}
     for minutes, entry in minutes_section.items():
         try:
             minutes_int = int(minutes)
@@ -112,18 +122,68 @@ def _load_calibration_cached(file_path: str) -> SigmaCalibration:
         drift_curve[minutes_int] = float(entry.get("drift", 0.0))
     if not sigma_curve:
         raise ValueError(f"Calibration payload missing sigma curve: {file_path}")
-    residual_std = float(data.get("residual_std", 0.0))
+    return sigma_curve, drift_curve
+
+
+def _extract_pit_bias(data: Mapping[str, Any]) -> float | None:
     pit_bias = data.get("pit_bias")
-    if pit_bias is not None:
-        try:
-            pit_bias = float(pit_bias)
-        except (TypeError, ValueError):
-            pit_bias = None
+    if pit_bias is None:
+        return None
+    try:
+        return float(pit_bias)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_late_day_variance(data: Mapping[str, Any]) -> LateDayVariance | None:
+    variance_block = data.get("late_day_variance") or data.get("lambda_close")
+    if not variance_block:
+        return None
+    try:
+        threshold = int(variance_block.get("minutes_threshold", variance_block.get("minutes", 15)))
+        lambda_value = float(variance_block.get("lambda", variance_block.get("lambda_value")))
+    except (TypeError, ValueError):
+        return None
+    if threshold <= 0 or lambda_value <= 0.0:
+        return None
+    return LateDayVariance(minutes_threshold=threshold, lambda_value=lambda_value)
+
+
+def _extract_event_tail(data: Mapping[str, Any]) -> EventTail | None:
+    tail_block = data.get("event_tail") or data.get("event_day")
+    if not tail_block:
+        return None
+    raw_tags = tail_block.get("tags") or []
+    try:
+        tags = tuple(str(tag).strip().lower() for tag in raw_tags if str(tag).strip())
+    except Exception:  # pragma: no cover - defensive normalization
+        tags = ()
+    if not tags:
+        return None
+    try:
+        kappa_value = float(tail_block.get("kappa") if "kappa" in tail_block else tail_block.get("multiplier"))
+    except (TypeError, ValueError):
+        return None
+    if kappa_value <= 0.0:
+        return None
+    return EventTail(tags=tags, kappa=kappa_value)
+
+
+@lru_cache(maxsize=12)
+def _load_calibration_cached(file_path: str) -> SigmaCalibration:
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Calibration file not found at {file_path}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    sigma_curve, drift_curve = _extract_minutes_curves(data, file_path)
+    residual_std = float(data.get("residual_std", 0.0))
     return SigmaCalibration(
         sigma_curve=sigma_curve,
         drift_curve=drift_curve,
         residual_std=residual_std,
-        pit_bias=pit_bias,
+        pit_bias=_extract_pit_bias(data),
+        late_day_variance=_extract_late_day_variance(data),
+        event_tail=_extract_event_tail(data),
     )
 
 
