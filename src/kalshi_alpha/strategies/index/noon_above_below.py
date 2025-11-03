@@ -15,6 +15,8 @@ from .cdf import SigmaCalibration, gaussian_pmf, load_calibration
 
 INDEX_CALIBRATION_ROOT = PROC_ROOT / "calib" / "index"
 NOON_CALIBRATION_PATH = INDEX_CALIBRATION_ROOT
+EVENT_MULTIPLIER_CAP = 1.8
+MIN_EVENT_MULTIPLIER = 1.0
 
 
 @dataclass(frozen=True)
@@ -70,7 +72,9 @@ def _event_multiplier(inputs: NoonInputs, calibration: SigmaCalibration) -> floa
         return 1.0
     normalized = {tag.strip().lower() for tag in inputs.event_tags if tag}
     if normalized.intersection(tail.tags):
-        return max(float(tail.kappa), 0.0)
+        value = max(float(tail.kappa), 0.0)
+        value = max(value, MIN_EVENT_MULTIPLIER)
+        return min(value, EVENT_MULTIPLIER_CAP)
     return 1.0
 
 

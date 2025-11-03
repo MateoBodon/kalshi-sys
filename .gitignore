@@ -25,11 +25,17 @@ data/proc/calib/index/spx/*
 !data/proc/calib/index/spx/close/
 data/proc/calib/index/spx/close/*
 !data/proc/calib/index/spx/close/params.json
+!data/proc/calib/index/spx/noon/
+data/proc/calib/index/spx/noon/*
+!data/proc/calib/index/spx/noon/params.json
 !data/proc/calib/index/ndx/
 data/proc/calib/index/ndx/*
 !data/proc/calib/index/ndx/close/
 data/proc/calib/index/ndx/close/*
 !data/proc/calib/index/ndx/close/params.json
+!data/proc/calib/index/ndx/noon/
+data/proc/calib/index/ndx/noon/*
+!data/proc/calib/index/ndx/noon/params.json
 exec/proposals/
 notebooks/.ipynb_checkpoints/
 

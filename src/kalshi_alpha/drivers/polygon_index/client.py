@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Mapping
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -166,7 +166,7 @@ class PolygonIndicesClient:
             limit=limit,
         )
 
-    def _fetch_aggregate_bars(
+    def _fetch_aggregate_bars(  # noqa: PLR0913
         self,
         *,
         symbol: str,
@@ -346,7 +346,13 @@ class PolygonIndicesClient:
                         yield message
             except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
                 raise
-            except (ConnectionClosedError, ConnectionClosedOK, PolygonAPIError, TimeoutError, asyncio.TimeoutError, OSError) as exc:
+            except (
+                ConnectionClosedError,
+                ConnectionClosedOK,
+                PolygonAPIError,
+                TimeoutError,
+                OSError,
+            ):
                 attempts += 1
                 if reconnect_attempts is not None and attempts > reconnect_attempts:
                     raise

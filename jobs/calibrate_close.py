@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
-from collections.abc import Sequence
 import json
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
@@ -16,10 +16,19 @@ from kalshi_alpha.drivers.polygon_index.snapshots import write_minute_bars
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series
 from kalshi_alpha.strategies.index.close_range import CLOSE_CALIBRATION_PATH
 
-from ._index_calibration import ET, build_sigma_curve
+from ._index_calibration import (
+    ET,
+    build_sigma_curve,
+    event_tail_multiplier,
+    late_day_lambda,
+)
 
 TARGET_TIME = time(16, 0)
 RESIDUAL_WINDOW_MINUTES = 15
+EVENT_WINDOW_MINUTES = 60
+EVENT_KAPPA_CLAMP = (1.0, 1.75)
+EVENT_TAGS = ("CPI", "FOMC")
+LATE_DAY_WINDOW_MINUTES = 10
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -69,8 +78,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not bars_by_symbol:
         raise RuntimeError("No minute bars fetched for calibration")
 
-    frame = build_sigma_curve(bars_by_symbol, target_time=TARGET_TIME, residual_window=RESIDUAL_WINDOW_MINUTES)
-    _write_params(frame, args.output, horizon="close")
+    frame, records = build_sigma_curve(
+        bars_by_symbol,
+        target_time=TARGET_TIME,
+        residual_window=RESIDUAL_WINDOW_MINUTES,
+        return_records=True,
+    )
+    extras = _derive_extras(records, frame)
+    _write_params(frame, args.output, horizon="close", extras=extras)
 
 
 def _resolve_tickers(series_list: Sequence[str]) -> list[str]:
@@ -107,7 +122,48 @@ def _time_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]:
     return start_dt, end_dt
 
 
-def _write_params(frame, output: Path, *, horizon: str) -> None:
+def _derive_extras(records: pl.DataFrame, frame: pl.DataFrame) -> dict[str, dict[str, object]]:
+    if records.is_empty():
+        return {}
+    symbols = records.get_column("symbol").unique().to_list()
+    extras: dict[str, dict[str, object]] = {}
+    for symbol in symbols:
+        kappa = event_tail_multiplier(
+            records,
+            symbol,
+            window=EVENT_WINDOW_MINUTES,
+            tags=EVENT_TAGS,
+            clamp=EVENT_KAPPA_CLAMP,
+        )
+        late_day = late_day_lambda(
+            records,
+            frame,
+            symbol,
+            window=LATE_DAY_WINDOW_MINUTES,
+            tags=EVENT_TAGS,
+        )
+        payload: dict[str, object] = {
+            "event_tail": {
+                "tags": list(EVENT_TAGS),
+                "kappa": round(float(kappa), 4),
+            }
+        }
+        if late_day is not None:
+            payload["late_day_variance"] = {
+                "minutes_threshold": int(late_day["minutes_threshold"]),
+                "lambda": round(float(late_day["lambda"]), 6),
+            }
+        extras[symbol] = payload
+    return extras
+
+
+def _write_params(
+    frame: pl.DataFrame,
+    output: Path,
+    *,
+    horizon: str,
+    extras: Mapping[str, Mapping[str, object]] | None = None,
+) -> None:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     unique_symbols = frame.get_column("symbol").unique().to_list()
@@ -135,6 +191,24 @@ def _write_params(frame, output: Path, *, horizon: str) -> None:
             "residual_std": residual_std,
             "pit_bias": None,
         }
+        extra_entry = (extras or {}).get(symbol)
+        if extra_entry:
+            event_tail = extra_entry.get("event_tail", {})
+            tags = [str(tag).strip() for tag in event_tail.get("tags", EVENT_TAGS) if str(tag).strip()]
+            if tags:
+                payload["event_tail"] = {
+                    "tags": [tag.upper() for tag in tags],
+                    "kappa": float(event_tail.get("kappa", 1.0)),
+                }
+            late_day = extra_entry.get("late_day_variance")
+            if isinstance(late_day, Mapping):
+                minutes_threshold = int(late_day.get("minutes_threshold", LATE_DAY_WINDOW_MINUTES))
+                lambda_value = float(late_day.get("lambda", 0.0))
+                if lambda_value > 0.0:
+                    payload["late_day_variance"] = {
+                        "minutes_threshold": minutes_threshold,
+                        "lambda": lambda_value,
+                    }
         target_path = target_dir / "params.json"
         target_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 

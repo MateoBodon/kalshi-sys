@@ -4,3 +4,4 @@
 - restricted `λ_close` variance bump to the 15:50–16:00 ET window and added regression covering pre-window behavior.
 - added drivers/calendar events feed with DST-safe loader; index scanners now emit event tags for noon/close inputs.
 - expanded Polygon index fixtures (gap/quiet/CPI/FOMC coverage for Aug–Sep 2024) and updated math regression to iterate every file with dynamic strike grids.
+- re-ran SPX/NDX noon+close calibrations with calendar-tagged fixtures, capped noon event tails, persisted new params, refreshed tests, and generated DRY scans for INXU/NASDAQ100U/INX/NASDAQ100.

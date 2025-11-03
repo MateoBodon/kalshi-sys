@@ -5,8 +5,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from kalshi_alpha.drivers.polygon_index.client import MinuteBar
 from kalshi_alpha.drivers.polygon_index import snapshots
+from kalshi_alpha.drivers.polygon_index.client import MinuteBar
 
 
 def _make_bars(values: list[float]) -> list[MinuteBar]:

@@ -325,7 +325,13 @@ def _evaluate_feed(
         "cleveland_nowcast.monthly": _evaluate_cleveland,
         "aaa_gas.daily": _evaluate_aaa,
         "nws_daily_climate": _evaluate_weather,
-        "polygon_index.websocket": lambda c, l, r, n, p: _evaluate_polygon_ws(c, l, r, n, raw_root),
+        "polygon_index.websocket": lambda cfg_item, feed_label, required_flag, current_time, _: _evaluate_polygon_ws(
+            cfg_item,
+            feed_label,
+            required_flag,
+            current_time,
+            raw_root,
+        ),
     }
     handler = handlers.get(feed_id)
     if handler is None:
@@ -716,10 +722,10 @@ def _latest_snapshot_path(raw_root: Path, namespace: str) -> Path | None:
 def _parse_snapshot_timestamp(name: str) -> datetime | None:
     prefix = name.split("_", 1)[0]
     try:
-        parsed = datetime.strptime(prefix, "%Y%m%dT%H%M%S")
+        parsed = datetime.strptime(prefix, "%Y%m%dT%H%M%S").replace(tzinfo=UTC)
     except ValueError:
         return None
-    return parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 def _extract_datetime(value: datetime | date | None) -> datetime | None:

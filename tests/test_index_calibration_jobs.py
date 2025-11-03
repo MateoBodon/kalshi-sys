@@ -5,8 +5,10 @@ from datetime import UTC, datetime, time
 from zoneinfo import ZoneInfo
 
 import polars as pl
+import pytest
 
 from jobs._index_calibration import build_sigma_curve
+from jobs.calibrate_close import _write_params as write_close_params
 from jobs.calibrate_noon import _write_params as write_noon_params
 from kalshi_alpha.drivers.polygon_index.client import MinuteBar
 
@@ -60,3 +62,29 @@ def test_write_params_emits_json(tmp_path) -> None:
     assert payload["horizon"] == "noon"
     minutes = payload["minutes_to_target"]
     assert "0" in minutes and "sigma" in minutes["0"]
+
+
+def test_close_write_params_includes_extras(tmp_path) -> None:
+    et = ZoneInfo("America/New_York")
+    day = datetime(2024, 1, 2, tzinfo=et)
+    bars = {
+        "I:SPX": [
+            _minute_bar(day.replace(hour=15, minute=58), 5000.0),
+            _minute_bar(day.replace(hour=15, minute=59), 5001.0),
+            _minute_bar(day.replace(hour=16, minute=0), 5002.0),
+        ]
+    }
+    frame = build_sigma_curve(bars, target_time=time(16, 0), residual_window=2)
+    extras = {
+        "I:SPX": {
+            "event_tail": {"tags": ("CPI", "FOMC"), "kappa": 1.55},
+            "late_day_variance": {"minutes_threshold": 10, "lambda": 4.2},
+        }
+    }
+    write_close_params(frame, tmp_path, horizon="close", extras=extras)
+    params_path = tmp_path / "spx" / "close" / "params.json"
+    payload = json.loads(params_path.read_text(encoding="utf-8"))
+    assert payload["event_tail"]["tags"] == ["CPI", "FOMC"]
+    assert payload["event_tail"]["kappa"] == pytest.approx(1.55, rel=1e-6)
+    assert payload["late_day_variance"]["minutes_threshold"] == 10
+    assert payload["late_day_variance"]["lambda"] == pytest.approx(4.2, rel=1e-6)

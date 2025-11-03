@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from math import isclose
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-
-from decimal import Decimal
 
 from kalshi_alpha.core.fees import get_index_fee_curve, round_up_to_cent
 from kalshi_alpha.core.pricing import (
@@ -117,7 +116,7 @@ def test_index_fee_curve_monotonic_segments() -> None:
             series="INXU",
         )
         increasing.append(fee)
-    assert all(a <= b + 1e-9 for a, b in zip(increasing, increasing[1:]))
+    assert all(a <= b + 1e-9 for a, b in zip(increasing, increasing[1:], strict=False))
 
     decreasing = []
     for idx in range(50, 101):
@@ -131,7 +130,7 @@ def test_index_fee_curve_monotonic_segments() -> None:
             series="NASDAQ100",
         )
         decreasing.append(fee)
-    assert all(a >= b - 1e-9 for a, b in zip(decreasing, decreasing[1:]))
+    assert all(a >= b - 1e-9 for a, b in zip(decreasing, decreasing[1:], strict=False))
 
 
 @given(st.lists(st.floats(min_value=-1, max_value=2), min_size=3, max_size=8))

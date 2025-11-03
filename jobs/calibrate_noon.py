@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
-from collections.abc import Sequence
 import json
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
@@ -16,10 +16,13 @@ from kalshi_alpha.drivers.polygon_index.snapshots import write_minute_bars
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series
 from kalshi_alpha.strategies.index.noon_above_below import NOON_CALIBRATION_PATH
 
-from ._index_calibration import ET, build_sigma_curve
+from ._index_calibration import ET, build_sigma_curve, event_tail_multiplier
 
 TARGET_TIME = time(12, 0)
 RESIDUAL_WINDOW_MINUTES = 5
+EVENT_WINDOW_MINUTES = 30
+EVENT_KAPPA_CLAMP = (1.0, 1.65)
+EVENT_TAGS = ("CPI", "FOMC")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -69,8 +72,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not bars_by_symbol:
         raise RuntimeError("No minute bars fetched for calibration")
 
-    frame = build_sigma_curve(bars_by_symbol, target_time=TARGET_TIME, residual_window=RESIDUAL_WINDOW_MINUTES)
-    _write_params(frame, args.output, horizon="noon")
+    frame, records = build_sigma_curve(
+        bars_by_symbol,
+        target_time=TARGET_TIME,
+        residual_window=RESIDUAL_WINDOW_MINUTES,
+        return_records=True,
+    )
+    extras = _derive_event_extras(records)
+    _write_params(frame, args.output, horizon="noon", extras=extras)
 
 
 def _resolve_tickers(series_list: Sequence[str]) -> list[str]:
@@ -107,7 +116,35 @@ def _time_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]:
     return start_dt, end_dt
 
 
-def _write_params(frame, output: Path, *, horizon: str) -> None:
+def _derive_event_extras(records: pl.DataFrame) -> dict[str, dict[str, object]]:
+    if records.is_empty():
+        return {}
+    symbols = records.get_column("symbol").unique().to_list()
+    extras: dict[str, dict[str, object]] = {}
+    for symbol in symbols:
+        kappa = event_tail_multiplier(
+            records,
+            symbol,
+            window=EVENT_WINDOW_MINUTES,
+            tags=EVENT_TAGS,
+            clamp=EVENT_KAPPA_CLAMP,
+        )
+        extras[symbol] = {
+            "event_tail": {
+                "tags": list(EVENT_TAGS),
+                "kappa": round(float(kappa), 4),
+            }
+        }
+    return extras
+
+
+def _write_params(
+    frame: pl.DataFrame,
+    output: Path,
+    *,
+    horizon: str,
+    extras: Mapping[str, Mapping[str, object]] | None = None,
+) -> None:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     unique_symbols = frame.get_column("symbol").unique().to_list()
@@ -135,6 +172,15 @@ def _write_params(frame, output: Path, *, horizon: str) -> None:
             "residual_std": residual_std,
             "pit_bias": None,
         }
+        extra_entry = (extras or {}).get(symbol)
+        if extra_entry:
+            event_tail = extra_entry.get("event_tail", {})
+            tags = [str(tag).strip() for tag in event_tail.get("tags", EVENT_TAGS) if str(tag).strip()]
+            if tags:
+                payload["event_tail"] = {
+                    "tags": [tag.upper() for tag in tags],
+                    "kappa": float(event_tail.get("kappa", 1.0)),
+                }
         target_path = target_dir / "params.json"
         target_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 

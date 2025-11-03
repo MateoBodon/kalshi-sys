@@ -10,7 +10,7 @@
   "residual_std": 1.8,
   "pit_bias": null,
   "late_day_variance": {
-    "minutes_threshold": 25,
+    "minutes_threshold": 10,
     "lambda": 1.35
   },
   "event_tail": {
