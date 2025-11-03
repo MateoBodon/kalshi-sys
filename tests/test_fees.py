@@ -1,7 +1,10 @@
+import json
 from decimal import ROUND_DOWN, Decimal
+from pathlib import Path
 
 import pytest
 
+import kalshi_alpha.core.fees as fees_module
 from kalshi_alpha.core.fees import FeeSchedule, maker_fee, round_up_to_cent, taker_fee
 
 
@@ -87,3 +90,27 @@ def test_round_up_edge_cases(price: float) -> None:
         assert fee == raw
     else:
         assert fee == floored + Decimal("0.01")
+
+
+def test_fee_schedule_uses_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    override_path = tmp_path / "fees.json"
+    override_data = {
+        "effective_date": "2026-01-15",
+        "maker_rate": 0.015,
+        "taker_rate": 0.06,
+        "series_half_rate": ["TNEY"],
+        "half_rate_keywords": ["TNEY"],
+        "series_overrides": [],
+        "fee_brackets": [
+            {"lower": 0, "upper": 100000, "rate": 0.05},
+        ],
+    }
+    override_path.write_text(json.dumps(override_data), encoding="utf-8")
+    monkeypatch.setattr(fees_module, "FEE_OVERRIDE_PATH", override_path)
+    fees_module._load_fee_config.cache_clear()
+    schedule = FeeSchedule()
+    assert schedule.maker_rate == Decimal("0.015")
+    assert schedule.taker_rate == Decimal("0.06")
+    assert schedule.fee_brackets
+    assert schedule.fee_brackets[0]["rate"] == 0.05
+    fees_module._load_fee_config.cache_clear()

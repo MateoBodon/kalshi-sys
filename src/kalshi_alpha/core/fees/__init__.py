@@ -16,11 +16,15 @@ ONE = Decimal("1")
 
 ROOT = Path(__file__).resolve().parents[4]
 FEE_CONFIG_PATH = ROOT / "data" / "reference" / "kalshi_fee_schedule.json"
+FEE_OVERRIDE_PATH = ROOT / "data" / "proc" / "state" / "fees.json"
 
 
 @lru_cache(maxsize=4)
 def _load_fee_config(config_path: Path | None = None) -> dict[str, Any]:
-    path = config_path or FEE_CONFIG_PATH
+    if config_path is not None:
+        path = Path(config_path)
+    else:
+        path = FEE_OVERRIDE_PATH if FEE_OVERRIDE_PATH.exists() else FEE_CONFIG_PATH
     if not path.exists():  # pragma: no cover - configuration check
         raise FileNotFoundError(f"Fee configuration not found: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
@@ -76,6 +80,7 @@ class FeeSchedule:
                 "half_rate": bool(entry.get("half_rate", False)),
             }
         self.series_overrides = overrides
+        self.fee_brackets = list(data.get("fee_brackets", []))
 
     # Public API -----------------------------------------------------------------
 
