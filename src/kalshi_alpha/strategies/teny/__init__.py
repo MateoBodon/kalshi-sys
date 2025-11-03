@@ -45,6 +45,7 @@ class TenYInputs:
     trailing_history: Sequence[float] | None = None
     macro_shock_dummies: Mapping[str, float] | None = None
     orderbook_imbalance: float | None = None
+    imbalance: float | None = None
     event_timestamp: datetime | time | None = None
     imbalance_feature_enabled: bool = True
 
@@ -146,17 +147,19 @@ def _apply_imbalance_spread(  # noqa: PLR0911
         return spread
     if multiplier <= 1.0:
         return spread
-    imbalance = inputs.orderbook_imbalance
-    if imbalance is None or threshold <= 0:
+    imbalance_value = inputs.orderbook_imbalance
+    if imbalance_value is None:
+        imbalance_value = inputs.imbalance
+    if imbalance_value is None or threshold <= 0:
         return spread
-    if abs(float(imbalance)) <= threshold:
+    if abs(float(imbalance_value)) <= threshold:
         return spread
     event_time = _extract_event_time(inputs.event_timestamp)
     if event_time is None:
         return spread
     if event_time < _IMBALANCE_WINDOW_START or event_time > _IMBALANCE_WINDOW_END:
         return spread
-    severity = abs(float(imbalance)) - threshold
+    severity = abs(float(imbalance_value)) - threshold
     severity = max(min(severity, 0.5), 0.0)
     scaling = 1.0 + (severity / 0.5) * (multiplier - 1.0)
     return spread * scaling

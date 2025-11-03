@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections import deque
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import websockets
 
+from kalshi_alpha.core.ws import DEFAULT_WS_URL, KalshiWebsocketClient
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 
-WS_ENDPOINT = "wss://trading-api.kalshi.com/trade-api/ws"
+WS_ENDPOINT = DEFAULT_WS_URL
+ET_ZONE = ZoneInfo("America/New_York")
 RAW_ORDERBOOK_ROOT = RAW_ROOT / "kalshi" / "orderbook"
 PROC_IMBALANCE_ROOT = PROC_ROOT / "kalshi" / "orderbook_imbalance"
 
@@ -85,18 +89,59 @@ class OrderbookImbalanceTracker:
             self._series.popleft()
 
 
+class OrderbookSnapshotWriter:
+    """Append orderbook snapshots to newline-delimited JSON files."""
+
+    def __init__(
+        self,
+        ticker: str,
+        *,
+        root: Path = RAW_ORDERBOOK_ROOT,
+        started_at: datetime | None = None,
+        run_id: str | None = None,
+    ) -> None:
+        self._ticker = ticker.upper()
+        baseline = started_at or datetime.now(tz=UTC)
+        label = run_id or self._format_label(baseline)
+        directory = root / self._ticker
+        directory.mkdir(parents=True, exist_ok=True)
+        self.path = directory / f"{label}.jsonl"
+        self._file = self.path.open("a", encoding="utf-8")
+
+    @staticmethod
+    def _format_label(moment: datetime) -> str:
+        reference = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+        return reference.astimezone(ET_ZONE).strftime("%Y%m%d_%H%M%S")
+
+    def append(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        timestamp: datetime | None = None,
+        imbalance: float | None = None,
+    ) -> None:
+        ts = timestamp or datetime.now(tz=UTC)
+        payload: dict[str, Any] = {
+            "ticker": self._ticker,
+            "updated_at": ts.astimezone(UTC).isoformat(),
+            "snapshot": snapshot,
+        }
+        if imbalance is not None:
+            payload["rolling_imbalance"] = float(imbalance)
+        self._file.write(json.dumps(payload) + "\n")
+        self._file.flush()
+
+    def close(self) -> None:
+        if not self._file.closed:
+            self._file.close()
+
+
 def persist_orderbook_snapshot(ticker: str, snapshot: dict[str, Any], *, timestamp: datetime | None = None) -> Path:
     ts = timestamp or datetime.now(tz=UTC)
-    output_dir = RAW_ORDERBOOK_ROOT / ticker.upper()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    filename = output_dir / f"{ts.strftime('%Y%m%dT%H%M%S%fZ')}.json"
-    payload = {
-        "ticker": ticker.upper(),
-        "updated_at": ts.astimezone(UTC).isoformat(),
-        "snapshot": snapshot,
-    }
-    filename.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return filename
+    writer = OrderbookSnapshotWriter(ticker, root=RAW_ORDERBOOK_ROOT, started_at=ts)
+    writer.append(snapshot, timestamp=ts)
+    writer.close()
+    return writer.path
 
 
 def persist_imbalance_metric(ticker: str, imbalance: float, *, timestamp: datetime | None = None) -> Path:
@@ -133,53 +178,85 @@ def load_latest_imbalance(ticker: str) -> tuple[float, datetime] | None:
     return float(value), moment
 
 
-async def stream_orderbook_imbalance(
+async def stream_orderbook_imbalance(  # noqa: PLR0913
     tickers: Sequence[str],
     *,
     depth: int = 3,
     window_seconds: int = 30,
     ws_url: str = WS_ENDPOINT,
+    client: KalshiWebsocketClient | None = None,
+    run_seconds: float | None = None,
+    now_fn: Callable[[], datetime] | None = None,
+    writer_root: Path | None = None,
+    reader_timeout: float = 5.0,
     auth_token: str | None = None,
-) -> None:
+) -> dict[str, float]:
     """Consume orderbook deltas for ``tickers`` and persist rolling imbalance metrics."""
 
+    if auth_token is not None:  # pragma: no cover - retained for backwards compatibility
+        raise ValueError("Token-based authentication is no longer supported for Kalshi websockets.")
+
+    normalized = [ticker.upper() for ticker in tickers if ticker]
+    if not normalized:
+        return {}
+
+    factory = client or KalshiWebsocketClient(base_url=ws_url)
+    clock = now_fn or (lambda: datetime.now(tz=UTC))
+    started_at = clock()
+    end_time = started_at + timedelta(seconds=float(run_seconds)) if run_seconds else None
+    root = writer_root or RAW_ORDERBOOK_ROOT
+
     trackers = {
-        ticker.upper(): OrderbookImbalanceTracker(depth=depth, window_seconds=window_seconds)
-        for ticker in tickers
+        ticker: OrderbookImbalanceTracker(depth=depth, window_seconds=window_seconds)
+        for ticker in normalized
     }
+    writers: dict[str, OrderbookSnapshotWriter] = {}
+    latest: dict[str, float | None] = {ticker: None for ticker in normalized}
 
-    headers = {}
-    if auth_token:
-        headers["Authorization"] = f"Bearer {auth_token}"
-
-    async with websockets.connect(ws_url, extra_headers=headers, ping_interval=30) as websocket:
+    async with factory.session() as websocket:
         subscribe_message = {
             "type": "subscribe",
-            "channels": [
-                {
-                    "name": "orderbook",
-                    "tickers": [ticker.upper() for ticker in tickers],
-                }
-            ],
+            "channel": "orderbook_delta",
+            "tickers": normalized,
         }
         await websocket.send(json.dumps(subscribe_message))
 
-        async for message in websocket:
-            payload = json.loads(message)
-            ticker = str(payload.get("ticker", "")).upper()
+        while True:
+            if end_time is not None and clock() >= end_time:
+                break
+            try:
+                message = await asyncio.wait_for(websocket.recv(), timeout=reader_timeout)
+            except TimeoutError:
+                continue
+            except websockets.ConnectionClosed:
+                break
+
+            try:
+                payload = json.loads(message)
+            except json.JSONDecodeError:
+                continue
+
+            ticker = _extract_ticker(payload)
             if ticker not in trackers:
                 continue
-            data = payload.get("data") or {}
-            bids = data.get("bids", [])
-            asks = data.get("asks", [])
-            snapshot = {"bids": bids, "asks": asks}
-            now = datetime.now(tz=UTC)
+            snapshot = _extract_snapshot(payload)
+            now = clock()
             tracker = trackers[ticker]
             tracker.update(snapshot, timestamp=now)
             average = tracker.rolling_average(now=now)
-            persist_orderbook_snapshot(ticker, snapshot, timestamp=now)
+            writer = writers.setdefault(
+                ticker,
+                OrderbookSnapshotWriter(ticker, root=root, started_at=started_at),
+            )
+            writer.append(snapshot, timestamp=now, imbalance=average)
             if average is not None:
                 persist_imbalance_metric(ticker, average, timestamp=now)
+                latest[ticker] = average
+
+    for writer in writers.values():
+        writer.close()
+
+    return {ticker: value for ticker, value in latest.items() if value is not None}
 
 
 def replay_snapshots(paths: Iterable[Path], *, depth: int = 3, window_seconds: int = 30) -> dict[str, float]:
@@ -188,20 +265,30 @@ def replay_snapshots(paths: Iterable[Path], *, depth: int = 3, window_seconds: i
     trackers: dict[str, OrderbookImbalanceTracker] = {}
     for path in sorted(paths):
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+            contents = path.read_text(encoding="utf-8")
+        except OSError:
             continue
-        ticker = str(payload.get("ticker", "")).upper()
-        if not ticker:
-            continue
-        tracker = trackers.setdefault(ticker, OrderbookImbalanceTracker(depth=depth, window_seconds=window_seconds))
-        snapshot = payload.get("snapshot") or {}
-        timestamp_raw = payload.get("updated_at")
-        try:
-            timestamp = datetime.fromisoformat(str(timestamp_raw)) if timestamp_raw else None
-        except ValueError:
-            timestamp = None
-        tracker.update(snapshot, timestamp=timestamp)
+        for line in contents.splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ticker = str(payload.get("ticker", "")).upper()
+            if not ticker:
+                continue
+            tracker = trackers.setdefault(
+                ticker,
+                OrderbookImbalanceTracker(depth=depth, window_seconds=window_seconds),
+            )
+            snapshot = payload.get("snapshot") or {}
+            timestamp_raw = payload.get("updated_at")
+            try:
+                timestamp = datetime.fromisoformat(str(timestamp_raw)) if timestamp_raw else None
+            except ValueError:
+                timestamp = None
+            tracker.update(snapshot, timestamp=timestamp)
     results: dict[str, float] = {}
     for ticker, tracker in trackers.items():
         average = tracker.rolling_average()
@@ -210,8 +297,32 @@ def replay_snapshots(paths: Iterable[Path], *, depth: int = 3, window_seconds: i
     return results
 
 
+def _extract_ticker(payload: dict[str, Any]) -> str:
+    ticker = payload.get("ticker")
+    if isinstance(ticker, str) and ticker:
+        return ticker.upper()
+    data = payload.get("data")
+    if isinstance(data, dict):
+        ticker_value = data.get("ticker")
+        if isinstance(ticker_value, str) and ticker_value:
+            return ticker_value.upper()
+    return ""
+
+
+def _extract_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    data = payload.get("data")
+    if isinstance(data, dict):
+        bids = data.get("bids") or data.get("bid_levels") or []
+        asks = data.get("asks") or data.get("ask_levels") or []
+    else:
+        bids = payload.get("bids") or []
+        asks = payload.get("asks") or []
+    return {"bids": list(bids), "asks": list(asks)}
+
+
 __all__ = [
     "OrderbookImbalanceTracker",
+    "OrderbookSnapshotWriter",
     "compute_imbalance",
     "load_latest_imbalance",
     "persist_orderbook_snapshot",
