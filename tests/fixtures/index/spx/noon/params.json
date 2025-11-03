@@ -8,5 +8,9 @@
     "30": {"sigma": 16.0, "drift": 0.3}
   },
   "residual_std": 0.9,
-  "pit_bias": null
+  "pit_bias": null,
+  "event_tail": {
+    "tags": ["FOMC", "CPI"],
+    "kappa": 1.2
+  }
 }
