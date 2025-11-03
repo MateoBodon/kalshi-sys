@@ -485,6 +485,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         kelly_cap=args.kelly_cap,
         uncertainty_penalty=args.uncertainty_penalty,
         ob_imbalance_penalty=args.ob_imbalance_penalty,
+        ev_honesty_shrink=args.ev_honesty_shrink,
         daily_loss_cap=args.daily_loss_cap,
         mispricing_only=args.mispricing_only,
         max_legs=args.max_legs,
@@ -1213,6 +1214,10 @@ def _compute_ev_honesty_rows(
             series=proposal.series,
             market_name=proposal.market_ticker,
         )
+        shrink_factor = float((proposal.metadata or {}).get("ev_shrink", 1.0)) if proposal.metadata else 1.0
+        if shrink_factor not in (0.0, 1.0):
+            summary_per["maker_yes"] *= shrink_factor
+            summary_per["maker_no"] *= shrink_factor
         maker_key = "maker_yes" if proposal.side.upper() == "YES" else "maker_no"
         original_per = _to_float(summary_per.get(maker_key))
         replay_per = _to_float(
@@ -1339,6 +1344,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Penalty multiplier (0-1) applied when model confidence is low.",
+    )
+    parser.add_argument(
+        "--ev-honesty-shrink",
+        type=float,
+        default=0.9,
+        help="Maker EV shrink factor used for EV honesty (0-1).",
     )
     parser.add_argument(
         "--ob-imbalance-penalty",
@@ -1474,6 +1485,7 @@ def scan_series(  # noqa: PLR0913
     kelly_cap: float,
     uncertainty_penalty: float = 0.0,
     ob_imbalance_penalty: float = 0.0,
+    ev_honesty_shrink: float = 0.9,
     daily_loss_cap: float | None = None,
     mispricing_only: bool = False,
     max_legs: int = 4,
@@ -1603,6 +1615,7 @@ def scan_series(  # noqa: PLR0913
                 ob_imbalance_penalty=ob_imbalance_penalty,
                 daily_budget=daily_budget,
                 series_ticker=series_obj.ticker,
+                ev_shrink=ev_honesty_shrink,
                 bin_constraints=bin_constraints,
             )
             if pilot_config is not None:
@@ -1930,12 +1943,14 @@ def _evaluate_market(  # noqa: PLR0913
     ob_imbalance_penalty: float,
     daily_budget: _LossBudget,
     series_ticker: str,
+    ev_shrink: float,
     bin_constraints: BinConstraintResolver | None = None,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
     uncertainty_penalty = max(0.0, uncertainty_penalty)
     ob_imbalance_penalty = max(0.0, ob_imbalance_penalty)
     series_upper = series_ticker.upper()
+    apply_shrink = series_upper == "TNEY" and 0.0 < ev_shrink < 1.0
 
     for index, rung in enumerate(rungs):
         if allowed_indices is not None and index not in allowed_indices:
@@ -1957,6 +1972,9 @@ def _evaluate_market(  # noqa: PLR0913
             series=series_ticker,
             market_name=market_ticker,
         )
+        if apply_shrink:
+            per_contract["maker_yes"] *= ev_shrink
+            per_contract["maker_no"] *= ev_shrink
         best_side, best_ev = _choose_side(per_contract, maker_only=maker_only)
         if best_ev < min_ev:
             continue
@@ -2052,6 +2070,9 @@ def _evaluate_market(  # noqa: PLR0913
             series=series_ticker,
             market_name=market_ticker,
         )
+        if apply_shrink:
+            total_ev["maker_yes"] *= ev_shrink
+            total_ev["maker_no"] *= ev_shrink
 
         maker_key = "maker_yes" if best_side is OrderSide.YES else "maker_no"
         taker_key = "taker_yes" if best_side is OrderSide.YES else "taker_no"
@@ -2083,6 +2104,8 @@ def _evaluate_market(  # noqa: PLR0913
                 "daily_loss_after": budget_after,
             }
         }
+        if apply_shrink:
+            proposal_metadata["ev_shrink"] = ev_shrink
         if constraint_details is not None:
             proposal_metadata["bin_constraint"] = constraint_details
 

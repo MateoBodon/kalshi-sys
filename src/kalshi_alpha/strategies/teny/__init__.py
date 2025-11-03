@@ -46,6 +46,7 @@ class TenYInputs:
     macro_shock_dummies: Mapping[str, float] | None = None
     orderbook_imbalance: float | None = None
     event_timestamp: datetime | time | None = None
+    imbalance_feature_enabled: bool = True
 
 
 def pmf(
@@ -135,12 +136,14 @@ def _shock_dummy_adjustment(
     return adjustment
 
 
-def _apply_imbalance_spread(
+def _apply_imbalance_spread(  # noqa: PLR0911
     spread: float,
     inputs: TenYInputs,
     threshold: float,
     multiplier: float,
 ) -> float:
+    if not inputs.imbalance_feature_enabled:
+        return spread
     if multiplier <= 1.0:
         return spread
     imbalance = inputs.orderbook_imbalance

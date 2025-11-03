@@ -345,9 +345,13 @@ class _QualityGateEvaluator:
                 if diff_bps > item.tolerance_bps:
                     self._reasons.append(
                         f"{key_prefix}.diff:{diff_bps:.2f}bps>{item.tolerance_bps:.2f}bps@{row['as_of']}"
+                        f"[{item.par_maturity.upper()}-{item.dgs_maturity.upper()}]@{latest.name}"
                     )
             if not overlap_found:
-                self._reasons.append(f"{key_prefix}.no_overlap")
+                self._reasons.append(
+                    f"{key_prefix}.no_overlap"
+                    f"[{item.par_maturity.upper()}-{item.dgs_maturity.upper()}]@{latest.name}"
+                )
             if diffs:
                 worst = max(diffs, key=lambda pair: pair[1])
                 self._details[f"{key_prefix}.max_diff_bps"] = round(worst[1], 3)
