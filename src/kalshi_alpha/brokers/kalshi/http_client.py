@@ -10,7 +10,6 @@ from collections.abc import Callable, Mapping, MutableMapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 import requests
 from cryptography.hazmat.backends import default_backend
@@ -87,12 +86,6 @@ class KalshiHttpClient:
         self._retry_backoff = max(0.0, retry_backoff)
         self._clock = clock or Clock()
         self._sleep = sleeper or Sleep()
-
-        parsed_base = urlsplit(self._base_url)
-        base_path = parsed_base.path.rstrip("/")
-        if base_path and not base_path.startswith("/"):
-            base_path = f"/{base_path}"
-        self._base_path = base_path
 
         self._access_key_id = access_key_id or os.getenv("KALSHI_API_KEY_ID", "").strip()
         key_path = private_key_path or os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
@@ -216,6 +209,7 @@ class KalshiHttpClient:
         method_upper = method.upper()
         canonical_path = self._canonical_path(path)
         return self._auth_headers(method_upper, canonical_path)
+
     def _sign(self, method: str, path: str) -> tuple[int, str]:
         now = self._clock.now()
         now_utc = _ensure_utc(now)
@@ -225,14 +219,7 @@ class KalshiHttpClient:
             raise KalshiClockSkewError(
                 "Local clock skew exceeds 5 seconds. Sync system clock before trading."
             )
-        path_for_signature = path
-        if self._base_path and not path.startswith(self._base_path):
-            suffix = path.lstrip("/")
-            if not suffix:
-                path_for_signature = self._base_path or "/"
-            else:
-                path_for_signature = f"{self._base_path}/{suffix}"
-        payload = f"{current_ms}{method}{path_for_signature}"
+        payload = f"{current_ms}{method}{path}"
         signature_bytes = self._private_key.sign(
             payload.encode("utf-8"),
             padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
