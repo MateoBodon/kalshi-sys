@@ -132,6 +132,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Maximum absolute price impact for depth slippage.",
     )
     parser.add_argument(
+        "--ev-honesty-shrink",
+        type=float,
+        default=0.9,
+        help="Maker EV shrink factor applied for EV honesty (0-1).",
+    )
+    parser.add_argument(
         "--broker",
         choices=["dry", "live"],
         default="dry",
@@ -309,6 +315,7 @@ def run_mode(mode: str, args: argparse.Namespace) -> None:
             log.setdefault("fill_alpha", {})[series] = fill_alpha_value
             key = "fill_alpha_auto" if fill_alpha_auto else "fill_alpha"
             extra_monitors[key] = fill_alpha_value
+            extra_monitors["ev_honesty_shrink"] = getattr(args, "ev_honesty_shrink", 0.9)
         if force_run_enabled:
             extra_monitors["force_run"] = True
         gate_result = run_quality_gate_step(args, now_utc, log, monitors=extra_monitors)
@@ -710,6 +717,7 @@ def run_scan(
             max_legs=args.max_legs,
             prob_sum_gap_threshold=args.prob_sum_gap_threshold,
             model_version=args.model_version,
+            ev_honesty_shrink=getattr(args, "ev_honesty_shrink", 0.9),
         )
     except SkipScan as exc:
         reason_text = getattr(exc, "reason", str(exc))

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import time
 
+import pytest
+
 from kalshi_alpha.strategies.teny import TenYInputs, pmf, pmf_v15
 
 
@@ -51,6 +53,45 @@ def test_teny_v15_widens_uncertainty_on_event_imbalance() -> None:
     stressed_width = _central_bin(stressed_bins).upper - _central_bin(stressed_bins).lower
 
     assert stressed_width > calm_width
+
+
+def test_teny_v15_imbalance_feature_flag_disables_widening() -> None:
+    strikes = [4.3, 4.4, 4.5, 4.6, 4.7]
+    history = [4.39, 4.42, 4.44, 4.47, 4.49]
+
+    baseline_inputs = TenYInputs(
+        prior_close=4.5,
+        macro_shock=0.0,
+        trailing_history=history,
+        orderbook_imbalance=0.2,
+        event_timestamp=time(15, 10),
+    )
+    stressed_enabled = TenYInputs(
+        prior_close=4.5,
+        macro_shock=0.0,
+        trailing_history=history,
+        orderbook_imbalance=1.1,
+        event_timestamp=time(15, 10),
+    )
+    stressed_disabled = TenYInputs(
+        prior_close=4.5,
+        macro_shock=0.0,
+        trailing_history=history,
+        orderbook_imbalance=1.1,
+        event_timestamp=time(15, 10),
+        imbalance_feature_enabled=False,
+    )
+
+    baseline_bins = pmf_v15(strikes, inputs=baseline_inputs)
+    widened_bins = pmf_v15(strikes, inputs=stressed_enabled)
+    disabled_bins = pmf_v15(strikes, inputs=stressed_disabled)
+
+    baseline_width = _central_bin(baseline_bins).upper - _central_bin(baseline_bins).lower
+    widened_width = _central_bin(widened_bins).upper - _central_bin(widened_bins).lower
+    disabled_width = _central_bin(disabled_bins).upper - _central_bin(disabled_bins).lower
+
+    assert widened_width > baseline_width
+    assert disabled_width == pytest.approx(baseline_width, rel=1e-6)
 
 
 def _central_bin(bins):

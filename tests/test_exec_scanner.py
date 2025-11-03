@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy, PortfolioConfig, PortfolioRiskManager
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
@@ -21,6 +23,7 @@ from kalshi_alpha.exec.runners.scan_ladders import (
     write_proposals,
 )
 from kalshi_alpha.exec.scanners import cpi
+from kalshi_alpha.exec.scanners.utils import expected_value_summary
 
 
 def test_scanner_generates_positive_maker_ev(
@@ -249,6 +252,49 @@ def test_strategy_router_teny_pmf(offline_fixtures_root: Path) -> None:
     assert metadata.get("model_version") == "v15"
     assert len(pmf) >= len(strikes)
     assert abs(sum(entry.probability for entry in pmf) - 1.0) < 1e-6
+
+
+def test_teny_ev_shrink_applies_to_proposals(
+    fixtures_root: Path, offline_fixtures_root: Path
+) -> None:
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    policy = PALPolicy(series="TNEY", default_max_loss=10_000.0)
+    guard = PALGuard(policy)
+
+    outcome = scan_series(
+        series="TNEY",
+        client=client,
+        min_ev=0.01,
+        contracts=5,
+        pal_guard=guard,
+        driver_fixtures=offline_fixtures_root,
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+        sizing_mode="fixed",
+        kelly_cap=0.25,
+        ev_honesty_shrink=0.5,
+    )
+    proposals = outcome.proposals
+    assert proposals
+    assert outcome.monitors.get("ev_honesty_shrink") == pytest.approx(0.5)
+
+    for proposal in proposals:
+        metadata = proposal.metadata or {}
+        assert metadata.get("ev_shrink") == pytest.approx(0.5)
+        ev_values = expected_value_summary(
+            contracts=1,
+            yes_price=proposal.market_yes_price,
+            event_probability=proposal.strategy_probability,
+            series=proposal.series,
+            market_name=proposal.market_ticker,
+        )
+        key = "maker_yes" if proposal.side.upper() == "YES" else "maker_no"
+        raw_ev_per_contract = ev_values[key]
+        assert proposal.maker_ev_per_contract == pytest.approx(raw_ev_per_contract * 0.5, rel=1e-6)
 
 
 def test_strategy_router_weather_pmf(offline_fixtures_root: Path) -> None:

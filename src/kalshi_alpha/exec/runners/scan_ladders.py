@@ -1633,6 +1633,7 @@ def scan_series(  # noqa: PLR0913
         "model_drift": _model_drift_flag(series_obj.ticker),
         "tz_not_et": _tz_not_et(),
         "orderbook_snapshots": len(books_at_scan),
+        "ev_honesty_shrink": ev_honesty_shrink,
     }
     if series_obj is not None:
         monitors.setdefault("series", series_obj.ticker.upper())
