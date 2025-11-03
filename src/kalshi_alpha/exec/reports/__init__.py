@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import statistics
 from collections.abc import Sequence
@@ -13,6 +14,25 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from kalshi_alpha.exec.ledger import PaperLedger
+
+GO_ARTIFACT_PATH = Path("reports/_artifacts/go_no_go.json")
+
+
+def _load_go_status(artifact_path: Path) -> bool | None:
+    """Return GO/NO-GO boolean from artifact, or ``None`` if unavailable."""
+
+    if not artifact_path.exists():
+        return None
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):  # pragma: no cover - defensive
+        return None
+    go_value = payload.get("go") if isinstance(payload, dict) else None
+    if isinstance(go_value, bool):
+        return go_value
+    if isinstance(go_value, (int, float)):
+        return bool(go_value)
+    return None
 
 if TYPE_CHECKING:  # pragma: no cover
     from kalshi_alpha.exec.runners.scan_ladders import Proposal
@@ -27,7 +47,8 @@ def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
     monitors: dict[str, object] | None = None,
     exposure_summary: dict[str, object] | None = None,
     manifest_path: Path | None = None,
-    go_status: bool | None = True,
+    go_status: bool | None = None,
+    go_artifact_path: Path | None = GO_ARTIFACT_PATH,
     fill_alpha: float | None = None,
     mispricings: Sequence[dict[str, object]] | None = None,
     model_metadata: dict[str, object] | None = None,
@@ -39,7 +60,11 @@ def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
     ts = datetime.now(tz=UTC)
     path = output_dir / f"{ts.strftime('%Y-%m-%d')}.md"
     lines: list[str] = []
-    badge_label = "GO" if go_status in {None, True} else "NO-GO"
+    artifact_go = _load_go_status(go_artifact_path) if go_artifact_path else None
+    effective_go = artifact_go if artifact_go is not None else go_status
+    if effective_go is None:
+        effective_go = True
+    badge_label = "GO" if effective_go else "NO-GO"
     badge_emoji = "🟢" if badge_label == "GO" else "🔴"
     lines.append(f"{badge_emoji} **GO/NO-GO:** {badge_label}")
     if outstanding_summary is not None:
