@@ -8,4 +8,5 @@ __all__ = [
     "aaa_gas",
     "cleveland_nowcast",
     "macro_calendar",
+    "polygon_index",
 ]

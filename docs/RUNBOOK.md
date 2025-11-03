@@ -143,6 +143,23 @@ Pipeline steps per run:
 - Report ↔ gate: regenerate offline (`python -m kalshi_alpha.exec.pipelines.daily --mode teny_close --offline --report`) and verify the GO/NO-GO badge in `reports/TNEY/.../REPORT.md` matches `reports/_artifacts/go_no_go.json`.
 - EV honesty: default shrink is 0.9; override via `--ev-honesty-shrink` on `scan_ladders` or the daily pipeline when ops requests. Monitor block should include `ev_honesty_shrink` plus `ev_shrink` metadata per proposal.
 
+## Index Ladder Ops Checklist (SPX/NDX)
+- Scope: intraday noon (`INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only, 1-lot sizing, ≤2 bins per market. Runs remain DRY/paper until pilot promotion.
+- Secrets: Polygon API key loads from macOS Keychain `kalshi-sys:POLYGON_API_KEY`; fallback env `POLYGON_API_KEY` (CI only). Never commit keys.
+- Windows: noon ladders 11:40–12:05 ET (Polygon snapshot age <30 s); close ladders 15:45–16:10 ET (minute feed tick <20 s old). Abort if freshness checks fail.
+- Calibrations:
+  ```bash
+  python -m jobs.calibrate_noon --series INXU NASDAQ100U --days 45
+  python -m jobs.calibrate_close --series INX NASDAQ100 --days 60
+  ```
+  Outputs land in `data/proc/index_noon_calibration.parquet` and `data/proc/index_close_calibration.parquet`; raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
+- Pre-flight:
+  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon + Kalshi freshness <5 min; kill-switch absent.
+  2. Confirm calibration parquet mtimes ≤7 days.
+  3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, and EV after fees.
+- Fees: makers pay `0.035 × contracts × price × (1 − price)` rounded up to the cent. All EV honesty, ledger, and proposal checks use this curve.
+- Post-run: archive proposals under `exec/proposals/index_*`, keep paper ledger CSV/JSON, regenerate readiness via `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`.
+
 ### First Microlive Clip
 1. Run the offline pipeline with `--report --paper-ledger`; confirm the markdown summarizes GO with clean EV honesty metrics.
 2. Execute `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30` and review trend/fill stats for TNEY.

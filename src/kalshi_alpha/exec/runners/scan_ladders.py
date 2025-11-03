@@ -9,7 +9,8 @@ import math
 from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
+from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -49,6 +50,8 @@ from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 from kalshi_alpha.drivers import macro_calendar
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
+from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, PolygonAPIError, PolygonIndicesClient
+from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
 from kalshi_alpha.exec.heartbeat import (
     heartbeat_stale,
@@ -85,12 +88,18 @@ from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_surv
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.strategies import claims as claims_strategy
 from kalshi_alpha.strategies import cpi as cpi_strategy
+from kalshi_alpha.strategies import index as index_strategy
 from kalshi_alpha.strategies import teny as teny_strategy
 from kalshi_alpha.strategies import weather as weather_strategy
 
 DEFAULT_MIN_EV = 0.05  # USD per contract after maker fees
 DEFAULT_CONTRACTS = 10
 DEFAULT_FILL_ALPHA = 0.6
+
+_POLYGON_FIXTURE_DIR = "polygon_index"
+_TARGET_NOON = time(12, 0)
+_TARGET_CLOSE = time(16, 0)
+_ET_ZONE = ZoneInfo("America/New_York")
 
 
 def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float, bool]:  # noqa: PLR0912
@@ -1805,6 +1814,45 @@ def _strategy_pmf_for_series(
             pmf_values = teny_strategy.pmf_v15(strikes, inputs=inputs)
         else:
             pmf_values = teny_strategy.pmf(strikes, inputs=inputs)
+    elif ticker in {"INXU", "NASDAQ100U"}:
+        meta = resolve_index_series(ticker)
+        snapshot = _load_index_snapshot(meta.polygon_ticker, offline=offline, fixtures_dir=fixtures_dir)
+        now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
+        minutes_to_target = _minutes_to_target(now, _TARGET_NOON)
+        inputs = index_strategy.NoonInputs(
+            series=ticker,
+            current_price=_resolve_index_price(snapshot),
+            minutes_to_noon=minutes_to_target,
+            prev_close=snapshot.previous_close,
+        )
+        pmf_values = index_strategy.noon_pmf(strikes, inputs=inputs)
+        metadata.update(
+            {
+                "polygon_ticker": meta.polygon_ticker,
+                "minutes_to_target": minutes_to_target,
+                "snapshot_last_price": snapshot.last_price,
+                "snapshot_timestamp": snapshot.timestamp.isoformat() if snapshot.timestamp else None,
+            }
+        )
+    elif ticker in {"INX", "NASDAQ100"}:
+        meta = resolve_index_series(ticker)
+        snapshot = _load_index_snapshot(meta.polygon_ticker, offline=offline, fixtures_dir=fixtures_dir)
+        now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
+        minutes_to_target = _minutes_to_target(now, _TARGET_CLOSE)
+        inputs = index_strategy.CloseInputs(
+            series=ticker,
+            current_price=_resolve_index_price(snapshot),
+            minutes_to_close=minutes_to_target,
+        )
+        pmf_values = index_strategy.close_pmf(strikes, inputs=inputs)
+        metadata.update(
+            {
+                "polygon_ticker": meta.polygon_ticker,
+                "minutes_to_target": minutes_to_target,
+                "snapshot_last_price": snapshot.last_price,
+                "snapshot_timestamp": snapshot.timestamp.isoformat() if snapshot.timestamp else None,
+            }
+        )
     elif pick in {"weather"} and ticker == "WEATHER":
         history = _load_history(fixtures_dir, "weather")
         if history:
@@ -1818,6 +1866,8 @@ def _strategy_pmf_for_series(
         else:
             inputs = weather_strategy.WeatherInputs(forecast_high=70.0)
         pmf_values = weather_strategy.pmf(strikes, inputs=inputs)
+    else:
+        pmf_values = weather_strategy.pmf(strikes, weather_strategy.WeatherInputs(forecast_high=70.0))
 
     if pmf_values is None:
         raise ValueError(f"No strategy PMF implemented for series {series}")
@@ -1838,6 +1888,94 @@ def _load_history(fixtures_dir: Path, namespace: str) -> list[dict[str, object]]
     if isinstance(history, list):
         return [item for item in history if isinstance(item, dict)]
     return []
+
+
+@lru_cache(maxsize=1)
+def _polygon_client_cached() -> PolygonIndicesClient:
+    return PolygonIndicesClient()
+
+
+def _load_index_snapshot(
+    symbol: str,
+    *,
+    offline: bool,
+    fixtures_dir: Path,
+) -> IndexSnapshot:
+    fixture_path = _polygon_fixture_path(symbol, fixtures_dir)
+    if offline and fixture_path.exists():
+        payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+        return _snapshot_from_payload(symbol, payload)
+    try:
+        client = _polygon_client_cached()
+        return client.fetch_snapshot(symbol)
+    except PolygonAPIError:
+        if fixture_path.exists():
+            payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+            return _snapshot_from_payload(symbol, payload)
+        raise
+
+
+def _polygon_fixture_path(symbol: str, fixtures_dir: Path) -> Path:
+    safe_symbol = symbol.replace(":", "_")
+    return fixtures_dir / _POLYGON_FIXTURE_DIR / f"{safe_symbol}_snapshot.json"
+
+
+def _snapshot_from_payload(symbol: str, payload: dict[str, object]) -> IndexSnapshot:
+    return IndexSnapshot(
+        ticker=str(payload.get("ticker") or symbol),
+        last_price=_maybe_float(payload.get("last_price")),
+        change=_maybe_float(payload.get("change")),
+        change_percent=_maybe_float(payload.get("change_percent")),
+        previous_close=_maybe_float(payload.get("previous_close")),
+        timestamp=_parse_timestamp(payload.get("timestamp")),
+    )
+
+
+def _maybe_float(value: object | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_timestamp(value: object | None) -> datetime | None:  # noqa: PLR0911
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(float(value), tz=UTC)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=UTC)
+        return parsed
+    return None
+
+
+def _minutes_to_target(now_utc: datetime, target: time) -> int:
+    now_et = now_utc.astimezone(_ET_ZONE)
+    target_dt = datetime.combine(now_et.date(), target, tzinfo=_ET_ZONE)
+    delta_minutes = int((target_dt - now_et).total_seconds() // 60)
+    return max(delta_minutes, 0)
+
+
+def _resolve_index_price(snapshot: IndexSnapshot) -> float:
+    if snapshot.last_price is not None and snapshot.last_price > 0:
+        return float(snapshot.last_price)
+    if snapshot.previous_close is not None and snapshot.previous_close > 0:
+        return float(snapshot.previous_close)
+    return 0.0
 
 
 def _macro_calendar_lookup(

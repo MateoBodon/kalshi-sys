@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from math import isclose
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -64,6 +65,21 @@ def test_expected_value_after_fees_symmetry() -> None:
         liquidity=Liquidity.MAKER,
     )
     assert yes_ev > no_ev
+
+
+def test_expected_value_index_fee_curve() -> None:
+    contracts = 10
+    yes_price = 0.5
+    probability = 0.55
+    ev = expected_value_after_fees(
+        contracts=contracts,
+        yes_price=yes_price,
+        event_probability=probability,
+        side=OrderSide.YES,
+        liquidity=Liquidity.MAKER,
+        series="INX",
+    )
+    assert ev == pytest.approx(0.41, rel=1e-6)
 
 
 @given(st.lists(st.floats(min_value=-1, max_value=2), min_size=3, max_size=8))

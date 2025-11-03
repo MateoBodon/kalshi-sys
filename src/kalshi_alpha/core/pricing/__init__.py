@@ -7,9 +7,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import Enum, auto
 
-from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule
+from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE, FeeSchedule, round_up_to_cent
 
 from .mispricing import (
     KinkMetrics as KinkMetrics,
@@ -26,6 +27,8 @@ from .mispricing import (
 
 MIN_PROB = 0.0
 MAX_PROB = 1.0
+_INDEX_FEE_RATE = Decimal("0.035")
+_INDEX_SERIES = {"INX", "INXU", "NASDAQ100", "NASDAQ100U"}
 
 
 class Liquidity(Enum):
@@ -62,6 +65,18 @@ class LadderBinProbability:
     lower: float | None
     upper: float | None
     probability: float
+
+
+def _index_fee(contracts: int, price: float) -> float:
+    if price < MIN_PROB or price > MAX_PROB:
+        raise ValueError("price must lie in [0, 1]")
+    if contracts <= 0:
+        raise ValueError("contracts must be positive")
+    price_dec = Decimal(str(price))
+    contracts_dec = Decimal(str(contracts))
+    raw_fee = _INDEX_FEE_RATE * contracts_dec * price_dec * (Decimal("1") - price_dec)
+    rounded = round_up_to_cent(raw_fee)
+    return float(rounded)
 
 
 def _clamp_probability(value: float) -> float:
@@ -230,29 +245,36 @@ def expected_value_after_fees(  # noqa: PLR0913
         raise ValueError("contracts must be positive")
 
     fee_fn = schedule.maker_fee if liquidity is Liquidity.MAKER else schedule.taker_fee
+    series_key = series.upper() if isinstance(series, str) else None
 
     if side is OrderSide.YES:
-        fee = float(
-            fee_fn(
-                contracts,
-                price,
-                series=series,
-                market_name=market_name,
+        if series_key in _INDEX_SERIES:
+            fee = _index_fee(contracts, price)
+        else:
+            fee = float(
+                fee_fn(
+                    contracts,
+                    price,
+                    series=series,
+                    market_name=market_name,
+                )
             )
-        )
         payoff_if_win = (1.0 - price) * contracts_f
         payoff_if_lose = -price * contracts_f
         expected = probability * payoff_if_win + (1.0 - probability) * payoff_if_lose
     elif side is OrderSide.NO:
         no_price = 1.0 - price
-        fee = float(
-            fee_fn(
-                contracts,
-                no_price,
-                series=series,
-                market_name=market_name,
+        if series_key in _INDEX_SERIES:
+            fee = _index_fee(contracts, no_price)
+        else:
+            fee = float(
+                fee_fn(
+                    contracts,
+                    no_price,
+                    series=series,
+                    market_name=market_name,
+                )
             )
-        )
         payoff_if_win = (1.0 - no_price) * contracts_f  # event fails
         payoff_if_lose = -no_price * contracts_f
         expected = (1.0 - probability) * payoff_if_win + probability * payoff_if_lose
