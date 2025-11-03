@@ -74,7 +74,7 @@ pilot-bundle:
 	fi
 
 live-smoke:
-	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.sanity_check --live-smoke --env demo
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.sanity_check --live-smoke --env $${KALSHI_ENV:-prod}
 
 .PHONY: paper_live_offline paper_live_online
 
