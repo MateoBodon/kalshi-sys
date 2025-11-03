@@ -6,7 +6,17 @@ PYTHON_BIN=${PYTHON:-python}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 SYMBOLS=("I:SPX" "I:NDX")
-DATES=("2024-10-21" "2024-10-22" "2024-10-23")
+# Categories: gap (2024-08-05), quiet (2024-08-20), CPI (2024-09-11), FOMC (2024-09-18),
+# plus the original quiet trio (2024-10-21..2024-10-23).
+DATES=(
+  "2024-08-05"
+  "2024-08-20"
+  "2024-09-11"
+  "2024-09-18"
+  "2024-10-21"
+  "2024-10-22"
+  "2024-10-23"
+)
 WINDOWS=("noon:11:45:00-12:05:00" "close:15:45:00-16:05:00")
 
 mkdir -p "$OUT_DIR"

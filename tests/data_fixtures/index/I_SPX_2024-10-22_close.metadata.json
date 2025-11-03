@@ -1,10 +1,10 @@
 {
-  "symbol": "I_SPX",
-  "window": "close",
-  "date": "2024-10-22",
+  "symbol": "I:SPX",
   "start_et": "2024-10-22T15:45:00-04:00",
   "end_et": "2024-10-22T16:05:00-04:00",
-  "rows": 21,
-  "checksum": "92bc80b96083fe0461503754f4421e0f4b8997bbc2b58ee94555da82182a4313",
-  "generated_by": "synthetic"
+  "rows": 18,
+  "adjusted": true,
+  "timespan": "minute",
+  "checksum": "49493c462393cd271882075cd855cec0cd8845b4420fc10c6b2e95c1a994ea8b",
+  "generated_at": "2025-11-03T21:57:49.627369+00:00"
 }

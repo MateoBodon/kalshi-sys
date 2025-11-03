@@ -1,10 +1,10 @@
 {
-  "symbol": "I_NDX",
-  "window": "close",
-  "date": "2024-10-23",
+  "symbol": "I:NDX",
   "start_et": "2024-10-23T15:45:00-04:00",
   "end_et": "2024-10-23T16:05:00-04:00",
-  "rows": 21,
-  "checksum": "643d01e973eda5dc3ac1ad828c12e2617b18022fbb84c78449f91ec3f271f49f",
-  "generated_by": "synthetic"
+  "rows": 16,
+  "adjusted": true,
+  "timespan": "minute",
+  "checksum": "caa5377d3aa8e0c33101d1cfa15f832c0983c8f57963e73312022b34615859be",
+  "generated_at": "2025-11-03T21:57:55.890781+00:00"
 }

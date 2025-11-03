@@ -1,0 +1,10 @@
+{
+  "symbol": "I:NDX",
+  "start_et": "2024-08-20T15:45:00-04:00",
+  "end_et": "2024-08-20T16:05:00-04:00",
+  "rows": 16,
+  "adjusted": true,
+  "timespan": "minute",
+  "checksum": "3a5f4caf18f6087e020c98a40a38f12379c33165be224fa02d528b9f6eda63ea",
+  "generated_at": "2025-11-03T21:57:51.294010+00:00"
+}
