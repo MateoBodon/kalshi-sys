@@ -11,10 +11,10 @@ _No runtime monitor run recorded._
 <!-- monitors:end -->
 
 ## ANALYSIS
-- NO-GO (go=0, no_go=1): min-fill/delta/t-stat gates all failed and go/no-go reasons cite CRPS deficits plus stale Cleveland nowcast (70.23h) and Treasury yields (94.23h).
-- n_fills=0 (paper sample_size=2) with mean Δbps after fees -4718.34, t-stat -16.75, CuSum state NO_DATA.
-- Freshness: ledger_age_minutes=3.2 (2 rows in data/proc/ledger_all.parquet) and monitors_age_minutes=2.1, both within thresholds.
-- Monitors: freeze_window OK (next CPI freeze opens 2025-11-11 06:00 ET), no freeze violations or alerts; drawdown daily +22.00 / weekly +148.33; auth_error, ws_disconnect, fill_vs_alpha/ev_gap/seq guard all report NO_DATA/OK.
-- EV honesty bins: CPI-2025-10-MOM YES@0.18 and NO@0.47 both report Δ=0.00 with no flags or caps.
-- Connectivity: `make live-smoke` now reaches Kalshi but returns 401 authentication error on `GET /trade-api/v2/portfolio/balance` under demo credentials.
-- Bundle archived at reports/pilot_bundle_20251102_231429.tar.gz.
+- NO-GO (go=0, no_go=1): CPI misses min fills (0<300), Δbps (-4718.34<+6), and t-stat (-44.32<2); ev_gap monitor now ALERT, while other gates stay green.
+- n_fills=0 (sample_size=2 trades recorded) with mean Δbps after fees -4718.34, t-stat -16.75 in session log, CuSum state NO_DATA; ledger aggregates show 8 proposals with zero realized fills.
+- Freshness: ledger_age_minutes=0.16 (data/proc/ledger_all.parquet rows=8) and monitors_age_minutes=0.08; freeze window clear with next CPI freeze opening 2025-11-11 06:00 ET.
+- Monitors: ev_gap ALERT (mean Δbps -4718.34, t=-44.32); fill_vs_alpha / ev_seq_guard NO_DATA; auth_error, drawdown (daily +24.00 / weekly +150.33), ws_disconnect, kill_switch all OK.
+- EV honesty bins: CPI-2025-10-MOM YES@0.18 and NO@0.47 remain Δ=0.00, no caps/flags applied.
+- Connectivity: `make live-smoke` now succeeds against prod (balance + markets endpoints reachable with new API key).
+- Latest bundle: reports/pilot_bundle_20251103_001419.tar.gz (includes readiness, monitors, ledger snapshot, telemetry).

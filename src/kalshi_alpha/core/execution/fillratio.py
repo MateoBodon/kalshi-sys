@@ -204,7 +204,14 @@ def _load_ledger_frame() -> pl.DataFrame:
         return pl.DataFrame()
     frame = pl.read_parquet(LEDGER_PATH)
     if "timestamp_et" in frame.columns and frame["timestamp_et"].dtype == pl.Utf8:
-        frame = frame.with_columns(pl.col("timestamp_et").str.strptime(pl.Datetime, strict=False))
+        frame = frame.with_columns(
+            pl.col("timestamp_et").str.strptime(
+                pl.Datetime,
+                strict=False,
+                exact=False,
+                format="%Y-%m-%dT%H:%M:%S%.f%z",
+            )
+        )
     return frame
 
 
