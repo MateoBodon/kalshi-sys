@@ -7,4 +7,5 @@ __all__ = [
     "nws_cli",
     "aaa_gas",
     "cleveland_nowcast",
+    "macro_calendar",
 ]
