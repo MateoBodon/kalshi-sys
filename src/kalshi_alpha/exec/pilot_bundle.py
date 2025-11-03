@@ -315,6 +315,15 @@ def _build_pilot_readme(reports_dir: Path) -> str | None:
     else:
         lines.append("- Staleness: n/a")
 
+    data_freshness = policy.get("data_freshness") if isinstance(policy, dict) else {}
+    if isinstance(data_freshness, dict) and data_freshness:
+        required_ok = data_freshness.get("required_feeds_ok", True)
+        lines.append(f"- Data freshness: {'OK' if required_ok else 'STALE'}")
+        stale_feeds = data_freshness.get("stale_feeds") or []
+        if stale_feeds:
+            joined = ", ".join(str(feed) for feed in stale_feeds)
+            lines.append(f"    - Stale feeds: {joined}")
+
     lines.append("")
     return "\n".join(lines)
 

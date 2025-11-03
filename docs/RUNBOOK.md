@@ -75,6 +75,19 @@ Replace the placeholder PEM path with your actual location, approve the Keychain
   - The sequential EV guard adds a per-series CuSum detector; any `sequential_alert` appears in JSON/Markdown and overrides legacy t-stat logic.
   - Freeze windows appear as `freeze_window` reasons when Ops is inside the T-24h/T-18h pre-event freezes. See [Freeze Windows & Pre-Event Policy](#freeze-windows--pre-event-policy).
 
+### Data Freshness Monitor
+
+- `python -m kalshi_alpha.exec.monitors.freshness` (or `make freshness-smoke`) computes the per-feed freshness table and writes `reports/_artifacts/monitors/freshness.json`.
+- Required feeds and thresholds:
+  - `bls_cpi.latest_release` — release ≤35 days old.
+  - `dol_claims.latest_report` — week-ending date ≤8 days old.
+  - `treasury_10y.daily` — DGS10 snapshot within 3 business days; series mismatch raises `TENY_SERIES_MISMATCH`.
+  - `cleveland_nowcast.monthly` — nowcast ≤35 days old.
+  - `aaa_gas.daily` — spot ≤2 days old and price between $2.00 and $6.00.
+  - `nws_daily_climate` — ≤2-day-old DCRs for active trading stations only (declare stations in `configs/freshness.yaml`).
+- Readiness JSON/Markdown include a “Data Freshness” table sourced from the monitor. Any stale, missing, or out-of-range feed appends `STALE_FEEDS` to the ramp policy and forces `NO-GO`.
+- The pre-submit gate (`scan_ladders`) short-circuits before arming proposals whenever `required_feeds_ok` is false, mirroring the readiness decision.
+
 ## Ops Glue & Log Rotation
 - Systemd unit templates under `configs/systemd/` cover the daily runner, recurring monitors sweep, and telemetry shipper. Deploy with `systemctl enable --now kalshi-alpha-monitors.timer` (and analogous commands for runner/telemetry).
 - `configs/logrotate/kalshi-alpha` rotates telemetry JSONL files daily, retaining two weeks of history. Drop the file into `/etc/logrotate.d/` and adjust the absolute paths if the repo lives outside `/opt/kalshi-alpha`.

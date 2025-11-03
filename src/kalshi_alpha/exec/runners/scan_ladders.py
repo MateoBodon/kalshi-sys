@@ -55,6 +55,15 @@ from kalshi_alpha.exec.heartbeat import (
     write_heartbeat,
 )
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
+from kalshi_alpha.exec.monitors.freshness import (
+    FRESHNESS_ARTIFACT_PATH,
+)
+from kalshi_alpha.exec.monitors.freshness import (
+    load_artifact as load_freshness_artifact,
+)
+from kalshi_alpha.exec.monitors.freshness import (
+    summarize_artifact as summarize_freshness_artifact,
+)
 from kalshi_alpha.exec.monitors.summary import (
     DEFAULT_MONITOR_MAX_AGE_MINUTES,
     DEFAULT_PANIC_ALERT_THRESHOLD,
@@ -981,9 +990,16 @@ def _quality_gate_for_broker(
         getattr(args, "weekly_loss_cap", None),
         now=now_utc,
     )
+    freshness_path = MONITOR_ARTIFACTS_DIR / FRESHNESS_ARTIFACT_PATH.name
+    data_freshness_payload = load_freshness_artifact(freshness_path)
+    data_freshness_summary = summarize_freshness_artifact(
+        data_freshness_payload,
+        artifact_path=freshness_path,
+    )
 
     reasons = list(result.reasons)
     details = dict(result.details)
+    details.setdefault("data_freshness", data_freshness_summary)
 
     def _append_reason(reason: str) -> None:
         if reason not in reasons:
@@ -1000,10 +1016,14 @@ def _quality_gate_for_broker(
     details.setdefault("runtime_monitors", runtime_monitor_details)
     if drawdown_status.metrics:
         details.setdefault("drawdown", drawdown_status.metrics)
-    go_flag = result.go and drawdown_status.ok
+    go_flag = result.go and drawdown_status.ok and data_freshness_summary.get("required_feeds_ok", True)
     if not drawdown_status.ok:
         for reason in drawdown_status.reasons:
             _append_reason(reason)
+    if not data_freshness_summary.get("required_feeds_ok", True):
+        _append_reason("STALE_FEEDS")
+        if data_freshness_summary.get("status") == "MISSING":
+            _append_reason("data_freshness_missing")
 
     monitor_reasons: list[str] = []
     if monitor_summary.file_count == 0:

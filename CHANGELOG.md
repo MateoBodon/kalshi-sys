@@ -1,5 +1,12 @@
 # Changelog
 
+## 2025-11-03
+- Added `kalshi_alpha.exec.monitors.freshness` with configurable thresholds (`configs/freshness.yaml`) for CPI, Claims, TenY, Cleveland, AAA Gas, and NWS climate feeds; the monitor emits `reports/_artifacts/monitors/freshness.json` and a CLI table (`make freshness-smoke`).
+- Ramp readiness now ingests the freshness artifact, surfaces a “Data Freshness” table in JSON/Markdown, and stamps `STALE_FEEDS` when any required feed is stale, missing, out-of-range (AAA), or misaligned (TenY series identity).
+- `scan_ladders` short-circuits the pre-submit gate whenever `required_feeds_ok` is false, sharing the same artifact and reasons as the readiness report.
+- Weather freshness is scoped to the active station list; stale stations are enumerated in readiness and block GO decisions.
+- Documentation refreshed with the new data freshness workflow, and sample monitor output (`reports/_artifacts/monitors/freshness.json`) added for reference.
+
 ## 2025-11-02 (Sprint 7)
 - `pilot_session.json` now records the target `family`, normalized `cusum_state`, fill realism gap, and full alert summary; tests cover payload structure and artifact writes.
 - Pilot scans import `ev_honesty_bins` from `reports/pilot_ready.json` and enforce the recommended per-bin weights/caps before sizing orders, even when the series-level decision is GO.

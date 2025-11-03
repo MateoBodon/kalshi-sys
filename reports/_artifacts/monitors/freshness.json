@@ -1,0 +1,109 @@
+{
+  "generated_at": "2025-11-03T00:14:13.618213+00:00",
+  "message": "All required feeds fresh",
+  "metrics": {
+    "feeds": [
+      {
+        "age_minutes": 20160.0,
+        "details": {
+          "age_days": 14.0,
+          "count": 1,
+          "threshold_days": 35.0
+        },
+        "id": "bls_cpi.latest_release",
+        "label": "BLS CPI (latest release)",
+        "last_ts": "2025-10-20T12:00:00+00:00",
+        "ok": true,
+        "required": true
+      },
+      {
+        "age_minutes": 10080.0,
+        "details": {
+          "age_days": 7.0,
+          "count": 1,
+          "threshold_days": 8.0
+        },
+        "id": "dol_claims.latest_report",
+        "label": "DOL Claims (ETA-539)",
+        "last_ts": "2025-10-27T00:00:00+00:00",
+        "ok": true,
+        "required": true
+      },
+      {
+        "age_minutes": 1440.0,
+        "details": {
+          "age_business_days": 1.0,
+          "count": 1,
+          "threshold_business_days": 3.0
+        },
+        "id": "treasury_10y.daily",
+        "label": "Treasury 10Y Par Yield",
+        "last_ts": "2025-11-01T00:00:00+00:00",
+        "ok": true,
+        "required": true
+      },
+      {
+        "age_minutes": 30240.0,
+        "details": {
+          "age_days": 21.0,
+          "count": 1,
+          "threshold_days": 35.0
+        },
+        "id": "cleveland_nowcast.monthly",
+        "label": "Cleveland Fed Nowcast (monthly)",
+        "last_ts": "2025-10-13T00:00:00+00:00",
+        "ok": true,
+        "required": true
+      },
+      {
+        "age_minutes": 720.0,
+        "details": {
+          "age_days": 0.5,
+          "price": 3.456,
+          "price_max": 6.0,
+          "price_min": 2.0,
+          "threshold_days": 2.0
+        },
+        "id": "aaa_gas.daily",
+        "label": "AAA National Gas (daily)",
+        "last_ts": "2025-11-02T00:00:00+00:00",
+        "ok": true,
+        "required": true
+      },
+      {
+        "age_minutes": 720.0,
+        "details": {
+          "active_station_count": 1,
+          "stations": [
+            {
+              "age_days": 0.5,
+              "age_minutes": 720.0,
+              "last_ts": "2025-11-02T00:00:00+00:00",
+              "ok": true,
+              "station": "KBOS",
+              "threshold_days": 2.0
+            }
+          ],
+          "threshold_days": 2.0
+        },
+        "id": "nws_daily_climate",
+        "label": "NWS Daily Climate (stations)",
+        "last_ts": "2025-11-02T00:00:00+00:00",
+        "ok": true,
+        "required": true
+      }
+    ],
+    "required_feeds": [
+      "bls_cpi.latest_release",
+      "dol_claims.latest_report",
+      "treasury_10y.daily",
+      "cleveland_nowcast.monthly",
+      "aaa_gas.daily",
+      "nws_daily_climate"
+    ],
+    "required_feeds_ok": true,
+    "stale_feeds": []
+  },
+  "name": "data_freshness",
+  "status": "OK"
+}

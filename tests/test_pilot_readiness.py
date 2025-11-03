@@ -14,6 +14,34 @@ from kalshi_alpha.exec.reports.ramp import RampPolicyConfig, compute_ramp_policy
 from kalshi_alpha.exec.runners import scan_ladders
 
 
+def _write_ok_freshness(monitors_dir: Path, now: datetime) -> Path:
+    monitors_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "name": "data_freshness",
+        "status": "OK",
+        "generated_at": now.isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["bls_cpi.latest_release"],
+            "stale_feeds": [],
+            "feeds": [
+                {
+                    "id": "bls_cpi.latest_release",
+                    "label": "BLS CPI (latest release)",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 10.0,
+                    "last_ts": now.isoformat(),
+                    "reason": None,
+                }
+            ],
+        },
+    }
+    path = monitors_dir / "freshness.json"
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
 def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     now = datetime(2025, 11, 2, tzinfo=UTC)
@@ -58,6 +86,7 @@ def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         ),
         encoding="utf-8",
     )
+    _write_ok_freshness(monitors_dir, now)
 
     proc_root = tmp_path / "data" / "proc"
     drawdown_state_dir = proc_root
@@ -90,6 +119,7 @@ def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert "guardrail_breaches" in series["CLAIMS"]
     assert series["CLAIMS"]["size_multiplier"] == config.base_multiplier
     assert policy["overall"]["global_reasons"] == []
+    assert policy["data_freshness"]["status"] == "OK"
 
     json_path = tmp_path / "reports" / "pilot_ready.json"
     markdown_path = tmp_path / "reports" / "pilot_readiness.md"
@@ -98,6 +128,8 @@ def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Pilot Ramp Readiness" in markdown
     assert "| CPI" in markdown
+    assert "**Data Freshness**" in markdown
+    assert "BLS CPI (latest release)" in markdown
 
 
 def test_ramp_policy_stale_ledger_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,6 +164,7 @@ def test_ramp_policy_stale_ledger_no_go(tmp_path: Path, monkeypatch: pytest.Monk
         ),
         encoding="utf-8",
     )
+    _write_ok_freshness(monitors_dir, now)
 
     config = RampPolicyConfig(
         lookback_days=14,
@@ -190,6 +223,7 @@ def test_ramp_policy_panic_backoff(tmp_path: Path, monkeypatch: pytest.MonkeyPat
             ),
             encoding="utf-8",
         )
+    _write_ok_freshness(monitors_dir, now)
 
     config = RampPolicyConfig(
         lookback_days=14,
@@ -247,6 +281,7 @@ def test_ramp_policy_sequential_alert(tmp_path: Path, monkeypatch: pytest.Monkey
         ),
         encoding="utf-8",
     )
+    _write_ok_freshness(monitors_dir, now)
 
     config = RampPolicyConfig(
         lookback_days=7,
@@ -374,6 +409,7 @@ def test_ramp_policy_stale_monitors_no_go(tmp_path: Path, monkeypatch: pytest.Mo
         ),
         encoding="utf-8",
     )
+    _write_ok_freshness(monitors_dir, now)
 
     config = RampPolicyConfig(
         lookback_days=7,
@@ -456,6 +492,7 @@ def test_ramp_policy_includes_ev_honesty_bins(tmp_path: Path, monkeypatch: pytes
         ),
         encoding="utf-8",
     )
+    _write_ok_freshness(monitors_dir, now)
 
     policy = compute_ramp_policy(
         ledger_path=ledger_path,

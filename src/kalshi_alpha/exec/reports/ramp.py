@@ -15,6 +15,15 @@ import polars as pl
 import yaml
 
 from kalshi_alpha.core.risk import drawdown
+from kalshi_alpha.exec.monitors.freshness import (
+    FRESHNESS_ARTIFACT_PATH,
+)
+from kalshi_alpha.exec.monitors.freshness import (
+    load_artifact as load_freshness_artifact,
+)
+from kalshi_alpha.exec.monitors.freshness import (
+    summarize_artifact as summarize_freshness_artifact,
+)
 from kalshi_alpha.exec.monitors.sequential import (
     DEFAULT_SEQ_DRIFT,
     DEFAULT_SEQ_MIN_SAMPLE,
@@ -135,6 +144,17 @@ def compute_ramp_policy(
     if overrides_path is not None:
         freshness_summary["bin_overrides_path"] = overrides_path.as_posix()
 
+    freshness_artifact_path = monitor_artifacts_dir / FRESHNESS_ARTIFACT_PATH.name
+    data_freshness_payload = load_freshness_artifact(freshness_artifact_path)
+    data_freshness_summary = summarize_freshness_artifact(
+        data_freshness_payload,
+        artifact_path=freshness_artifact_path,
+    )
+    freshness_summary["data_freshness_path"] = freshness_artifact_path.as_posix()
+    if data_freshness_summary.get("generated_at"):
+        freshness_summary["data_freshness_generated_at"] = data_freshness_summary["generated_at"]
+    freshness_summary["data_freshness_status"] = data_freshness_summary["status"]
+
     global_reasons: list[str] = []
     if ledger_age_minutes is None:
         global_reasons.append("ledger_missing")
@@ -156,6 +176,11 @@ def compute_ramp_policy(
         panic_backoff = len(monitor_summary.alerts_recent) >= cfg.panic_alert_threshold
         if panic_backoff:
             global_reasons.append("panic_backoff")
+
+    if not data_freshness_summary.get("required_feeds_ok", True):
+        global_reasons.append("STALE_FEEDS")
+        if data_freshness_summary["status"] == "MISSING":
+            global_reasons.append("data_freshness_missing")
 
     global_reasons = _dedupe_reasons(global_reasons)
 
@@ -277,6 +302,7 @@ def compute_ramp_policy(
             "fill_realism_gap": pilot_session.get("fill_realism_gap"),
         }
 
+    decision_go = go_count > 0 and not global_reasons
     overall_summary: dict[str, Any] = {
         "go": go_count,
         "no_go": len(results) - go_count,
@@ -284,6 +310,9 @@ def compute_ramp_policy(
         "panic_backoff": panic_backoff,
         "sequential_alert_series": sorted(seq_alerts_by_series.keys()),
         "freeze_violation_series": sorted(freeze_violations),
+        "required_feeds_ok": data_freshness_summary.get("required_feeds_ok", True),
+        "stale_feeds": data_freshness_summary.get("stale_feeds", []),
+        "decision": "GO" if decision_go else "NO_GO",
     }
 
     policy = {
@@ -311,6 +340,7 @@ def compute_ramp_policy(
             "metrics": drawdown_status.metrics,
             "reasons": drawdown_status.reasons,
         },
+        "data_freshness": data_freshness_summary,
         "freshness": freshness_summary,
         "monitors_summary": monitors_summary,
         "series": results,
@@ -385,6 +415,31 @@ def write_ramp_outputs(
         monitors_limit_str = _format_number_for_markdown(monitors_limit)
         lines.append(f"- Ledger age: {ledger_age_str} min (limit {ledger_limit_str})")
         lines.append(f"- Monitors age: {monitors_age_str} min (limit {monitors_limit_str})")
+        lines.append("")
+
+    data_freshness = policy.get("data_freshness", {})
+    if isinstance(data_freshness, dict) and data_freshness:
+        lines.append("**Data Freshness**")
+        required_ok = data_freshness.get("required_feeds_ok")
+        lines.append(
+            f"- Required feeds OK: {'yes' if required_ok else 'NO'}"
+        )
+        feeds = data_freshness.get("feeds") or []
+        if feeds:
+            lines.append(
+                "| Feed | Required | OK | Age (min) | Reason |"
+            )
+            lines.append("| --- | --- | --- | --- | --- |")
+            for entry in feeds:
+                feed_label = entry.get("label") or entry.get("id") or "unknown"
+                required_flag = "yes" if entry.get("required") else "no"
+                ok_flag = "yes" if entry.get("ok") else "NO"
+                age_value = entry.get("age_minutes")
+                age_str = _format_number_for_markdown(age_value)
+                reason_str = entry.get("reason") or ""
+                lines.append(
+                    f"| {feed_label} | {required_flag} | {ok_flag} | {age_str} | {reason_str} |"
+                )
         lines.append("")
 
     sequential_triggers = (

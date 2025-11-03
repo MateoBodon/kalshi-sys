@@ -1,0 +1,38 @@
+# Freshness thresholds for existing data feeds used by ramp readiness.
+#
+# The default thresholds cover the current macro + weather strategies. Overrides may be
+# supplied when running ad-hoc refreshes or sandbox tests by pointing the monitor CLI at
+# an alternate config file.
+
+required_order:
+  - bls_cpi.latest_release
+  - dol_claims.latest_report
+  - treasury_10y.daily
+  - cleveland_nowcast.monthly
+  - aaa_gas.daily
+  - nws_daily_climate
+
+feeds:
+  bls_cpi.latest_release:
+    # Latest CPI release should be within the current publication cycle (≈monthly).
+    age_days: 35
+  dol_claims.latest_report:
+    # Initial claims are published weekly; flag if older than 8 days.
+    age_days: 8
+  treasury_10y.daily:
+    # Ten-year settlement guard: require DGS10 within three business days.
+    age_business_days: 3
+    expected_maturity: DGS10
+  cleveland_nowcast.monthly:
+    # Cleveland Fed nowcast refreshes monthly; allow a 35-day grace period.
+    age_days: 35
+  aaa_gas.daily:
+    # AAA national gasoline price used for CPI deltas; guard against stale data and outliers.
+    age_days: 2
+    price_min: 2.0
+    price_max: 6.0
+  nws_daily_climate:
+    # Weather ladders rely on active trading stations only. Populate active_stations when
+    # weather is in production; leave empty to mark the feed as not required.
+    age_days: 2
+    active_stations: []
