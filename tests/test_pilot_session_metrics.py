@@ -360,6 +360,12 @@ def test_pilot_mode_respects_kill_switch(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     monkeypatch.setattr(scan_ladders, "create_broker", _reject_broker)
 
+    monkeypatch.setattr(
+        scan_ladders,
+        "_quality_gate_for_broker",
+        lambda args, monitors: scan_ladders.QualityGateResult(go=False, reasons=["kill_switch"], details={}),
+    )
+
     from kalshi_alpha.datastore import paths as datastore_paths
 
     monkeypatch.setattr(datastore_paths, "PROC_ROOT", tmp_path / "data" / "proc")

@@ -616,6 +616,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         artifacts_dir = Path("reports/_artifacts")
         ledger.write_artifacts(artifacts_dir, manifest_path=manifest_path)
 
+    gate_result: QualityGateResult | None = None
+    go_status: bool | None = None
+    if args.report or proposals:
+        gate_result = _quality_gate_for_broker(args, outcome.monitors)
+        go_status = gate_result.go
+        outcome.monitors.setdefault("quality_gate_go", gate_result.go)
+        if gate_result.reasons:
+            outcome.monitors.setdefault("quality_gate_reasons", tuple(gate_result.reasons))
+
     broker_status = None
     if proposals:
         try:
@@ -625,6 +634,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 args=args,
                 monitors=outcome.monitors,
                 quiet=args.quiet,
+                go_status=go_status,
             )
         except RuntimeError as exc:
             broker_status = {"mode": args.broker, "orders_recorded": 0, "error": str(exc)}
@@ -654,7 +664,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         outcome.monitors,
         exposure_summary,
         manifest_path,
-        go_status=True,
+        go_status=go_status,
         fill_alpha=fill_alpha_value,
         mispricings=outcome.mispricings,
         model_metadata=outcome.model_metadata,
