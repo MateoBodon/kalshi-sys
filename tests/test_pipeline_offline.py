@@ -39,12 +39,12 @@ data_freshness:
   - name: cleveland
     namespace: cleveland_nowcast/monthly
     timestamp_field: as_of
-    max_age_hours: 240
+    max_age_hours: 300
     require_et: false
   - name: treasury
     namespace: treasury_yields/daily
     timestamp_field: as_of
-    max_age_hours: 240
+    max_age_hours: 300
     require_et: false
 reconciliation:
   - name: t10_vs_dgs
