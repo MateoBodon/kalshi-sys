@@ -52,6 +52,7 @@ from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 from kalshi_alpha.drivers import macro_calendar
 from kalshi_alpha.drivers.aaa_gas import fetch as aaa_fetch
 from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
+from kalshi_alpha.drivers.calendar.loader import calendar_tags_for
 from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, PolygonAPIError, PolygonIndicesClient
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
@@ -2056,11 +2057,13 @@ def _strategy_pmf_for_series(
         snapshot = _load_index_snapshot(meta.polygon_ticker, offline=offline, fixtures_dir=fixtures_dir)
         now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
         minutes_to_target = _minutes_to_target(now, _TARGET_NOON)
+        event_tags = calendar_tags_for(now)
         inputs = index_strategy.NoonInputs(
             series=ticker,
             current_price=_resolve_index_price(snapshot),
             minutes_to_noon=minutes_to_target,
             prev_close=snapshot.previous_close,
+            event_tags=event_tags,
         )
         pmf_values = index_strategy.noon_pmf(strikes, inputs=inputs)
         metadata.update(
@@ -2069,6 +2072,7 @@ def _strategy_pmf_for_series(
                 "minutes_to_target": minutes_to_target,
                 "snapshot_last_price": snapshot.last_price,
                 "snapshot_timestamp": snapshot.timestamp.isoformat() if snapshot.timestamp else None,
+                "event_tags": event_tags,
             }
         )
     elif ticker in {"INX", "NASDAQ100"}:
@@ -2076,10 +2080,12 @@ def _strategy_pmf_for_series(
         snapshot = _load_index_snapshot(meta.polygon_ticker, offline=offline, fixtures_dir=fixtures_dir)
         now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
         minutes_to_target = _minutes_to_target(now, _TARGET_CLOSE)
+        event_tags = calendar_tags_for(now)
         inputs = index_strategy.CloseInputs(
             series=ticker,
             current_price=_resolve_index_price(snapshot),
             minutes_to_close=minutes_to_target,
+            event_tags=event_tags,
         )
         pmf_values = index_strategy.close_pmf(strikes, inputs=inputs)
         metadata.update(
@@ -2088,6 +2094,7 @@ def _strategy_pmf_for_series(
                 "minutes_to_target": minutes_to_target,
                 "snapshot_last_price": snapshot.last_price,
                 "snapshot_timestamp": snapshot.timestamp.isoformat() if snapshot.timestamp else None,
+                "event_tags": event_tags,
             }
         )
     elif pick in {"weather"} and ticker == "WEATHER":

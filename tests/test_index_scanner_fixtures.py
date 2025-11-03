@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -262,3 +262,41 @@ def test_index_rule_mismatch_forces_no_go(
     go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
     assert go_artifact["go"] is False
     assert "index_rules_mismatch" in go_artifact.get("reasons", [])
+
+
+def test_close_scan_includes_event_tags(
+    fixtures_root: Path,
+    isolated_data_roots: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, proc_root = isolated_data_roots
+    _configure_index_calibration(proc_root)
+    _copy_calibration(Path("tests/fixtures/index/ndx/close/params.json"), proc_root, "ndx", "close")
+
+    def _fake_calendar(moment: datetime, *, path: Path | None = None) -> tuple[str, ...]:
+        target_date = moment.astimezone(ET).date()
+        return ("FOMC",) if target_date == date(2024, 10, 21) else ()
+
+    monkeypatch.setattr(scan_ladders, "calendar_tags_for", _fake_calendar)
+
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    pal_guard = PALGuard(PALPolicy(series="NASDAQ100", default_max_loss=10_000.0))
+    now_et = datetime(2024, 10, 21, 15, 55, tzinfo=ET)
+    outcome = scan_ladders.scan_series(
+        series="NASDAQ100",
+        client=client,
+        min_ev=0.0,
+        contracts=1,
+        pal_guard=pal_guard,
+        driver_fixtures=fixtures_root / "drivers",
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+        sizing_mode="kelly",
+        kelly_cap=0.25,
+        now_override=now_et.astimezone(UTC),
+    )
+    assert outcome.model_metadata.get("event_tags") == ("FOMC",)

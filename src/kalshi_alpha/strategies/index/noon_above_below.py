@@ -25,6 +25,7 @@ class NoonInputs:
     drift_override: float | None = None
     sigma_override: float | None = None
     residual_override: float | None = None
+    event_tags: tuple[str, ...] = ()
 
 
 def pmf(
