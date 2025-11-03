@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from kalshi_alpha.datastore import ingest as datastore_ingest
 from kalshi_alpha.drivers import bls_cpi, cleveland_nowcast, dol_claims, treasury_yields
@@ -30,6 +31,40 @@ def test_treasury_yields_offline_fetch(offline_fixtures_root: Path) -> None:
     fixtures = offline_fixtures_root / "treasury_yields"
     yields = treasury_yields.fetch_daily_yields(offline=True, fixtures_dir=fixtures)
     assert treasury_yields.dgs10_latest_rate(yields) == 4.35
+
+
+def test_treasury_yields_persists_latest_parquet(
+    tmp_path: Path,
+    offline_fixtures_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixtures = offline_fixtures_root / "treasury_yields"
+    proc_root = tmp_path / "proc" / "treasury_yields"
+    monkeypatch.setattr(treasury_yields, "PROC_ROOT", proc_root)
+
+    yields = treasury_yields.fetch_daily_yields(offline=True, fixtures_dir=fixtures)
+    frame = treasury_yields.yields_to_frame(yields)
+    as_of_dates = sorted({value for value in frame.get_column("as_of").to_list()})
+    assert len(as_of_dates) >= 2
+
+    latest_date = as_of_dates[-1]
+    prior_date = as_of_dates[-2]
+
+    latest_path = proc_root / "latest.parquet"
+    daily_latest = proc_root / "daily" / f"{latest_date.isoformat()}.parquet"
+    daily_prior = proc_root / "daily" / f"{prior_date.isoformat()}.parquet"
+
+    assert latest_path.exists()
+    assert daily_latest.exists()
+    assert daily_prior.exists()
+
+    today_frame = treasury_yields.today_close()
+    today_dates = set(today_frame.get_column("as_of").to_list())
+    assert today_dates == {latest_date}
+
+    yesterday_frame = treasury_yields.yesterday_close()
+    yesterday_dates = set(yesterday_frame.get_column("as_of").to_list())
+    assert yesterday_dates == {prior_date}
 
 
 def test_cleveland_nowcast_offline_fetch(offline_fixtures_root: Path) -> None:

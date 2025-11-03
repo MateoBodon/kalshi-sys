@@ -6,7 +6,7 @@ import csv
 import io
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -25,6 +25,18 @@ CACHE_PATH = RAW_ROOT / "_cache" / "treasury" / "daily_yields.csv"
 CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 ET = ZoneInfo("America/New_York")
+PROC_ROOT = Path("data/proc/treasury_yields")
+
+
+def _daily_dir() -> Path:
+    path = PROC_ROOT / "daily"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _latest_parquet_path() -> Path:
+    PROC_ROOT.mkdir(parents=True, exist_ok=True)
+    return PROC_ROOT / "latest.parquet"
 
 
 @dataclass(frozen=True)
@@ -122,14 +134,108 @@ def dgs10_latest_rate(yields: Iterable[ParYield]) -> float | None:
     return fallback
 
 
-def yields_to_frame(yields: Iterable[ParYield]) -> pl.DataFrame:
-    return pl.DataFrame(
+def yields_to_frame(yields: Iterable[ParYield], *, persist: bool = True) -> pl.DataFrame:
+    frame = pl.DataFrame(
         {
             "as_of": [entry.as_of.date() for entry in yields],
             "maturity": [entry.maturity for entry in yields],
             "rate": [entry.rate for entry in yields],
         }
+    ).with_columns(pl.col("as_of").cast(pl.Date))
+    if persist:
+        _write_processed_parquet(frame)
+    return frame
+
+
+def today_close() -> pl.DataFrame:
+    """Return the most recent closing par yields as a DataFrame."""
+
+    latest_path = _latest_parquet_path()
+    if latest_path.exists():
+        return pl.read_parquet(latest_path).with_columns(pl.col("as_of").cast(pl.Date))
+
+    snapshots = _list_daily_snapshots()
+    if not snapshots:
+        raise FileNotFoundError("treasury_yields.latest parquet not found")
+    _, path = snapshots[-1]
+    return pl.read_parquet(path).with_columns(pl.col("as_of").cast(pl.Date))
+
+
+def yesterday_close() -> pl.DataFrame:
+    """Return the prior trading day's closing par yields."""
+
+    snapshots = _list_daily_snapshots()
+    if len(snapshots) < 2:
+        raise FileNotFoundError("treasury_yields daily history insufficient for yesterday_close")
+    _, path = snapshots[-2]
+    return pl.read_parquet(path).with_columns(pl.col("as_of").cast(pl.Date))
+
+
+def _write_processed_parquet(frame: pl.DataFrame) -> None:
+    if frame.is_empty():
+        return
+
+    daily_dir = _daily_dir()
+    latest_path = _latest_parquet_path()
+
+    dates = sorted({
+        _coerce_date(value)
+        for value in frame.get_column("as_of").to_list()
+        if value is not None
+    })
+    if not dates:
+        return
+
+    for as_of_date in dates:
+        day_frame = (
+            frame
+            .filter(pl.col("as_of") == as_of_date)
+            .sort(["as_of", "maturity"])
+        )
+        output_path = daily_dir / f"{as_of_date.isoformat()}.parquet"
+        day_frame.write_parquet(output_path)
+
+    latest_date = dates[-1]
+    latest_frame = (
+        frame
+        .filter(pl.col("as_of") == latest_date)
+        .sort(["as_of", "maturity"])
     )
+    latest_frame.write_parquet(latest_path)
+
+
+def _list_daily_snapshots() -> list[tuple[date, Path]]:
+    daily_dir = PROC_ROOT / "daily"
+    if not daily_dir.exists():
+        return []
+
+    snapshots: list[tuple[date, Path]] = []
+    for candidate in sorted(daily_dir.glob("*.parquet")):
+        try:
+            frame = pl.read_parquet(candidate, columns=["as_of"])
+        except (OSError, pl.exceptions.PolarsError):  # pragma: no cover - corrupt parquet
+            continue
+        if frame.height == 0:
+            continue
+        value = frame.get_column("as_of").to_list()[0]
+        try:
+            as_of_date = _coerce_date(value)
+        except (TypeError, ValueError):
+            continue
+        snapshots.append((as_of_date, candidate))
+
+    snapshots.sort(key=lambda item: item[0])
+    return snapshots
+
+
+def _coerce_date(value: object) -> date:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        return datetime.fromisoformat(value).date()
+    raise TypeError(f"Unsupported date value: {value!r}")
 
 
 def _normalize_latest_row(csv_text: str) -> str:
