@@ -27,7 +27,7 @@ def test_maker_fee_examples() -> None:
 
 def test_half_rate_path() -> None:
     schedule = FeeSchedule()
-    half = schedule.taker_fee(100, 0.35, market_name="S&P 500")
+    half = schedule.taker_fee(100, 0.35, series="INXU")
     assert half == Decimal("0.80")
 
 
@@ -150,3 +150,20 @@ def test_fee_parser_emits_required_fields(tmp_path: Path) -> None:
         "series_overrides",
     ):
         assert key in config
+
+
+def test_default_fee_config_schema() -> None:
+    fees_module._load_fee_config.cache_clear()
+    config = fees_module._load_fee_config()
+    expected_keys = {"maker_rate", "taker_rate", "series_half_rate", "half_rate_keywords", "maker_series"}
+    assert expected_keys.issubset(config.keys())
+    assert config["maker_rate"] == 0.0175
+    assert config["taker_rate"] == 0.07
+    assert config["half_rate_keywords"] == ["INX", "NASDAQ100"]
+    assert all(not series.startswith(("INX", "NASDAQ100")) for series in config["maker_series"])
+    series_overrides = {entry["series"]: entry for entry in config["series_overrides"]}
+    for series in ("INX", "INXU", "NASDAQ100", "NASDAQ100U"):
+        entry = series_overrides[series]
+        assert entry["maker_rate"] == 0.0
+        assert entry["taker_rate"] == 0.035
+    fees_module._load_fee_config.cache_clear()
