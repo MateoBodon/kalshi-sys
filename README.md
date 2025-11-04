@@ -10,7 +10,7 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 - **Core analytics (`src/kalshi_alpha/core/`)** – pricing primitives, fee models (October 1 2025 schedule), probability transforms, PAL enforcement, VaR checks, and backtesting helpers.
 - **Market data client** – read-only public API with offline fixtures and caching to stay deterministic in CI/offline modes.
 - **Strategy modules (`strategies/`)** – CPI, claims, 10Y Treasury, weather, and gasoline models that generate ladder PMFs with calibration hooks.
-- **Index ladders (`strategies/index/`)** – SPX/NDX noon + close models pulling Polygon indices with σ<sub>tod</sub> curves, residual clamps, and the index maker fee curve (0.035 × C × P × (1 − P)).
+- **Index ladders (`strategies/index/`)** – SPX/NDX noon + close models pulling Polygon indices with σ<sub>tod</sub> curves, residual clamps, and indices maker=$0.00; indices taker=0.035*C*p*(1-p).
 
 ### Data Ingestion & Storage
 - **Drivers (`drivers/`)** pull canonical macro datasets (BLS CPI, DOL ETA-539, treasury par yields, Cleveland nowcast, NOAA/NWS, AAA gas). Each driver supports offline fixtures under `tests/fixtures`.
@@ -207,14 +207,14 @@ Each pipeline writes:
 
 ## Index Ladders (SPX/NDX)
 
-- **Series coverage:** intraday noon (`INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only by default with 1-lot sizing and a two-bin cap per market.
+- **Series coverage:** intraday hourly (12:00 ET; `INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only by default with 1-lot sizing and a two-bin cap per market.
 - **Secrets:** Polygon indices use macOS Keychain item `kalshi-sys:POLYGON_API_KEY` first and fall back to the `POLYGON_API_KEY` environment variable. Approving the Keychain prompt once keeps subsequent scans non-interactive.
 - **Calibrations:**
   ```bash
   python -m jobs.calibrate_hourly --series INXU NASDAQ100U --days 45
   python -m jobs.calibrate_close --series INX NASDAQ100 --days 60
   ```
-  Both jobs fetch Polygon minute bars, persist JSON params in `data/proc/calib/index/<symbol>/{noon,close}/params.json`, and snapshot raw payloads under `data/raw/polygon_index/` for audit.
+  Both jobs fetch Polygon minute bars, persist JSON params in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (with legacy `noon` directories read-only), and snapshot raw payloads under `data/raw/polygon_index/` for audit.
 - **Dry scans:**
   ```bash
   python -m kalshi_alpha.exec.runners.scan_ladders \
@@ -228,7 +228,7 @@ Each pipeline writes:
     --maker-only \
     --report
   ```
-- **Outputs:** scanner metadata now includes Polygon snapshot prices, minutes-to-target, and EV after the index maker fee curve (0.035 × contracts × price × (1 − price)). Reports render under `reports/index_*` when `--report` is set, and ledger EV columns reflect the updated fee schedule.
+- **Outputs:** scanner metadata now includes Polygon snapshot prices, minutes-to-target, and EV after indices maker=$0.00; indices taker=0.035*C*p*(1-p). Reports render under `reports/index_*` when `--report` is set, and ledger EV columns reflect the updated fee schedule.
 
 ---
 

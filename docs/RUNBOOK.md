@@ -158,10 +158,10 @@ Pipeline steps per run:
 - EV honesty: default shrink is 0.9; override via `--ev-honesty-shrink` on `scan_ladders` or the daily pipeline when ops requests. Monitor block should include `ev_honesty_shrink` plus `ev_shrink` metadata per proposal.
 
 ## Index Ladder Ops Checklist (SPX/NDX)
-- Scope: intraday noon (`INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only, 1-lot sizing, ≤2 bins per market. Runs remain DRY/paper until pilot promotion.
+- Scope: intraday hourly (12:00 ET; `INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only, 1-lot sizing, ≤2 bins per market. Runs remain DRY/paper until pilot promotion.
 - Secrets: Polygon API key loads from macOS Keychain `kalshi-sys:POLYGON_API_KEY`; fallback env `POLYGON_API_KEY` (CI only). Never commit keys.
 - Windows & cancel timers (single source of truth: `configs/index_ops.yaml`):
-  - Noon ladders quote **11:45:00–12:00:00 ET**; cancel/replace all resting quotes by **11:59:58 ET (T−2 s)** per cancel buffer.
+  - Hourly ladders quote **11:45:00–12:00:00 ET**; cancel/replace all resting quotes by **11:59:58 ET (T−2 s)** per cancel buffer.
   - Close ladders quote **15:50:00–16:00:00 ET**; cancel/replace all resting quotes by **15:59:58 ET (T−2 s)**.
   - Scanners and microlive load the same config; any proposal outside the window is operator error and must be cancelled immediately.
 - Fixtures: `scripts/make_index_fixtures.sh` wraps `scripts/polygon_dump.py` to capture Polygon minute bars for `I:SPX`/`I:NDX` over 11:45–12:00 ET and 15:50–16:00 ET windows. Generated Parquets + metadata live under `tests/data_fixtures/index/` and back the math/scanner tests.
@@ -170,14 +170,14 @@ Pipeline steps per run:
   python -m jobs.calibrate_hourly --series INXU NASDAQ100U --days 35
   python -m jobs.calibrate_close  --series INX  NASDAQ100   --days 55
   ```
-  Outputs land in `data/proc/calib/index/<symbol>/{noon,close}/params.json`; raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
+  Outputs land in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (legacy `noon` directories remain read-only); raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
 - Pre-flight:
-  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (noon) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.
+ 1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (hourly) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.
   2. Confirm calibration parquet mtimes ≤14 days.
   3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, and EV after fees.
 - U-series rotation: scans at :40/:55 discover the **next** hour market and emit `[u-roll] ROLLED U-SERIES: HHHMM -> HHHMM`. When the boundary is within two seconds, the runner marks cancel-all before replaying proposals.
 - Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)`. EV honesty, ledger, and proposal math use these series-specific curves.
-- Freshness & clocks (gated by `reports/_artifacts/monitors/freshness.json`): abort when Polygon websocket heartbeat age >2 s, minute aggregates age >30 s (noon) or >20 s (close), or ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` surface in GO/NO-GO artifacts.
+- Freshness & clocks (gated by `reports/_artifacts/monitors/freshness.json`): abort when Polygon websocket heartbeat age >2 s, minute aggregates age >30 s (hourly) or >20 s (close), or ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` surface in GO/NO-GO artifacts.
 - Execution metrics: reports include a `Fill & Slippage` section (mean fill ratio, α target, slippage ticks/USD, EV bps). Defaults seed from `data/reference/index_execution_defaults.json` until the ledger-based stores (`data/proc/state/fill_alpha.json`, `data/proc/state/slippage.json`) are populated.
 - First-fill checklist (paper → live ramp):
   1. Immediately after the first live fill, run `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30` to refresh fill counts and EV deltas.
