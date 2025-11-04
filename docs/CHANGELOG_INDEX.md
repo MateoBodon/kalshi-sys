@@ -1,3 +1,9 @@
+## 2025-11-04
+
+- reran INX/NDX hourly and close calibrations on Polygon minutes through 2025-11-03 (covers DST week plus latest CPI/FOMC), persisting refreshed `κ_event`/`λ_close` payloads in `data/proc/calib/index/{spx,ndx}`.
+- gated the close variance bump `λ_close` behind CPI/FOMC event tags so calm days stay unchanged, and tightened regression to assert CRPS/Brier equality on non-event fixtures.
+- ran offline index hourly/close DRY scanners to hydrate reports with the new calibration set.
+
 ## 2025-11-03
 
 - close-range calibration now loads late-day variance bump `λ_close` and event-tail multiplier `κ_event`; tests cover mass and CRPS/Brier guard rails.

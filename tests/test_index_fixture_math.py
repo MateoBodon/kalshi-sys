@@ -196,6 +196,8 @@ def test_close_range_metrics_non_regressive(
             assert event_tail >= updated_tail
         else:
             assert event_tail == pytest.approx(updated_tail, abs=1e-6)
+            assert crps_updated == pytest.approx(crps_baseline, abs=1e-6)
+            assert brier_updated == pytest.approx(brier_baseline, abs=1e-6)
 
 
 def test_close_variance_bump_window_only(

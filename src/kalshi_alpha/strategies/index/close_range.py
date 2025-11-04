@@ -79,6 +79,13 @@ def _late_day_variance(inputs: CloseInputs, calibration: SigmaCalibration, minut
         return 0.0
     if config is None or minutes_to_target > config.minutes_threshold:
         return 0.0
+    if not inputs.event_tags:
+        return 0.0
+    tail = calibration.event_tail
+    if tail is not None:
+        normalized = {tag.strip().lower() for tag in inputs.event_tags if tag}
+        if not normalized.intersection(tail.tags):
+            return 0.0
     return max(float(config.lambda_value), 0.0)
 
 
