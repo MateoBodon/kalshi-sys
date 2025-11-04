@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, time
 from pathlib import Path
 
 from kalshi_alpha.config import load_index_ops_config
@@ -16,6 +16,14 @@ from kalshi_alpha.exec import scoreboard
 from kalshi_alpha.exec.runners import scan_ladders
 
 INDEX_OPS_CONFIG = load_index_ops_config()
+
+
+def _default_hourly_target(reference: datetime) -> time:
+    local = reference.astimezone(INDEX_OPS_CONFIG.timezone)
+    hour = local.hour
+    if local.minute >= 40:
+        hour = (hour + 1) % 24
+    return time(hour, 0)
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -76,11 +84,15 @@ def _log_ops_window(series: str, *, reference: datetime | None, quiet: bool) -> 
     except KeyError:
         return
     base = reference if reference is not None else datetime.now(tz=UTC)
-    local = base.astimezone(INDEX_OPS_CONFIG.timezone)
-    start_local = datetime.combine(local.date(), window.start, tzinfo=INDEX_OPS_CONFIG.timezone)
-    end_local = datetime.combine(local.date(), window.end, tzinfo=INDEX_OPS_CONFIG.timezone)
-    if end_local <= start_local:
-        end_local += timedelta(days=1)
+    local_reference = base.astimezone(INDEX_OPS_CONFIG.timezone)
+    target_time = None
+    if window.start_offset_minutes is not None:
+        target_time = _default_hourly_target(base)
+    start_local, end_local = window.bounds_for(
+        reference=local_reference,
+        target_time=target_time,
+        timezone=INDEX_OPS_CONFIG.timezone,
+    )
     cancel_buffer = float(window.cancel_buffer_seconds)
     cancel_by = end_local - timedelta(seconds=cancel_buffer)
     print(

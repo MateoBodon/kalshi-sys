@@ -1,55 +1,30 @@
-"""Build noon calibration curves for index ladders using Polygon minute bars."""
+"""Deprecated shim for hourly calibration; retains CLI compatibility."""
 
 from __future__ import annotations
 
-from collections import defaultdict
+import warnings
 from collections.abc import Sequence
 
-from kalshi_alpha.drivers.polygon_index.client import MinuteBar, PolygonIndicesClient
-from kalshi_alpha.drivers.polygon_index.snapshots import write_minute_bars
-from kalshi_alpha.strategies.index.noon_above_below import NOON_CALIBRATION_PATH
-
-from ._index_calibration import build_sigma_curve
-from .calibrate_hourly import (  # type: ignore[attr-defined]
-    RESIDUAL_WINDOW_MINUTES,
-    TARGET_TIME,
-    _derive_event_extras,
-    _resolve_tickers,
-    _resolve_window,
-    _time_bounds,
-    _write_params,
-    parse_args,
-)
-
-HORIZON = "noon"
+from .calibrate_hourly import main as _hourly_main
+from .calibrate_hourly import parse_args as _parse_args
 
 
-def main(argv: Sequence[str] | None = None) -> None:
-    args = parse_args(argv)
-    start_date, end_date = _resolve_window(args.start, args.end, args.days)
-    tickers = _resolve_tickers(args.series)
-
-    client = PolygonIndicesClient()
-    bars_by_symbol: dict[str, list[MinuteBar]] = defaultdict(list)
-    for ticker in tickers:
-        start_ts, end_ts = _time_bounds(start_date, end_date)
-        bars = client.fetch_minute_bars(ticker, start_ts, end_ts)
-        if not args.skip_snapshots:
-            write_minute_bars(ticker, bars)
-        bars_by_symbol[ticker].extend(bars)
-
-    if not bars_by_symbol:
-        raise RuntimeError("No minute bars fetched for calibration")
-
-    frame, records = build_sigma_curve(
-        bars_by_symbol,
-        target_time=TARGET_TIME,
-        residual_window=RESIDUAL_WINDOW_MINUTES,
-        return_records=True,
+def parse_args(argv: Sequence[str] | None = None):  # type: ignore[override]
+    warnings.warn(
+        "calibrate_noon is deprecated; use calibrate_hourly",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    extras = _derive_event_extras(records)
-    output_root = args.output or NOON_CALIBRATION_PATH
-    _write_params(frame, output_root, horizon=HORIZON, extras=extras)
+    return _parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> None:  # pragma: no cover - thin shim
+    warnings.warn(
+        "calibrate_noon redirects to calibrate_hourly and writes hourly params",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    _hourly_main(argv)
 
 
 __all__ = ["main", "parse_args"]

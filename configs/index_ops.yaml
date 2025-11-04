@@ -1,6 +1,6 @@
-window_noon:
-  start: "11:45"
-  end: "12:00"
+window_hourly:
+  start_offset_min: 15
+  end_at_target: true
   cancel_buffer_seconds: 2
 window_close:
   start: "15:50"

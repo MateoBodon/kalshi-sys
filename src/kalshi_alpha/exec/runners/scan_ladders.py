@@ -103,9 +103,8 @@ DEFAULT_CONTRACTS = 10
 DEFAULT_FILL_ALPHA = 0.6
 
 _POLYGON_FIXTURE_DIR = "polygon_index"
-_WINDOW_NOON = INDEX_OPS_CONFIG.window_noon
+_WINDOW_HOURLY = INDEX_OPS_CONFIG.window_hourly
 _WINDOW_CLOSE = INDEX_OPS_CONFIG.window_close
-_TARGET_NOON = _WINDOW_NOON.end
 _TARGET_CLOSE = _WINDOW_CLOSE.end
 _ET_ZONE = ZoneInfo("America/New_York")
 _U_SERIES = {"INXU", "NASDAQ100U"}
@@ -1633,6 +1632,14 @@ def _format_hour_label(hour: int) -> str:
     return f"H{hour % 24:02d}00"
 
 
+def _default_hourly_target(now_utc: datetime) -> time:
+    now_et = now_utc.astimezone(_ET_ZONE)
+    target_hour = now_et.hour
+    if now_et.minute >= 40:
+        target_hour = (target_hour + 1) % 24
+    return time(target_hour, 0)
+
+
 def _ops_window_for_series(series: str) -> IndexOpsWindow | None:
     try:
         return INDEX_OPS_CONFIG.window_for_series(series)
@@ -1648,17 +1655,33 @@ def _cancel_buffer_seconds(series: str | None = None) -> float:
     return float(_WINDOW_CLOSE.cancel_buffer_seconds)
 
 
-def _ops_window_metadata(series: str, now_utc: datetime) -> dict[str, object]:
+def _ops_window_metadata(series: str, now_utc: datetime, *, target_time: time | None = None) -> dict[str, object]:
     window = _ops_window_for_series(series)
     if window is None:
         return {}
-    now_local = now_utc.astimezone(INDEX_OPS_CONFIG.timezone)
-    start_local = datetime.combine(now_local.date(), window.start, tzinfo=INDEX_OPS_CONFIG.timezone)
-    end_local = datetime.combine(now_local.date(), window.end, tzinfo=INDEX_OPS_CONFIG.timezone)
-    if end_local <= start_local:
-        end_local = end_local + timedelta(days=1)
+    tz = INDEX_OPS_CONFIG.timezone
+    reference = now_utc.astimezone(tz)
+    resolved_target = target_time
+    if resolved_target is None and window.start_offset_minutes is not None:
+        resolved_target = _default_hourly_target(now_utc)
+    try:
+        start_local, end_local = window.bounds_for(
+            reference=reference,
+            target_time=resolved_target,
+            timezone=tz,
+        )
+    except ValueError:
+        # Fall back to default target when offsets are defined but target missing
+        if resolved_target is None:
+            start_local, end_local = window.bounds_for(
+                reference=reference,
+                target_time=_default_hourly_target(now_utc),
+                timezone=tz,
+            )
+        else:
+            raise
     cancel_buffer = float(window.cancel_buffer_seconds)
-    seconds_to_cancel = max((end_local - now_local).total_seconds() - cancel_buffer, 0.0)
+    seconds_to_cancel = max((end_local - reference).total_seconds() - cancel_buffer, 0.0)
     return {
         "ops_window_name": window.name,
         "ops_window_start_et": start_local.isoformat(),
@@ -1678,7 +1701,7 @@ def _u_series_roll_decision(now_utc: datetime) -> dict[str, object]:
     rolled = target_hour != current_hour
     boundary = now_et.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     seconds_to_boundary = max((boundary - now_et).total_seconds(), 0.0)
-    cancel_buffer = float(_WINDOW_NOON.cancel_buffer_seconds)
+    cancel_buffer = float(_WINDOW_HOURLY.cancel_buffer_seconds)
     cancel_required = seconds_to_boundary <= cancel_buffer
     return {
         "current_hour": current_hour,
@@ -1802,16 +1825,16 @@ def scan_series(  # noqa: PLR0913
     events_to_scan = list(events)
     roll_decision: dict[str, object] | None = None
     guardrail_reasons: list[str] = []
-    ops_metadata: dict[str, object] = {}
-    if series_obj is not None:
-        ops_metadata = _ops_window_metadata(series_obj.ticker, now_utc)
+    target_time: time | None = None
     if series_obj.ticker.upper() in _U_SERIES:
         roll_decision = _u_series_roll_decision(now_utc)
         filtered = _filter_u_series_events(events_to_scan, decision=roll_decision)
         if filtered:
             events_to_scan = filtered
         seconds_to_boundary = float(roll_decision.get("seconds_to_boundary", 0.0)) if roll_decision else 0.0
-        target_hour = int(roll_decision.get("target_hour", 0)) if roll_decision else 0
+        default_hourly_target = _default_hourly_target(now_utc)
+        target_hour = int(roll_decision.get("target_hour", default_hourly_target.hour)) if roll_decision else default_hourly_target.hour
+        target_time = time(target_hour % 24, 0)
         current_hour = int(roll_decision.get("current_hour", 0)) if roll_decision else 0
         event_hours = {
             (_parse_hour_label(event.ticker) or (None, None))[0]
@@ -1842,6 +1865,9 @@ def scan_series(  # noqa: PLR0913
         guardrail_reasons = sorted(set(guardrail_reasons))
         if guardrail_reasons:
             events_to_scan = []
+    ops_metadata: dict[str, object] = {}
+    if series_obj is not None:
+        ops_metadata = _ops_window_metadata(series_obj.ticker, now_utc, target_time=target_time)
     rule_validation = _validate_index_rules(series_obj, events_to_scan, rule_config)
     max_legs = max(2, int(max_legs))
     prob_sum_gap_threshold = float(max(prob_sum_gap_threshold, 0.0))
@@ -1901,6 +1927,7 @@ def scan_series(  # noqa: PLR0913
                 model_version=model_version,
                 orderbook_imbalance=orderbook_imbalance,
                 event_timestamp=event_timestamp,
+                target_time=target_time,
             )
             if metadata and not model_metadata:
                 model_metadata = dict(metadata)
@@ -2080,6 +2107,7 @@ def _strategy_pmf_for_series(
     model_version: str = "v15",
     orderbook_imbalance: float | None = None,
     event_timestamp: datetime | None = None,
+    target_time: time | None = None,
 ) -> tuple[list[LadderBinProbability], dict[str, object]]:
     pick = override.lower()
     ticker = series.upper()
@@ -2176,7 +2204,8 @@ def _strategy_pmf_for_series(
         meta = resolve_index_series(ticker)
         snapshot = _load_index_snapshot(meta.polygon_ticker, offline=offline, fixtures_dir=fixtures_dir)
         now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
-        minutes_to_target = _minutes_to_target(now, _TARGET_NOON)
+        hourly_target_time = target_time or _default_hourly_target(now)
+        minutes_to_target = _minutes_to_target(now, hourly_target_time)
         event_tags = calendar_tags_for(now)
         inputs = index_strategy.HourlyInputs(
             series=ticker,
@@ -2192,6 +2221,7 @@ def _strategy_pmf_for_series(
                 "minutes_to_target": minutes_to_target,
                 "snapshot_last_price": snapshot.last_price,
                 "snapshot_timestamp": snapshot.timestamp.isoformat() if snapshot.timestamp else None,
+                "target_time_et": hourly_target_time.isoformat(),
                 "event_tags": event_tags,
             }
         )
@@ -2330,6 +2360,8 @@ def _parse_timestamp(value: object | None) -> datetime | None:  # noqa: PLR0911
 def _minutes_to_target(now_utc: datetime, target: time) -> int:
     now_et = now_utc.astimezone(_ET_ZONE)
     target_dt = datetime.combine(now_et.date(), target, tzinfo=_ET_ZONE)
+    if target_dt <= now_et:
+        target_dt = target_dt + timedelta(days=1)
     delta_minutes = int((target_dt - now_et).total_seconds() // 60)
     return max(delta_minutes, 0)
 
