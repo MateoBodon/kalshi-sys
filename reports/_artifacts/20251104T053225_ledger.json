@@ -1,0 +1,48 @@
+{
+  "summary": {
+    "expected_pnl": 0.18979367784745416,
+    "max_loss": 0.46,
+    "trades": 1
+  },
+  "rows": [
+    {
+      "series": "NASDAQ100",
+      "event": "KXNASDAQ100-25NOV03H1600",
+      "market": "KXNASDAQ100-25NOV03H1600-B15000",
+      "bin": 15000.0,
+      "side": "YES",
+      "price": 0.45,
+      "model_p": 0.6403825906148269,
+      "market_p": 0.45,
+      "delta_p": 0.19038259061482693,
+      "size": 1,
+      "expected_contracts": 1,
+      "expected_fills": 1,
+      "fill_ratio": 1.0,
+      "fill_ratio_observed": 0.5999999999999996,
+      "alpha_target": 0.5999999999999996,
+      "visible_depth": 6.0,
+      "side_depth_total": 10.0,
+      "depth_fraction": 0.6,
+      "best_bid": 0.6,
+      "best_ask": 0.45,
+      "spread": 0.0,
+      "seconds_to_event": -30745.88352,
+      "minutes_to_event": -512.431392,
+      "t_fill_ms": 0.0,
+      "size_partial": 0,
+      "slippage_ticks": 0.05889127673727734,
+      "ev_expected_bps": 1803.8259061482695,
+      "ev_realized_bps": 4212.124898542269,
+      "fees_bps": 0.0,
+      "slippage_mode": "curve",
+      "impact_cap": 0.0005889127673727568,
+      "fees_maker": 0.0,
+      "ev_after_fees": 0.19,
+      "pnl_simulated": 0.19,
+      "timestamp_et": "2025-11-04T00:32:25.896990-05:00",
+      "manifest_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/kalshi/2025-11-04/053225/NASDAQ100/manifest.json",
+      "ledger_schema_version": 2
+    }
+  ]
+}
