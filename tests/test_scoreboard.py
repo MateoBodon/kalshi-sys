@@ -103,6 +103,6 @@ def test_scoreboard_generates_markdown(
     pilot_report = tmp_path / "reports" / "pilot_readiness.md"
     assert pilot_report.exists()
     pilot_text = pilot_report.read_text(encoding="utf-8")
-    assert "Pilot Readiness" in pilot_text
-    assert "| INX" in pilot_text
-    assert "Ready?" in pilot_text
+    assert pilot_text.startswith("# Pilot Readiness")
+    assert "INXU —" in pilot_text
+    assert "Reasons" in pilot_text

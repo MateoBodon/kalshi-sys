@@ -19,12 +19,12 @@ from kalshi_alpha.core.execution.index_models import (
     load_alpha_curve,
     load_slippage_curve,
 )
+from kalshi_alpha.exec import pilot_readiness
 
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 CALIBRATION_PATH = Path("data/proc/calibration_metrics.parquet")
 ALPHA_STATE_PATH = Path("data/proc/state/fill_alpha.json")
 ARTIFACTS_DIR = Path("reports/_artifacts")
-SCORECARD_DIR = ARTIFACTS_DIR / "scorecards"
 LOGGER = logging.getLogger(__name__)
 INDEX_SERIES_ORDER = ["INXU", "NASDAQ100U", "INX", "NASDAQ100"]
 INDEX_SERIES = set(INDEX_SERIES_ORDER)
@@ -108,27 +108,17 @@ def main(argv: list[str] | None = None) -> None:
     windows = {int(max(days, 1)) for days in args.window}
     reports_dir = Path("reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
-    pilot_window = 7
-    pilot_summary: list[dict[str, object]] | None = None
     for window in sorted(windows):
         summary = _build_summary(ledger, calibrations, alpha_state, window)
         output = reports_dir / f"scoreboard_{window}d.md"
         _write_markdown(summary, window, output)
         print(f"[scoreboard] wrote {output}")
-        if window == pilot_window:
-            pilot_summary = summary
-
-    if pilot_summary is None:
-        pilot_summary = _build_summary(ledger, calibrations, alpha_state, pilot_window)
-    pilot_report = _build_pilot_readiness(
-        pilot_summary,
-        ledger,
-        alpha_state,
-        pilot_window,
-        replay_metrics=_load_replay_metrics(),
-    )
     pilot_path = reports_dir / "pilot_readiness.md"
-    _write_pilot_readiness(pilot_report, pilot_path)
+    pilot_readiness.generate_report(
+        ledger_path=LEDGER_PATH,
+        output_path=pilot_path,
+        window_days=pilot_readiness.WINDOW_DAYS_DEFAULT,
+    )
     print(f"[scoreboard] wrote {pilot_path}")
 
 
@@ -409,223 +399,6 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
         lines.append("")
     output.write_text("\n".join(lines), encoding="utf-8")
 
-
-def _load_replay_metrics() -> dict[str, dict[str, float]]:
-    if not SCORECARD_DIR.exists():
-        return {}
-    metrics: dict[str, dict[str, float]] = {}
-    for path in SCORECARD_DIR.glob("*_summary.parquet"):
-        try:
-            frame = pl.read_parquet(path)
-        except Exception as exc:  # pragma: no cover - best-effort logging
-            LOGGER.debug("Failed to load replay metrics from %s: %s", path, exc)
-            continue
-        if frame.is_empty():
-            continue
-        series = path.stem.replace("_summary", "").upper()
-        metrics[series] = {
-            "mean_abs_cdf_delta": float(frame["mean_abs_cdf_delta"].mean()),
-            "max_abs_cdf_delta": float(frame["max_abs_cdf_delta"].max()),
-        }
-    return metrics
-
-
-def _build_pilot_readiness(  # noqa: PLR0915
-    summary: list[dict[str, object]],
-    ledger: pl.DataFrame,
-    alpha_state: dict[str, float],
-    window_days: int,
-    *,
-    replay_metrics: dict[str, dict[str, float]] | None = None,
-) -> dict[str, object]:
-    replay_metrics = replay_metrics or {}
-
-    per_series: list[dict[str, object]] = []
-    total_go = 0
-    total_no_go = 0
-    total_ev = 0.0
-    total_expected = 0.0
-    total_requested = 0.0
-    alpha_weight_sum = 0.0
-    alpha_weight_den = 0.0
-    ready_count = 0
-
-    for row in summary:
-        series = str(row.get("series", "")).upper()
-        if series not in INDEX_SERIES:
-            continue
-        go = int(row.get("go_count", 0) or 0)
-        no_go = int(row.get("no_go_count", 0) or 0)
-        total = go + no_go
-        go_rate = (go / total) if total else None
-        ev = float(row.get("ev_after_fees", 0.0) or 0.0)
-        expected = float(row.get("expected_fills", 0.0) or 0.0)
-        requested = float(row.get("requested_contracts", 0.0) or 0.0)
-        observed_fill = (expected / requested) if requested else row.get("fill_ratio") or 0.0
-        alpha = row.get("avg_alpha")
-        fill_gap = None
-        if isinstance(alpha, (int, float)):
-            fill_gap = observed_fill - float(alpha)
-            if requested > 0:
-                alpha_weight_sum += float(alpha) * requested
-                alpha_weight_den += requested
-
-        replay = replay_metrics.get(series, {})
-        mean_delta = replay.get("mean_abs_cdf_delta")
-        max_delta = replay.get("max_abs_cdf_delta")
-
-        sample_size = int(row.get("sample_size", 0) or 0)
-        realized_bps = float(row.get("ev_realized_bps_mean", 0.0) or 0.0)
-        t_stat = float(row.get("t_stat", 0.0) or 0.0)
-        ready_reasons: list[str] = []
-        ready_flag = True
-        if sample_size < 300:
-            ready_flag = False
-            ready_reasons.append(f"insufficient paper fills ({sample_size}/300)")
-        if realized_bps < 6.0:
-            ready_flag = False
-            ready_reasons.append(f"realized Δbps {realized_bps:.1f} < 6")
-        if t_stat < 2.0:
-            ready_flag = False
-            ready_reasons.append(f"t-stat {t_stat:.2f} < 2")
-        if ready_flag:
-            ready_count += 1
-
-        per_series.append(
-            {
-                "series": series,
-                "go": go,
-                "no_go": no_go,
-                "go_rate": go_rate,
-                "ev_after_fees": ev,
-                "fill_ratio": observed_fill,
-                "alpha": alpha,
-                "fill_gap": fill_gap,
-                "replay_mean": mean_delta,
-                "replay_max": max_delta,
-                "ready": ready_flag,
-                "ready_reasons": ready_reasons,
-                "sample_size": sample_size,
-            }
-        )
-
-        total_go += go
-        total_no_go += no_go
-        total_ev += ev
-        total_expected += expected
-        total_requested += requested
-
-    total_decisions = total_go + total_no_go
-    overall_go_rate = (total_go / total_decisions) if total_decisions else None
-    overall_fill = (total_expected / total_requested) if total_requested else None
-    overall_alpha = (alpha_weight_sum / alpha_weight_den) if alpha_weight_den else None
-    replay_means = [
-        entry["replay_mean"]
-        for entry in per_series
-        if isinstance(entry.get("replay_mean"), (int, float))
-    ]
-    replay_maxes = [
-        entry["replay_max"]
-        for entry in per_series
-        if isinstance(entry.get("replay_max"), (int, float))
-    ]
-    overall_replay_mean = sum(replay_means) / len(replay_means) if replay_means else None
-    overall_replay_max = max(replay_maxes) if replay_maxes else None
-
-    return {
-        "overall": {
-            "go_rate": overall_go_rate,
-            "go": total_go,
-            "no_go": total_no_go,
-            "ev_after_fees": total_ev,
-            "fill_ratio": overall_fill,
-            "alpha": overall_alpha,
-            "replay_mean": overall_replay_mean,
-            "replay_max": overall_replay_max,
-            "ready_series": ready_count,
-            "total_series": len(per_series),
-        },
-        "series": sorted(per_series, key=lambda row: row["series"]),
-    }
-
-
-def _write_pilot_readiness(report: dict[str, object], output: Path) -> None:  # noqa: PLR0915, PLR0912
-    lines: list[str] = ["# Pilot Readiness (last 7 days)", ""]
-    overall = report.get("overall", {})
-    series_rows: list[dict[str, object]] = report.get("series", [])  # type: ignore[assignment]
-
-    if not series_rows:
-        lines.append("_No execution data available in the last 7 days._")
-    else:
-        go_rate = overall.get("go_rate")
-        go_total = overall.get("go", 0)
-        no_go_total = overall.get("no_go", 0)
-        decisions = go_total + no_go_total
-        if isinstance(go_rate, (int, float)) and decisions:
-            lines.append(f"- GO Rate: {go_rate:.1%} ({go_total}/{decisions})")
-        lines.append(f"- EV after fees: {overall.get('ev_after_fees', 0.0):.2f} USD")
-        fill_ratio = overall.get("fill_ratio")
-        alpha = overall.get("alpha")
-        if isinstance(fill_ratio, (int, float)) and isinstance(alpha, (int, float)):
-            lines.append(f"- Fill realism: observed {fill_ratio:.3f} vs α {alpha:.3f}")
-        elif isinstance(fill_ratio, (int, float)):
-            lines.append(f"- Fill realism: observed {fill_ratio:.3f}")
-        replay_mean = overall.get("replay_mean")
-        replay_max = overall.get("replay_max")
-        if isinstance(replay_mean, (int, float)) and isinstance(replay_max, (int, float)):
-            lines.append(f"- Replay mean Δ: {replay_mean:.4f} (max {replay_max:.4f})")
-        lines.append("")
-        header = (
-            "| Series | Ready? | GO Rate | GO/Total | EV after fees | Fill ratio | α | "
-            "Δfill | Replay mean Δ | Replay max Δ |"
-        )
-        lines.append(header)
-        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-        for row in series_rows:
-            go = int(row.get("go", 0))
-            no_go = int(row.get("no_go", 0))
-            total = go + no_go
-            go_rate_row = row.get("go_rate")
-            go_rate_text = f"{go_rate_row:.1%}" if isinstance(go_rate_row, (int, float)) else "n/a"
-            ev_text = f"{row.get('ev_after_fees', 0.0):.2f}"
-            fill_text = f"{row.get('fill_ratio', 0.0):.3f}"
-            alpha = row.get("alpha")
-            alpha_text = f"{alpha:.3f}" if isinstance(alpha, (int, float)) else "n/a"
-            gap = row.get("fill_gap")
-            gap_text = f"{gap:+.3f}" if isinstance(gap, (int, float)) else "n/a"
-            replay_mean = row.get("replay_mean")
-            if isinstance(replay_mean, (int, float)):
-                replay_mean_text = f"{replay_mean:.4f}"
-            else:
-                replay_mean_text = "n/a"
-            replay_max = row.get("replay_max")
-            if isinstance(replay_max, (int, float)):
-                replay_max_text = f"{replay_max:.4f}"
-            else:
-                replay_max_text = "n/a"
-            total_text = f"{go}/{total}" if total else "0/0"
-            series_name = row.get("series", "-")
-            ready_flag = bool(row.get("ready", False))
-            ready_text = "READY" if ready_flag else "NO"
-            row_line = (
-                f"| {series_name} | {ready_text} | {go_rate_text} | {total_text} | {ev_text} | "
-                f"{fill_text} | {alpha_text} | {gap_text} | {replay_mean_text} | "
-                f"{replay_max_text} |"
-            )
-            lines.append(row_line)
-
-        not_ready = [row for row in series_rows if not row.get("ready", False)]
-        if not_ready:
-            lines.append("")
-            lines.append("### Readiness Gaps")
-            for row in not_ready:
-                reasons = row.get("ready_reasons") or []
-                if not reasons:
-                    continue
-                joined = "; ".join(reasons)
-                lines.append(f"- {row.get('series')}: {joined}")
-
-    output.write_text("\n".join(lines), encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import polars as pl
 import pytest
 
 from kalshi_alpha.core.risk import drawdown
+from kalshi_alpha.exec import pilot_readiness
 from kalshi_alpha.exec.reports.ramp import RampPolicyConfig, compute_ramp_policy, write_ramp_outputs
 from kalshi_alpha.exec.runners import scan_ladders
 
@@ -40,6 +41,80 @@ def _write_ok_freshness(monitors_dir: Path, now: datetime) -> Path:
     path = monitors_dir / "freshness.json"
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
+
+
+def test_pilot_readiness_evaluate_filters_index_series() -> None:
+    now = datetime(2025, 11, 4, tzinfo=UTC)
+    series_entries = []
+    for label in pilot_readiness.INDEX_SERIES:
+        for offset, delta in enumerate((8.0, 6.5, 7.5), start=1):
+            series_entries.append(
+                {
+                    "series": label,
+                    "size": 200.0,
+                    "fill_ratio_observed": 0.60,
+                    "alpha_target": 0.58,
+                    "ev_expected_bps": 100.0,
+                    "ev_realized_bps": 100.0 + delta,
+                    "timestamp_et": now - timedelta(days=offset),
+                }
+            )
+    # Extra series should be ignored
+    series_entries.append(
+        {
+            "series": "CPI",
+            "size": 400.0,
+            "fill_ratio_observed": 0.3,
+            "alpha_target": 0.5,
+            "ev_expected_bps": 12.0,
+            "ev_realized_bps": 13.0,
+            "timestamp_et": now - timedelta(days=1),
+        }
+    )
+    ledger = pl.DataFrame(series_entries)
+    results = pilot_readiness.evaluate_readiness(ledger, now=now, window_days=14)
+    assert [entry.series for entry in results] == list(pilot_readiness.INDEX_SERIES)
+    assert all(entry.go for entry in results)
+
+
+def test_pilot_readiness_generate_report(tmp_path: Path) -> None:
+    now = datetime(2025, 11, 4, tzinfo=UTC)
+    ledger_data = []
+    # Construct data that will trigger NO-GO for INX due to low fills
+    for label in pilot_readiness.INDEX_SERIES:
+        size = 50.0 if label == "INX" else 200.0
+        for offset, delta in enumerate((8.0, 7.5, 6.8), start=1):
+            ledger_data.append(
+                {
+                    "series": label,
+                    "size": size,
+                    "fill_ratio_observed": 0.55,
+                    "alpha_target": 0.52,
+                    "ev_expected_bps": 95.0,
+                    "ev_realized_bps": 95.0 + delta,
+                    "timestamp_et": now - timedelta(days=offset),
+                }
+            )
+    ledger = pl.DataFrame(ledger_data)
+    ledger_path = tmp_path / "data" / "proc" / "ledger_all.parquet"
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger.write_parquet(ledger_path)
+
+    report_path = tmp_path / "reports" / "pilot_readiness.md"
+    results = pilot_readiness.generate_report(
+        ledger_path=ledger_path,
+        output_path=report_path,
+        window_days=14,
+        now=now,
+    )
+    assert report_path.exists()
+    assert len(results) == len(pilot_readiness.INDEX_SERIES)
+    by_series = {entry.series: entry for entry in results}
+    assert not by_series["INX"].go
+    assert any("fills" in reason for reason in by_series["INX"].reasons)
+    markdown = report_path.read_text(encoding="utf-8")
+    assert "Pilot Readiness" in markdown
+    assert "INX — NO-GO" in markdown
 
 
 def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
