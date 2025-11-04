@@ -54,8 +54,8 @@ def test_spx_hourly_survival_matches_fixture(
     sample = rows.filter(pl.col("timestamp") == sample_time).row(0, named=True)
     strike = round(float(sample["close"]), 2)
     target_time = datetime.fromisoformat(f"{fixture_name[6:16]}T12:00:00").replace(tzinfo=ET)
-    minutes_to_noon = int((target_time - sample["timestamp"]).total_seconds() // 60)
-    inputs = HourlyInputs(series="INXU", current_price=strike, minutes_to_noon=minutes_to_noon)
+    minutes_to_target = int((target_time - sample["timestamp"]).total_seconds() // 60)
+    inputs = HourlyInputs(series="INXU", current_price=strike, minutes_to_target=minutes_to_target)
     result = evaluate_hourly([strike], [0.5], inputs, contracts=1, min_ev=0.0)
     total_prob = sum(prob.probability for prob in result.pmf)
     assert total_prob == pytest.approx(1.0, abs=1e-6)
@@ -75,15 +75,15 @@ def test_spx_hourly_event_multiplier_applies_only_on_events(
     sample_time = datetime.fromisoformat(f"{_SPX_NOON_FIXTURES[0][6:16]}T11:55:00").replace(tzinfo=ET)
     target_time = datetime.fromisoformat(f"{_SPX_NOON_FIXTURES[0][6:16]}T12:00:00").replace(tzinfo=ET)
     sample = rows.filter(pl.col("timestamp") == sample_time).row(0, named=True)
-    minutes_to_noon = int((target_time - sample_time).total_seconds() // 60)
+    minutes_to_target = int((target_time - sample_time).total_seconds() // 60)
     current_price = float(sample["close"])
     strikes = _strike_grid(current_price, step=50.0)
 
-    baseline_inputs = HourlyInputs(series="INXU", current_price=current_price, minutes_to_noon=minutes_to_noon)
+    baseline_inputs = HourlyInputs(series="INXU", current_price=current_price, minutes_to_target=minutes_to_target)
     event_inputs = HourlyInputs(
         series="INXU",
         current_price=current_price,
-        minutes_to_noon=minutes_to_noon,
+        minutes_to_target=minutes_to_target,
         event_tags=("CPI",),
     )
 

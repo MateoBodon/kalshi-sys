@@ -21,7 +21,7 @@ def test_evaluate_hourly_yields_opportunities(isolated_data_roots: tuple[Path, P
     )
     strikes = [5000.0, 5020.0, 5040.0]
     yes_prices = [0.45, 0.35, 0.25]
-    inputs = HourlyInputs(series="INXU", current_price=5035.0, minutes_to_noon=30)
+    inputs = HourlyInputs(series="INXU", current_price=5035.0, minutes_to_target=30)
     result = evaluate_hourly(strikes, yes_prices, inputs, contracts=1, min_ev=0.0)
     assert result.opportunities
     first = result.opportunities[0]

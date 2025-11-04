@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 from kalshi_alpha.core.pricing import LadderBinProbability
@@ -20,17 +21,62 @@ EVENT_MULTIPLIER_CAP = 1.8
 MIN_EVENT_MULTIPLIER = 1.0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class HourlyInputs:
-    series: str
-    current_price: float
-    minutes_to_noon: int
-    prev_close: float | None = None
-    drift_override: float | None = None
-    sigma_override: float | None = None
-    residual_override: float | None = None
-    event_tags: tuple[str, ...] = ()
-    variance_multiplier_override: float | None = None
+    series: str = field(init=False)
+    current_price: float = field(init=False)
+    minutes_to_target: int = field(init=False)
+    prev_close: float | None = field(init=False, default=None)
+    drift_override: float | None = field(init=False, default=None)
+    sigma_override: float | None = field(init=False, default=None)
+    residual_override: float | None = field(init=False, default=None)
+    event_tags: tuple[str, ...] = field(init=False, default=())
+    variance_multiplier_override: float | None = field(init=False, default=None)
+
+    def __init__(  # noqa: PLR0913
+        self,
+        series: str,
+        current_price: float,
+        *,
+        minutes_to_target: int | None = None,
+        minutes_to_noon: int | None = None,
+        prev_close: float | None = None,
+        drift_override: float | None = None,
+        sigma_override: float | None = None,
+        residual_override: float | None = None,
+        event_tags: Sequence[str] | None = None,
+        variance_multiplier_override: float | None = None,
+    ) -> None:
+        if minutes_to_target is not None and minutes_to_noon is not None:
+            raise TypeError("Specify only one of minutes_to_target or minutes_to_noon")
+        if minutes_to_target is None and minutes_to_noon is None:
+            raise TypeError("minutes_to_target is required")
+        if minutes_to_noon is not None:
+            warnings.warn(
+                "minutes_to_noon is deprecated; use minutes_to_target",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            minutes_to_target = minutes_to_noon
+        object.__setattr__(self, "series", series)
+        object.__setattr__(self, "current_price", current_price)
+        object.__setattr__(self, "minutes_to_target", int(minutes_to_target))
+        object.__setattr__(self, "prev_close", prev_close)
+        object.__setattr__(self, "drift_override", drift_override)
+        object.__setattr__(self, "sigma_override", sigma_override)
+        object.__setattr__(self, "residual_override", residual_override)
+        tags = tuple(tag for tag in (event_tags or ()) if tag is not None)
+        object.__setattr__(self, "event_tags", tags)
+        object.__setattr__(self, "variance_multiplier_override", variance_multiplier_override)
+
+    @property
+    def minutes_to_noon(self) -> int:
+        warnings.warn(
+            "minutes_to_noon is deprecated; use minutes_to_target",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.minutes_to_target
 
 
 def pmf(
@@ -40,7 +86,7 @@ def pmf(
     calibration: SigmaCalibration | None = None,
 ) -> list[LadderBinProbability]:
     meta = _resolve_series(inputs.series)
-    target_minutes = max(int(inputs.minutes_to_noon), 0)
+    target_minutes = max(int(inputs.minutes_to_target), 0)
     calib = calibration or _load_default_calibration(meta)
     sigma = inputs.sigma_override if inputs.sigma_override is not None else calib.sigma(target_minutes)
     residual = inputs.residual_override if inputs.residual_override is not None else calib.residual_std

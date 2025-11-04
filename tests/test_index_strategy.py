@@ -20,7 +20,7 @@ def test_hourly_strategy_uses_calibration(isolated_data_roots: tuple[Path, Path]
     target = proc_root / "calib" / "index" / "spx" / "hourly" / "params.json"
     _copy_calibration(fixture, target)
     strikes = [5000.0, 5020.0, 5040.0]
-    inputs = HourlyInputs(series="INXU", current_price=5035.0, minutes_to_noon=30)
+    inputs = HourlyInputs(series="INXU", current_price=5035.0, minutes_to_target=30)
     pmf = hourly_pmf(strikes, inputs)
     assert len(pmf) == len(strikes) + 1
     probabilities = [bin_prob.probability for bin_prob in pmf]

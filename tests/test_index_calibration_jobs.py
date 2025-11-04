@@ -74,7 +74,7 @@ def test_write_params_emits_json(tmp_path) -> None:
     assert payload["kappa_event"] == pytest.approx(1.0, rel=1e-6)
 
 
-def test_write_params_noon_horizon(tmp_path) -> None:
+def test_write_params_hourly_alias(tmp_path) -> None:
     bars = {"I:SPX": _load_minute_bars(_SPX_NOON_FIXTURE)}
     frame = build_sigma_curve(bars, target_time=time(12, 0), residual_window=5)
     write_hourly_params(frame, tmp_path, horizon="noon")
