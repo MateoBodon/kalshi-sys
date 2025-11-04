@@ -29,6 +29,7 @@ def _fallback_config() -> dict[str, Any]:
         "taker_rate": 0.07,
         "series_half_rate": ["SP500", "SPX", "NASDAQ", "NDX", "NAS100"],
         "half_rate_keywords": ["S&P", "SP500", "SPX", "NASDAQ", "NDX", "NAS100"],
+        "maker_series": ["CLAIMS", "CPI", "TENY", "TNEY", "WEATHER"],
         "series_overrides": [],
     }
 
@@ -66,6 +67,7 @@ def _parse_pdf() -> dict[str, Any]:  # pragma: no cover - exercised manually
         "taker_rate": taker_rate,
         "series_half_rate": ["SP500", "SPX", "NASDAQ", "NDX", "NAS100"],
         "half_rate_keywords": keywords or ["S&P", "SP500", "SPX", "NASDAQ", "NDX", "NAS100"],
+        "maker_series": ["CLAIMS", "CPI", "TENY", "TNEY", "WEATHER"],
         "series_overrides": [],
     }
 

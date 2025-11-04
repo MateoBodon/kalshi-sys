@@ -685,7 +685,20 @@ def run_scan(
     pal_policy_path = Path("configs/pal_policy.yaml")
     if not pal_policy_path.exists():
         pal_policy_path = Path("configs/pal_policy.example.yaml")
-    pal_policy = PALPolicy.from_yaml(pal_policy_path)
+
+    def _load_policy(path: Path) -> PALPolicy:
+        try:
+            return PALPolicy.from_yaml(path, series=series)
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            return PALPolicy.from_yaml(path)
+
+    try:
+        pal_policy = _load_policy(pal_policy_path)
+    except KeyError:
+        example_policy = Path("configs/pal_policy.example.yaml")
+        pal_policy = _load_policy(example_policy)
     pal_guard = PALGuard(pal_policy)
 
     risk_manager: PortfolioRiskManager | None = None

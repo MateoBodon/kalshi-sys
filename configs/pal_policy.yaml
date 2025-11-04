@@ -1,7 +1,19 @@
-# Production PAL policy guardrails for CPI ladder execution.
-series: CPI
-default_max_loss: 3000
-per_strike:
-  CPI-2025-11: 2500
-  CPI-2025-12: 2800
-  CPI-2026-01: 3000
+# PAL (Position and Loss) policy for index ladders.
+# Limits are expressed as maximum USD loss per strike after fees.
+series_policies:
+  INXU:
+    default_max_loss: 1000
+    per_strike:
+      "KXINXU-*": 1000
+  NASDAQ100U:
+    default_max_loss: 1000
+    per_strike:
+      "KXNASDAQ100U-*": 1000
+  INX:
+    default_max_loss: 1200
+    per_strike:
+      "KXINX-*": 1200
+  NASDAQ100:
+    default_max_loss: 1200
+    per_strike:
+      "KXNASDAQ100-*": 1200

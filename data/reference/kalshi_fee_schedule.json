@@ -3,19 +3,34 @@
   "maker_rate": 0.0175,
   "taker_rate": 0.07,
   "series_half_rate": [
+    "INX",
+    "INXU",
+    "NAS100",
+    "NASDAQ",
+    "NASDAQ100",
+    "NASDAQ100U",
     "SP500",
     "SPX",
-    "NASDAQ",
-    "NDX",
-    "NAS100"
+    "NDX"
   ],
   "half_rate_keywords": [
+    "INX",
+    "INXU",
+    "NAS100",
+    "NASDAQ",
+    "NASDAQ100",
+    "NASDAQ100U",
     "S&P",
     "SP500",
     "SPX",
-    "NASDAQ",
-    "NDX",
-    "NAS100"
+    "NDX"
+  ],
+  "maker_series": [
+    "CLAIMS",
+    "CPI",
+    "TENY",
+    "TNEY",
+    "WEATHER"
   ],
   "series_overrides": []
 }

@@ -16,8 +16,8 @@ OUTPUT_DEFAULT_PATH = fees.ROOT / "data" / "proc" / "state" / "fees.json"
 MAKER_PATTERN = re.compile(r"(?i)maker[^0-9]*([0-9]+(?:\.[0-9]+)?)")
 TAKER_PATTERN = re.compile(r"(?i)taker[^0-9]*([0-9]+(?:\.[0-9]+)?)")
 DATE_PATTERN = re.compile(r"(?i)effective[^0-9]*([0-9]{4}-[0-9]{2}-[0-9]{2})")
-SERIES_PATTERN = re.compile(r"(?i)half\s+rate\s+series[:\-]\s*(.+)")
-KEYWORD_PATTERN = re.compile(r"(?i)half\s+rate\s+keywords[:\-]\s*(.+)")
+SERIES_PATTERN = re.compile(r"(?i)half\s+rate\s+series[:\-]\s*([^\r\n)]+)")
+KEYWORD_PATTERN = re.compile(r"(?i)half\s+rate\s+keywords[:\-]\s*([^\r\n)]+)")
 BRACKET_PATTERN = re.compile(
     r"(?m)^\s*\$([0-9,]+)\s*(?:-|to|–)\s*\$?(\+|[0-9,]+)\s*[^0-9%]*([0-9]+(?:\.[0-9]+)?%?)",
     re.IGNORECASE,
@@ -48,7 +48,15 @@ def _extract_list(pattern: re.Pattern[str], text: str) -> list[str]:
         return []
     payload = match.group(1)
     tokens = re.split(r"[,\n]\s*", payload)
-    return [token.strip().upper() for token in tokens if token.strip()]
+    cleaned: list[str] = []
+    for token in tokens:
+        stripped = token.strip()
+        if not stripped:
+            continue
+        normalized = re.sub(r"[^A-Z0-9:_*-]", "", stripped.upper())
+        if normalized:
+            cleaned.append(normalized)
+    return cleaned
 
 
 def _to_amount(value: str) -> int | None:
@@ -111,6 +119,17 @@ def parse_fee_schedule(pdf_path: Path, *, base_config: dict[str, Any] | None = N
     brackets = _parse_brackets(text)
     if brackets:
         config["fee_brackets"] = brackets
+
+    maker_series = config.get("maker_series")
+    if maker_series is None:
+        base_series = (base_config or {}).get("maker_series", [])
+        config["maker_series"] = [str(series).upper() for series in base_series]
+    else:
+        config["maker_series"] = [str(series).upper() for series in maker_series]
+
+    config["series_overrides"] = list(config.get("series_overrides", []))
+    config["series_half_rate"] = [str(series).upper() for series in config.get("series_half_rate", [])]
+    config["half_rate_keywords"] = [str(keyword).upper() for keyword in config.get("half_rate_keywords", [])]
 
     return config
 

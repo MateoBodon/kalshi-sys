@@ -809,7 +809,22 @@ def _build_pal_guard(args: argparse.Namespace) -> PALGuard:
     policy_path = Path(pal_policy_arg) if pal_policy_arg else Path("configs/pal_policy.yaml")
     if not policy_path.exists():
         policy_path = Path("configs/pal_policy.example.yaml")
-    policy = PALPolicy.from_yaml(policy_path)
+    series_hint = getattr(args, "series", None)
+    normalized_series = series_hint.upper() if isinstance(series_hint, str) else None
+
+    def _load_policy(path: Path) -> PALPolicy:
+        try:
+            return PALPolicy.from_yaml(path, series=normalized_series)
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            return PALPolicy.from_yaml(path)
+
+    try:
+        policy = _load_policy(policy_path)
+    except KeyError:
+        fallback = Path("configs/pal_policy.example.yaml")
+        policy = _load_policy(fallback)
     max_loss_per_strike = getattr(args, "max_loss_per_strike", None)
     if max_loss_per_strike is not None:
         policy = PALPolicy(

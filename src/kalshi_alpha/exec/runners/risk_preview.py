@@ -46,7 +46,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"[risk_preview] mode={args.mode} date={target_date.isoformat()} series={series}")
 
     portfolio_config = _load_portfolio_config(args.portfolio_config)
-    pal_policy = _load_pal_policy(args.pal_policy)
+    pal_policy = _load_pal_policy(args.pal_policy, series)
     ledger = _load_ledger(args.ledger, series)
 
     factor_exposures, per_strike_loss, net_brackets = _compute_exposures(ledger, portfolio_config, series)
@@ -93,12 +93,23 @@ def _load_portfolio_config(path: Path) -> PortfolioConfig | None:
     return None
 
 
-def _load_pal_policy(path: Path) -> PALPolicy | None:
+def _load_pal_policy(path: Path, series: str) -> PALPolicy | None:
+    def _load_policy(policy_path: Path) -> PALPolicy | None:
+        try:
+            return PALPolicy.from_yaml(policy_path, series=series)
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            return PALPolicy.from_yaml(policy_path)
+
     if path.exists():
-        return PALPolicy.from_yaml(path)
+        try:
+            return _load_policy(path)
+        except KeyError:
+            pass
     example = path.with_suffix(".example.yaml")
     if example.exists():
-        return PALPolicy.from_yaml(example)
+        return _load_policy(example)
     return None
 
 

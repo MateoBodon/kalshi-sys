@@ -6,6 +6,7 @@ import math
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
 
 import yaml
@@ -23,18 +24,55 @@ class PALPolicy:
     per_strike: Mapping[str, float] = field(default_factory=dict)
 
     @classmethod
-    def from_yaml(cls, path: Path) -> PALPolicy:
+    def from_yaml(cls, path: Path, *, series: str | None = None) -> PALPolicy:
         with path.open("r", encoding="utf-8") as handle:
-            payload = yaml.safe_load(handle)
-        series = str(payload["series"])
-        default_max_loss = float(payload["default_max_loss"])
-        per_strike = {
-            str(key): float(value) for key, value in (payload.get("per_strike") or {}).items()
-        }
-        return cls(series=series, default_max_loss=default_max_loss, per_strike=per_strike)
+            payload = yaml.safe_load(handle) or {}
+
+        if not isinstance(payload, Mapping):
+            raise ValueError("PAL policy configuration must be a mapping.")
+
+        inline_series = payload.get("series")
+        if isinstance(inline_series, str):
+            default_max_loss = float(payload["default_max_loss"])
+            per_strike = {
+                str(key).upper(): float(value) for key, value in (payload.get("per_strike") or {}).items()
+            }
+            return cls(
+                series=inline_series.upper(),
+                default_max_loss=default_max_loss,
+                per_strike=per_strike,
+            )
+
+        series_map = payload.get("series_policies")
+        if isinstance(series_map, Mapping):
+            if series is None:
+                raise ValueError("series must be provided when loading a multi-series PAL policy.")
+            normalized = series.upper()
+            normalized_map = {
+                str(key).upper(): value for key, value in series_map.items()
+            }
+            entry = normalized_map.get(normalized)
+            if not isinstance(entry, Mapping):
+                available = ", ".join(sorted(normalized_map))
+                raise KeyError(f"PAL policy missing configuration for {normalized}; available: {available}")
+            default_max_loss = float(entry["default_max_loss"])
+            per_strike = {
+                str(key).upper(): float(value) for key, value in (entry.get("per_strike") or {}).items()
+            }
+            return cls(series=normalized, default_max_loss=default_max_loss, per_strike=per_strike)
+
+        raise ValueError("Unsupported PAL policy format; expected 'series' or 'series_policies'.")
 
     def limit_for_strike(self, strike_id: str) -> float:
-        return self.per_strike.get(strike_id, self.default_max_loss)
+        strike_upper = strike_id.upper()
+        if strike_upper in self.per_strike:
+            return self.per_strike[strike_upper]
+        for pattern, limit in self.per_strike.items():
+            if pattern == strike_upper:
+                return limit
+            if ("*" in pattern or "?" in pattern) and fnmatch(strike_upper, pattern):
+                return limit
+        return self.default_max_loss
 
 
 @dataclass(frozen=True)

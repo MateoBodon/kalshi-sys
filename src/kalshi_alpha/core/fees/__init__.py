@@ -70,6 +70,11 @@ class FeeSchedule:
 
         self.series_half_rate = tuple(str(series).upper() for series in data.get("series_half_rate", []))
         self.half_rate_keywords = tuple(str(keyword).upper() for keyword in data.get("half_rate_keywords", []))
+        maker_series_config = data.get("maker_series")
+        if maker_series_config is None:
+            self.maker_enabled_series: frozenset[str] | None = None
+        else:
+            self.maker_enabled_series = frozenset(str(series).upper() for series in maker_series_config)
 
         overrides: dict[str, dict[str, Any]] = {}
         for entry in data.get("series_overrides", []):
@@ -152,6 +157,8 @@ class FeeSchedule:
             half_rate=half_rate,
             rate_key=rate_key,
         )
+        if rate == 0:
+            return Decimal("0.00")
 
         curve = None
         series_key = series.upper() if isinstance(series, str) else None
@@ -176,6 +183,11 @@ class FeeSchedule:
     ) -> Decimal:
         rate = base_rate
         series_key = series.upper() if isinstance(series, str) else None
+
+        if rate_key == "maker_rate":
+            maker_enabled = self.maker_enabled_series
+            if maker_enabled is not None and series_key is not None and series_key not in maker_enabled:
+                return Decimal("0")
 
         if series_key and series_key in self.series_overrides:
             override = self.series_overrides[series_key]
