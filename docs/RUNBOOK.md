@@ -160,10 +160,10 @@ Pipeline steps per run:
 ## Index Ladder Ops Checklist (SPX/NDX)
 - Scope: intraday noon (`INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only, 1-lot sizing, ≤2 bins per market. Runs remain DRY/paper until pilot promotion.
 - Secrets: Polygon API key loads from macOS Keychain `kalshi-sys:POLYGON_API_KEY`; fallback env `POLYGON_API_KEY` (CI only). Never commit keys.
-- Windows & cancel timers (single source of truth):
-  - Noon ladders quote **11:45:00–11:57:58 ET**; cancel/replace all resting quotes by **11:59:58 ET (T−2 s)**.
-  - Close ladders quote **15:50:00–15:57:58 ET**; cancel/replace all resting quotes by **15:59:58 ET (T−2 s)**.
-  - Any proposal emitted outside these windows is treated as operator error; scanners enforce the window guards.
+- Windows & cancel timers (single source of truth: `configs/index_ops.yaml`):
+  - Noon ladders quote **11:45:00–12:00:00 ET**; cancel/replace all resting quotes by **11:59:58 ET (T−2 s)** per cancel buffer.
+  - Close ladders quote **15:50:00–16:00:00 ET**; cancel/replace all resting quotes by **15:59:58 ET (T−2 s)**.
+  - Scanners and microlive load the same config; any proposal outside the window is operator error and must be cancelled immediately.
 - Fixtures: `scripts/make_index_fixtures.sh` wraps `scripts/polygon_dump.py` to capture Polygon minute bars for `I:SPX`/`I:NDX` over 11:45–12:00 ET and 15:50–16:00 ET windows. Generated Parquets + metadata live under `tests/data_fixtures/index/` and back the math/scanner tests.
 - Calibrations (refresh ≤14 days):
   ```bash
@@ -177,13 +177,13 @@ Pipeline steps per run:
   3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, and EV after fees.
 - U-series rotation: scans at :40/:55 discover the **next** hour market and emit `[u-roll] ROLLED U-SERIES: HHHMM -> HHHMM`. When the boundary is within two seconds, the runner marks cancel-all before replaying proposals.
 - Fees: maker fees are waived (`0.00`) for `INX*`/`NASDAQ100*`; taker half-rate remains `0.035 × contracts × price × (1 − price)` (rounded up). EV honesty, ledger, and proposal math use these series-specific curves.
-- Freshness & clocks: rely on `reports/_artifacts/monitors/freshness.json` as the canonical gate. Abort when Polygon websocket heartbeat age >2 s, minute aggregates age >30 s (noon) or >20 s (close), or ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` surface in GO/NO-GO artifacts.
+- Freshness & clocks (gated by `reports/_artifacts/monitors/freshness.json`): abort when Polygon websocket heartbeat age >2 s, minute aggregates age >30 s (noon) or >20 s (close), or ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` surface in GO/NO-GO artifacts.
 - Execution metrics: reports include a `Fill & Slippage` section (mean fill ratio, α target, slippage ticks/USD, EV bps). Defaults seed from `data/reference/index_execution_defaults.json` until the ledger-based stores (`data/proc/state/fill_alpha.json`, `data/proc/state/slippage.json`) are populated.
-- First-fill checklist:
+- First-fill checklist (paper → live ramp):
   1. Immediately after the first live fill, run `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30` to refresh fill counts and EV deltas.
   2. Inspect the newest `reports/_artifacts/*_ledger.json` record for `fills_live`, `max_loss`, and fee lines; archive the JSON alongside operations notes.
-  3. Regenerate `python -m kalshi_alpha.exec.pilot_readiness --window 14` and confirm the readiness table reflects the new fill (Δbps ≥6, fills ≥1).
-  4. Update the team logbook with timestamp, series, strike, side, and broker confirmation ID.
+  3. Regenerate `python -m kalshi_alpha.exec.pilot_readiness --window 14` and confirm the readiness table reflects the new fill (Δbps ≥6, fills ≥1, freshness OK).
+  4. Update the team logbook with timestamp, series, strike, side, broker confirmation ID, and monitor snapshot link.
 - Post-run: archive proposals under `exec/proposals/index_*`, keep paper ledger CSV/JSON, regenerate readiness via `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`.
 
 ### First Microlive Clip

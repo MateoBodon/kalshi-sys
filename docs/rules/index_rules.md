@@ -52,6 +52,9 @@ The exchange-wide **position limit** is **$7,000,000 notional** per member acros
 | INX | SPX closing level (16:00:00 ET) | First official SPX close on/before 16:00:00 | Latest official print before 17:00; disruption policy otherwise | S&P Dow Jones Indices |
 | NASDAQ100 | NDX closing level (16:00:00 ET) | First official NDX close on/before 16:00:00 | Latest official print before 17:00; disruption policy otherwise | Nasdaq |
 
+> “On/before 12:00 p.m. (ET); if no print at timestamp, use most recent prior.” — Kalshi Index Ladder Rules (Noon ladders, Oct 1 2025)
+> “On/before 4:00 p.m. (ET); if no print at timestamp, use most recent prior.” — Kalshi Index Ladder Rules (Close ladders, Oct 1 2025)
+
 - **Disruption policy:** Mirrors Kalshi’s standard ladder procedures—Kalshi may postpone settlement, seek third-party confirmation, or void if the primary source fails to publish.
 - **Corrections:** Same-day official index corrections prior to 17:00 ET supersede preliminary prints.
 - **On/before guidance:** If the exact 12:00:00 ET or 16:00:00 ET print is absent, settlement uses the most recent prior official index value disseminated before the timestamp. <!-- Source: Kalshi Index Ladder Rules (Oct 1 2025), §2 -->
