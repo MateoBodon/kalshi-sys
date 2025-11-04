@@ -171,12 +171,13 @@ Pipeline steps per run:
   python -m jobs.calibrate_close  --series INX  NASDAQ100   --days 55
   ```
   Outputs land in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (legacy `noon` directories remain read-only); raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
+- Quality gates: pass `--quality-gates-config configs/quality_gates.index.yaml` to every scanner and microlive run. The index-only gates enforce Polygon websocket freshness (`max_age_seconds=2`) while ignoring stale macro feeds; treat `polygon_ws_stale` as a hard NO-GO and cancel all orders by the T−2 s buffer baked into `configs/index_ops.yaml`.
 - Pre-flight:
  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (hourly) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.
-  2. Confirm calibration parquet mtimes ≤14 days.
-  3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, and EV after fees.
+ 2. Confirm calibration parquet mtimes ≤14 days.
+  3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report --quality-gates-config configs/quality_gates.index.yaml`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, EV after fees, and confirm GO/NO-GO reasons exclude `polygon_ws_stale`.
 - U-series rotation: scans at :40/:55 discover the **next** hour market and emit `[u-roll] ROLLED U-SERIES: HHHMM -> HHHMM`. When the boundary is within two seconds, the runner marks cancel-all before replaying proposals.
-- Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)` (see [`docs/kalshi-fee-schedule.pdf`](kalshi-fee-schedule.pdf) for the underlying Polygon-derived curve). EV honesty, ledger, and proposal math use these series-specific curves.
+- Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)` (see [`docs/kalshi-fee-schedule.pdf`](kalshi-fee-schedule.pdf) for the underlying Polygon-derived curve). EV_after_fees, Δbps, and ledger golden rows must reflect these series-specific curves.
 - Target logging: scanner and microlive monitors now emit `ops_timezone=America/New_York`, `ops_target_et`, `ops_target_unix`, and `data_timestamp_used` so operators can confirm DST alignment. When the `'on/before'` fallback from the index rules applies, `ops_target_fallback` is recorded as `"on_before"` and should be cited in the ops log.
 - Freshness & clocks (gated by `reports/_artifacts/monitors/freshness.json`): abort when Polygon websocket heartbeat age >2 s, minute aggregates age >30 s (hourly) or >20 s (close), or ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` surface in GO/NO-GO artifacts.
 - Execution metrics: reports include a `Fill & Slippage` section (mean fill ratio, α target, slippage ticks/USD, EV bps). Defaults seed from `data/reference/index_execution_defaults.json` until the ledger-based stores (`data/proc/state/fill_alpha.json`, `data/proc/state/slippage.json`) are populated.
@@ -188,7 +189,7 @@ Pipeline steps per run:
 - Post-run: archive proposals under `exec/proposals/index_*`, keep paper ledger CSV/JSON, regenerate readiness via `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`.
 
 ### First Microlive Clip
-1. Run the offline pipeline with `--report --paper-ledger`; confirm the markdown summarizes GO with clean EV honesty metrics.
+1. Run the offline pipeline with `--report --paper-ledger` (add `--quality-gates-config configs/quality_gates.index.yaml` when prepping index microlive); confirm the markdown summarizes GO with clean EV honesty metrics and no `polygon_ws_stale` reason.
 2. Execute `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30` and review trend/fill stats for TNEY.
 3. Launch `python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<today>` for at least five minutes; ensure imbalance JSON updates and no websocket drops are logged.
 4. Validate monitors: `python -m kalshi_alpha.exec.monitors.cli --series TNEY` (or `make monitors`) should return all green; heartbeat file `data/proc/state/heartbeat.json` must be <5 min old.
