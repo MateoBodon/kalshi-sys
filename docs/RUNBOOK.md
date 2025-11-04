@@ -176,7 +176,8 @@ Pipeline steps per run:
   2. Confirm calibration parquet mtimes ≤14 days.
   3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, and EV after fees.
 - U-series rotation: scans at :40/:55 discover the **next** hour market and emit `[u-roll] ROLLED U-SERIES: HHHMM -> HHHMM`. When the boundary is within two seconds, the runner marks cancel-all before replaying proposals.
-- Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)`. EV honesty, ledger, and proposal math use these series-specific curves.
+- Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)` (see [`docs/kalshi-fee-schedule.pdf`](kalshi-fee-schedule.pdf) for the underlying Polygon-derived curve). EV honesty, ledger, and proposal math use these series-specific curves.
+- Target logging: scanner and microlive monitors now emit `ops_timezone=America/New_York`, `ops_target_et`, `ops_target_unix`, and `data_timestamp_used` so operators can confirm DST alignment. When the `'on/before'` fallback from the index rules applies, `ops_target_fallback` is recorded as `"on_before"` and should be cited in the ops log.
 - Freshness & clocks (gated by `reports/_artifacts/monitors/freshness.json`): abort when Polygon websocket heartbeat age >2 s, minute aggregates age >30 s (hourly) or >20 s (close), or ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` surface in GO/NO-GO artifacts.
 - Execution metrics: reports include a `Fill & Slippage` section (mean fill ratio, α target, slippage ticks/USD, EV bps). Defaults seed from `data/reference/index_execution_defaults.json` until the ledger-based stores (`data/proc/state/fill_alpha.json`, `data/proc/state/slippage.json`) are populated.
 - First-fill checklist (paper → live ramp):
