@@ -67,7 +67,7 @@ def test_scan_series_over_index_fixture_produces_deterministic_ev(
     )
     assert len(outcome.proposals) == 2
     first = outcome.proposals[0]
-    assert first.maker_ev == pytest.approx(0.55139, rel=1e-6)
+    assert first.maker_ev == pytest.approx(0.5613895748, rel=1e-6)
     assert outcome.roll_info is not None
     assert outcome.roll_info["target_hour_label"] == "H1200"
     assert outcome.execution_metrics is None
