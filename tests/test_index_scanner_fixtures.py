@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+import polars as pl
 
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy
@@ -35,6 +36,13 @@ def _copy_calibration(src: Path, proc_root: Path, symbol: str, horizon: str) -> 
     dest = proc_root / "calib" / "index" / symbol / horizon / "params.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(src.read_bytes())
+
+
+def _write_polygon_snapshot(proc_root: Path, snapshot_ts: datetime) -> None:
+    target_dir = proc_root / "polygon_index"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    frame = pl.DataFrame({"snapshot_ts": [snapshot_ts]})
+    frame.write_parquet(target_dir / "snapshot.parquet")
 
 
 def test_scan_series_over_index_fixture_produces_deterministic_ev(
@@ -83,17 +91,11 @@ def test_stale_freshness_blocks_execution(
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
     _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
-    quality_example = Path("configs/quality_gates.example.yaml").resolve()
-    configs_dir = tmp_path / "configs"
-    configs_dir.mkdir(parents=True, exist_ok=True)
-    gate_config_path = configs_dir / "quality_gates.example.yaml"
-    gate_config_path.write_text(
-        quality_example.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    gate_config_path = Path("configs/quality_gates.index.yaml").resolve()
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
     monitors_dir = artifacts_dir / "monitors"
@@ -134,6 +136,8 @@ def test_stale_freshness_blocks_execution(
             "--contracts",
             "1",
             "--maker-only",
+            "--quality-gates-config",
+            str(gate_config_path),
             "--pal-policy",
             str(pal_policy_path),
         ]
@@ -158,6 +162,89 @@ def test_stale_freshness_blocks_execution(
     assert cancel_entry.get("reason") == "quality_gate_no_go"
 
 
+def test_macro_stale_allows_execution_with_index_gates(
+    fixtures_root: Path,
+    isolated_data_roots: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, proc_root = isolated_data_roots
+    _configure_index_calibration(proc_root)
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
+
+    fixtures_path = fixtures_root.resolve()
+    pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
+    gate_config_path = Path("configs/quality_gates.index.yaml").resolve()
+
+    artifacts_dir = tmp_path / "reports" / "_artifacts"
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
+    freshness_payload = {
+        "name": "data_freshness",
+        "status": "ALERT",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": ["macro_calendar.latest"],
+            "feeds": [
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 0.5,
+                    "reason": None,
+                    "details": {"threshold_seconds": 2.0},
+                },
+                {
+                    "id": "macro_calendar.latest",
+                    "label": "Macro calendar",
+                    "required": False,
+                    "ok": False,
+                    "age_minutes": 45.0,
+                    "reason": "STALE>10m",
+                },
+            ],
+        },
+    }
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    scan_ladders.main(
+        [
+            "--series",
+            "INXU",
+            "--fixtures-root",
+            str(fixtures_path),
+            "--offline",
+            "--min-ev",
+            "0.0",
+            "--contracts",
+            "1",
+            "--maker-only",
+            "--quality-gates-config",
+            str(gate_config_path),
+            "--pal-policy",
+            str(pal_policy_path),
+        ]
+    )
+
+    go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
+    assert go_artifact["go"] is True
+    reasons = go_artifact.get("reasons", [])
+    assert "STALE_FEEDS" not in reasons
+    assert "polygon_ws_stale" not in reasons
+
+    proposals_dir = tmp_path / "exec" / "proposals" / "INXU"
+    proposal_files = sorted(proposals_dir.glob("*.json"))
+    assert proposal_files, "expected proposals artifact"
+    proposals_payload = json.loads(proposal_files[-1].read_text(encoding="utf-8"))
+    proposals = proposals_payload.get("proposals") or []
+    assert proposals, "expected proposals when macro feeds are stale but polygon OK"
+
+
 def test_clock_skew_blocks_execution(
     fixtures_root: Path,
     isolated_data_roots: tuple[Path, Path],
@@ -167,6 +254,7 @@ def test_clock_skew_blocks_execution(
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
     _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
@@ -239,6 +327,7 @@ def test_index_rule_mismatch_forces_no_go(
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
     _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
