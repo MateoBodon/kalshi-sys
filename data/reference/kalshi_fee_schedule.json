@@ -5,25 +5,12 @@
   "series_half_rate": [
     "INX",
     "INXU",
-    "NAS100",
-    "NASDAQ",
     "NASDAQ100",
-    "NASDAQ100U",
-    "SP500",
-    "SPX",
-    "NDX"
+    "NASDAQ100U"
   ],
   "half_rate_keywords": [
     "INX",
-    "INXU",
-    "NAS100",
-    "NASDAQ",
-    "NASDAQ100",
-    "NASDAQ100U",
-    "S&P",
-    "SP500",
-    "SPX",
-    "NDX"
+    "NASDAQ100"
   ],
   "maker_series": [
     "CLAIMS",
@@ -32,5 +19,26 @@
     "TNEY",
     "WEATHER"
   ],
-  "series_overrides": []
+  "series_overrides": [
+    {
+      "series": "INX",
+      "maker_rate": 0.0,
+      "taker_rate": 0.035
+    },
+    {
+      "series": "INXU",
+      "maker_rate": 0.0,
+      "taker_rate": 0.035
+    },
+    {
+      "series": "NASDAQ100",
+      "maker_rate": 0.0,
+      "taker_rate": 0.035
+    },
+    {
+      "series": "NASDAQ100U",
+      "maker_rate": 0.0,
+      "taker_rate": 0.035
+    }
+  ]
 }

@@ -15,6 +15,8 @@ getcontext().prec = 16
 
 CENT = Decimal("0.01")
 ONE = Decimal("1")
+INDEX_PREFIXES = ("INX", "NASDAQ100")
+INDEX_TAKER_RATE = Decimal("0.035")
 
 ROOT = Path(__file__).resolve().parents[4]
 FEE_CONFIG_PATH = ROOT / "data" / "reference" / "kalshi_fee_schedule.json"
@@ -183,6 +185,15 @@ class FeeSchedule:
     ) -> Decimal:
         rate = base_rate
         series_key = series.upper() if isinstance(series, str) else None
+
+        if series_key:
+            for prefix in INDEX_PREFIXES:
+                if series_key.startswith(prefix):
+                    if rate_key == "maker_rate":
+                        return Decimal("0")
+                    if rate_key == "taker_rate":
+                        return INDEX_TAKER_RATE
+                    break
 
         if rate_key == "maker_rate":
             maker_enabled = self.maker_enabled_series
