@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Sequence
 
+from kalshi_alpha.config import load_index_ops_config
 from kalshi_alpha.core.execution.fillratio import tune_alpha
 from kalshi_alpha.core.execution.slippage import fit_slippage
 from kalshi_alpha.core.execution.series_utils import canonical_series_family
 from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.exec import scoreboard
 from kalshi_alpha.exec.runners import scan_ladders
+
+INDEX_OPS_CONFIG = load_index_ops_config()
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -60,6 +63,27 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
     return scan_args
 
 
+def _log_ops_window(series: str, *, reference: datetime | None, quiet: bool) -> None:
+    if quiet:
+        return
+    try:
+        window = INDEX_OPS_CONFIG.window_for_series(series)
+    except KeyError:
+        return
+    base = reference if reference is not None else datetime.now(tz=UTC)
+    local = base.astimezone(INDEX_OPS_CONFIG.timezone)
+    start_local = datetime.combine(local.date(), window.start, tzinfo=INDEX_OPS_CONFIG.timezone)
+    end_local = datetime.combine(local.date(), window.end, tzinfo=INDEX_OPS_CONFIG.timezone)
+    if end_local <= start_local:
+        end_local += timedelta(days=1)
+    cancel_by = end_local - timedelta(seconds=INDEX_OPS_CONFIG.cancel_buffer_seconds)
+    print(
+        "[microlive] ops window "
+        f"{window.name}: {start_local.isoformat()} -> {end_local.isoformat()} "
+        f"(cancel by {cancel_by.isoformat()}, buffer={INDEX_OPS_CONFIG.cancel_buffer_seconds:.0f}s)"
+    )
+
+
 def _refit_execution_curves(series: str) -> None:
     family = canonical_series_family(series)
     tuned_alpha = tune_alpha(family, RAW_ROOT / "kalshi")
@@ -83,6 +107,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         except ValueError:
             raise SystemExit("--now must be ISO-8601 format, e.g. 2025-11-04T15:20:00+00:00")
     print(f"[microlive] starting scan_ladders with args: {' '.join(scan_args)}")
+    _log_ops_window(args.series.upper(), reference=timestamp, quiet=args.quiet)
     scan_ladders.main(scan_args)
     _refit_execution_curves(args.series)
     if args.regenerate_scoreboard:

@@ -6,6 +6,7 @@ import argparse
 import csv
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -26,6 +27,8 @@ DEFAULT_CONTRACTS = 1
 DEFAULT_KELLY_CAP = 0.25
 DEFAULT_OUTPUT_ROOT = Path("reports/index_ladders")
 MIN_ALPHA_FALLBACK = 0.4
+PAL_POLICY_PATH = Path("configs/pal_policy.yaml")
+PAL_POLICY_FALLBACK_PATH = Path("configs/pal_policy.example.yaml")
 
 
 @dataclass(frozen=True)
@@ -65,8 +68,18 @@ def _build_client(fixtures_root: Path, *, offline: bool) -> KalshiPublicClient:
     return KalshiPublicClient(offline_dir=fixtures, use_offline=offline)
 
 
+@lru_cache(maxsize=16)
+def _load_pal_policy(series: str) -> PALPolicy:
+    normalized = series.upper()
+    config_path = PAL_POLICY_PATH if PAL_POLICY_PATH.exists() else PAL_POLICY_FALLBACK_PATH
+    try:
+        return PALPolicy.from_yaml(config_path, series=normalized)
+    except KeyError:
+        return PALPolicy.from_yaml(PAL_POLICY_FALLBACK_PATH, series=normalized)
+
+
 def _pal_guard(series: str) -> PALGuard:
-    policy = PALPolicy(series=series.upper(), default_max_loss=1_000_000.0)
+    policy = _load_pal_policy(series)
     return PALGuard(policy)
 
 

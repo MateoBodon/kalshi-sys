@@ -1,0 +1,15 @@
+timezone: America/New_York
+cancel_buffer_seconds: 2
+windows:
+  - name: noon
+    start: "11:45"
+    end: "12:00"
+    series:
+      - INXU
+      - NASDAQ100U
+  - name: close
+    start: "15:50"
+    end: "16:00"
+    series:
+      - INX
+      - NASDAQ100
