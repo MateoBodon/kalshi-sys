@@ -105,7 +105,7 @@ def test_fill_realism_gate_triggers_no_go(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(
         daily.PALPolicy,
         "from_yaml",
-        classmethod(lambda cls, path: cls(series="TNEY", default_max_loss=1000.0)),
+        classmethod(lambda cls, path, **_: cls(series="TNEY", default_max_loss=1000.0)),
     )
 
     args = Namespace(

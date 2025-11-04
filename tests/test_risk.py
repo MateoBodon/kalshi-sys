@@ -40,3 +40,8 @@ def test_pal_guard_limit_enforcement() -> None:
     assert not guard.can_accept(large_order)
     with pytest.raises(ValueError):
         guard.register(large_order)
+
+
+def test_pal_policy_wildcard_limits() -> None:
+    policy = PALPolicy(series="INXU", default_max_loss=2000.0, per_strike={"KXINXU-*": 1000.0})
+    assert policy.limit_for_strike("KXINXU-25NOV03H1200-T5000:5000") == 1000.0

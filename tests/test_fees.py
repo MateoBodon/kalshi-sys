@@ -6,6 +6,7 @@ import pytest
 
 import kalshi_alpha.core.fees as fees_module
 from kalshi_alpha.core.fees import FeeSchedule, maker_fee, round_up_to_cent, taker_fee
+from kalshi_alpha.dev.parse_fees import parse_fee_schedule
 
 
 def _raw_fee(rate: Decimal, contracts: int, price: float) -> Decimal:
@@ -40,6 +41,7 @@ def test_series_override_rates() -> None:
         "series_overrides": [
             {"series": "TNEY", "maker_rate": 0.0125, "taker_rate": 0.05},
         ],
+        "maker_series": ["TNEY"],
     }
     schedule = FeeSchedule(config=config)
     maker_fee_value = schedule.maker_fee(50, 0.45, series="TNEY")
@@ -57,6 +59,7 @@ def test_series_override_half_rate() -> None:
         "series_overrides": [
             {"series": "CPI", "half_rate": True},
         ],
+        "maker_series": ["CPI"],
     }
     schedule = FeeSchedule(config=config)
     baseline = schedule.taker_fee(100, 0.4, series="SP500")
@@ -100,6 +103,7 @@ def test_fee_schedule_uses_override(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         "taker_rate": 0.06,
         "series_half_rate": ["TNEY"],
         "half_rate_keywords": ["TNEY"],
+        "maker_series": ["TNEY"],
         "series_overrides": [],
         "fee_brackets": [
             {"lower": 0, "upper": 100000, "rate": 0.05},
@@ -114,3 +118,35 @@ def test_fee_schedule_uses_override(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert schedule.fee_brackets
     assert schedule.fee_brackets[0]["rate"] == 0.05
     fees_module._load_fee_config.cache_clear()
+
+
+def test_index_series_maker_zero() -> None:
+    schedule = FeeSchedule()
+    taker = taker_fee(100, 0.50, series="INXU", schedule=schedule)
+    maker = maker_fee(100, 0.50, series="INXU", schedule=schedule)
+    assert taker == Decimal("0.88")
+    assert maker == Decimal("0.00")
+
+
+def test_fee_parser_emits_required_fields(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "kalshi-fee-schedule.pdf"
+    pdf_path.write_bytes(b"")
+    base_config = {
+        "effective_date": "2025-10-01",
+        "maker_rate": 0.0175,
+        "taker_rate": 0.07,
+        "series_half_rate": ["CPI"],
+        "half_rate_keywords": ["CPI"],
+        "maker_series": ["CPI"],
+        "series_overrides": [],
+    }
+    config = parse_fee_schedule(pdf_path, base_config=base_config)
+    for key in (
+        "maker_rate",
+        "taker_rate",
+        "series_half_rate",
+        "half_rate_keywords",
+        "maker_series",
+        "series_overrides",
+    ):
+        assert key in config

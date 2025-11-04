@@ -10,15 +10,20 @@ CONFIG_ROOT = Path("configs")
 
 
 def test_pal_policy_limits_are_capped() -> None:
-    policy = PALPolicy.from_yaml(CONFIG_ROOT / "pal_policy.yaml")
-    assert policy.default_max_loss <= 3000
-    baseline_limits = {
-        "CPI-2025-11": 2500,
-        "CPI-2025-12": 2800,
-        "CPI-2026-01": 3000,
+    caps = {
+        "INXU": 1000,
+        "NASDAQ100U": 1000,
+        "INX": 1200,
+        "NASDAQ100": 1200,
     }
-    for strike, maximum in baseline_limits.items():
-        assert policy.limit_for_strike(strike) <= maximum
+    policy_path = CONFIG_ROOT / "pal_policy.yaml"
+    for series, cap in caps.items():
+        policy = PALPolicy.from_yaml(policy_path, series=series)
+        assert policy.default_max_loss <= cap
+        for limit in policy.per_strike.values():
+            assert limit <= cap
+        sample_strike = f"KX{series}-TEST@0"
+        assert policy.limit_for_strike(sample_strike) <= cap
 
 
 def test_portfolio_config_conservative() -> None:

@@ -125,7 +125,9 @@ def test_force_run_dry_always_produces_report(
     monkeypatch.setattr(
         daily.PALPolicy,
         "from_yaml",
-        classmethod(lambda cls, path: PALPolicy(series="TNEY", default_max_loss=1_000.0, per_strike={})),
+        classmethod(
+            lambda cls, path, **_: PALPolicy(series="TNEY", default_max_loss=1_000.0, per_strike={})
+        ),
     )
 
     args = _minimal_args("teny_close", fixtures_root, offline_fixtures_root, force_run=True, report=False)

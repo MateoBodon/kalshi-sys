@@ -26,6 +26,7 @@ $500,000 - + -> 0.040
         "series_half_rate": [],
         "half_rate_keywords": [],
         "series_overrides": [],
+        "maker_series": ["CPI"],
     }
     result = parse_fee_schedule(pdf_path, base_config=base_config)
     assert result["effective_date"] == "2026-01-15"
@@ -33,6 +34,7 @@ $500,000 - + -> 0.040
     assert result["taker_rate"] == 0.065
     assert result["series_half_rate"] == ["SP500", "NASDAQ"]
     assert result["half_rate_keywords"] == ["SP500", "NASDAQ"]
+    assert result["maker_series"] == ["CPI"]
     assert result["fee_brackets"]
     assert result["fee_brackets"][0] == {"lower": 0, "upper": 100000, "rate": 0.05}
     assert result["fee_brackets"][2] == {"lower": 500000, "upper": None, "rate": 0.04}
