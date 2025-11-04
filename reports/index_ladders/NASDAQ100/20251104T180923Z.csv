@@ -1,0 +1,2 @@
+series,market,strike,side,event,q_yes,model_probability,market_probability,ev_after_fees,ev_per_contract,contracts,alpha,slippage,delta_bps
+NASDAQ100,KXNASDAQ100-25NOV03H1600-B15000,15000.000000,YES,KXNASDAQ100-25NOV03H1600-B15000,0.450000,0.876148,0.450000,0.426148,0.426148,1,0.600000,0.000717,2549.721847
