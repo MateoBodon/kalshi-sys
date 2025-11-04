@@ -16,5 +16,7 @@
   "event_tail": {
     "tags": ["FOMC", "CPI"],
     "kappa": 1.4
-  }
+  },
+  "lambda_close": 1.35,
+  "kappa_event": 1.4
 }

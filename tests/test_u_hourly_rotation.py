@@ -41,7 +41,7 @@ def test_scan_series_targets_next_hour_event(
     isolated_data_roots: tuple[Path, Path],
 ) -> None:
     _, proc_root = isolated_data_roots
-    _copy_index_calibration(proc_root, "spx", "noon")
+    _copy_index_calibration(proc_root, "spx", "hourly")
     client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
     pal_guard = PALGuard(PALPolicy(series="INXU", default_max_loss=10_000.0))
     now_et = datetime(2025, 11, 3, 12, 55, tzinfo=ZoneInfo("America/New_York"))
@@ -78,7 +78,7 @@ def test_main_emits_roll_log_and_cancel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, proc_root = isolated_data_roots
-    _copy_index_calibration(proc_root, "spx", "noon")
+    _copy_index_calibration(proc_root, "spx", "hourly")
 
     class FixedDateTime(datetime):
         @classmethod

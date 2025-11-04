@@ -211,7 +211,7 @@ Each pipeline writes:
 - **Secrets:** Polygon indices use macOS Keychain item `kalshi-sys:POLYGON_API_KEY` first and fall back to the `POLYGON_API_KEY` environment variable. Approving the Keychain prompt once keeps subsequent scans non-interactive.
 - **Calibrations:**
   ```bash
-  python -m jobs.calibrate_noon --series INXU NASDAQ100U --days 45
+  python -m jobs.calibrate_hourly --series INXU NASDAQ100U --days 45
   python -m jobs.calibrate_close --series INX NASDAQ100 --days 60
   ```
   Both jobs fetch Polygon minute bars, persist JSON params in `data/proc/calib/index/<symbol>/{noon,close}/params.json`, and snapshot raw payloads under `data/raw/polygon_index/` for audit.

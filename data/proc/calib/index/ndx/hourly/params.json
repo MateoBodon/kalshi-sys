@@ -1,0 +1,17 @@
+{
+  "symbol": "I:NDX",
+  "horizon": "hourly",
+  "generated_at": "2025-11-03T00:00:00Z",
+  "minutes_to_target": {
+    "0": {"sigma": 14.0, "drift": 0.0},
+    "15": {"sigma": 17.2, "drift": 0.25},
+    "30": {"sigma": 19.8, "drift": 0.4}
+  },
+  "residual_std": 1.1,
+  "pit_bias": null,
+  "event_tail": {
+    "tags": ["FOMC", "CPI"],
+    "kappa": 1.32
+  },
+  "kappa_event": 1.32
+}

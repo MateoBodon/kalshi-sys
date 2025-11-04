@@ -150,7 +150,7 @@ Pipeline steps per run:
 - Fixtures: `scripts/make_index_fixtures.sh` wraps `scripts/polygon_dump.py` to capture Polygon minute bars for `I:SPX`/`I:NDX` over 11:45–12:05 ET and 15:45–16:05 ET windows. Generated Parquets + metadata live under `tests/data_fixtures/index/` and back the math/scanner tests.
 - Calibrations:
   ```bash
-  python -m jobs.calibrate_noon --series INXU NASDAQ100U --days 45
+  python -m jobs.calibrate_hourly --series INXU NASDAQ100U --days 45
   python -m jobs.calibrate_close --series INX NASDAQ100 --days 60
   ```
   Outputs land in `data/proc/calib/index/<symbol>/{noon,close}/params.json`; raw Polygon payloads are snapshot to `data/raw/polygon_index/`.

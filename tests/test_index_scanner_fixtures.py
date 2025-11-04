@@ -43,7 +43,7 @@ def test_scan_series_over_index_fixture_produces_deterministic_ev(
 ) -> None:
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
-    _copy_calibration(Path("tests/fixtures/index/spx/noon/params.json"), proc_root, "spx", "noon")
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
 
     client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
     pal_guard = PALGuard(PALPolicy(series="INXU", default_max_loss=10_000.0))
@@ -82,7 +82,7 @@ def test_stale_freshness_blocks_execution(
 ) -> None:
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
-    _copy_calibration(Path("tests/fixtures/index/spx/noon/params.json"), proc_root, "spx", "noon")
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
@@ -148,7 +148,7 @@ def test_clock_skew_blocks_execution(
 ) -> None:
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
-    _copy_calibration(Path("tests/fixtures/index/spx/noon/params.json"), proc_root, "spx", "noon")
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
@@ -202,7 +202,7 @@ def test_index_rule_mismatch_forces_no_go(
 ) -> None:
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
-    _copy_calibration(Path("tests/fixtures/index/spx/noon/params.json"), proc_root, "spx", "noon")
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()

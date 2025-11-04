@@ -16,8 +16,8 @@ def _copy_calibration(src: Path, dest: Path) -> None:
 
 def test_hourly_strategy_uses_calibration(isolated_data_roots: tuple[Path, Path]) -> None:
     _, proc_root = isolated_data_roots
-    fixture = Path("tests/fixtures/index/spx/noon/params.json")
-    target = proc_root / "calib" / "index" / "spx" / "noon" / "params.json"
+    fixture = Path("tests/fixtures/index/spx/hourly/params.json")
+    target = proc_root / "calib" / "index" / "spx" / "hourly" / "params.json"
     _copy_calibration(fixture, target)
     strikes = [5000.0, 5020.0, 5040.0]
     inputs = HourlyInputs(series="INXU", current_price=5035.0, minutes_to_noon=30)

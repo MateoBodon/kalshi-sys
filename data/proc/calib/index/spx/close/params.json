@@ -1,7 +1,7 @@
 {
   "symbol": "I:SPX",
   "horizon": "close",
-  "generated_at": "2025-10-31T00:00:00Z",
+  "generated_at": "2025-11-03T00:00:00Z",
   "minutes_to_target": {
     "0": {"sigma": 18.0, "drift": 0.0},
     "30": {"sigma": 20.5, "drift": 0.2},
@@ -16,5 +16,7 @@
   "event_tail": {
     "tags": ["FOMC", "CPI"],
     "kappa": 1.35
-  }
+  },
+  "lambda_close": 1.25,
+  "kappa_event": 1.35
 }

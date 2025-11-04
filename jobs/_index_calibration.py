@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import polars as pl
@@ -242,7 +242,76 @@ __all__ = [
     "build_sigma_curve",
     "event_tail_multiplier",
     "late_day_lambda",
+    "extend_calibration_window",
     "ET",
     "MARKET_OPEN",
     "MARKET_CLOSE",
 ]
+
+
+def extend_calibration_window(  # noqa: PLR0913 - explicit knobs for ops tuning
+    start_date: date,
+    end_date: date,
+    *,
+    tags: Sequence[str] | None = None,
+    event_pad_days: int = 2,
+    dst_pad_days: int = 3,
+    lookback_days: int = 90,
+) -> tuple[date, date]:
+    """Expand the trailing calibration window to cover DST and macro event weeks."""
+
+    normalized_tags = tuple(tags) if tags is not None else DEFAULT_EVENT_TAGS
+    expanded_start = _extend_for_events(start_date, end_date, normalized_tags, event_pad_days, lookback_days)
+    expanded_start = _extend_for_dst(expanded_start, end_date, dst_pad_days)
+    return expanded_start, end_date
+
+
+def _extend_for_events(
+    start_date: date,
+    end_date: date,
+    tags: Sequence[str],
+    pad_days: int,
+    lookback_days: int,
+) -> date:
+    updated = start_date
+    for tag in tags:
+        event_date = _last_event_before(end_date, tag, lookback_days)
+        if event_date is None:
+            continue
+        candidate_start = event_date - timedelta(days=max(pad_days, 0))
+        updated = min(updated, candidate_start)
+    return updated
+
+
+def _last_event_before(end_date: date, tag: str, lookback_days: int) -> date | None:
+    normalized = tag.strip().upper()
+    if not normalized:
+        return None
+    for offset in range(max(lookback_days, 0) + 1):
+        day = end_date - timedelta(days=offset)
+        if normalized in calendar_tags_for(day):
+            return day
+    return None
+
+
+def _extend_for_dst(start_date: date, end_date: date, pad_days: int) -> date:
+    transition = _last_dst_transition(end_date)
+    if transition is None:
+        return start_date
+    boundary = transition - timedelta(days=max(pad_days, 0))
+    return boundary if boundary < start_date else start_date
+
+
+def _last_dst_transition(end_date: date, *, lookback_days: int = 365) -> date | None:
+    zone = ET
+    previous_offset = None
+    previous_day: date | None = None
+    for offset in range(max(lookback_days, 0) + 1):
+        day = end_date - timedelta(days=offset)
+        noon = datetime.combine(day, time(12, 0), tzinfo=zone)
+        current_offset = noon.utcoffset()
+        if previous_offset is not None and current_offset != previous_offset:
+            return previous_day or day
+        previous_offset = current_offset
+        previous_day = day
+    return None

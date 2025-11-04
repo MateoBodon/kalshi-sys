@@ -45,7 +45,7 @@ def test_spx_hourly_survival_matches_fixture(
     isolated_data_roots: tuple[Path, Path],
 ) -> None:
     _, proc_root = isolated_data_roots
-    _copy_calibration(Path("tests/fixtures/index/spx/noon/params.json"), proc_root, "spx", "noon")
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
 
     path = fixtures_root / "index" / fixture_name
     frame = pl.read_parquet(path)
@@ -57,8 +57,42 @@ def test_spx_hourly_survival_matches_fixture(
     minutes_to_noon = int((target_time - sample["timestamp"]).total_seconds() // 60)
     inputs = HourlyInputs(series="INXU", current_price=strike, minutes_to_noon=minutes_to_noon)
     result = evaluate_hourly([strike], [0.5], inputs, contracts=1, min_ev=0.0)
+    total_prob = sum(prob.probability for prob in result.pmf)
+    assert total_prob == pytest.approx(1.0, abs=1e-6)
     survival = pmf_to_survival(result.pmf, [strike])[0]
     assert survival == pytest.approx(0.5, abs=1e-6)
+
+
+def test_spx_hourly_event_multiplier_applies_only_on_events(
+    fixtures_root: Path,
+    isolated_data_roots: tuple[Path, Path],
+) -> None:
+    _, proc_root = isolated_data_roots
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+
+    frame = pl.read_parquet(fixtures_root / "index" / _SPX_NOON_FIXTURES[0])
+    rows = frame.with_columns(pl.col("timestamp").dt.convert_time_zone("America/New_York"))
+    sample_time = datetime.fromisoformat(f"{_SPX_NOON_FIXTURES[0][6:16]}T11:55:00").replace(tzinfo=ET)
+    target_time = datetime.fromisoformat(f"{_SPX_NOON_FIXTURES[0][6:16]}T12:00:00").replace(tzinfo=ET)
+    sample = rows.filter(pl.col("timestamp") == sample_time).row(0, named=True)
+    minutes_to_noon = int((target_time - sample_time).total_seconds() // 60)
+    current_price = float(sample["close"])
+    strikes = _strike_grid(current_price, step=50.0)
+
+    baseline_inputs = HourlyInputs(series="INXU", current_price=current_price, minutes_to_noon=minutes_to_noon)
+    event_inputs = HourlyInputs(
+        series="INXU",
+        current_price=current_price,
+        minutes_to_noon=minutes_to_noon,
+        event_tags=("CPI",),
+    )
+
+    baseline_pmf = evaluate_hourly(strikes, [0.4, 0.3, 0.2], baseline_inputs, contracts=1, min_ev=0.0).pmf
+    event_pmf = evaluate_hourly(strikes, [0.4, 0.3, 0.2], event_inputs, contracts=1, min_ev=0.0).pmf
+
+    baseline_tail = float(baseline_pmf[0].probability + baseline_pmf[-1].probability)
+    event_tail = float(event_pmf[0].probability + event_pmf[-1].probability)
+    assert event_tail >= baseline_tail
 
 
 @pytest.mark.parametrize("fixture_name", _NDX_CLOSE_FIXTURES)

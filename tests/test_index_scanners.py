@@ -16,8 +16,8 @@ def _copy_calibration(src: Path, dest: Path) -> None:
 def test_evaluate_hourly_yields_opportunities(isolated_data_roots: tuple[Path, Path]) -> None:
     _, proc_root = isolated_data_roots
     _copy_calibration(
-        Path("tests/fixtures/index/spx/noon/params.json"),
-        proc_root / "calib" / "index" / "spx" / "noon" / "params.json",
+        Path("tests/fixtures/index/spx/hourly/params.json"),
+        proc_root / "calib" / "index" / "spx" / "hourly" / "params.json",
     )
     strikes = [5000.0, 5020.0, 5040.0]
     yes_prices = [0.45, 0.35, 0.25]

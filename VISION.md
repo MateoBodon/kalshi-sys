@@ -120,7 +120,7 @@ python -m kalshi_alpha.drivers.polygon_index.client --symbols I:SPX I:NDX --star
 
 ### 7.2 Calibrate
 ```
-python -m kalshi_alpha.jobs.calibrate_noon  --symbols I:SPX I:NDX --months 12
+python -m kalshi_alpha.jobs.calibrate_hourly  --symbols I:SPX I:NDX --months 12
 python -m kalshi_alpha.jobs.calibrate_close --symbols I:SPX I:NDX --months 12
 ```
 
@@ -152,7 +152,7 @@ src/kalshi_alpha/
   strategies/index/{hourly_above_below.py,close_range.py,cdf.py,params.py}
   core/{fees.py, ev.py, kelly.py, slippage.py, fills.py}
   exec/scanners/{scan_index_hourly.py, scan_index_close.py}
-  jobs/{calibrate_noon.py, calibrate_close.py}
+  jobs/{calibrate_hourly.py, calibrate_close.py}
   utils/{keys.py, tz.py}
 data/{raw,proc,proc/calib/index,...}
 reports/index_ladders/<run_id>/*

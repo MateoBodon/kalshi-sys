@@ -56,11 +56,16 @@ def evaluate_hourly(  # noqa: PLR0913
     calibration = None
     try:
         meta = resolve_index_series(inputs.series)
-        calibration = index_cdf.load_calibration(
-            HOURLY_CALIBRATION_PATH,
-            meta.polygon_ticker,
-            horizon="noon",
-        )
+        for horizon in ("hourly", "noon"):
+            try:
+                calibration = index_cdf.load_calibration(
+                    HOURLY_CALIBRATION_PATH,
+                    meta.polygon_ticker,
+                    horizon=horizon,
+                )
+                break
+            except FileNotFoundError:
+                continue
     except Exception:  # pragma: no cover - defensive fallback
         calibration = None
 

@@ -1,4 +1,4 @@
-"""Build close calibration curves for index ladders using Polygon minute bars."""
+"""Build hourly calibration curves for index ladders using Polygon minute bars."""
 
 from __future__ import annotations
 
@@ -14,45 +14,44 @@ import polars as pl
 from kalshi_alpha.drivers.polygon_index.client import MinuteBar, PolygonIndicesClient
 from kalshi_alpha.drivers.polygon_index.snapshots import write_minute_bars
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series
-from kalshi_alpha.strategies.index.close_range import CLOSE_CALIBRATION_PATH
+from kalshi_alpha.strategies.index.hourly_above_below import HOURLY_CALIBRATION_PATH
 
 from ._index_calibration import (
     ET,
     build_sigma_curve,
     event_tail_multiplier,
     extend_calibration_window,
-    late_day_lambda,
 )
 
-TARGET_TIME = time(16, 0)
-RESIDUAL_WINDOW_MINUTES = 15
-EVENT_WINDOW_MINUTES = 60
-EVENT_KAPPA_CLAMP = (1.0, 1.75)
+TARGET_TIME = time(12, 0)
+RESIDUAL_WINDOW_MINUTES = 5
+EVENT_WINDOW_MINUTES = 30
+EVENT_KAPPA_CLAMP = (1.0, 1.65)
 EVENT_TAGS = ("CPI", "FOMC")
-LATE_DAY_WINDOW_MINUTES = 10
-DEFAULT_DAYS = 55
+DEFAULT_DAYS = 35
+HORIZON = "hourly"
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Calibrate close index distribution from Polygon minute bars.")
+    parser = argparse.ArgumentParser(description="Calibrate hourly index distribution from Polygon minute bars.")
     parser.add_argument("--start", type=_parse_date, help="Start date (YYYY-MM-DD). Defaults to trailing window.")
     parser.add_argument("--end", type=_parse_date, help="End date (YYYY-MM-DD). Defaults to today.")
     parser.add_argument(
         "--days",
         type=int,
         default=DEFAULT_DAYS,
-        help="Fallback trading day window when start/end not provided.",
+        help="Trailing trading-day window when start/end not provided.",
     )
     parser.add_argument(
         "--series",
         nargs="+",
-        default=["INX", "NASDAQ100"],
+        default=["INXU", "NASDAQ100U"],
         help="Kalshi series symbols to calibrate (resolved to Polygon indices).",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=CLOSE_CALIBRATION_PATH,
+        default=HOURLY_CALIBRATION_PATH,
         help="Output directory root for calibration parameters (default: data/proc/calib/index).",
     )
     parser.add_argument(
@@ -86,8 +85,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         residual_window=RESIDUAL_WINDOW_MINUTES,
         return_records=True,
     )
-    extras = _derive_extras(records, frame)
-    _write_params(frame, args.output, horizon="close", extras=extras)
+    extras = _derive_event_extras(records)
+    _write_params(frame, args.output, extras=extras)
 
 
 def _resolve_tickers(series_list: Sequence[str]) -> list[str]:
@@ -121,11 +120,11 @@ def _resolve_window(
 
 def _time_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]:
     start_dt = datetime.combine(start_date, time(8, 0), tzinfo=ET).astimezone(UTC)
-    end_dt = datetime.combine(end_date + timedelta(days=1), time(6, 0), tzinfo=ET).astimezone(UTC)
+    end_dt = datetime.combine(end_date + timedelta(days=1), time(4, 0), tzinfo=ET).astimezone(UTC)
     return start_dt, end_dt
 
 
-def _derive_extras(records: pl.DataFrame, frame: pl.DataFrame) -> dict[str, dict[str, object]]:
+def _derive_event_extras(records: pl.DataFrame) -> dict[str, dict[str, object]]:
     if records.is_empty():
         return {}
     symbols = records.get_column("symbol").unique().to_list()
@@ -138,27 +137,12 @@ def _derive_extras(records: pl.DataFrame, frame: pl.DataFrame) -> dict[str, dict
             tags=EVENT_TAGS,
             clamp=EVENT_KAPPA_CLAMP,
         )
-        late_day = late_day_lambda(
-            records,
-            frame,
-            symbol,
-            window=LATE_DAY_WINDOW_MINUTES,
-            tags=EVENT_TAGS,
-        )
-        payload: dict[str, object] = {
+        extras[symbol] = {
             "event_tail": {
                 "tags": list(EVENT_TAGS),
                 "kappa": round(float(kappa), 4),
             }
         }
-        payload["kappa_event"] = round(float(kappa), 4)
-        if late_day is not None:
-            payload["late_day_variance"] = {
-                "minutes_threshold": int(late_day["minutes_threshold"]),
-                "lambda": round(float(late_day["lambda"]), 6),
-            }
-            payload["lambda_close"] = round(float(late_day["lambda"]), 6)
-        extras[symbol] = payload
     return extras
 
 
@@ -166,7 +150,6 @@ def _write_params(
     frame: pl.DataFrame,
     output: Path,
     *,
-    horizon: str,
     extras: Mapping[str, Mapping[str, object]] | None = None,
 ) -> None:
     output = output.resolve()
@@ -176,7 +159,7 @@ def _write_params(
     for symbol in unique_symbols:
         subset = frame.filter(pl.col("symbol") == symbol).sort("minutes_to_target")
         slug = symbol.split(":")[-1].lower()
-        target_dir = output / slug / horizon
+        target_dir = output / slug / HORIZON
         target_dir.mkdir(parents=True, exist_ok=True)
         minutes_map: dict[str, dict[str, float]] = {}
         for row in subset.iter_rows(named=True):
@@ -189,10 +172,9 @@ def _write_params(
         residual_values = residual_column.drop_nulls().to_list() if residual_column is not None else []
         residual_std = float(residual_values[0]) if residual_values else 0.0
         kappa_value = 1.0
-        lambda_value = 0.0
-        payload = {
+        payload: dict[str, object] = {
             "symbol": symbol,
-            "horizon": horizon,
+            "horizon": HORIZON,
             "generated_at": generated_at,
             "minutes_to_target": minutes_map,
             "residual_std": residual_std,
@@ -208,23 +190,10 @@ def _write_params(
                     "tags": [tag.upper() for tag in tags],
                     "kappa": kappa_value,
                 }
-            late_day = extra_entry.get("late_day_variance")
-            if isinstance(late_day, Mapping):
-                minutes_threshold = int(late_day.get("minutes_threshold", LATE_DAY_WINDOW_MINUTES))
-                lambda_value = float(late_day.get("lambda", 0.0))
-                if lambda_value > 0.0:
-                    payload["late_day_variance"] = {
-                        "minutes_threshold": minutes_threshold,
-                        "lambda": lambda_value,
-                    }
         payload["kappa_event"] = kappa_value
-        if lambda_value > 0.0:
-            payload["lambda_close"] = lambda_value
-        else:
-            payload["lambda_close"] = 0.0
         target_path = target_dir / "params.json"
         target_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - CLI entry
     main()

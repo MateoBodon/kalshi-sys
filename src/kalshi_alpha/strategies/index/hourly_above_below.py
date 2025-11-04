@@ -62,7 +62,10 @@ def _resolve_series(series: str) -> IndexSymbol:
 
 @lru_cache(maxsize=4)
 def _load_default_calibration(meta: IndexSymbol) -> SigmaCalibration:
-    return load_calibration(HOURLY_CALIBRATION_PATH, meta.polygon_ticker, horizon="noon")
+    try:
+        return load_calibration(HOURLY_CALIBRATION_PATH, meta.polygon_ticker, horizon="hourly")
+    except FileNotFoundError:
+        return load_calibration(HOURLY_CALIBRATION_PATH, meta.polygon_ticker, horizon="noon")
 
 
 def _event_multiplier(inputs: HourlyInputs, calibration: SigmaCalibration) -> float:
