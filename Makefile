@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -82,6 +82,25 @@ freshness-smoke:
 
 live-smoke:
 	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.sanity_check --live-smoke --env $${KALSHI_ENV:-prod}
+
+ingest-index:
+	@if [ -z "$(START)" ] || [ -z "$(END)" ]; then \
+		echo "Usage: make ingest-index START=YYYY-MM-DD END=YYYY-MM-DD"; exit 1; \
+	fi
+	$(PYTHON) -m kalshi_alpha.exec.ingest.polygon_index --start $(START) --end $(END) --symbols I:SPX I:NDX
+
+calibrate-index:
+	$(PYTHON) -m kalshi_alpha.jobs.calibrate_hourly --series INXU NASDAQ100U
+	$(PYTHON) -m kalshi_alpha.jobs.calibrate_close --series INX NASDAQ100
+
+scan-index-noon:
+	$(PYTHON) -m kalshi_alpha.exec.scanners.scan_index_noon --series INXU NASDAQ100U --offline --fixtures-root tests/data_fixtures
+
+scan-index-close:
+	$(PYTHON) -m kalshi_alpha.exec.scanners.scan_index_close --series INX NASDAQ100 --offline --fixtures-root tests/data_fixtures
+
+micro-index:
+	$(PYTHON) -m kalshi_alpha.exec.runners.micro_index --series INXU --offline --fixtures-root tests/data_fixtures --min-ev 0.05 --contracts 1 --regenerate-scoreboard
 
 .PHONY: paper_live_offline paper_live_online
 

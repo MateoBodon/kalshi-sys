@@ -19,6 +19,19 @@ def test_index_maker_fee_matches_formula(series: str, price: float, expected: De
     assert fee == expected
 
 
+@pytest.mark.parametrize(
+    "contracts,price,expected",
+    [
+        (100, 0.50, Decimal("0.88")),
+        (100, 0.30, Decimal("0.74")),
+        (250, 0.55, Decimal("2.17")),
+    ],
+)
+def test_index_maker_fee_golden_rows(contracts: int, price: float, expected: Decimal) -> None:
+    fee = DEFAULT_FEE_SCHEDULE.maker_fee(contracts=contracts, price=price, series="INX")
+    assert fee == expected
+
+
 def test_index_fee_monotonicity() -> None:
     previous = Decimal("0.00")
     for p in [x / 100 for x in range(1, 99)]:

@@ -353,6 +353,22 @@ def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
         if realized_bps is not None:
             lines.append(f"- Simulated EV (bps): {realized_bps:.2f}")
         lines.append("")
+    elif ledger and ledger.records:
+        lines.append("## Fill & Slippage")
+        fills = [float(record.fill_ratio) for record in ledger.records]
+        lines.append(f"- Fill Ratio: {sum(fills) / len(fills):.3f}")
+        observed = [float(record.fill_ratio_realized) for record in ledger.records]
+        if observed:
+            lines.append(f"- Fill Ratio (observed): {sum(observed) / len(observed):.3f}")
+        alphas = [float(record.alpha_row) for record in ledger.records]
+        if alphas:
+            lines.append(f"- Alpha Target: {sum(alphas) / len(alphas):.3f}")
+            delta = sum(fill - alpha for fill, alpha in zip(fills, alphas, strict=False)) / len(alphas)
+            lines.append(f"- Fill - Alpha: {delta:+.3f}")
+        slippage_ticks = [float(record.slippage_ticks) for record in ledger.records]
+        if slippage_ticks:
+            lines.append(f"- Avg Slippage (ticks): {sum(slippage_ticks) / len(slippage_ticks):.3f}")
+        lines.append("")
     lines.append("## Proposal Details")
     for proposal in proposals:
         lines.append(f"### Strike {proposal.strike:.2f}")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 from kalshi_alpha.config import lookup_index_rule
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
@@ -11,6 +12,12 @@ from kalshi_alpha.strategies.index import CLOSE_CALIBRATION_PATH, CloseInputs, c
 from kalshi_alpha.strategies.index import cdf as index_cdf
 
 from .scan_index_hourly import IndexScanResult, QuoteOpportunity
+from .index_scan_common import (
+    ScannerConfig,
+    build_parser,
+    parse_timestamp,
+    run_index_scan,
+)
 
 
 def evaluate_close(  # noqa: PLR0913
@@ -79,4 +86,30 @@ def evaluate_close(  # noqa: PLR0913
     )
 
 
-__all__ = ["evaluate_close"]
+DEFAULT_SERIES: tuple[str, ...] = ("INX", "NASDAQ100")
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = build_parser(DEFAULT_SERIES)
+    args = parser.parse_args(argv)
+    timestamp = parse_timestamp(args.now)
+    config = ScannerConfig(
+        series=tuple(s.upper() for s in args.series),
+        min_ev=float(args.min_ev),
+        max_bins=int(args.max_bins),
+        contracts=int(args.contracts),
+        kelly_cap=float(args.kelly_cap),
+        offline=bool(args.offline),
+        fixtures_root=Path(args.fixtures_root),
+        output_root=Path(args.output_root),
+        run_label="index_close",
+        timestamp=timestamp,
+    )
+    run_index_scan(config)
+
+
+__all__ = ["evaluate_close", "main"]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

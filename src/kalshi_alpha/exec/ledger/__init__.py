@@ -161,7 +161,7 @@ class PaperLedger:
                 expected_contracts=int(record.expected_contracts),
                 expected_fills=int(record.expected_fills),
                 fill_ratio=float(record.fill_ratio),
-                 fill_ratio_observed=float(record.fill_ratio_realized),
+                fill_ratio_observed=float(record.fill_ratio_realized),
                 t_fill_ms=float(record.t_fill_ms),
                 size_partial=int(record.size_partial),
                 slippage_ticks=float(record.slippage_ticks),
@@ -182,8 +182,8 @@ class PaperLedger:
                 best_bid=record.best_bid,
                 best_ask=record.best_ask,
                 spread=float(record.spread),
-                seconds_to_event=seconds_to_event,
-                minutes_to_event=minutes_to_event,
+                seconds_to_event=seconds_to_event if seconds_to_event is not None else 0.0,
+                minutes_to_event=minutes_to_event if minutes_to_event is not None else 0.0,
             )
             rows.append(row)
         return rows
@@ -405,7 +405,10 @@ def simulate_fills(  # noqa: PLR0913, PLR0912, PLR0915
 
         expected_contracts = max(0, expected_contracts)
         expected_fills = max(0, expected_fills)
-        fill_ratio = max(0.0, min(alpha_target_value, 1.0))
+        if size > 0:
+            fill_ratio = max(0.0, min(float(expected_fills) / float(size), 1.0))
+        else:
+            fill_ratio = 0.0
         fill_ratio_realized = max(0.0, min(fill_ratio_realized, 1.0))
 
         fees = 0.0

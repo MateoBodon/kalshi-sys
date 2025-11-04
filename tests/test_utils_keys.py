@@ -22,3 +22,11 @@ def test_load_polygon_api_key_env_fallback(monkeypatch):
     assert keys.load_polygon_api_key() == "env-secret"
     monkeypatch.delenv("POLYGON_API_KEY", raising=False)
     _reset_caches()
+
+
+def test_load_polygon_api_key_no_logging(monkeypatch, caplog):
+    _reset_caches()
+    caplog.clear()
+    monkeypatch.setattr(keys, "_keychain_lookup", lambda label: "super-secret")
+    assert keys.load_polygon_api_key() == "super-secret"
+    assert not caplog.records

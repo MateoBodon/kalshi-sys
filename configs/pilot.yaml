@@ -2,6 +2,10 @@ pilot:
   session_prefix: "pilot"
   allowed_series:
     - "CPI"
+    - "INXU"
+    - "NASDAQ100U"
+    - "INX"
+    - "NASDAQ100"
   max_contracts_per_order: 1
   max_unique_bins: 2
   require_live_broker: true

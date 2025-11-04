@@ -1,27 +1,34 @@
-"""Polygon indices client supporting REST and websocket access."""
+"""Polygon indices client supporting REST, websocket, and historical ingestion."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+from collections import defaultdict
 from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 
+import polars as pl
 import requests
 import websockets
 from requests import Response
 from websockets.asyncio.client import ClientConnection
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
+from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.utils.keys import load_polygon_api_key
 
 DEFAULT_REST_URL = "https://api.polygon.io"
 DEFAULT_WS_URL = "wss://socket.polygon.io/stocks"
 INDEX_MINUTE_CHANNEL = "XA"
+ET = ZoneInfo("America/New_York")
+POLYGON_RAW_ROOT = (RAW_ROOT / "polygon").resolve()
 
 
 class PolygonAPIError(RuntimeError):
@@ -240,6 +247,75 @@ class PolygonIndicesClient:
             )
         return bars
 
+    def download_minute_history(  # noqa: PLR0913
+        self,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+        *,
+        output_root: Path | None = None,
+        chunk_limit: int = 50_000,
+        adjusted: bool = True,
+    ) -> list[Path]:
+        """Download minute history into per-day parquet files under the raw datastore.
+
+        The Polygon REST API enforces a 50k row ceiling per aggregation request.  This
+        method walks the requested window in chunks (controlled by ``chunk_limit``),
+        accumulates bars grouped by the underlying trading day (Eastern Time), and
+        writes one parquet per day to ``data/raw/polygon/{symbol_slug}/YYYY-MM-DD.parquet``.
+        """
+
+        if start.tzinfo is None or end.tzinfo is None:
+            raise ValueError("start and end must be timezone-aware")
+        if end <= start:
+            raise ValueError("end must be after start")
+        if chunk_limit <= 0:
+            raise ValueError("chunk_limit must be positive")
+
+        base_root = (output_root or POLYGON_RAW_ROOT).resolve()
+        base_root.mkdir(parents=True, exist_ok=True)
+        symbol_slug = symbol.replace(":", "_").upper()
+        symbol_dir = base_root / symbol_slug
+        symbol_dir.mkdir(parents=True, exist_ok=True)
+
+        records_by_day: dict[tuple[int, int, int], list[dict[str, object]]] = defaultdict(list)
+        chunk_minutes = max(chunk_limit - 1, 1)
+        chunk_delta = timedelta(minutes=chunk_minutes)
+        current_start = start
+        while current_start < end:
+            chunk_end = min(end, current_start + chunk_delta)
+            bars = self.fetch_minute_bars(
+                symbol,
+                current_start,
+                chunk_end,
+                adjusted=adjusted,
+                limit=chunk_limit,
+            )
+            if bars:
+                for bar in bars:
+                    day = bar.timestamp.astimezone(ET).date()
+                    key = (day.year, day.month, day.day)
+                    records_by_day[key].append(self._bar_to_row(bar))
+                last_timestamp = bars[-1].timestamp + timedelta(minutes=1)
+                if last_timestamp <= current_start:
+                    current_start = chunk_end + timedelta(minutes=1)
+                else:
+                    current_start = min(end, last_timestamp)
+            else:
+                current_start = chunk_end + timedelta(minutes=1)
+
+        written: list[Path] = []
+        for key in sorted(records_by_day):
+            rows = records_by_day[key]
+            if not rows:
+                continue
+            frame = pl.DataFrame(rows).unique(subset="timestamp").sort("timestamp")
+            day = f"{key[0]:04d}-{key[1]:02d}-{key[2]:02d}"
+            path = symbol_dir / f"{day}.parquet"
+            frame.write_parquet(path)
+            written.append(path)
+        return written
+
     def fetch_snapshot(self, symbol: str) -> IndexSnapshot:
         """Fetch the latest snapshot for an index ticker."""
 
@@ -264,6 +340,21 @@ class PolygonIndicesClient:
                 else None
             ),
         )
+
+    @staticmethod
+    def _bar_to_row(bar: MinuteBar) -> dict[str, object]:
+        trades = None if bar.trades is None else int(bar.trades)
+        vwap = None if bar.vwap is None else float(bar.vwap)
+        return {
+            "timestamp": bar.timestamp,
+            "open": float(bar.open),
+            "high": float(bar.high),
+            "low": float(bar.low),
+            "close": float(bar.close),
+            "volume": float(bar.volume),
+            "vwap": vwap,
+            "trades": trades,
+        }
 
     # Websocket --------------------------------------------------------------
 

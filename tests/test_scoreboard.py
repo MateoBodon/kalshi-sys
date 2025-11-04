@@ -10,6 +10,43 @@ import pytest
 from kalshi_alpha.exec import scoreboard
 
 
+def _write_calibration(root: Path, slug: str, horizon: str, generated_at: datetime) -> None:
+    path = root / slug / horizon / "params.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "generated_at": generated_at.isoformat(),
+        "minutes_to_target": {"0": {"sigma": 1.0, "drift": 0.0}},
+        "residual_std": 0.5,
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_freshness(path: Path, now: datetime) -> None:
+    payload = {
+        "name": "data_freshness",
+        "status": "OK",
+        "generated_at": now.isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["polygon.index_snapshot"],
+            "stale_feeds": [],
+            "feeds": [
+                {
+                    "id": "polygon.index_snapshot",
+                    "label": "Polygon Snapshots",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 5.0,
+                    "last_ts": now.isoformat(),
+                    "reason": None,
+                }
+            ],
+        },
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def test_scoreboard_generates_markdown(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -44,6 +81,10 @@ def test_scoreboard_generates_markdown(
     )
     ledger.write_parquet(ledger_dir / "ledger_all.parquet")
 
+    calib_root = tmp_path / "data" / "proc" / "calib" / "index"
+    for slug, horizon in (("spx", "noon"), ("spx", "close"), ("ndx", "noon"), ("ndx", "close")):
+        _write_calibration(calib_root, slug, horizon, now - timedelta(days=3))
+
     calib = pl.DataFrame(
         {
             "series": ["INX", "INXU", "NASDAQ100", "NASDAQ100U"],
@@ -71,6 +112,7 @@ def test_scoreboard_generates_markdown(
 
     artifacts = tmp_path / "reports" / "_artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)
+    _write_freshness(artifacts / "monitors" / "freshness.json", now)
     go_payload = {
         "go": False,
         "series": "NASDAQ100",

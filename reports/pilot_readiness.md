@@ -1,25 +1,41 @@
-# Pilot Ramp Readiness
+# Pilot Readiness (14-day)
 
-_Generated 2025-11-03T00:14:13.618213+00:00_
+GO series: 0/4
 
-**Criteria**
-- Min fills: 300
-- Min Δbps: 6.0
-- Min t-stat: 2.0
-- Drawdown caps (daily/weekly): 2000.0/6000.0
+Data Freshness: OK
 
-**Freshness**
-- Ledger age: 0.2 min (limit 120)
-- Monitors age: 0 min (limit 30)
+## INXU — NO-GO
+- Fills: 0
+- Δbps: 0.0
+- t-stat: 0.00
+- Fill - α: +0.000
+- Sample Size: 0
+- Reasons:
+  - insufficient_data
 
-**Freeze Windows**
-- CPI: clear (freeze starts 2025-11-11T06:00:00-05:00)
+## NASDAQ100U — NO-GO
+- Fills: 0
+- Δbps: 0.0
+- t-stat: 0.00
+- Fill - α: +0.000
+- Sample Size: 0
+- Reasons:
+  - insufficient_data
 
-| Series | Fills | Δbps | t-stat | Guardrail breaches | Drawdown | Recommendation | Multiplier |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| CPI | 0 | -4718.34 | -44.32 | 0 | OK | NO_GO | 1.00 |
-    - EV honesty bins:
-        | Strike | Side | Δbps | Weight | Cap | Sources | Flagged |
-        | --- | --- | --- | --- | --- | --- | --- |
-        | 0.2 | YES | 0 | n/a | n/a | auto | no |
-        | 0.5 | NO | 0 | n/a | n/a | auto | no |
+## INX — NO-GO
+- Fills: 0
+- Δbps: 0.0
+- t-stat: 0.00
+- Fill - α: +0.000
+- Sample Size: 0
+- Reasons:
+  - insufficient_data
+
+## NASDAQ100 — NO-GO
+- Fills: 0
+- Δbps: 0.0
+- t-stat: 0.00
+- Fill - α: +0.000
+- Sample Size: 0
+- Reasons:
+  - insufficient_data

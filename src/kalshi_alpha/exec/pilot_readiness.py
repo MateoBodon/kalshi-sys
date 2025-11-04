@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Iterable
 
 import polars as pl
+
+from kalshi_alpha.exec.monitors.freshness import (
+    FRESHNESS_ARTIFACT_PATH,
+    load_artifact as load_freshness_artifact,
+    summarize_artifact as summarize_freshness_artifact,
+)
 
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 REPORT_PATH = Path("reports/pilot_readiness.md")
@@ -19,6 +27,15 @@ MIN_FILLS = 300.0
 MIN_DELTA_BPS = 6.0
 MIN_T_STAT = 2.0
 MAX_ALPHA_GAP = 0.05
+MAX_CALIBRATION_AGE_DAYS = 14.0
+
+CALIBRATION_ROOT = Path("data/proc/calib/index")
+CALIBRATION_TARGETS: dict[str, tuple[str, str]] = {
+    "INXU": ("spx", "noon"),
+    "NASDAQ100U": ("ndx", "noon"),
+    "INX": ("spx", "close"),
+    "NASDAQ100": ("ndx", "close"),
+}
 
 
 @dataclass(slots=True)
@@ -96,6 +113,47 @@ def _alpha_gap_mean(subset: pl.DataFrame) -> float:
     return float(diff.mean()) if diff.len() else 0.0
 
 
+def _calibration_age_days(series: str, now: datetime) -> float | None:
+    target = CALIBRATION_TARGETS.get(series.upper())
+    if target is None:
+        return None
+    slug, horizon = target
+    path = CALIBRATION_ROOT / slug / horizon / "params.json"
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        generated_at = payload.get("generated_at")
+        if isinstance(generated_at, str) and generated_at:
+            generated_dt = datetime.fromisoformat(generated_at)
+            if generated_dt.tzinfo is None:
+                generated_dt = generated_dt.replace(tzinfo=UTC)
+            age_seconds = (now.astimezone(UTC) - generated_dt.astimezone(UTC)).total_seconds()
+            if age_seconds >= 0:
+                return age_seconds / 86400.0
+    except (json.JSONDecodeError, ValueError):
+        pass
+    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+    age_seconds = (now.astimezone(UTC) - mtime).total_seconds()
+    return age_seconds / 86400.0 if age_seconds >= 0 else 0.0
+
+
+def _freshness_status() -> tuple[bool, list[str]]:
+    payload = load_freshness_artifact(FRESHNESS_ARTIFACT_PATH)
+    summary = summarize_freshness_artifact(payload, artifact_path=FRESHNESS_ARTIFACT_PATH)
+    status = summary.get("status", "MISSING")
+    ok = bool(summary.get("required_feeds_ok", False)) and status != "MISSING"
+    reasons: list[str] = []
+    if status == "MISSING":
+        reasons.append("data_freshness_missing")
+    if not ok and status != "MISSING":
+        reasons.append("data_freshness_alert")
+    stale_feeds = summary.get("stale_feeds") or []
+    for feed in stale_feeds:
+        reasons.append(f"stale_feed:{feed}")
+    return ok, reasons
+
+
 def evaluate_readiness(
     frame: pl.DataFrame,
     *,
@@ -143,6 +201,11 @@ def evaluate_readiness(
             reasons.append(f"t-stat {t_stat:.2f} < {MIN_T_STAT}")
         if abs(alpha_gap) > MAX_ALPHA_GAP:
             reasons.append(f"fill-α gap {alpha_gap:+.3f} exceeds {MAX_ALPHA_GAP}")
+        calib_age = _calibration_age_days(series, now)
+        if calib_age is None:
+            reasons.append("calibration_missing")
+        elif calib_age > MAX_CALIBRATION_AGE_DAYS:
+            reasons.append(f"calibration_age {calib_age:.1f}d > {MAX_CALIBRATION_AGE_DAYS:.0f}d")
 
         results.append(
             SeriesReadiness(
@@ -158,10 +221,23 @@ def evaluate_readiness(
     return results
 
 
-def render_markdown(results: list[SeriesReadiness], *, window_days: int = WINDOW_DAYS_DEFAULT) -> str:
+def render_markdown(
+    results: list[SeriesReadiness],
+    *,
+    window_days: int = WINDOW_DAYS_DEFAULT,
+    freshness_ok: bool = True,
+    freshness_reasons: Iterable[str] | None = None,
+) -> str:
     lines: list[str] = [f"# Pilot Readiness ({window_days}-day)", ""]
     go_count = sum(1 for entry in results if entry.go)
     lines.append(f"GO series: {go_count}/{len(results)}")
+    lines.append("")
+    lines.append(f"Data Freshness: {'OK' if freshness_ok else 'NO-GO'}")
+    reasons_iter = list(freshness_reasons or [])
+    if reasons_iter:
+        lines.append("- Freshness Reasons:")
+        for item in reasons_iter:
+            lines.append(f"  - {item}")
     lines.append("")
     for entry in results:
         status = "GO" if entry.go else "NO-GO"
@@ -190,8 +266,17 @@ def generate_report(
 ) -> list[SeriesReadiness]:
     ledger = _load_ledger(ledger_path)
     results = evaluate_readiness(ledger, now=now, window_days=window_days)
+    freshness_ok, freshness_reasons = _freshness_status()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_markdown(results, window_days=window_days), encoding="utf-8")
+    output_path.write_text(
+        render_markdown(
+            results,
+            window_days=window_days,
+            freshness_ok=freshness_ok,
+            freshness_reasons=freshness_reasons,
+        ),
+        encoding="utf-8",
+    )
     return results
 
 
@@ -207,6 +292,7 @@ def main(argv: list[str] | None = None) -> None:
         output_path=args.output,
         window_days=args.window,
     )
+    freshness_ok, freshness_reasons = _freshness_status()
     go_series = [entry.series for entry in results if entry.go]
     no_go_series = [entry.series for entry in results if not entry.go]
     print(f"[pilot_readiness] wrote {args.output}")
@@ -214,6 +300,9 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  GO: {', '.join(go_series)}")
     if no_go_series:
         print(f"  NO-GO: {', '.join(no_go_series)}")
+    if not freshness_ok:
+        suffix = ", ".join(freshness_reasons) if freshness_reasons else "unknown"
+        print(f"  Freshness NO-GO: {suffix}")
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry

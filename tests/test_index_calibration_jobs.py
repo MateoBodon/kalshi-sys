@@ -74,6 +74,17 @@ def test_write_params_emits_json(tmp_path) -> None:
     assert payload["kappa_event"] == pytest.approx(1.0, rel=1e-6)
 
 
+def test_write_params_noon_horizon(tmp_path) -> None:
+    bars = {"I:SPX": _load_minute_bars(_SPX_NOON_FIXTURE)}
+    frame = build_sigma_curve(bars, target_time=time(12, 0), residual_window=5)
+    write_hourly_params(frame, tmp_path, horizon="noon")
+    params_path = tmp_path / "spx" / "noon" / "params.json"
+    assert params_path.exists()
+    payload = json.loads(params_path.read_text(encoding="utf-8"))
+    assert payload["horizon"] == "noon"
+    assert payload["kappa_event"] == pytest.approx(1.0, rel=1e-6)
+
+
 def test_close_write_params_includes_extras(tmp_path) -> None:
     combined_bars = _load_minute_bars(_SPX_CLOSE_EVENT_FIXTURE) + _load_minute_bars(_SPX_CLOSE_BASE_FIXTURE)
     frame, records = build_sigma_curve(

@@ -4,9 +4,11 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
+import polars as pl
 
 from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, MinuteBar, PolygonIndicesClient
 
@@ -217,3 +219,48 @@ async def test_stream_minute_aggregates_reconnects(monkeypatch: pytest.MonkeyPat
     assert first["ev"] == "XA"
     assert second["ev"] == "XA"
     assert any("XA.I:SPX" in msg for msg in connections[0].sent)
+
+
+def test_download_minute_history_chunks_and_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client = PolygonIndicesClient(api_key="stub")
+    start = datetime(2024, 10, 21, 15, 45, tzinfo=UTC)
+    bar_sets = [
+        [
+            MinuteBar(timestamp=start + timedelta(minutes=0), open=5000.0, high=5001.0, low=4999.5, close=5000.5, volume=1000),
+            MinuteBar(timestamp=start + timedelta(minutes=1), open=5000.5, high=5001.5, low=5000.0, close=5001.0, volume=1100),
+        ],
+        [
+            MinuteBar(timestamp=start + timedelta(minutes=2), open=5001.0, high=5002.0, low=5000.5, close=5001.5, volume=1200),
+            MinuteBar(timestamp=start + timedelta(minutes=3), open=5001.5, high=5002.5, low=5001.0, close=5002.0, volume=1300),
+        ],
+        [
+            MinuteBar(timestamp=start + timedelta(minutes=4), open=5002.0, high=5003.0, low=5001.5, close=5002.5, volume=1400),
+            MinuteBar(timestamp=start + timedelta(minutes=5), open=5002.5, high=5003.5, low=5002.0, close=5003.0, volume=1500),
+        ],
+    ]
+    call_args: list[tuple[datetime, datetime]] = []
+
+    def _fake_fetch(symbol: str, chunk_start: datetime, chunk_end: datetime, *, adjusted: bool, limit: int):
+        call_args.append((chunk_start, chunk_end))
+        if not bar_sets:
+            return []
+        return bar_sets.pop(0)
+
+    monkeypatch.setattr(client, "fetch_minute_bars", _fake_fetch)
+    end = start + timedelta(minutes=6)
+    paths = client.download_minute_history(
+        "I:SPX",
+        start,
+        end,
+        output_root=tmp_path,
+        chunk_limit=2,
+    )
+    assert call_args and len(call_args) >= 3
+    assert all(args[0].tzinfo is UTC for args in call_args)
+    assert paths and len(paths) == 1
+    output_path = paths[0]
+    assert output_path.parent == tmp_path / "I_SPX"
+    frame = pl.read_parquet(output_path)
+    assert frame.height == 6
+    assert frame.get_column("timestamp").min() == start
+    assert frame.get_column("timestamp").max() == start + timedelta(minutes=5)

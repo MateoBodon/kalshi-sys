@@ -153,7 +153,16 @@ class FeeSchedule:
             rate_key=rate_key,
         )
 
-        raw_fee = rate * contracts_dec * price_dec * (ONE - price_dec)
+        curve = None
+        series_key = series.upper() if isinstance(series, str) else None
+        if rate_key == "maker_rate" and series_key:
+            curve = get_index_fee_curve(series_key)
+
+        if curve is not None:
+            coefficient = curve.coefficient
+            raw_fee = coefficient * contracts_dec * price_dec * (ONE - price_dec)
+        else:
+            raw_fee = rate * contracts_dec * price_dec * (ONE - price_dec)
         return round_up_to_cent(raw_fee)
 
     def _resolve_rate(

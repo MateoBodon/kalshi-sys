@@ -10,7 +10,8 @@ from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_INDEX_FEE_PATH = ROOT / "data" / "reference" / "index_fee_curves.json"
+DEFAULT_INDEX_FEE_PATH = ROOT / "configs" / "fees" / "series.json"
+LEGACY_INDEX_FEE_PATH = ROOT / "data" / "reference" / "index_fee_curves.json"
 
 
 @dataclass(frozen=True)
@@ -24,7 +25,12 @@ class IndexFeeCurve:
 def load_index_fee_curves(path: Path | None = None) -> Mapping[str, IndexFeeCurve]:
     """Load all index fee curves from the reference JSON file."""
 
-    resolved = (path or DEFAULT_INDEX_FEE_PATH).resolve()
+    if path is not None:
+        resolved = Path(path).resolve()
+    else:
+        resolved = DEFAULT_INDEX_FEE_PATH.resolve()
+        if not resolved.exists() and LEGACY_INDEX_FEE_PATH.exists():
+            resolved = LEGACY_INDEX_FEE_PATH.resolve()
     return _load_index_fee_curves_cached(str(resolved))
 
 

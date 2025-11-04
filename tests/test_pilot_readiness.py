@@ -43,8 +43,26 @@ def _write_ok_freshness(monitors_dir: Path, now: datetime) -> Path:
     return path
 
 
-def test_pilot_readiness_evaluate_filters_index_series() -> None:
+def _write_calibration(root: Path, slug: str, horizon: str, generated_at: datetime) -> None:
+    target = root / slug / horizon / "params.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "generated_at": generated_at.isoformat(),
+        "minutes_to_target": {"0": {"sigma": 1.0, "drift": 0.0}},
+        "residual_std": 0.5,
+    }
+    target.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_pilot_readiness_evaluate_filters_index_series(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime(2025, 11, 4, tzinfo=UTC)
+    calib_root = tmp_path / "calib"
+    for series, (slug, horizon) in pilot_readiness.CALIBRATION_TARGETS.items():
+        _write_calibration(calib_root, slug, horizon, now - timedelta(days=1))
+    monkeypatch.setattr(pilot_readiness, "CALIBRATION_ROOT", calib_root)
+    monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"
+    freshness_path = _write_ok_freshness(monitors_dir, now)
+    monkeypatch.setattr(pilot_readiness, "FRESHNESS_ARTIFACT_PATH", freshness_path)
     series_entries = []
     for label in pilot_readiness.INDEX_SERIES:
         for offset, delta in enumerate((8.0, 6.5, 7.5), start=1):
@@ -77,8 +95,15 @@ def test_pilot_readiness_evaluate_filters_index_series() -> None:
     assert all(entry.go for entry in results)
 
 
-def test_pilot_readiness_generate_report(tmp_path: Path) -> None:
+def test_pilot_readiness_generate_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime(2025, 11, 4, tzinfo=UTC)
+    calib_root = tmp_path / "calib"
+    for series, (slug, horizon) in pilot_readiness.CALIBRATION_TARGETS.items():
+        _write_calibration(calib_root, slug, horizon, now - timedelta(days=5))
+    monkeypatch.setattr(pilot_readiness, "CALIBRATION_ROOT", calib_root)
+    monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"
+    freshness_path = _write_ok_freshness(monitors_dir, now)
+    monkeypatch.setattr(pilot_readiness, "FRESHNESS_ARTIFACT_PATH", freshness_path)
     ledger_data = []
     # Construct data that will trigger NO-GO for INX due to low fills
     for label in pilot_readiness.INDEX_SERIES:
@@ -114,6 +139,7 @@ def test_pilot_readiness_generate_report(tmp_path: Path) -> None:
     assert any("fills" in reason for reason in by_series["INX"].reasons)
     markdown = report_path.read_text(encoding="utf-8")
     assert "Pilot Readiness" in markdown
+    assert "Data Freshness" in markdown
     assert "INX — NO-GO" in markdown
 
 

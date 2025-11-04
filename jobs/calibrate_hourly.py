@@ -150,6 +150,7 @@ def _write_params(
     frame: pl.DataFrame,
     output: Path,
     *,
+    horizon: str = HORIZON,
     extras: Mapping[str, Mapping[str, object]] | None = None,
 ) -> None:
     output = output.resolve()
@@ -159,7 +160,7 @@ def _write_params(
     for symbol in unique_symbols:
         subset = frame.filter(pl.col("symbol") == symbol).sort("minutes_to_target")
         slug = symbol.split(":")[-1].lower()
-        target_dir = output / slug / HORIZON
+        target_dir = output / slug / horizon
         target_dir.mkdir(parents=True, exist_ok=True)
         minutes_map: dict[str, dict[str, float]] = {}
         for row in subset.iter_rows(named=True):
@@ -174,7 +175,7 @@ def _write_params(
         kappa_value = 1.0
         payload: dict[str, object] = {
             "symbol": symbol,
-            "horizon": HORIZON,
+            "horizon": horizon,
             "generated_at": generated_at,
             "minutes_to_target": minutes_map,
             "residual_std": residual_std,
