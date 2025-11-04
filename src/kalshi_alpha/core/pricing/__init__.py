@@ -253,42 +253,43 @@ def expected_value_after_fees(  # noqa: PLR0913
     if contracts_f <= 0:
         raise ValueError("contracts must be positive")
 
-    fee_fn = schedule.maker_fee if liquidity is Liquidity.MAKER else schedule.taker_fee
     series_key = series.upper() if isinstance(series, str) else None
 
     if side is OrderSide.YES:
         if series_key in _INDEX_SERIES:
-            fee = _index_fee(contracts, price, series_key)
+            fee_price = price
         else:
-            fee = float(
-                fee_fn(
-                    contracts,
-                    price,
-                    series=series,
-                    market_name=market_name,
-                )
-            )
+            fee_price = price
         payoff_if_win = (1.0 - price) * contracts_f
         payoff_if_lose = -price * contracts_f
         expected = probability * payoff_if_win + (1.0 - probability) * payoff_if_lose
     elif side is OrderSide.NO:
         no_price = 1.0 - price
         if series_key in _INDEX_SERIES:
-            fee = _index_fee(contracts, no_price, series_key)
+            fee_price = no_price
         else:
-            fee = float(
-                fee_fn(
-                    contracts,
-                    no_price,
-                    series=series,
-                    market_name=market_name,
-                )
-            )
+            fee_price = no_price
         payoff_if_win = (1.0 - no_price) * contracts_f  # event fails
         payoff_if_lose = -no_price * contracts_f
         expected = (1.0 - probability) * payoff_if_win + probability * payoff_if_lose
     else:
         raise ValueError(f"Unsupported order side: {side}")
+
+    if series_key in _INDEX_SERIES:
+        if liquidity is Liquidity.MAKER:
+            fee = 0.0
+        else:
+            fee = _index_fee(contracts, fee_price, series_key)
+    else:
+        fee_fn = schedule.maker_fee if liquidity is Liquidity.MAKER else schedule.taker_fee
+        fee = float(
+            fee_fn(
+                contracts,
+                fee_price,
+                series=series,
+                market_name=market_name,
+            )
+        )
 
     return expected - fee
 

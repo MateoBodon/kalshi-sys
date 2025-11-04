@@ -1,6 +1,6 @@
 {
   "updated": "2025-11-03",
-  "notes": "Maker fee schedule for index ladders: fee = coefficient * contracts * p * (1 - p) rounded up to nearest cent",
+  "notes": "Index TAKER fee coefficient",
   "series": {
     "INX": {"coefficient": 0.035},
     "INXU": {"coefficient": 0.035},

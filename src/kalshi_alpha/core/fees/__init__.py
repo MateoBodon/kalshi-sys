@@ -174,7 +174,7 @@ class FeeSchedule:
             raw_fee = rate * contracts_dec * price_dec * (ONE - price_dec)
         return round_up_to_cent(raw_fee)
 
-    def _resolve_rate(
+    def _resolve_rate(  # noqa: PLR0912
         self,
         base_rate: Decimal,
         *,
