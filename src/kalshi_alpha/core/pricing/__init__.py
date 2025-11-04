@@ -256,19 +256,13 @@ def expected_value_after_fees(  # noqa: PLR0913
     series_key = series.upper() if isinstance(series, str) else None
 
     if side is OrderSide.YES:
-        if series_key in _INDEX_SERIES:
-            fee_price = price
-        else:
-            fee_price = price
+        fee_price = price
         payoff_if_win = (1.0 - price) * contracts_f
         payoff_if_lose = -price * contracts_f
         expected = probability * payoff_if_win + (1.0 - probability) * payoff_if_lose
     elif side is OrderSide.NO:
         no_price = 1.0 - price
-        if series_key in _INDEX_SERIES:
-            fee_price = no_price
-        else:
-            fee_price = no_price
+        fee_price = no_price
         payoff_if_win = (1.0 - no_price) * contracts_f  # event fails
         payoff_if_lose = -no_price * contracts_f
         expected = (1.0 - probability) * payoff_if_win + probability * payoff_if_lose
