@@ -545,13 +545,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         if not args.quiet:
             current_label = str(outcome.roll_info.get("current_hour_label") or "")
             target_label = str(outcome.roll_info.get("target_hour_label") or "")
-            print(f"[u-roll] ROLLED U-SERIES: {current_label} -> {target_label}")
+            print(f"[u-roll] {current_label}→{target_label}")
     elif cancel_requested and not args.quiet and outcome.series and outcome.series.ticker.upper() in _U_SERIES:
         # Ensure we at least log current targeting if cancel triggered but no roll occurred
         current_label = str(outcome.roll_info.get("current_hour_label") if outcome.roll_info else "")
         target_label = str(outcome.roll_info.get("target_hour_label") if outcome.roll_info else "")
         if current_label or target_label:
-            print(f"[u-roll] TARGETING U-SERIES: {current_label or '?'} -> {target_label or '?'}")
+            print(f"[u-roll] {current_label or '?'}→{target_label or '?'}")
 
     proposals = outcome.proposals
     books_at_scan = dict(getattr(outcome, "books_at_scan", {}))
@@ -1745,11 +1745,43 @@ def scan_series(  # noqa: PLR0913
         rule_config = None
     events_to_scan = list(events)
     roll_decision: dict[str, object] | None = None
+    guardrail_reasons: list[str] = []
     if series_obj.ticker.upper() in _U_SERIES:
         roll_decision = _u_series_roll_decision(now_utc)
         filtered = _filter_u_series_events(events_to_scan, decision=roll_decision)
         if filtered:
             events_to_scan = filtered
+        seconds_to_boundary = float(roll_decision.get("seconds_to_boundary", 0.0)) if roll_decision else 0.0
+        target_hour = int(roll_decision.get("target_hour", 0)) if roll_decision else 0
+        current_hour = int(roll_decision.get("current_hour", 0)) if roll_decision else 0
+        event_hours = {
+            (_parse_hour_label(event.ticker) or (None, None))[0]
+            for event in events
+        }
+        event_hours.discard(None)
+        has_target_event = target_hour in event_hours
+        if seconds_to_boundary <= 180.0 and not has_target_event:
+            guardrail_reasons.append("next_hour_missing")
+        if seconds_to_boundary <= 10.0 and seconds_to_boundary > 0.0:
+            guardrail_reasons.append("pre_boundary_cooldown")
+        if seconds_to_boundary <= 0.0:
+            guardrail_reasons.append("past_boundary")
+        if seconds_to_boundary <= 2.0:
+            state = OutstandingOrdersState.load()
+            if state.total() > 0:
+                guardrail_reasons.append("cancel_ack_pending")
+        now_et_value = roll_decision.get("now_et") if roll_decision else None
+        if isinstance(now_et_value, datetime):
+            seconds_since_boundary = float(
+                now_et_value.minute * 60
+                + now_et_value.second
+                + now_et_value.microsecond / 1_000_000
+            )
+            if current_hour == target_hour and seconds_since_boundary < 1.0:
+                guardrail_reasons.append("post_roll_delay")
+        guardrail_reasons = sorted(set(guardrail_reasons))
+        if guardrail_reasons:
+            events_to_scan = []
     rule_validation = _validate_index_rules(series_obj, events_to_scan, rule_config)
     max_legs = max(2, int(max_legs))
     prob_sum_gap_threshold = float(max(prob_sum_gap_threshold, 0.0))
@@ -1918,6 +1950,11 @@ def scan_series(  # noqa: PLR0913
             3,
         )
         monitors["u_series_cancel_required"] = bool(roll_decision.get("cancel_required", False))
+    if guardrail_reasons:
+        monitors["u_series_guardrails"] = tuple(guardrail_reasons)
+        monitors["u_series_guardrail_blocked"] = True
+    elif series_obj is not None and series_obj.ticker.upper() in _U_SERIES:
+        monitors.setdefault("u_series_guardrail_blocked", False)
     if series_obj is not None:
         monitors.setdefault("series", series_obj.ticker.upper())
     monitors.setdefault("model_version", model_version)
@@ -1953,6 +1990,8 @@ def scan_series(  # noqa: PLR0913
             "cancel_required": bool(roll_decision.get("cancel_required", False)),
             "now_et": now_et_value.isoformat() if isinstance(now_et_value, datetime) else None,
         }
+        if guardrail_reasons:
+            roll_payload["guardrails"] = tuple(guardrail_reasons)
     return ScanOutcome(
         proposals=proposals,
         monitors=monitors,
