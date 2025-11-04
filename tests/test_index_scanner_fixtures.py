@@ -96,21 +96,30 @@ def test_stale_freshness_blocks_execution(
     )
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
     freshness_payload = {
-        "required_feeds_ok": False,
-        "feeds": [
-            {
-                "id": "polygon_index.websocket",
-                "label": "Polygon index websocket",
-                "required": True,
-                "ok": False,
-                "age_minutes": 5.0,
-                "reason": "STALE>2s",
-            }
-        ],
+        "name": "data_freshness",
+        "status": "ALERT",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": False,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": ["polygon_index.websocket"],
+            "feeds": [
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": False,
+                    "age_minutes": 5.0,
+                    "reason": "STALE>2s",
+                    "details": {"threshold_seconds": 2.0},
+                }
+            ],
+        },
     }
-    (artifacts_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
 
     monkeypatch.chdir(tmp_path)
     scan_ladders.main(
@@ -132,6 +141,15 @@ def test_stale_freshness_blocks_execution(
 
     go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
     assert go_artifact["go"] is False
+    reasons = go_artifact.get("reasons", [])
+    assert "STALE_FEEDS" in reasons
+    assert "polygon_ws_stale" in reasons
+
+    proposals_dir = tmp_path / "exec" / "proposals" / "INXU"
+    proposal_files = sorted(proposals_dir.glob("*.json"))
+    assert proposal_files, "expected proposals artifact"
+    proposals_payload = json.loads(proposal_files[-1].read_text(encoding="utf-8"))
+    assert proposals_payload.get("proposals") == []
 
     orders_path = proc_root / "state" / "orders.json"
     payload = json.loads(orders_path.read_text(encoding="utf-8"))
@@ -162,12 +180,30 @@ def test_clock_skew_blocks_execution(
     )
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
     freshness_payload = {
-        "required_feeds_ok": True,
-        "feeds": [],
+        "name": "data_freshness",
+        "status": "OK",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": [],
+            "feeds": [
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 0.5,
+                    "reason": None,
+                    "details": {"threshold_seconds": 2.0},
+                }
+            ],
+        },
     }
-    (artifacts_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
 
     monkeypatch.setattr(scan_ladders, "_clock_skew_seconds", lambda *_: 5.0)
     monkeypatch.chdir(tmp_path)
@@ -216,12 +252,30 @@ def test_index_rule_mismatch_forces_no_go(
     )
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
     freshness_payload = {
-        "required_feeds_ok": True,
-        "feeds": [],
+        "name": "data_freshness",
+        "status": "OK",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": [],
+            "feeds": [
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 0.4,
+                    "reason": None,
+                    "details": {"threshold_seconds": 2.0},
+                }
+            ],
+        },
     }
-    (artifacts_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
 
     from kalshi_alpha.config import IndexRule
 

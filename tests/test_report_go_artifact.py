@@ -157,7 +157,11 @@ def test_scan_report_matches_latest_gate(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         scan_ladders,
         "_quality_gate_for_broker",
-        lambda args, monitors: scan_ladders.QualityGateResult(go=False, reasons=["test"], details={}),
+        lambda args, monitors, **_: scan_ladders.QualityGateResult(
+            go=False,
+            reasons=["test"],
+            details={},
+        ),
     )
     monkeypatch.setattr(scan_ladders, "write_go_no_go", lambda result: latest_artifact)
     monkeypatch.setattr(scan_ladders, "resolve_kill_switch_path", lambda *_: Path("kill_switch"))
