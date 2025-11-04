@@ -4,7 +4,7 @@ from pathlib import Path
 
 import polars as pl
 
-from kalshi_alpha.exec.scanners import scan_index_close, scan_index_noon
+from kalshi_alpha.exec.scanners import scan_index_close, scan_index_hourly
 
 
 def _install_calibration(src: Path, dest: Path) -> None:
@@ -12,18 +12,18 @@ def _install_calibration(src: Path, dest: Path) -> None:
     dest.write_bytes(src.read_bytes())
 
 
-def test_scan_index_noon_cli(
+def test_scan_index_hourly_cli(
     tmp_path: Path,
     fixtures_root: Path,
     isolated_data_roots: tuple[Path, Path],
 ) -> None:
     _, proc_root = isolated_data_roots
     _install_calibration(
-        Path("tests/fixtures/index/spx/noon/params.json"),
-        proc_root / "calib" / "index" / "spx" / "noon" / "params.json",
+        Path("tests/fixtures/index/spx/hourly/params.json"),
+        proc_root / "calib" / "index" / "spx" / "hourly" / "params.json",
     )
     output_root = tmp_path / "reports"
-    scan_index_noon.main(
+    scan_index_hourly.main(
         [
             "--offline",
             "--fixtures-root",
@@ -38,7 +38,7 @@ def test_scan_index_noon_cli(
     )
 
     csv_files = sorted((output_root / "INXU").glob("*.csv"))
-    assert csv_files, "expected noon scanner to emit CSV output"
+    assert csv_files, "expected hourly scanner to emit CSV output"
     frame = pl.read_csv(csv_files[-1])
     assert "delta_bps" in frame.columns
 

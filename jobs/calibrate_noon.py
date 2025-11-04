@@ -17,8 +17,8 @@ from .calibrate_hourly import (  # type: ignore[attr-defined]
     _resolve_tickers,
     _resolve_window,
     _time_bounds,
-    parse_args,
     _write_params,
+    parse_args,
 )
 
 HORIZON = "noon"

@@ -5,16 +5,20 @@ from __future__ import annotations
 import argparse
 import json
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
 
 import polars as pl
 
 from kalshi_alpha.exec.monitors.freshness import (
     FRESHNESS_ARTIFACT_PATH,
+)
+from kalshi_alpha.exec.monitors.freshness import (
     load_artifact as load_freshness_artifact,
+)
+from kalshi_alpha.exec.monitors.freshness import (
     summarize_artifact as summarize_freshness_artifact,
 )
 
@@ -30,11 +34,11 @@ MAX_ALPHA_GAP = 0.05
 MAX_CALIBRATION_AGE_DAYS = 14.0
 
 CALIBRATION_ROOT = Path("data/proc/calib/index")
-CALIBRATION_TARGETS: dict[str, tuple[str, str]] = {
-    "INXU": ("spx", "noon"),
-    "NASDAQ100U": ("ndx", "noon"),
-    "INX": ("spx", "close"),
-    "NASDAQ100": ("ndx", "close"),
+CALIBRATION_TARGETS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "INXU": ("spx", ("hourly", "noon")),
+    "NASDAQ100U": ("ndx", ("hourly", "noon")),
+    "INX": ("spx", ("close",)),
+    "NASDAQ100": ("ndx", ("close",)),
 }
 
 
@@ -113,14 +117,7 @@ def _alpha_gap_mean(subset: pl.DataFrame) -> float:
     return float(diff.mean()) if diff.len() else 0.0
 
 
-def _calibration_age_days(series: str, now: datetime) -> float | None:
-    target = CALIBRATION_TARGETS.get(series.upper())
-    if target is None:
-        return None
-    slug, horizon = target
-    path = CALIBRATION_ROOT / slug / horizon / "params.json"
-    if not path.exists():
-        return None
+def _file_age_days(path: Path, now: datetime) -> float | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         generated_at = payload.get("generated_at")
@@ -136,6 +133,21 @@ def _calibration_age_days(series: str, now: datetime) -> float | None:
     mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
     age_seconds = (now.astimezone(UTC) - mtime).total_seconds()
     return age_seconds / 86400.0 if age_seconds >= 0 else 0.0
+
+
+def _calibration_age_days(series: str, now: datetime) -> float | None:
+    target = CALIBRATION_TARGETS.get(series.upper())
+    if target is None:
+        return None
+    slug, horizons = target
+    for horizon in horizons:
+        path = CALIBRATION_ROOT / slug / horizon / "params.json"
+        if not path.exists():
+            continue
+        age = _file_age_days(path, now)
+        if age is not None:
+            return age
+    return None
 
 
 def _freshness_status() -> tuple[bool, list[str]]:

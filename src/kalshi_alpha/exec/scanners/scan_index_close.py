@@ -11,13 +11,13 @@ from kalshi_alpha.exec.scanners.utils import expected_value_summary
 from kalshi_alpha.strategies.index import CLOSE_CALIBRATION_PATH, CloseInputs, close_pmf
 from kalshi_alpha.strategies.index import cdf as index_cdf
 
-from .scan_index_hourly import IndexScanResult, QuoteOpportunity
 from .index_scan_common import (
     ScannerConfig,
     build_parser,
     parse_timestamp,
     run_index_scan,
 )
+from .scan_index_hourly import IndexScanResult, QuoteOpportunity
 
 
 def evaluate_close(  # noqa: PLR0913
@@ -93,6 +93,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser(DEFAULT_SERIES)
     args = parser.parse_args(argv)
     timestamp = parse_timestamp(args.now)
+    emit_report = True
+    if getattr(args, "no_report", False):
+        emit_report = False
+    elif getattr(args, "report", False):
+        emit_report = True
+    paper_ledger = True
+    if getattr(args, "no_paper_ledger", False):
+        paper_ledger = False
+    elif getattr(args, "paper_ledger", False):
+        paper_ledger = True
+    maker_only = True
+    if getattr(args, "no_maker_only", False):
+        maker_only = False
+    elif getattr(args, "maker_only", False):
+        maker_only = True
     config = ScannerConfig(
         series=tuple(s.upper() for s in args.series),
         min_ev=float(args.min_ev),
@@ -104,6 +119,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         output_root=Path(args.output_root),
         run_label="index_close",
         timestamp=timestamp,
+        paper_ledger=paper_ledger,
+        maker_only=maker_only,
+        emit_report=emit_report,
     )
     run_index_scan(config)
 

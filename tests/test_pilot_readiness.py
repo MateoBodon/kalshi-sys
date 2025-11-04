@@ -43,21 +43,28 @@ def _write_ok_freshness(monitors_dir: Path, now: datetime) -> Path:
     return path
 
 
-def _write_calibration(root: Path, slug: str, horizon: str, generated_at: datetime) -> None:
-    target = root / slug / horizon / "params.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "generated_at": generated_at.isoformat(),
-        "minutes_to_target": {"0": {"sigma": 1.0, "drift": 0.0}},
-        "residual_std": 0.5,
-    }
-    target.write_text(json.dumps(payload), encoding="utf-8")
+def _write_calibration(
+    root: Path,
+    slug: str,
+    horizons: str | tuple[str, ...],
+    generated_at: datetime,
+) -> None:
+    horizon_values = (horizons,) if isinstance(horizons, str) else tuple(horizons)
+    for horizon in horizon_values:
+        target = root / slug / horizon / "params.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "generated_at": generated_at.isoformat(),
+            "minutes_to_target": {"0": {"sigma": 1.0, "drift": 0.0}},
+            "residual_std": 0.5,
+        }
+        target.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_pilot_readiness_evaluate_filters_index_series(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime(2025, 11, 4, tzinfo=UTC)
     calib_root = tmp_path / "calib"
-    for series, (slug, horizon) in pilot_readiness.CALIBRATION_TARGETS.items():
+    for _series, (slug, horizon) in pilot_readiness.CALIBRATION_TARGETS.items():
         _write_calibration(calib_root, slug, horizon, now - timedelta(days=1))
     monkeypatch.setattr(pilot_readiness, "CALIBRATION_ROOT", calib_root)
     monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"
@@ -98,7 +105,7 @@ def test_pilot_readiness_evaluate_filters_index_series(tmp_path: Path, monkeypat
 def test_pilot_readiness_generate_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime(2025, 11, 4, tzinfo=UTC)
     calib_root = tmp_path / "calib"
-    for series, (slug, horizon) in pilot_readiness.CALIBRATION_TARGETS.items():
+    for _series, (slug, horizon) in pilot_readiness.CALIBRATION_TARGETS.items():
         _write_calibration(calib_root, slug, horizon, now - timedelta(days=5))
     monkeypatch.setattr(pilot_readiness, "CALIBRATION_ROOT", calib_root)
     monitors_dir = tmp_path / "reports" / "_artifacts" / "monitors"

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 from kalshi_alpha.drivers.polygon_index.client import PolygonIndicesClient
 
@@ -37,7 +37,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(f"[ingest] downloading {symbol} from {start_date.date()} to {end_date.date()}")
         paths = client.download_minute_history(symbol, start_date, end_date, output_root=args.output_root)
         if paths:
-            print(f"[ingest] wrote {len(paths)} parquet files under {args.output_root / symbol.replace(':', '_').upper()}")
+            target_dir = args.output_root / symbol.replace(":", "_").upper()
+            print(f"[ingest] wrote {len(paths)} parquet files under {target_dir}")
         else:
             print(f"[ingest] no bars returned for {symbol}")
 

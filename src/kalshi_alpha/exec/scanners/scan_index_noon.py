@@ -1,41 +1,21 @@
-"""CLI scanner for noon index ladders (INXU, NASDAQ100U)."""
+"""Deprecated alias for hourly index ladder scanner CLI."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Sequence
+import warnings
+from collections.abc import Sequence
 
-from .index_scan_common import (
-    ScannerConfig,
-    build_parser,
-    parse_timestamp,
-    run_index_scan,
-)
-
-DEFAULT_SERIES: Sequence[str] = ("INXU", "NASDAQ100U")
+from .scan_index_hourly import DEFAULT_SERIES
+from .scan_index_hourly import main as _hourly_main
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    parser = build_parser(DEFAULT_SERIES)
-    args = parser.parse_args(argv)
-    timestamp = parse_timestamp(args.now)
-    config = ScannerConfig(
-        series=tuple(s.upper() for s in args.series),
-        min_ev=float(args.min_ev),
-        max_bins=int(args.max_bins),
-        contracts=int(args.contracts),
-        kelly_cap=float(args.kelly_cap),
-        offline=bool(args.offline),
-        fixtures_root=Path(args.fixtures_root),
-        output_root=Path(args.output_root),
-        run_label="index_noon",
-        timestamp=timestamp,
+    warnings.warn(
+        "scan_index_noon is deprecated; use scan_index_hourly",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    run_index_scan(config)
+    _hourly_main(argv)
 
 
-__all__ = ["main"]
-
-
-if __name__ == "__main__":  # pragma: no cover
-    main()
+__all__ = ["DEFAULT_SERIES", "main"]

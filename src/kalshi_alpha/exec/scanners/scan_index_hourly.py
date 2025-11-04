@@ -1,13 +1,20 @@
-"""Scanner helpers for intraday hourly index ladders."""
+"""Scanner helpers and CLI for intraday hourly index ladders."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from kalshi_alpha.config import IndexRule, lookup_index_rule
 from kalshi_alpha.core.pricing import LadderBinProbability, OrderSide
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
+from kalshi_alpha.exec.scanners.index_scan_common import (
+    ScannerConfig,
+    build_parser,
+    parse_timestamp,
+    run_index_scan,
+)
 from kalshi_alpha.exec.scanners.utils import expected_value_summary
 from kalshi_alpha.strategies.index import (
     HOURLY_CALIBRATION_PATH as _HOURLY_CALIBRATION_PATH,
@@ -16,6 +23,7 @@ from kalshi_alpha.strategies.index import HourlyInputs, hourly_pmf
 from kalshi_alpha.strategies.index import cdf as index_cdf
 
 HOURLY_CALIBRATION_PATH = _HOURLY_CALIBRATION_PATH
+DEFAULT_SERIES: tuple[str, ...] = ("INXU", "NASDAQ100U")
 
 
 @dataclass(frozen=True)
@@ -110,4 +118,48 @@ def evaluate_hourly(  # noqa: PLR0913
     )
 
 
-__all__ = ["HOURLY_CALIBRATION_PATH", "QuoteOpportunity", "IndexScanResult", "evaluate_hourly"]
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = build_parser(DEFAULT_SERIES)
+    args = parser.parse_args(argv)
+    timestamp = parse_timestamp(args.now)
+    emit_report = True
+    if getattr(args, "no_report", False):
+        emit_report = False
+    elif getattr(args, "report", False):
+        emit_report = True
+    paper_ledger = True
+    if getattr(args, "no_paper_ledger", False):
+        paper_ledger = False
+    elif getattr(args, "paper_ledger", False):
+        paper_ledger = True
+    maker_only = True
+    if getattr(args, "no_maker_only", False):
+        maker_only = False
+    elif getattr(args, "maker_only", False):
+        maker_only = True
+    config = ScannerConfig(
+        series=tuple(s.upper() for s in args.series),
+        min_ev=float(args.min_ev),
+        max_bins=int(args.max_bins),
+        contracts=int(args.contracts),
+        kelly_cap=float(args.kelly_cap),
+        offline=bool(args.offline),
+        fixtures_root=Path(args.fixtures_root),
+        output_root=Path(args.output_root),
+        run_label="index_hourly",
+        timestamp=timestamp,
+        paper_ledger=paper_ledger,
+        maker_only=maker_only,
+        emit_report=emit_report,
+    )
+    run_index_scan(config)
+
+
+__all__ = [
+    "DEFAULT_SERIES",
+    "HOURLY_CALIBRATION_PATH",
+    "IndexScanResult",
+    "QuoteOpportunity",
+    "evaluate_hourly",
+    "main",
+]

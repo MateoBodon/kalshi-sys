@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Sequence
 
 from kalshi_alpha.config import load_index_ops_config
 from kalshi_alpha.core.execution.fillratio import tune_alpha
-from kalshi_alpha.core.execution.slippage import fit_slippage
 from kalshi_alpha.core.execution.series_utils import canonical_series_family
+from kalshi_alpha.core.execution.slippage import fit_slippage
 from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.exec import scoreboard
 from kalshi_alpha.exec.runners import scan_ladders
@@ -22,7 +22,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run microlive index scan for a single window.")
     parser.add_argument("--series", required=True, help="Kalshi series ticker (INX/INXU/NASDAQ100/NASDAQ100U)")
     parser.add_argument("--fixtures-root", default="tests/data_fixtures", help="Offline fixtures root directory")
-    parser.add_argument("--min-ev", type=float, default=0.05, help="Minimum EV_after_fees per contract (USD)")
+    parser.add_argument(
+        "--min-ev",
+        type=float,
+        default=float(INDEX_OPS_CONFIG.min_ev_usd),
+        help="Minimum EV_after_fees per contract (USD)",
+    )
     parser.add_argument("--offline", action="store_true", help="Use offline fixtures for driver data")
     parser.add_argument("--broker", default="dry", choices=["dry", "live"], help="Execution broker adapter")
     parser.add_argument("--kill-switch-file", help="Override kill-switch sentinel path")
@@ -76,11 +81,12 @@ def _log_ops_window(series: str, *, reference: datetime | None, quiet: bool) -> 
     end_local = datetime.combine(local.date(), window.end, tzinfo=INDEX_OPS_CONFIG.timezone)
     if end_local <= start_local:
         end_local += timedelta(days=1)
-    cancel_by = end_local - timedelta(seconds=INDEX_OPS_CONFIG.cancel_buffer_seconds)
+    cancel_buffer = float(window.cancel_buffer_seconds)
+    cancel_by = end_local - timedelta(seconds=cancel_buffer)
     print(
         "[microlive] ops window "
         f"{window.name}: {start_local.isoformat()} -> {end_local.isoformat()} "
-        f"(cancel by {cancel_by.isoformat()}, buffer={INDEX_OPS_CONFIG.cancel_buffer_seconds:.0f}s)"
+        f"(cancel by {cancel_by.isoformat()}, buffer={cancel_buffer:.0f}s)"
     )
 
 
@@ -105,7 +111,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             parsed = datetime.fromisoformat(args.now)
             timestamp = parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
         except ValueError:
-            raise SystemExit("--now must be ISO-8601 format, e.g. 2025-11-04T15:20:00+00:00")
+            raise SystemExit("--now must be ISO-8601 format, e.g. 2025-11-04T15:20:00+00:00") from None
     print(f"[microlive] starting scan_ladders with args: {' '.join(scan_args)}")
     _log_ops_window(args.series.upper(), reference=timestamp, quiet=args.quiet)
     scan_ladders.main(scan_args)

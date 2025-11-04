@@ -96,16 +96,17 @@ from kalshi_alpha.strategies import index as index_strategy
 from kalshi_alpha.strategies import teny as teny_strategy
 from kalshi_alpha.strategies import weather as weather_strategy
 
-DEFAULT_MIN_EV = 0.05  # USD per contract after maker fees
+INDEX_OPS_CONFIG: IndexOpsConfig = load_index_ops_config()
+
+DEFAULT_MIN_EV = float(INDEX_OPS_CONFIG.min_ev_usd)
 DEFAULT_CONTRACTS = 10
 DEFAULT_FILL_ALPHA = 0.6
 
-INDEX_OPS_CONFIG: IndexOpsConfig = load_index_ops_config()
-CANCEL_BUFFER_SECONDS = float(INDEX_OPS_CONFIG.cancel_buffer_seconds)
-
 _POLYGON_FIXTURE_DIR = "polygon_index"
-_TARGET_NOON = time(12, 0)
-_TARGET_CLOSE = time(16, 0)
+_WINDOW_NOON = INDEX_OPS_CONFIG.window_noon
+_WINDOW_CLOSE = INDEX_OPS_CONFIG.window_close
+_TARGET_NOON = _WINDOW_NOON.end
+_TARGET_CLOSE = _WINDOW_CLOSE.end
 _ET_ZONE = ZoneInfo("America/New_York")
 _U_SERIES = {"INXU", "NASDAQ100U"}
 _HOUR_PATTERN = re.compile(r"H(?P<hour>\d{2})(?P<minute>\d{2})")
@@ -1639,6 +1640,14 @@ def _ops_window_for_series(series: str) -> IndexOpsWindow | None:
         return None
 
 
+def _cancel_buffer_seconds(series: str | None = None) -> float:
+    if series is not None:
+        window = _ops_window_for_series(series)
+        if window is not None:
+            return float(window.cancel_buffer_seconds)
+    return float(_WINDOW_CLOSE.cancel_buffer_seconds)
+
+
 def _ops_window_metadata(series: str, now_utc: datetime) -> dict[str, object]:
     window = _ops_window_for_series(series)
     if window is None:
@@ -1648,12 +1657,13 @@ def _ops_window_metadata(series: str, now_utc: datetime) -> dict[str, object]:
     end_local = datetime.combine(now_local.date(), window.end, tzinfo=INDEX_OPS_CONFIG.timezone)
     if end_local <= start_local:
         end_local = end_local + timedelta(days=1)
-    seconds_to_cancel = max((end_local - now_local).total_seconds() - CANCEL_BUFFER_SECONDS, 0.0)
+    cancel_buffer = float(window.cancel_buffer_seconds)
+    seconds_to_cancel = max((end_local - now_local).total_seconds() - cancel_buffer, 0.0)
     return {
         "ops_window_name": window.name,
         "ops_window_start_et": start_local.isoformat(),
         "ops_window_end_et": end_local.isoformat(),
-        "ops_cancel_buffer_seconds": CANCEL_BUFFER_SECONDS,
+        "ops_cancel_buffer_seconds": cancel_buffer,
         "ops_seconds_to_cancel": round(seconds_to_cancel, 3),
     }
 
@@ -1668,7 +1678,8 @@ def _u_series_roll_decision(now_utc: datetime) -> dict[str, object]:
     rolled = target_hour != current_hour
     boundary = now_et.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     seconds_to_boundary = max((boundary - now_et).total_seconds(), 0.0)
-    cancel_required = seconds_to_boundary <= CANCEL_BUFFER_SECONDS
+    cancel_buffer = float(_WINDOW_NOON.cancel_buffer_seconds)
+    cancel_required = seconds_to_boundary <= cancel_buffer
     return {
         "current_hour": current_hour,
         "target_hour": target_hour,
@@ -1676,6 +1687,7 @@ def _u_series_roll_decision(now_utc: datetime) -> dict[str, object]:
         "now_et": now_et,
         "seconds_to_boundary": seconds_to_boundary,
         "cancel_required": cancel_required,
+        "cancel_buffer_seconds": cancel_buffer,
     }
 
 
@@ -1813,7 +1825,8 @@ def scan_series(  # noqa: PLR0913
             guardrail_reasons.append("pre_boundary_cooldown")
         if seconds_to_boundary <= 0.0:
             guardrail_reasons.append("past_boundary")
-        if seconds_to_boundary <= CANCEL_BUFFER_SECONDS:
+        cancel_buffer = _cancel_buffer_seconds(series_obj.ticker)
+        if seconds_to_boundary <= cancel_buffer:
             state = OutstandingOrdersState.load()
             if state.total() > 0:
                 guardrail_reasons.append("cancel_ack_pending")
@@ -2168,7 +2181,7 @@ def _strategy_pmf_for_series(
         inputs = index_strategy.HourlyInputs(
             series=ticker,
             current_price=_resolve_index_price(snapshot),
-            minutes_to_noon=minutes_to_target,
+            minutes_to_target=minutes_to_target,
             prev_close=snapshot.previous_close,
             event_tags=event_tags,
         )

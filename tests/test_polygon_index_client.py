@@ -7,8 +7,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import pytest
 import polars as pl
+import pytest
 
 from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, MinuteBar, PolygonIndicesClient
 
@@ -226,16 +226,58 @@ def test_download_minute_history_chunks_and_writes(tmp_path: Path, monkeypatch: 
     start = datetime(2024, 10, 21, 15, 45, tzinfo=UTC)
     bar_sets = [
         [
-            MinuteBar(timestamp=start + timedelta(minutes=0), open=5000.0, high=5001.0, low=4999.5, close=5000.5, volume=1000),
-            MinuteBar(timestamp=start + timedelta(minutes=1), open=5000.5, high=5001.5, low=5000.0, close=5001.0, volume=1100),
+            MinuteBar(
+                timestamp=start + timedelta(minutes=0),
+                open=5000.0,
+                high=5001.0,
+                low=4999.5,
+                close=5000.5,
+                volume=1000,
+            ),
+            MinuteBar(
+                timestamp=start + timedelta(minutes=1),
+                open=5000.5,
+                high=5001.5,
+                low=5000.0,
+                close=5001.0,
+                volume=1100,
+            ),
         ],
         [
-            MinuteBar(timestamp=start + timedelta(minutes=2), open=5001.0, high=5002.0, low=5000.5, close=5001.5, volume=1200),
-            MinuteBar(timestamp=start + timedelta(minutes=3), open=5001.5, high=5002.5, low=5001.0, close=5002.0, volume=1300),
+            MinuteBar(
+                timestamp=start + timedelta(minutes=2),
+                open=5001.0,
+                high=5002.0,
+                low=5000.5,
+                close=5001.5,
+                volume=1200,
+            ),
+            MinuteBar(
+                timestamp=start + timedelta(minutes=3),
+                open=5001.5,
+                high=5002.5,
+                low=5001.0,
+                close=5002.0,
+                volume=1300,
+            ),
         ],
         [
-            MinuteBar(timestamp=start + timedelta(minutes=4), open=5002.0, high=5003.0, low=5001.5, close=5002.5, volume=1400),
-            MinuteBar(timestamp=start + timedelta(minutes=5), open=5002.5, high=5003.5, low=5002.0, close=5003.0, volume=1500),
+            MinuteBar(
+                timestamp=start + timedelta(minutes=4),
+                open=5002.0,
+                high=5003.0,
+                low=5001.5,
+                close=5002.5,
+                volume=1400,
+            ),
+            MinuteBar(
+                timestamp=start + timedelta(minutes=5),
+                open=5002.5,
+                high=5003.5,
+                low=5002.0,
+                close=5003.0,
+                volume=1500,
+            ),
         ],
     ]
     call_args: list[tuple[datetime, datetime]] = []

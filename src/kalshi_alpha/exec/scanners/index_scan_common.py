@@ -4,24 +4,27 @@ from __future__ import annotations
 
 import argparse
 import csv
+import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import polars as pl
 
+from kalshi_alpha.config import load_index_ops_config
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha
 from kalshi_alpha.core.execution.index_models import load_alpha_curve, load_slippage_curve
 from kalshi_alpha.core.execution.slippage import SlippageModel
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
-from kalshi_alpha.core.pricing import OrderSide
 from kalshi_alpha.core.risk import PALGuard, PALPolicy
 from kalshi_alpha.exec.ledger import PaperLedger, simulate_fills
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners import scan_ladders
 
+INDEX_OPS_CONFIG = load_index_ops_config()
+LOGGER = logging.getLogger(__name__)
 
 DEFAULT_CONTRACTS = 1
 DEFAULT_KELLY_CAP = 0.25
@@ -34,8 +37,8 @@ PAL_POLICY_FALLBACK_PATH = Path("configs/pal_policy.example.yaml")
 @dataclass(frozen=True)
 class ScannerConfig:
     series: Sequence[str]
-    min_ev: float = 0.05
-    max_bins: int = 2
+    min_ev: float = float(INDEX_OPS_CONFIG.min_ev_usd)
+    max_bins: int = int(INDEX_OPS_CONFIG.max_bins_per_series)
     contracts: int = DEFAULT_CONTRACTS
     kelly_cap: float = DEFAULT_KELLY_CAP
     offline: bool = False
@@ -43,6 +46,9 @@ class ScannerConfig:
     output_root: Path = DEFAULT_OUTPUT_ROOT
     run_label: str = "index"
     timestamp: datetime | None = None
+    paper_ledger: bool = True
+    maker_only: bool = True
+    emit_report: bool = True
 
 
 @dataclass(frozen=True)
@@ -83,7 +89,7 @@ def _pal_guard(series: str) -> PALGuard:
     return PALGuard(policy)
 
 
-def _simulate_execution(
+def _simulate_execution(  # noqa: PLR0913
     *,
     proposals: Sequence[scan_ladders.Proposal],
     client: KalshiPublicClient,
@@ -103,7 +109,8 @@ def _simulate_execution(
             continue
         try:
             orderbook_cache[proposal.market_id] = client.get_orderbook(proposal.market_id)
-        except Exception:  # pragma: no cover - robustness for missing books
+        except Exception as exc:  # pragma: no cover - robustness for missing books
+            LOGGER.debug("failed to load orderbook %s: %s", proposal.market_id, exc)
             continue
 
     ledger = simulate_fills(
@@ -178,7 +185,7 @@ def _select_top_bins(rows: Sequence[OpportunityRow], *, max_bins: int) -> list[O
     return unique_bins
 
 
-def _write_outputs(
+def _write_outputs(  # noqa: PLR0913
     *,
     rows: Sequence[OpportunityRow],
     series: str,
@@ -273,7 +280,7 @@ def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
             pal_guard=pal_guard,
             driver_fixtures=driver_fixtures,
             strategy_name="auto",
-            maker_only=True,
+            maker_only=config.maker_only,
             allow_tails=False,
             risk_manager=None,
             max_var=None,
@@ -285,18 +292,25 @@ def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
             series_dir = config.output_root / series.upper()
             series_dir.mkdir(parents=True, exist_ok=True)
             empty_csv = series_dir / f"{timestamp.strftime('%Y%m%dT%H%M%SZ')}.csv"
-            empty_csv.write_text("series,market,strike,side,event,q_yes,model_probability,market_probability,ev_after_fees,ev_per_contract,contracts,alpha,slippage,delta_bps\n", encoding="utf-8")
-            md_path = write_markdown_report(
-                series=series,
-                proposals=[],
-                ledger=PaperLedger(records=[], series=series.upper()),
-                output_dir=series_dir,
-                monitors=outcome.monitors,
-                exposure_summary={},
-                manifest_path=None,
-                go_status=False,
-                pilot_metadata={},
+            header = (
+                "series,market,strike,side,event,q_yes,model_probability,"
+                "market_probability,ev_after_fees,ev_per_contract,contracts,"
+                "alpha,slippage,delta_bps\n"
             )
+            empty_csv.write_text(header, encoding="utf-8")
+            md_path = None
+            if config.emit_report:
+                md_path = write_markdown_report(
+                    series=series,
+                    proposals=[],
+                    ledger=PaperLedger(records=[], series=series.upper()),
+                    output_dir=series_dir,
+                    monitors=outcome.monitors,
+                    exposure_summary={},
+                    manifest_path=None,
+                    go_status=False,
+                    pilot_metadata={},
+                )
             results[series.upper()] = {"csv": empty_csv, "markdown": md_path}
             continue
         ledger = _simulate_execution(
@@ -318,6 +332,59 @@ def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
             monitors=outcome.monitors,
             ledger=ledger,
         )
+        ev_table = outcome.monitors.get("ev_honesty_table") if outcome.monitors else None
+        if isinstance(ev_table, list):
+            artifacts_dir = Path("reports/_artifacts")
+            artifacts_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = artifacts_dir / f"ev_honesty_{series.upper()}.csv"
+            with artifact_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(
+                    [
+                        "market",
+                        "strike",
+                        "maker_ev_per_contract_original",
+                        "maker_ev_per_contract_replay",
+                        "maker_ev_original",
+                        "maker_ev_replay",
+                        "delta",
+                    ]
+                )
+                for entry in ev_table:
+                    writer.writerow(
+                        [
+                            entry.get("market_ticker", "-"),
+                            entry.get("strike", ""),
+                            entry.get("maker_ev_per_contract_original", ""),
+                            entry.get("maker_ev_per_contract_replay", ""),
+                            entry.get("maker_ev_original", ""),
+                            entry.get("maker_ev_replay", ""),
+                            entry.get("delta", ""),
+                        ]
+                    )
+            LOGGER.debug("wrote ev honesty table for %s to %s", series, artifact_path)
+        else:
+            artifacts_dir = Path("reports/_artifacts")
+            artifacts_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = artifacts_dir / f"ev_honesty_{series.upper()}.csv"
+            with artifact_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(
+                    [
+                        "market",
+                        "strike",
+                        "maker_ev_per_contract_original",
+                        "maker_ev_per_contract_replay",
+                        "maker_ev_original",
+                        "maker_ev_replay",
+                        "delta",
+                        "note",
+                    ]
+                )
+                writer.writerow(["-", "", "", "", "", "", "", "no_ev_honesty_data"])
+            LOGGER.debug("wrote placeholder ev honesty table for %s to %s", series, artifact_path)
+        if not config.emit_report:
+            md_path = None
         results[series.upper()] = {"csv": csv_path, "markdown": md_path}
     return results
 
@@ -325,13 +392,39 @@ def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
 def build_parser(default_series: Sequence[str]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Scan index ladders and emit paper reports.")
     parser.add_argument("--series", nargs="+", default=list(default_series), help="Series tickers to scan.")
-    parser.add_argument("--min-ev", type=float, default=0.05, help="Minimum EV_after_fees per contract (USD).")
-    parser.add_argument("--max-bins", type=int, default=2, help="Maximum number of bins to include per series.")
+    parser.add_argument(
+        "--min-ev",
+        type=float,
+        default=float(INDEX_OPS_CONFIG.min_ev_usd),
+        help="Minimum EV_after_fees per contract (USD).",
+    )
+    parser.add_argument(
+        "--max-bins",
+        type=int,
+        default=int(INDEX_OPS_CONFIG.max_bins_per_series),
+        help="Maximum number of bins to include per series.",
+    )
     parser.add_argument("--contracts", type=int, default=DEFAULT_CONTRACTS, help="Contracts per quote (default: 1).")
     parser.add_argument("--kelly-cap", type=float, default=DEFAULT_KELLY_CAP, help="Truncated Kelly cap.")
     parser.add_argument("--offline", action="store_true", help="Use offline Kalshi fixtures.")
-    parser.add_argument("--fixtures-root", type=Path, default=Path("tests/data_fixtures"), help="Fixture root directory.")
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT, help="Report output root directory.")
+    parser.add_argument("--report", action="store_true", help="Generate markdown report output (default on).")
+    parser.add_argument("--no-report", action="store_true", help="Skip markdown report output.")
+    parser.add_argument("--paper-ledger", action="store_true", help="Simulate paper ledger fills (default on).")
+    parser.add_argument("--no-paper-ledger", action="store_true", help="Skip paper ledger simulation.")
+    parser.add_argument("--maker-only", action="store_true", help="Restrict to maker-side proposals (default on).")
+    parser.add_argument("--no-maker-only", action="store_true", help="Allow taker-side proposals.")
+    parser.add_argument(
+        "--fixtures-root",
+        type=Path,
+        default=Path("tests/data_fixtures"),
+        help="Fixture root directory.",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Report output root directory.",
+    )
     parser.add_argument("--now", type=str, help="Override timestamp (ISO-8601).")
     return parser
 

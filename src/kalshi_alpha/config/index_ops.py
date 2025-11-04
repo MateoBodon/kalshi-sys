@@ -7,51 +7,62 @@ from datetime import time
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = ROOT / "configs" / "index_ops.yaml"
+_DEFAULT_TZ = ZoneInfo("America/New_York")
+_SERIES_WINDOW_MAP = MappingProxyType(
+    {
+        "INXU": "window_noon",
+        "NASDAQ100U": "window_noon",
+        "INX": "window_close",
+        "NASDAQ100": "window_close",
+    }
+)
 
 
 @dataclass(frozen=True)
 class IndexOpsWindow:
-    """Operations window definition for a group of index ladder series."""
+    """Operations window definition with cancel buffers."""
 
     name: str
     start: time
     end: time
-    series: tuple[str, ...]
-
-    def contains_series(self, series: str) -> bool:
-        return series.upper() in self.series
+    cancel_buffer_seconds: float
 
 
 @dataclass(frozen=True)
 class IndexOpsConfig:
     """Aggregated operations configuration for index ladder scanners and microlive."""
 
-    timezone: ZoneInfo
-    cancel_buffer_seconds: float
-    windows: tuple[IndexOpsWindow, ...]
-    series_to_window: Mapping[str, IndexOpsWindow]
+    window_noon: IndexOpsWindow
+    window_close: IndexOpsWindow
+    min_ev_usd: float
+    max_bins_per_series: int
+
+    @property
+    def timezone(self) -> ZoneInfo:
+        return _DEFAULT_TZ
 
     def window_for_series(self, series: str) -> IndexOpsWindow:
         series_key = series.upper()
         try:
-            return self.series_to_window[series_key]
+            window_key = _SERIES_WINDOW_MAP[series_key]
         except KeyError as exc:
-            supported_codes: set[str] = set()
-            for window in self.windows:
-                supported_codes.update(window.series)
-            supported = ", ".join(sorted(supported_codes))
-            raise KeyError(f"No operations window configured for '{series_key}'. Supported series: {supported}") from exc
+            supported = ", ".join(sorted(_SERIES_WINDOW_MAP.keys()))
+            message = (
+                f"No operations window configured for '{series_key}'. "
+                f"Supported series: {supported}"
+            )
+            raise KeyError(message) from exc
+        return getattr(self, window_key)
 
 
 def load_index_ops_config(path: Path | None = None) -> IndexOpsConfig:
-    """Read the index operations window configuration from disk."""
+    """Read the index operations configuration from disk."""
 
     resolved = (path or DEFAULT_CONFIG_PATH).resolve()
     return _load_index_ops_config_cached(str(resolved))
@@ -66,46 +77,36 @@ def _load_index_ops_config_cached(resolved_path: str) -> IndexOpsConfig:
         payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as exc:  # pragma: no cover - defensive
         raise ValueError("Failed to parse index operations configuration") from exc
-    timezone_name = str(payload.get("timezone", "America/New_York"))
-    try:
-        timezone = ZoneInfo(timezone_name)
-    except Exception as exc:  # pragma: no cover - defensive
-        raise ValueError(f"Unsupported timezone '{timezone_name}' in index operations config") from exc
-    cancel_buffer = float(payload.get("cancel_buffer_seconds", 2.0))
-    windows_payload = payload.get("windows", [])
-    if not isinstance(windows_payload, Sequence):
-        raise ValueError("index operations config 'windows' entry must be a sequence")
-    windows: list[IndexOpsWindow] = []
-    series_map: dict[str, IndexOpsWindow] = {}
-    for entry in windows_payload:
-        if not isinstance(entry, Mapping):
-            continue
-        name = str(entry.get("name", "")).strip()
-        if not name:
-            raise ValueError("index operations window entry missing 'name'")
-        start_raw = str(entry.get("start", "")).strip()
-        end_raw = str(entry.get("end", "")).strip()
-        if not start_raw or not end_raw:
-            raise ValueError(f"index operations window '{name}' missing start/end times")
-        start_time = _parse_time(start_raw)
-        end_time = _parse_time(end_raw)
-        series_values = entry.get("series", [])
-        if not isinstance(series_values, Sequence):
-            raise ValueError(f"index operations window '{name}' series list must be a sequence")
-        codes = tuple(sorted({str(item).upper() for item in series_values if str(item).strip()}))
-        if not codes:
-            raise ValueError(f"index operations window '{name}' must include at least one series")
-        window = IndexOpsWindow(name=name, start=start_time, end=end_time, series=codes)
-        windows.append(window)
-        for series in codes:
-            series_map[series] = window
-    if not windows:
-        raise ValueError("index operations configuration contained no windows")
+
+    noon_payload = payload.get("window_noon", {})
+    close_payload = payload.get("window_close", {})
+    window_noon = _parse_window(noon_payload, label="window_noon")
+    window_close = _parse_window(close_payload, label="window_close")
+    min_ev = float(payload.get("min_ev_usd", 0.05))
+    max_bins = int(payload.get("max_bins_per_series", 2))
+
     return IndexOpsConfig(
-        timezone=timezone,
+        window_noon=window_noon,
+        window_close=window_close,
+        min_ev_usd=min_ev,
+        max_bins_per_series=max(max_bins, 1),
+    )
+
+
+def _parse_window(payload: dict[str, object], *, label: str) -> IndexOpsWindow:
+    start_raw = str(payload.get("start", "")).strip()
+    end_raw = str(payload.get("end", "")).strip()
+    if not start_raw or not end_raw:
+        raise ValueError(f"{label} requires start and end times (HH:MM)")
+    start_time = _parse_time(start_raw)
+    end_time = _parse_time(end_raw)
+    cancel_buffer = float(payload.get("cancel_buffer_seconds", 2.0))
+    name = label.removeprefix("window_") if label.startswith("window_") else label
+    return IndexOpsWindow(
+        name=name,
+        start=start_time,
+        end=end_time,
         cancel_buffer_seconds=cancel_buffer,
-        windows=tuple(windows),
-        series_to_window=MappingProxyType(series_map),
     )
 
 

@@ -20,7 +20,9 @@ def test_scan_and_microlive_share_ops_windows(series: str) -> None:
     assert window_micro.name == window_expected.name
     assert window_micro.start == window_expected.start
     assert window_micro.end == window_expected.end
-    assert scan_ladders.CANCEL_BUFFER_SECONDS == pytest.approx(config.cancel_buffer_seconds)
+    assert scan_ladders._cancel_buffer_seconds(series) == pytest.approx(  # noqa: SLF001
+        window_expected.cancel_buffer_seconds
+    )
 
 
 @pytest.mark.parametrize("series, cap", [
