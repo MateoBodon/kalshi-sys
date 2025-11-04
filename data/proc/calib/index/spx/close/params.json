@@ -1,7 +1,7 @@
 {
   "symbol": "I:SPX",
   "horizon": "close",
-  "generated_at": "2025-11-04T00:17:24.281969+00:00",
+  "generated_at": "2025-11-04T01:45:42.350579+00:00",
   "minutes_to_target": {
     "0": {
       "sigma": 0.0,

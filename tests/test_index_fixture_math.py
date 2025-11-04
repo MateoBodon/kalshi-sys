@@ -177,11 +177,12 @@ def test_close_range_metrics_non_regressive(
 
         crps_updated = crps_from_pmf(pmf_updated, actual_close)
         crps_baseline = crps_from_pmf(pmf_baseline, actual_close)
-        assert crps_updated <= crps_baseline + 0.02
-
         brier_updated = _brier_score(pmf_updated, actual_close)
         brier_baseline = _brier_score(pmf_baseline, actual_close)
-        assert brier_updated <= brier_baseline + 5e-3
+        updated_mass = sum(float(entry.probability) for entry in pmf_updated)
+        baseline_mass = sum(float(entry.probability) for entry in pmf_baseline)
+        assert updated_mass == pytest.approx(1.0, abs=1e-6)
+        assert baseline_mass == pytest.approx(1.0, abs=1e-6)
 
         event_inputs = CloseInputs(
             series="NASDAQ100",
@@ -192,8 +193,15 @@ def test_close_range_metrics_non_regressive(
         pmf_event = evaluate_close(strikes, [0.4, 0.3, 0.2], event_inputs, contracts=1, min_ev=0.0).pmf
         event_tail = float(pmf_event[0].probability + pmf_event[-1].probability)
         updated_tail = float(pmf_updated[0].probability + pmf_updated[-1].probability)
-        if event_inputs.event_tags:
+        event_tags = {tag.upper() for tag in event_inputs.event_tags}
+        if event_tags:
             assert event_tail >= updated_tail
+            if {"CPI", "FOMC"} & event_tags:
+                assert crps_updated <= crps_baseline + 1e-6
+                assert brier_updated <= brier_baseline + 1e-6
+            else:
+                assert crps_updated <= crps_baseline + 0.02
+                assert brier_updated <= brier_baseline + 5e-3
         else:
             assert event_tail == pytest.approx(updated_tail, abs=1e-6)
             assert crps_updated == pytest.approx(crps_baseline, abs=1e-6)
