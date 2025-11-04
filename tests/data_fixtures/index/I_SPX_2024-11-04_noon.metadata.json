@@ -1,0 +1,10 @@
+{
+  "symbol": "I:SPX",
+  "start_et": "2024-11-04T11:45:00-05:00",
+  "end_et": "2024-11-04T12:05:00-05:00",
+  "rows": 21,
+  "adjusted": true,
+  "timespan": "minute",
+  "checksum": "2f3356332c8b6211243d25d2e7e5bda181a7ce88f5dd68f14276411cc4b7b526",
+  "generated_at": "2025-11-04T02:21:26.521185+00:00"
+}

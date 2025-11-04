@@ -6,9 +6,11 @@ PYTHON_BIN=${PYTHON:-python}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 SYMBOLS=("I:SPX" "I:NDX")
-# Categories: gap (2024-08-05), quiet (2024-08-20), CPI (2024-09-11), FOMC (2024-09-18),
-# plus the original quiet trio (2024-10-21..2024-10-23).
+# Categories: gap (2024-04-19, 2024-08-05), quiet (2024-06-03, 2024-08-20), CPI (2024-09-11),
+# FOMC (2024-09-18), DST week (2024-11-04), plus the original quiet trio (2024-10-21..2024-10-23).
 DATES=(
+  "2024-04-19"
+  "2024-06-03"
   "2024-08-05"
   "2024-08-20"
   "2024-09-11"
@@ -16,6 +18,7 @@ DATES=(
   "2024-10-21"
   "2024-10-22"
   "2024-10-23"
+  "2024-11-04"
 )
 WINDOWS=("noon:11:45:00-12:05:00" "close:15:45:00-16:05:00")
 
