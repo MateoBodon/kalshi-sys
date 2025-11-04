@@ -53,13 +53,23 @@ The exchange-wide **position limit** is **$7,000,000 notional** per member acros
 | NASDAQ100 | NDX closing level (16:00:00 ET) | First official NDX close on/before 16:00:00 | Latest official print before 17:00; disruption policy otherwise | Nasdaq |
 
 > “On/before 12:00 p.m. (ET); if no print at timestamp, use most recent prior.” — Kalshi Index Ladder Rules (Noon ladders, Oct 1 2025)
+>
 > “On/before 4:00 p.m. (ET); if no print at timestamp, use most recent prior.” — Kalshi Index Ladder Rules (Close ladders, Oct 1 2025)
+
+> “Tick size: $0.01.” — Kalshi Index Ladder Rules (Oct 1 2025)
+
+> “Position limit: $7,000,000 notional across member accounts.” — Kalshi Index Ladder Rules (Oct 1 2025)
 
 - **Disruption policy:** Mirrors Kalshi’s standard ladder procedures—Kalshi may postpone settlement, seek third-party confirmation, or void if the primary source fails to publish.
 - **Corrections:** Same-day official index corrections prior to 17:00 ET supersede preliminary prints.
 - **On/before guidance:** If the exact 12:00:00 ET or 16:00:00 ET print is absent, settlement uses the most recent prior official index value disseminated before the timestamp. <!-- Source: Kalshi Index Ladder Rules (Oct 1 2025), §2 -->
 - **Tick size:** $0.01 price increments, implying 1¢ minimum P&L per contract.
 - **Position limit:** $7MM notional per member, per exchange rule filings (enforced via internal caps well below the exchange maximum).
+
+## Maker vs Taker Fees
+
+- **Indices exception:** Makers in `INX*` / `NASDAQ100*` pay $0.00 per contract; takers owe `0.035 × contracts × price × (1 − price)`, rounded up to the nearest cent.
+- **Reference:** See `docs/kalshi-fee-schedule.pdf` (effective Oct 1 2025) for the full fee schedule and supporting rate table.
 
 ## Operational Windows
 
