@@ -1182,7 +1182,12 @@ def _quality_gate_for_broker(
         now=now_utc,
         window=timedelta(minutes=DEFAULT_PANIC_ALERT_WINDOW_MINUTES),
     )
-    config = load_quality_gate_config(resolve_quality_gate_config_path())
+    config_override = getattr(args, "quality_gates_config", None)
+    if config_override:
+        config_path = Path(config_override)
+    else:
+        config_path = resolve_quality_gate_config_path()
+    config = load_quality_gate_config(config_path)
     result = run_quality_gates(
         config=config,
         now=now_utc,
@@ -1515,6 +1520,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--fixtures-root",
         default="tests/data_fixtures",
         help="Offline fixtures root directory.",
+    )
+    parser.add_argument(
+        "--quality-gates-config",
+        type=Path,
+        default=None,
+        help="Override quality gates configuration file.",
     )
     parser.add_argument(
         "--output-dir",

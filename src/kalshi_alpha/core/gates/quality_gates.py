@@ -107,13 +107,21 @@ def load_quality_gate_config(path: Path | None = None) -> QualityGateConfig:
     for item in sources_iterable:
         if not isinstance(item, dict):
             continue
+        max_age_seconds = _maybe_float(item.get("max_age_seconds"))
+        max_age_minutes = _maybe_float(item.get("max_age_minutes"))
         max_age_hours = _maybe_float(item.get("max_age_hours"), default=24.0)
+        if max_age_seconds is not None:
+            max_age = timedelta(seconds=max_age_seconds)
+        elif max_age_minutes is not None:
+            max_age = timedelta(minutes=max_age_minutes)
+        else:
+            max_age = timedelta(hours=max_age_hours if max_age_hours is not None else 24.0)
         data_freshness.append(
             DataFreshnessThreshold(
                 name=str(item.get("name", "unknown")),
                 namespace=str(item.get("namespace", "")).strip(),
                 timestamp_field=str(item.get("timestamp_field", "as_of")),
-                max_age=timedelta(hours=max_age_hours if max_age_hours is not None else 24.0),
+                max_age=max_age,
                 require_et=bool(item.get("require_et", True)),
             )
         )
