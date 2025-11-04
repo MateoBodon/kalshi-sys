@@ -60,6 +60,20 @@ Replace the placeholder PEM path with your actual location, approve the Keychain
   - Kill-switch and drawdown state are surfaced directly in monitor payloads so the final broker gate has a single source of truth.
 - When three or more distinct monitors alert within a 30-minute window the CLI emits a `panic_backoff=true` flag; the ramp policy treats this as a day-long `NO-GO` unless an ops override is signed off.
 
+## Live Smoke Check
+- Before lining up a live pilot, run the read-only smoke test (requires `KALSHI_API_KEY_ID`, `KALSHI_PRIVATE_KEY_PEM_PATH`, and `KALSHI_ENV=prod`):
+  ```bash
+  python -m kalshi_alpha.exec.live_smoke
+  ```
+  Sample success output:
+  ```
+  [live_smoke] OK 2025-11-04T12:55:00-05:00
+    INXU: target H1300 found
+    NASDAQ100U: target H1300 found
+    outstanding orders: 0 ({'dry': 0, 'live': 0})
+  ```
+- Use `--json` to emit machine-readable diagnostics. A non-zero exit code highlights missing U-series events, authentication failures, or outstanding orders that still need cancel acknowledgements before requesting live proposals.
+
 ## Pilot Ramp Policy
 - `make pilot-readiness` (wrapper around `python -m kalshi_alpha.exec.reports.ramp`) evaluates ledger performance per series, enforces ramp guardrails, and emits:
 - `reports/pilot_ready.json` — machine-readable GO/NO-GO + size multipliers, staleness fields (`freshness.ledger_age_minutes`, `freshness.monitors_age_minutes`), and per-bin EV honesty (`series[*].ev_honesty_bins`) including the recommended weights/caps.

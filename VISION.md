@@ -180,6 +180,7 @@ tests/{test_fees_inx.py, test_keys.py, test_polygon_client.py, test_noon_math.py
 - Structured JSONL logs; daily rotation; ORDER/QUOTE lifecycle events redacted.  
 - Monitors: data freshness; fills vs α; slippage drift vs model; readiness deltas.  
 - Kill‑switch: file flag; broker cancel‑all intent; runner respects immediately.
+- Live smoke: `python -m kalshi_alpha.exec.live_smoke` runs a signed GET / event availability check before live pilots (see Runbook for details).
 
 ---
 
