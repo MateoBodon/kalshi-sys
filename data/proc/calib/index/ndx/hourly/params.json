@@ -1,7 +1,7 @@
 {
   "symbol": "I:NDX",
   "horizon": "hourly",
-  "generated_at": "2025-11-04T17:58:51.615163+00:00",
+  "generated_at": "2025-11-04T18:44:24.471696+00:00",
   "minutes_to_target": {
     "0": {
       "sigma": 0.0,
