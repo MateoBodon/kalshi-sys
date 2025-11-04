@@ -105,6 +105,30 @@ def test_index_fee_curve_matches_reference() -> None:
     assert fee_from_ev == pytest.approx(float(expected_fee))
 
 
+def test_index_taker_fee_zero_point_eighty_eight() -> None:
+    ev_after_fees = expected_value_after_fees(
+        contracts=100,
+        yes_price=0.5,
+        event_probability=0.5,
+        side=OrderSide.YES,
+        liquidity=Liquidity.TAKER,
+        series="INXU",
+    )
+    assert -ev_after_fees == pytest.approx(0.88)
+
+
+def test_index_maker_fee_zero() -> None:
+    ev_after_fees = expected_value_after_fees(
+        contracts=100,
+        yes_price=0.5,
+        event_probability=0.5,
+        side=OrderSide.YES,
+        liquidity=Liquidity.MAKER,
+        series="INXU",
+    )
+    assert ev_after_fees == pytest.approx(0.0)
+
+
 def test_index_fee_curve_monotonic_segments() -> None:
     increasing = []
     for idx in range(0, 51):
