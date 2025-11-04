@@ -36,6 +36,24 @@ data/proc/calib/index/ndx/close/*
 !data/proc/calib/index/ndx/noon/
 data/proc/calib/index/ndx/noon/*
 !data/proc/calib/index/ndx/noon/params.json
+!data/proc/index_exec/
+data/proc/index_exec/*
+!data/proc/index_exec/INX/
+data/proc/index_exec/INX/*
+!data/proc/index_exec/INX/alpha.json
+!data/proc/index_exec/INX/slippage.json
+!data/proc/index_exec/INXU/
+data/proc/index_exec/INXU/*
+!data/proc/index_exec/INXU/alpha.json
+!data/proc/index_exec/INXU/slippage.json
+!data/proc/index_exec/NASDAQ100/
+data/proc/index_exec/NASDAQ100/*
+!data/proc/index_exec/NASDAQ100/alpha.json
+!data/proc/index_exec/NASDAQ100/slippage.json
+!data/proc/index_exec/NASDAQ100U/
+data/proc/index_exec/NASDAQ100U/*
+!data/proc/index_exec/NASDAQ100U/alpha.json
+!data/proc/index_exec/NASDAQ100U/slippage.json
 exec/proposals/
 notebooks/.ipynb_checkpoints/
 

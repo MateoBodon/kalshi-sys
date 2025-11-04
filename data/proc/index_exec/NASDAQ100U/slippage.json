@@ -1,0 +1,21 @@
+{
+  "baseline_mse": 0.0006546627365543168,
+  "coefficients": {
+    "depth_fraction": 0.0008953603747096598,
+    "depth_fraction_x_spread": 0.0,
+    "intercept": 0.014298548723380853,
+    "log_tau_minutes": 0.006311552533230589,
+    "spread": 0.0
+  },
+  "features": [
+    "intercept",
+    "depth_fraction",
+    "spread",
+    "depth_fraction_x_spread",
+    "log_tau_minutes"
+  ],
+  "generated_at": "2025-11-04T01:31:15.385894+00:00",
+  "model_mse": 8.22613084667284e-05,
+  "num_rows": 10,
+  "series": "NASDAQ100U"
+}

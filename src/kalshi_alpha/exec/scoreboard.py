@@ -113,7 +113,7 @@ def _load_alpha_state() -> dict[str, float]:
     return result
 
 
-def _build_summary(
+def _build_summary(  # noqa: PLR0912, PLR0915
     ledger: pl.DataFrame,
     calibrations: pl.DataFrame,
     alpha_state: dict[str, float],
@@ -127,6 +127,11 @@ def _build_summary(
     filtered = ledger
     if "slippage_ticks" not in filtered.columns:
         filtered = filtered.with_columns(pl.lit(0.0).alias("slippage_ticks"))
+    if "fill_ratio_observed" not in filtered.columns:
+        if "fill_ratio" in filtered.columns:
+            filtered = filtered.with_columns(pl.col("fill_ratio").alias("fill_ratio_observed"))
+        else:
+            filtered = filtered.with_columns(pl.lit(0.0).alias("fill_ratio_observed"))
     if "timestamp_et" in filtered.columns:
         filtered = filtered.filter(pl.col("timestamp_et") >= window_start)
     if filtered.is_empty():
@@ -136,7 +141,8 @@ def _build_summary(
         pl.sum("pnl_simulated").alias("realized_pnl"),
         pl.sum("expected_fills").alias("expected_fills"),
         pl.sum("size").alias("requested_contracts"),
-        pl.mean("fill_ratio").alias("avg_fill_ratio"),
+        pl.mean("fill_ratio_observed").alias("avg_fill_ratio_observed"),
+        pl.mean("fill_ratio").alias("avg_alpha_target"),
         pl.mean("slippage_ticks").alias("slippage_ticks_mean"),
         pl.len().alias("sample_size"),
         (pl.col("ev_realized_bps") - pl.col("ev_expected_bps"))
@@ -161,8 +167,12 @@ def _build_summary(
             continue
         requested = row.get("requested_contracts") or 0.0
         expected_fills = row.get("expected_fills") or 0.0
-        fill_ratio = (expected_fills / requested) if requested else 0.0
-        avg_alpha = alpha_state.get(series)
+        fill_ratio = float(row.get("avg_fill_ratio_observed") or 0.0)
+        if fill_ratio == 0.0 and requested:
+            fill_ratio = (expected_fills / requested)
+        avg_alpha = row.get("avg_alpha_target")
+        if avg_alpha is None:
+            avg_alpha = alpha_state.get(series)
         if avg_alpha is None:
             avg_alpha = execution_defaults.default_alpha(series)
         gate_stats = gate_metrics.get(series, {"go": 0, "no_go": 0})
@@ -187,7 +197,7 @@ def _build_summary(
             "expected_fills": expected_fills,
             "requested_contracts": requested,
             "fill_ratio": fill_ratio,
-            "avg_fill_ratio": row.get("avg_fill_ratio", 0.0),
+            "avg_fill_ratio": fill_ratio,
             "avg_alpha": avg_alpha,
             "fill_ratio_vs_alpha": fill_minus_alpha,
             "slippage_ticks_mean": slippage_ticks_mean,

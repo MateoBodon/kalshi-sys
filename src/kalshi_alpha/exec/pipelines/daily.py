@@ -559,9 +559,10 @@ def _apply_fill_realism_gate(
     deltas: list[float] = []
     for record in ledger.records:
         alpha_row_value = getattr(record, "alpha_row", None)
-        if alpha_row_value is None:
+        fill_ratio_observed = getattr(record, "fill_ratio_realized", None)
+        if alpha_row_value is None or fill_ratio_observed is None:
             continue
-        deltas.append(abs(float(record.fill_ratio) - float(alpha_row_value)))
+        deltas.append(abs(float(fill_ratio_observed) - float(alpha_row_value)))
     if not deltas:
         return None, None
     metric = statistics.median(deltas)

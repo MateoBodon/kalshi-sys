@@ -28,6 +28,16 @@ class LedgerRowV1(BaseModel):
         "expected_contracts",
         "expected_fills",
         "fill_ratio",
+        "fill_ratio_observed",
+        "alpha_target",
+        "visible_depth",
+        "side_depth_total",
+        "depth_fraction",
+        "best_bid",
+        "best_ask",
+        "spread",
+        "seconds_to_event",
+        "minutes_to_event",
         "t_fill_ms",
         "size_partial",
         "slippage_ticks",
@@ -57,6 +67,16 @@ class LedgerRowV1(BaseModel):
     expected_contracts: int
     expected_fills: int
     fill_ratio: float
+    fill_ratio_observed: float = 0.0
+    alpha_target: float = 0.0
+    visible_depth: float = 0.0
+    side_depth_total: float = 0.0
+    depth_fraction: float = 0.0
+    best_bid: float | None = None
+    best_ask: float | None = None
+    spread: float = 0.0
+    seconds_to_event: float | None = None
+    minutes_to_event: float | None = None
     t_fill_ms: float = 0.0
     size_partial: int = 0
     slippage_ticks: float = 0.0
@@ -91,6 +111,16 @@ class LedgerRowV1(BaseModel):
         "market_p",
         "delta_p",
         "fill_ratio",
+        "fill_ratio_observed",
+        "alpha_target",
+        "visible_depth",
+        "side_depth_total",
+        "depth_fraction",
+        "best_bid",
+        "best_ask",
+        "spread",
+        "seconds_to_event",
+        "minutes_to_event",
         "t_fill_ms",
         "slippage_ticks",
         "ev_expected_bps",

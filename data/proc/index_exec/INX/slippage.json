@@ -1,0 +1,21 @@
+{
+  "baseline_mse": 0.0021970547223072474,
+  "coefficients": {
+    "depth_fraction": -0.0059643695225561405,
+    "depth_fraction_x_spread": 0.0,
+    "intercept": 0.02608228465507508,
+    "log_tau_minutes": 0.01663469501961579,
+    "spread": 0.0
+  },
+  "features": [
+    "intercept",
+    "depth_fraction",
+    "spread",
+    "depth_fraction_x_spread",
+    "log_tau_minutes"
+  ],
+  "generated_at": "2025-11-04T01:31:15.389390+00:00",
+  "model_mse": 0.00028894460710414394,
+  "num_rows": 15,
+  "series": "INX"
+}

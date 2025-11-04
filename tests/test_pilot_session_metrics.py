@@ -71,6 +71,7 @@ def test_build_pilot_session_payload_with_metrics() -> None:
         ev_expected_bps=15.0,
         ev_realized_bps=19.0,
         fees_bps=2.0,
+        fill_ratio_realized=1.0,
     )
     ledger.record(record)
 

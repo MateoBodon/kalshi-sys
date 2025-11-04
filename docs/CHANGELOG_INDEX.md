@@ -1,5 +1,6 @@
 ## 2025-11-04
 
+- fit paper-ledger execution curves for INX/INXU/NASDAQ100/NASDAQ100U via `jobs.fit_index_execution`, persisted per-series `alpha.json`/`slippage.json`, and wired scanners/reports to consume the curves (fill% vs α, realized slippage deltas, scoreboard readiness updates).
 - reran INX/NDX hourly and close calibrations on Polygon minutes through 2025-11-03 (covers DST week plus latest CPI/FOMC), persisting refreshed `κ_event`/`λ_close` payloads in `data/proc/calib/index/{spx,ndx}`.
 - gated the close variance bump `λ_close` behind CPI/FOMC event tags so calm days stay unchanged, and tightened regression to assert CRPS/Brier equality on non-event fixtures.
 - ran offline index hourly/close DRY scanners to hydrate reports with the new calibration set.

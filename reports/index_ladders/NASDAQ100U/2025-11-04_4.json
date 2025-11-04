@@ -1,0 +1,68 @@
+{
+  "series": "NASDAQ100U",
+  "generated_at": "2025-11-04T01:18:55.401601+00:00",
+  "proposals": [
+    {
+      "market_id": "MKT_NDQ100U_H1200_A",
+      "market_ticker": "KXNASDAQ100U-25NOV03H1200-T15000",
+      "strike": 15000.0,
+      "side": "YES",
+      "contracts": 1,
+      "maker_ev": 0.5499999999182378,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5499999999182378,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.9999999999182377,
+      "market_yes_price": 0.44,
+      "survival_market": 0.44,
+      "survival_strategy": 0.9999999999182377,
+      "max_loss": 0.45,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 1.6352452725243438e-10,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.12,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    },
+    {
+      "market_id": "MKT_NDQ100U_H1200_A",
+      "market_ticker": "KXNASDAQ100U-25NOV03H1200-T15000",
+      "strike": 15050.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.31000000000000005,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.31000000000000005,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.32,
+      "survival_market": 0.32,
+      "survival_strategy": 0.0,
+      "max_loss": 0.69,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.36,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    }
+  ]
+}

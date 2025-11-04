@@ -1,0 +1,24 @@
+{
+  "baseline_alpha": 0.38,
+  "baseline_mse": 0.11880000000000002,
+  "clip": {
+    "max": 0.95,
+    "min": 0.02
+  },
+  "coefficients": {
+    "abs_delta_p": 1.1102230246251565e-16,
+    "depth_fraction": 0.9999999999999999,
+    "intercept": -2.6964320184628353e-17,
+    "log_tau_minutes": -1.1102230246251565e-16
+  },
+  "features": [
+    "intercept",
+    "depth_fraction",
+    "abs_delta_p",
+    "log_tau_minutes"
+  ],
+  "generated_at": "2025-11-04T01:31:15.392315+00:00",
+  "model_mse": 0.0002933333333333333,
+  "num_rows": 15,
+  "series": "NASDAQ100"
+}

@@ -1,0 +1,21 @@
+{
+  "baseline_mse": 0.0005524708395793643,
+  "coefficients": {
+    "depth_fraction": -0.002548665534664972,
+    "depth_fraction_x_spread": 0.0,
+    "intercept": 0.012894325214970895,
+    "log_tau_minutes": 0.006125919572688618,
+    "spread": 0.0
+  },
+  "features": [
+    "intercept",
+    "depth_fraction",
+    "spread",
+    "depth_fraction_x_spread",
+    "log_tau_minutes"
+  ],
+  "generated_at": "2025-11-04T01:31:15.382327+00:00",
+  "model_mse": 5.780896761710483e-05,
+  "num_rows": 12,
+  "series": "INXU"
+}

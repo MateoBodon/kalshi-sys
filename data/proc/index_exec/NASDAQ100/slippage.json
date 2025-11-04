@@ -1,0 +1,21 @@
+{
+  "baseline_mse": 0.002000000000000001,
+  "coefficients": {
+    "depth_fraction": -0.0004894111021409367,
+    "depth_fraction_x_spread": 0.0,
+    "intercept": 0.025000778189480613,
+    "log_tau_minutes": 0.015155580930839177,
+    "spread": 0.0
+  },
+  "features": [
+    "intercept",
+    "depth_fraction",
+    "spread",
+    "depth_fraction_x_spread",
+    "log_tau_minutes"
+  ],
+  "generated_at": "2025-11-04T01:31:15.392435+00:00",
+  "model_mse": 0.0002500077818948063,
+  "num_rows": 15,
+  "series": "NASDAQ100"
+}

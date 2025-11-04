@@ -383,7 +383,7 @@ def _expected_vs_realized_rows(ledger: PaperLedger) -> list[str]:
         requested = record.proposal.contracts
         expected = record.expected_fills
         delta = expected - requested
-        fill_pct = max(0.0, min(1.0, record.fill_ratio)) * 100
+        fill_pct = max(0.0, min(1.0, record.fill_ratio_realized)) * 100
         lines.append(
             f"| {record.proposal.market_ticker} | {record.proposal.strike:.2f} | "
             f"{record.proposal.side} | {requested} | {expected} | {delta:+d} | {fill_pct:.1f}% |"

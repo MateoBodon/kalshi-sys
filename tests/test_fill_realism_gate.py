@@ -77,13 +77,14 @@ def test_fill_realism_gate_triggers_no_go(tmp_path: Path, monkeypatch: pytest.Mo
             slippage=0.0,
             expected_contracts=10,
             expected_fills=10,
-            fill_ratio=0.95,
+            fill_ratio=0.6,
             slippage_mode="top",
             impact_cap=0.0,
             fees_maker=0.0,
             pnl_simulated=2.0,
             alpha_row=0.6,
             size_throttled=False,
+            fill_ratio_realized=0.95,
         )
     )
 

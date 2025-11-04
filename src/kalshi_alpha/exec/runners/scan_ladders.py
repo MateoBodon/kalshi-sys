@@ -23,6 +23,7 @@ from kalshi_alpha.config import IndexRule, lookup_index_rule
 from kalshi_alpha.core import kalshi_ws
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
+from kalshi_alpha.core.execution.index_models import load_alpha_curve, load_slippage_curve
 from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
@@ -848,10 +849,14 @@ def _maybe_simulate_ledger(
             label = event_tickers.get(market.event_id) or market.ticker
             event_lookup[market.id] = label
     series_label = series.ticker if series is not None else args.series
+    alpha_curve = load_alpha_curve(series_label)
+    if alpha_curve is not None:
+        estimator = None
     slippage_mode = (getattr(args, "slippage_mode", "top") or "top").lower()
     impact_cap_arg = getattr(args, "impact_cap", None)
     slippage_model = None
-    if slippage_mode in {"top", "depth"}:
+    slippage_curve = load_slippage_curve(series_label)
+    if slippage_mode in {"top", "depth"} and slippage_curve is None:
         if impact_cap_arg is not None:
             slippage_model = SlippageModel(mode=slippage_mode, impact_cap=float(impact_cap_arg))
         elif slippage_mode == "depth":
@@ -866,6 +871,8 @@ def _maybe_simulate_ledger(
         proposals,
         cache,
         fill_estimator=estimator,
+        alpha_curve=alpha_curve,
+        slippage_curve=slippage_curve,
         ledger_series=series_label,
         market_event_lookup=event_lookup,
         mode=slippage_mode,

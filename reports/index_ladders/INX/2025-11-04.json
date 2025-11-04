@@ -1,0 +1,99 @@
+{
+  "series": "INX",
+  "generated_at": "2025-11-04T00:52:09.459979+00:00",
+  "proposals": [
+    {
+      "market_id": "MKT_INX_H1600_RANGE",
+      "market_ticker": "KXINX-25NOV03H1600-B5000",
+      "strike": 5000.0,
+      "side": "YES",
+      "contracts": 1,
+      "maker_ev": 0.5099956060181656,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5099956060181656,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.9999956060181656,
+      "market_yes_price": 0.48,
+      "survival_market": 0.48,
+      "survival_strategy": 0.9999956060181656,
+      "max_loss": 0.5,
+      "strategy": "INX",
+      "series": "INX",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 8.787963668765997e-06,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.040000000000000036,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    },
+    {
+      "market_id": "MKT_INX_H1600_RANGE",
+      "market_ticker": "KXINX-25NOV03H1600-B5000",
+      "strike": 5100.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.33999999999999997,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.33999999999999997,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.35,
+      "survival_market": 0.35,
+      "survival_strategy": 0.0,
+      "max_loss": 0.67,
+      "strategy": "INX",
+      "series": "INX",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.30000000000000004,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    },
+    {
+      "market_id": "MKT_INX_H1600_RANGE",
+      "market_ticker": "KXINX-25NOV03H1600-B5000",
+      "strike": 5200.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.14,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.14,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.15,
+      "survival_market": 0.15,
+      "survival_strategy": 0.0,
+      "max_loss": 0.86,
+      "strategy": "INX",
+      "series": "INX",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.7,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    }
+  ]
+}

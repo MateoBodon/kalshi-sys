@@ -67,13 +67,14 @@ def test_report_ev_units(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
             slippage=0.0,
             expected_contracts=1,
             expected_fills=1,
-            fill_ratio=0.5,
+            fill_ratio=0.6,
             slippage_mode="top",
             impact_cap=0.0,
             fees_maker=0.0,
             pnl_simulated=1.8,
             alpha_row=0.6,
             size_throttled=False,
+            fill_ratio_realized=0.5,
         )
     )
 
@@ -93,6 +94,8 @@ def test_report_ev_units(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     )
     contents = path.read_text(encoding="utf-8")
     assert "EV Honesty" in contents
+    assert "- Fill Ratio:" in contents
+    assert "- Fill - Alpha:" in contents
     expected_header = (
         "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | "
         "EV_total_original | EV_total_replay | Delta |"

@@ -1,0 +1,24 @@
+{
+  "baseline_alpha": 0.4,
+  "baseline_mse": 0.12800000000000006,
+  "clip": {
+    "max": 0.95,
+    "min": 0.02
+  },
+  "coefficients": {
+    "abs_delta_p": 0.009077976258054198,
+    "depth_fraction": 1.088442479210327,
+    "intercept": -0.0030839371761306766,
+    "log_tau_minutes": 0.0002137805167844313
+  },
+  "features": [
+    "intercept",
+    "depth_fraction",
+    "abs_delta_p",
+    "log_tau_minutes"
+  ],
+  "generated_at": "2025-11-04T01:31:15.389200+00:00",
+  "model_mse": 0.00029831087664383135,
+  "num_rows": 15,
+  "series": "INX"
+}

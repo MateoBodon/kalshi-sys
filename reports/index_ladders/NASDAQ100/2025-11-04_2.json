@@ -1,0 +1,99 @@
+{
+  "series": "NASDAQ100",
+  "generated_at": "2025-11-04T01:09:55.448356+00:00",
+  "proposals": [
+    {
+      "market_id": "MKT_NDQ100_H1600_RANGE",
+      "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
+      "strike": 15000.0,
+      "side": "YES",
+      "contracts": 1,
+      "maker_ev": 0.5393064525643902,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5393064525643902,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.9993064525643902,
+      "market_yes_price": 0.45,
+      "survival_market": 0.45,
+      "survival_strategy": 0.9993064525643902,
+      "max_loss": 0.46,
+      "strategy": "NASDAQ100",
+      "series": "NASDAQ100",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.001387094871219574,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.09999999999999998,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    },
+    {
+      "market_id": "MKT_NDQ100_H1600_RANGE",
+      "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
+      "strike": 15150.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.31742626812403363,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.31742626812403363,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.002573731875966434,
+      "market_yes_price": 0.33,
+      "survival_market": 0.33,
+      "survival_strategy": 0.002573731875966434,
+      "max_loss": 0.6799999999999999,
+      "strategy": "NASDAQ100",
+      "series": "NASDAQ100",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.005147463751932868,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.33999999999999997,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    },
+    {
+      "market_id": "MKT_NDQ100_H1600_RANGE",
+      "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
+      "strike": 15300.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.13,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.13,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.14,
+      "survival_market": 0.14,
+      "survival_strategy": 0.0,
+      "max_loss": 0.87,
+      "strategy": "NASDAQ100",
+      "series": "NASDAQ100",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.72,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null
+        }
+      }
+    }
+  ]
+}
