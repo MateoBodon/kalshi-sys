@@ -13,6 +13,12 @@ from pathlib import Path
 import polars as pl
 
 from kalshi_alpha.core.execution import defaults as execution_defaults
+from kalshi_alpha.core.execution.index_models import (
+    AlphaCurve,
+    SlippageCurve,
+    load_alpha_curve,
+    load_slippage_curve,
+)
 
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 CALIBRATION_PATH = Path("data/proc/calibration_metrics.parquet")
@@ -22,6 +28,62 @@ SCORECARD_DIR = ARTIFACTS_DIR / "scorecards"
 LOGGER = logging.getLogger(__name__)
 INDEX_SERIES_ORDER = ["INXU", "NASDAQ100U", "INX", "NASDAQ100"]
 INDEX_SERIES = set(INDEX_SERIES_ORDER)
+
+
+def _alpha_model_metrics(
+    curve: AlphaCurve | None,
+    subset: pl.DataFrame | None,
+) -> tuple[float | None, float | None]:
+    if curve is None or subset is None or subset.is_empty():
+        return None, None
+    required = {"depth_fraction", "delta_p", "minutes_to_event", "fill_ratio_observed"}
+    if not required.issubset(set(subset.columns)):
+        return None, None
+    diffs: list[float] = []
+    for depth, delta_p, minutes, observed in subset.select(
+        ["depth_fraction", "delta_p", "minutes_to_event", "fill_ratio_observed"]
+    ).iter_rows():
+        pred = curve.predict(
+            depth_fraction=float(depth or 0.0),
+            delta_p=float(delta_p or 0.0),
+            tau_minutes=float(minutes or 0.0),
+        )
+        obs = float(observed) if observed is not None else 0.0
+        diffs.append(obs - pred)
+    if not diffs:
+        return None, None
+    count = len(diffs)
+    mean_diff = sum(diffs) / count
+    abs_diff = sum(abs(value) for value in diffs) / count
+    return mean_diff, abs_diff
+
+
+def _slippage_model_metrics(
+    curve: SlippageCurve | None,
+    subset: pl.DataFrame | None,
+) -> tuple[float | None, float | None]:
+    if curve is None or subset is None or subset.is_empty():
+        return None, None
+    required = {"depth_fraction", "spread", "minutes_to_event", "slippage_ticks"}
+    if not required.issubset(set(subset.columns)):
+        return None, None
+    diffs: list[float] = []
+    for depth, spread, minutes, observed in subset.select(
+        ["depth_fraction", "spread", "minutes_to_event", "slippage_ticks"]
+    ).iter_rows():
+        pred = curve.predict_ticks(
+            depth_fraction=float(depth or 0.0),
+            spread=float(spread or 0.0),
+            tau_minutes=float(minutes or 0.0),
+        )
+        obs = abs(float(observed) if observed is not None else 0.0)
+        diffs.append(obs - pred)
+    if not diffs:
+        return None, None
+    count = len(diffs)
+    mean_diff = sum(diffs) / count
+    abs_diff = sum(abs(value) for value in diffs) / count
+    return mean_diff, abs_diff
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -136,6 +198,12 @@ def _build_summary(  # noqa: PLR0912, PLR0915
         filtered = filtered.filter(pl.col("timestamp_et") >= window_start)
     if filtered.is_empty():
         return []
+    frames_by_series = {
+        series: filtered.filter(pl.col("series") == series)
+        for series in INDEX_SERIES
+    }
+    alpha_curves = {series: load_alpha_curve(series) for series in INDEX_SERIES}
+    slippage_curves = {series: load_slippage_curve(series) for series in INDEX_SERIES}
     grouped = filtered.group_by("series").agg(
         pl.sum("ev_after_fees").alias("ev_after_fees"),
         pl.sum("pnl_simulated").alias("realized_pnl"),
@@ -215,6 +283,17 @@ def _build_summary(  # noqa: PLR0912, PLR0915
             metrics["crps_advantage"] = calib.get("crps_advantage")
             metrics["brier_advantage"] = calib.get("brier_advantage")
         records.append(metrics)
+        subset = frames_by_series.get(series)
+        mean_fill_delta, abs_fill_delta = _alpha_model_metrics(alpha_curves.get(series), subset)
+        if mean_fill_delta is not None:
+            metrics["fill_minus_model"] = mean_fill_delta
+        if abs_fill_delta is not None:
+            metrics["fill_gap_model_abs"] = abs_fill_delta
+        slip_delta_mean, slip_delta_abs = _slippage_model_metrics(slippage_curves.get(series), subset)
+        if slip_delta_mean is not None:
+            metrics["slippage_delta_mean"] = slip_delta_mean
+        if slip_delta_abs is not None:
+            metrics["slippage_delta_abs"] = slip_delta_abs
     return sorted(
         records,
         key=lambda row: (
@@ -293,6 +372,10 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
         lines.append(f"- Avg Fill Ratio: {row['avg_fill_ratio']:.3f}")
         if row.get("fill_ratio_vs_alpha") is not None:
             lines.append(f"- Fill - α: {row['fill_ratio_vs_alpha']:+.3f}")
+        if row.get("fill_minus_model") is not None:
+            lines.append(f"- Fill - model α: {row['fill_minus_model']:+.3f}")
+        if row.get("fill_gap_model_abs") is not None:
+            lines.append(f"- |Fill-model|: {row['fill_gap_model_abs']:.3f}")
         lines.append(f"- Sample Size: {row.get('sample_size', 0)} trades")
         lines.append(
             f"- Expected EV (bps): {row.get('ev_expected_bps_mean', 0.0):+.1f}"
@@ -303,6 +386,14 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
         if row.get("slippage_ticks_mean") is not None:
             lines.append(
                 f"- Avg Slippage (ticks): {row.get('slippage_ticks_mean', 0.0):.3f}"
+            )
+        if row.get("slippage_delta_mean") is not None:
+            lines.append(
+                f"- Slippage Δ (ticks): {row['slippage_delta_mean']:+.3f}"
+            )
+        if row.get("slippage_delta_abs") is not None:
+            lines.append(
+                f"- |Slippage Δ|: {row['slippage_delta_abs']:.3f}"
             )
         t_stat = row.get("t_stat")
         badge = row.get("confidence_badge", "✗")

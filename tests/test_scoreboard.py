@@ -28,6 +28,11 @@ def test_scoreboard_generates_markdown(
             "size": [350, 300, 360, 380],
             "fill_ratio": [0.65, 0.58, 0.6, 0.63],
             "fill_ratio_observed": [0.6, 0.55, 0.58, 0.6],
+            "alpha_target": [0.62, 0.57, 0.59, 0.61],
+            "delta_p": [0.04, -0.02, 0.03, -0.01],
+            "depth_fraction": [0.55, 0.5, 0.6, 0.52],
+            "spread": [0.02, 0.025, 0.03, 0.028],
+            "minutes_to_event": [30.0, 25.0, 40.0, 35.0],
             "t_fill_ms": [120.0, 140.0, 130.0, 125.0],
             "size_partial": [5, 6, 4, 5],
             "slippage_ticks": [0.5, 0.6, 0.4, 0.5],
@@ -89,6 +94,8 @@ def test_scoreboard_generates_markdown(
     assert "Avg α" in contents
     assert "Avg Slippage (ticks)" in contents
     assert "Fill - α" in contents
+    assert "Fill - model α" in contents
+    assert "Slippage Δ (ticks)" in contents
     assert "NO-GO Count" in contents
     assert "Sample Size" in contents
     assert "Confidence" in contents

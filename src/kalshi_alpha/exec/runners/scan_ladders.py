@@ -615,6 +615,18 @@ def main(argv: Sequence[str] | None = None) -> None:
                 execution_metrics.get("slippage_ticks_avg"),
             )
             outcome.monitors.setdefault(
+                "fill_minus_alpha",
+                execution_metrics.get("fill_ratio_minus_alpha"),
+            )
+            outcome.monitors.setdefault(
+                "slippage_delta_ticks",
+                execution_metrics.get("slippage_ticks_avg"),
+            )
+            outcome.monitors.setdefault(
+                "slippage_usd_avg",
+                execution_metrics.get("slippage_usd_avg"),
+            )
+            outcome.monitors.setdefault(
                 "ev_realized_bps_avg",
                 execution_metrics.get("ev_realized_bps_avg"),
             )
