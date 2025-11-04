@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -38,9 +38,9 @@ typecheck:
 
 test:
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run pytest && uv run python -m kalshi_alpha.dev.sanity_check; \
+		uv run pytest && PYTHONPATH=src uv run python -m kalshi_alpha.dev.sanity_check; \
 	else \
-		$(PYTHON) -m pytest && $(PYTHON) -m kalshi_alpha.dev.sanity_check; \
+		$(PYTHON) -m pytest && PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.sanity_check; \
 	fi
 
 scan:
@@ -101,6 +101,9 @@ scan-index-close:
 
 micro-index:
 	$(PYTHON) -m kalshi_alpha.exec.runners.micro_index --series INXU --offline --fixtures-root tests/data_fixtures --min-ev 0.05 --contracts 1 --regenerate-scoreboard
+
+fees-parse:
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.parse_fees --pdf docs/kalshi-fee-schedule.pdf --output data/proc/state/fees.json
 
 .PHONY: paper_live_offline paper_live_online
 
