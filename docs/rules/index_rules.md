@@ -54,6 +54,7 @@ The exchange-wide **position limit** is **$7,000,000 notional** per member acros
 
 - **Disruption policy:** Mirrors Kalshi’s standard ladder procedures—Kalshi may postpone settlement, seek third-party confirmation, or void if the primary source fails to publish.
 - **Corrections:** Same-day official index corrections prior to 17:00 ET supersede preliminary prints.
+- **On/before guidance:** If the exact 12:00:00 ET or 16:00:00 ET print is absent, settlement uses the most recent prior official index value disseminated before the timestamp. <!-- Source: Kalshi Index Ladder Rules (Oct 1 2025), §2 -->
 - **Tick size:** $0.01 price increments, implying 1¢ minimum P&L per contract.
 - **Position limit:** $7MM notional per member, per exchange rule filings (enforced via internal caps well below the exchange maximum).
 
@@ -69,4 +70,3 @@ The exchange-wide **position limit** is **$7,000,000 notional** per member acros
 3. Alerts: halt quoting if kill-switch present, websocket last message age ≥2 seconds, or ET clock drift exceeds 1 second.
 
 > Always defer to the latest official Kalshi rule PDFs for definitive language. This summary is operational guidance for the index ladder pipeline.
-
