@@ -171,7 +171,7 @@ Pipeline steps per run:
   python -m jobs.calibrate_close  --series INX  NASDAQ100   --days 55
   ```
   Outputs land in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (legacy `noon` directories remain read-only); raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
-- Websocket collector: keep the Massive indices feed (`A.I:SPX`, `A.I:NDX`) running before any window so freshness stays ≤2 s. Options:
+- Websocket collector: keep the Massive indices feed (`A.I:SPX`, `A.I:NDX`) running before any window so freshness stays ≤15 s. Options:
   - `make collect-polygon-ws` (foreground burner — exits with Ctrl+C).
   - Install `configs/launchd/kalshi_polygon_ws.plist` (macOS): update `WorkingDirectory` if the repo path differs, then:
     ```bash
