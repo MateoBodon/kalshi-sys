@@ -189,15 +189,15 @@ def test_macro_stale_allows_execution_with_index_gates(
             "required_feeds": ["polygon_index.websocket"],
             "stale_feeds": ["macro_calendar.latest"],
             "feeds": [
-                {
-                    "id": "polygon_index.websocket",
-                    "label": "Polygon index websocket",
-                    "required": True,
-                    "ok": True,
-                    "age_minutes": 0.5,
-                    "reason": None,
-                    "details": {"threshold_seconds": 2.0},
-                },
+                    {
+                        "id": "polygon_index.websocket",
+                        "label": "Polygon index websocket",
+                        "required": True,
+                        "ok": True,
+                        "age_minutes": 0.0005,
+                        "reason": None,
+                        "details": {"threshold_seconds": 2.0},
+                    },
                 {
                     "id": "macro_calendar.latest",
                     "label": "Macro calendar",
@@ -284,7 +284,7 @@ def test_clock_skew_blocks_execution(
                     "label": "Polygon index websocket",
                     "required": True,
                     "ok": True,
-                    "age_minutes": 0.5,
+                    "age_minutes": 0.0005,
                     "reason": None,
                     "details": {"threshold_seconds": 2.0},
                 }
@@ -357,7 +357,7 @@ def test_index_rule_mismatch_forces_no_go(
                     "label": "Polygon index websocket",
                     "required": True,
                     "ok": True,
-                    "age_minutes": 0.4,
+                    "age_minutes": 0.0004,
                     "reason": None,
                     "details": {"threshold_seconds": 2.0},
                 }

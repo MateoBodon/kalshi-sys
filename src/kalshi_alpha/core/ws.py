@@ -39,7 +39,7 @@ class KalshiWebsocketClient:
         self._user_agent = user_agent
 
     def _auth_headers(self) -> dict[str, str]:
-        headers = self._http_client.build_auth_headers("GET", self._path)
+        headers = self._http_client.build_auth_headers("GET", self._path, absolute=True)
         headers.setdefault("User-Agent", self._user_agent)
         return headers
 

@@ -1212,6 +1212,10 @@ def _quality_gate_for_broker(
         data_freshness_summary = dict(data_freshness_summary)
 
     reasons = list(result.reasons)
+    for reason in result.reasons:
+        if isinstance(reason, str) and reason.startswith("data_freshness.polygon_ws.stale"):
+            if "polygon_ws_stale" not in reasons:
+                reasons.append("polygon_ws_stale")
     details = dict(result.details)
     details.setdefault("data_freshness", data_freshness_summary)
     clock_skew = None

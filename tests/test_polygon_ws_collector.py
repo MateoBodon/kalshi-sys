@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from kalshi_alpha.exec.collectors import polygon_ws
 
@@ -69,3 +71,42 @@ def test_parse_args_uses_alias_overrides(monkeypatch) -> None:
     )
     assert config.alias_map["I:SPX"] == ("INX", "INXU")
     assert config.ws_url.startswith("wss://")
+
+
+class _StubWebsocket:
+    def __init__(self, messages: list[str]) -> None:
+        self._messages = iter(messages)
+
+    async def recv(self) -> str:
+        return next(self._messages)
+
+
+@pytest.mark.asyncio
+async def test_await_status_ignores_connected_and_returns_on_auth() -> None:
+    ws = _StubWebsocket(
+        [
+            json.dumps([{"ev": "status", "status": "connected"}]),
+            json.dumps([{"ev": "status", "status": "auth_success"}]),
+        ]
+    )
+    buffer = await polygon_ws._await_status(ws, expected={"auth_success"})  # type: ignore[attr-defined]
+    assert buffer == []
+
+
+@pytest.mark.asyncio
+async def test_await_status_raises_on_max_connections() -> None:
+    ws = _StubWebsocket(
+        [
+            json.dumps(
+                [
+                    {
+                        "ev": "status",
+                        "status": "max_connections",
+                        "message": "Maximum number of websocket connections exceeded.",
+                    }
+                ]
+            )
+        ]
+    )
+    with pytest.raises(polygon_ws.TooManyConnectionsError):  # type: ignore[attr-defined]
+        await polygon_ws._await_status(ws, expected={"auth_success"})  # type: ignore[attr-defined]

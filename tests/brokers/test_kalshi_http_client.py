@@ -89,7 +89,11 @@ def test_request_signs_headers_without_authorization(
         timestamp_ms = request.headers["KALSHI-ACCESS-TIMESTAMP"]
         assert len(timestamp_ms) == 13
         signature_b64 = request.headers["KALSHI-ACCESS-SIGNATURE"]
-        payload = f"{timestamp_ms}POST/orders".encode()
+        expected_path = "/orders"
+        prefix = getattr(client, "_base_path_prefix", "")
+        if prefix and not expected_path.startswith(prefix):
+            expected_path = f"{prefix}{expected_path}"
+        payload = f"{timestamp_ms}POST{expected_path}".encode()
         signature = base64.b64decode(signature_b64)
         private_key.public_key().verify(
             signature,
@@ -122,8 +126,12 @@ def test_signature_excludes_query_string(tmp_path: Path, monkeypatch: pytest.Mon
         timestamp_ms = request.headers["KALSHI-ACCESS-TIMESTAMP"]
         signature = base64.b64decode(request.headers["KALSHI-ACCESS-SIGNATURE"])
 
+        expected_path = "/markets"
+        prefix = getattr(client, "_base_path_prefix", "")
+        if prefix and not expected_path.startswith(prefix):
+            expected_path = f"{prefix}{expected_path}"
         # Expected payload uses path only.
-        valid_payload = f"{timestamp_ms}GET/markets".encode()
+        valid_payload = f"{timestamp_ms}GET{expected_path}".encode()
         public_key.verify(
             signature,
             valid_payload,
@@ -132,7 +140,7 @@ def test_signature_excludes_query_string(tmp_path: Path, monkeypatch: pytest.Mon
         )
 
         # Incorrect payload including the query string must fail verification.
-        invalid_payload = f"{timestamp_ms}GET/markets?series=CPI".encode()
+        invalid_payload = f"{timestamp_ms}GET{expected_path}?series=CPI".encode()
         with pytest.raises(InvalidSignature):
             public_key.verify(
                 signature,
@@ -170,7 +178,11 @@ def test_signature_uses_millisecond_timestamp(
         signature = base64.b64decode(request.headers["KALSHI-ACCESS-SIGNATURE"])
 
         # Correct millisecond payload verifies.
-        valid_payload = f"{timestamp_ms_str}GET/portfolio/balance".encode()
+        expected_path = "/portfolio/balance"
+        prefix = getattr(client, "_base_path_prefix", "")
+        if prefix and not expected_path.startswith(prefix):
+            expected_path = f"{prefix}{expected_path}"
+        valid_payload = f"{timestamp_ms_str}GET{expected_path}".encode()
         public_key.verify(
             signature,
             valid_payload,
@@ -179,7 +191,7 @@ def test_signature_uses_millisecond_timestamp(
         )
 
         # Using seconds instead of milliseconds should fail verification.
-        seconds_payload = f"{int(timestamp_ms_str) // 1000}GET/portfolio/balance".encode()
+        seconds_payload = f"{int(timestamp_ms_str) // 1000}GET{expected_path}".encode()
         with pytest.raises(InvalidSignature):
             public_key.verify(
                 signature,

@@ -11,7 +11,18 @@
 - Copy any local credentials into `.env.local` (never commit). The application automatically loads `.env.local` and `.env` via `kalshi_alpha.utils.env`.
 
 ### macOS Keychain bootstrap (preferred for local live access)
-For long-lived local shells on macOS, store the Kalshi credentials in Keychain and have your shell read them automatically:
+For long-lived local shells on macOS, store the Kalshi credentials in Keychain and have your shell read them automatically. Keep the canonical copy in 1Password (create an “API Credential” item with `KALSHI_API_KEY_ID`, attach the PEM, and restrict it to the trading vault). When you rotate keys:
+
+```bash
+# load from 1Password and refresh local cache (example)
+op signin <your-signin-shorthand> >/dev/null
+op item get "Kalshi – Prod" --field KALSHI_API_KEY_ID --vault "Trading Ops" --reveal |
+  xargs -I{} security add-generic-password -a "$USER" -s kalshi-sys:KALSHI_API_KEY_ID -w '{}' -U
+op item get "Kalshi – Prod" --field private_key --vault "Trading Ops" --reveal > ~/.kalshi/kalshi_private_key.pem
+chmod 600 ~/.kalshi/kalshi_private_key.pem
+```
+
+Then make the shell exports persistent:
 
 ```bash
 # one-time: move PEM out of the repo and lock permissions
@@ -173,7 +184,7 @@ Pipeline steps per run:
   Outputs land in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (legacy `noon` directories remain read-only); raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
 - Websocket collector: keep the Massive indices feed (`A.I:SPX`, `A.I:NDX`) running before any window so freshness stays ≤15 s. Options:
   - `make collect-polygon-ws` (foreground burner — exits with Ctrl+C).
-  - Install `configs/launchd/kalshi_polygon_ws.plist` (macOS): update `WorkingDirectory` if the repo path differs, then:
+  - Install `configs/launchd/kalshi_polygon_ws.plist` (macOS): update `WorkingDirectory`, `PYTHONPATH`, and `ProgramArguments[0]` if your repo or Python path differs, then:
     ```bash
     cp configs/launchd/kalshi_polygon_ws.plist ~/Library/LaunchAgents/
     launchctl unload ~/Library/LaunchAgents/kalshi_polygon_ws.plist 2>/dev/null || true
@@ -183,6 +194,8 @@ Pipeline steps per run:
     Logs land in `~/Library/Logs/kalshi_polygon_ws*.log`; use `launchctl stop com.kalshi.polygon-ws` to halt.
   - For Linux, run under systemd using the same entry point (`python -m kalshi_alpha.exec.collectors.polygon_ws`) inside a service unit.
   Use `--max-runtime 300` for smoke tests; omit the flag for production.
+- Massive only allows one websocket connection per asset class; keep the launch agent as the canonical feed. If you see `max_connections` or `policy violation` in the log, another client is connected—shut it down, then `launchctl bootout/gui bootstrap` the agent. Our collector now fails fast and logs `[polygon-ws] error: ... max_connections ...` instead of spinning forever.
+- Freshness gate: `configs/quality_gates.index.yaml` requires the Massive snapshot age ≤2 s. Any gap longer than that surfaces `polygon_ws_stale` in `reports/_artifacts/go_no_go.json` and the scanners short-circuit proposals. Cross-check `reports/_artifacts/monitors/freshness.json` for `age_seconds` when debugging.
 - Quality gates: pass `--quality-gates-config configs/quality_gates.index.yaml` to every scanner and microlive run. The index-only gates enforce Polygon websocket freshness (`max_age_seconds=2`) while ignoring stale macro feeds; treat `polygon_ws_stale` as a hard NO-GO and cancel all orders by the T−2 s buffer baked into `configs/index_ops.yaml`.
 - Pre-flight:
  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (hourly) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.

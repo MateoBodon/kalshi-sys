@@ -222,6 +222,57 @@ def _process_entries(
     )
 
 
+class TooManyConnectionsError(RuntimeError):
+    """Raised when Massive websocket rejects the connection due to max_connections."""
+
+
+def _iter_status(payload: object) -> Iterable[dict[str, Any]]:
+    yield from (
+        entry
+        for entry in _normalize_entries(payload)
+        if isinstance(entry, dict) and entry.get("ev") == "status"
+    )
+
+
+async def _await_status(
+    websocket: ClientConnection,
+    *,
+    expected: set[str],
+) -> list[object]:
+    """Drain websocket until one of the expected status codes (case-insensitive) arrives.
+
+    Returns any non-status payloads consumed during the wait so callers can process them.
+    """
+    buffer: list[object] = []
+    while True:
+        raw = await websocket.recv()
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        statuses = list(_iter_status(payload))
+        handled_expected = False
+        for status_entry in statuses:
+            status = str(status_entry.get("status") or "").lower()
+            message = str(status_entry.get("message") or "").strip()
+            if status in expected:
+                handled_expected = True
+            elif status == "connected":
+                continue  # initial handshake banner
+            elif status == "max_connections":
+                raise TooManyConnectionsError(
+                    "Massive websocket rejected connection: max_connections limit reached"
+                )
+            elif status in {"auth_failed", "authentication_failed", "unauthorized"}:
+                raise RuntimeError(f"Massive websocket authentication failed: {message or status}")
+            elif status in {"error", "subscription_error"}:
+                raise RuntimeError(f"Massive websocket error: {message or status}")
+        if handled_expected:
+            return buffer
+        if not statuses:
+            buffer.append(payload)
+
+
 async def _connect_once(
     config: CollectorConfig,
     *,
@@ -233,21 +284,52 @@ async def _connect_once(
     subscribe_payload = ",".join(f"{channel_prefix}.{symbol}" for symbol in config.alias_map)
     async with factory(
         config.ws_url,
-        ping_interval=20,
+        ping_interval=60.0,
+        ping_timeout=60.0,
         ssl=ssl_context,
     ) as websocket:
         await websocket.send(json.dumps({"action": "auth", "params": config.api_key}))
-        await websocket.recv()  # auth ack
+        prebuffer = await _await_status(
+            websocket,
+            expected={"auth_success", "authenticated"},
+        )
         await websocket.send(json.dumps({"action": "subscribe", "params": subscribe_payload}))
-        await websocket.recv()  # subscription ack
+        prebuffer.extend(
+            await _await_status(
+                websocket,
+                expected={"success", "subscribed", "subscribed to"},
+            )
+        )
 
         start = datetime.now(tz=UTC).timestamp()
+        for payload in prebuffer:
+            now = datetime.now(tz=UTC)
+            _process_entries(
+                entries=_normalize_entries(payload),
+                alias_map=config.alias_map,
+                channel_prefix=channel_prefix,
+                now=now,
+                proc_parquet=config.proc_parquet,
+                freshness_config=config.freshness_config,
+                freshness_output=config.freshness_output,
+            )
         async for raw in websocket:
             now = datetime.now(tz=UTC)
             try:
                 payload = json.loads(raw)
             except json.JSONDecodeError:
                 continue
+            for status_entry in _iter_status(payload):
+                status = str(status_entry.get("status") or "").lower()
+                message = str(status_entry.get("message") or "").strip()
+                if status == "max_connections":
+                    raise TooManyConnectionsError(
+                        "Massive websocket rejected connection: max_connections limit reached"
+                    )
+                if status in {"auth_failed", "authentication_failed", "unauthorized"}:
+                    raise RuntimeError(f"Massive websocket authentication failed: {message or status}")
+                if status in {"error", "subscription_error"}:
+                    raise RuntimeError(f"Massive websocket error: {message or status}")
             _process_entries(
                 entries=_normalize_entries(payload),
                 alias_map=config.alias_map,
@@ -269,6 +351,9 @@ async def _run_forever(config: CollectorConfig) -> None:
             await _connect_once(config, ssl_context=ssl_context)
         except asyncio.CancelledError:
             raise
+        except TooManyConnectionsError as exc:
+            print(f"[polygon-ws] error: {exc!s}; stopping collector", flush=True)
+            break
         except Exception as exc:  # pragma: no cover - network failures
             print(f"[polygon-ws] warning: {exc!s}; reconnecting in {backoff:.1f}s", flush=True)
             await asyncio.sleep(backoff)
