@@ -171,7 +171,18 @@ Pipeline steps per run:
   python -m jobs.calibrate_close  --series INX  NASDAQ100   --days 55
   ```
   Outputs land in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (legacy `noon` directories remain read-only); raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
-- Websocket collector: keep the Massive indices feed (`A.I:SPX`, `A.I:NDX`) running before any window so freshness stays ≤2 s. Launch via `make collect-polygon-ws` (wraps `python -m kalshi_alpha.exec.collectors.polygon_ws`) or supervise the module with launchd/systemd. Pass `--max-runtime 300` for smoke tests; production runs omit the limit and rely on the auto-reconnect loop.
+- Websocket collector: keep the Massive indices feed (`A.I:SPX`, `A.I:NDX`) running before any window so freshness stays ≤2 s. Options:
+  - `make collect-polygon-ws` (foreground burner — exits with Ctrl+C).
+  - Install `configs/launchd/kalshi_polygon_ws.plist` (macOS): update `WorkingDirectory` if the repo path differs, then:
+    ```bash
+    cp configs/launchd/kalshi_polygon_ws.plist ~/Library/LaunchAgents/
+    launchctl unload ~/Library/LaunchAgents/kalshi_polygon_ws.plist 2>/dev/null || true
+    launchctl load ~/Library/LaunchAgents/kalshi_polygon_ws.plist
+    launchctl start com.kalshi.polygon-ws
+    ```
+    Logs land in `~/Library/Logs/kalshi_polygon_ws*.log`; use `launchctl stop com.kalshi.polygon-ws` to halt.
+  - For Linux, run under systemd using the same entry point (`python -m kalshi_alpha.exec.collectors.polygon_ws`) inside a service unit.
+  Use `--max-runtime 300` for smoke tests; omit the flag for production.
 - Quality gates: pass `--quality-gates-config configs/quality_gates.index.yaml` to every scanner and microlive run. The index-only gates enforce Polygon websocket freshness (`max_age_seconds=2`) while ignoring stale macro feeds; treat `polygon_ws_stale` as a hard NO-GO and cancel all orders by the T−2 s buffer baked into `configs/index_ops.yaml`.
 - Pre-flight:
  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (hourly) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.
