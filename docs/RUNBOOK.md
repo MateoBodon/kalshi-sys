@@ -171,10 +171,11 @@ Pipeline steps per run:
   python -m jobs.calibrate_close  --series INX  NASDAQ100   --days 55
   ```
   Outputs land in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (legacy `noon` directories remain read-only); raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
+- Websocket collector: keep the Massive indices feed (`A.I:SPX`, `A.I:NDX`) running before any window so freshness stays ≤2 s. Launch via `make collect-polygon-ws` (wraps `python -m kalshi_alpha.exec.collectors.polygon_ws`) or supervise the module with launchd/systemd. Pass `--max-runtime 300` for smoke tests; production runs omit the limit and rely on the auto-reconnect loop.
 - Quality gates: pass `--quality-gates-config configs/quality_gates.index.yaml` to every scanner and microlive run. The index-only gates enforce Polygon websocket freshness (`max_age_seconds=2`) while ignoring stale macro feeds; treat `polygon_ws_stale` as a hard NO-GO and cancel all orders by the T−2 s buffer baked into `configs/index_ops.yaml`.
 - Pre-flight:
  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (hourly) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.
- 2. Confirm calibration parquet mtimes ≤14 days.
+  2. Confirm calibration parquet mtimes ≤14 days.
   3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report --quality-gates-config configs/quality_gates.index.yaml`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, EV after fees, and confirm GO/NO-GO reasons exclude `polygon_ws_stale`.
 - U-series rotation: scans at :40/:55 discover the **next** hour market and emit `[u-roll] ROLLED U-SERIES: HHHMM -> HHHMM`. When the boundary is within two seconds, the runner marks cancel-all before replaying proposals.
 - Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)` (see [`docs/kalshi-fee-schedule.pdf`](kalshi-fee-schedule.pdf) for the underlying Polygon-derived curve). EV_after_fees, Δbps, and ledger golden rows must reflect these series-specific curves.

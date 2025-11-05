@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -104,6 +104,9 @@ micro-index:
 
 fees-parse:
 	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.parse_fees --pdf docs/kalshi-fee-schedule.pdf --output data/proc/state/fees.json
+
+collect-polygon-ws:
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.exec.collectors.polygon_ws
 
 .PHONY: paper_live_offline paper_live_online
 
