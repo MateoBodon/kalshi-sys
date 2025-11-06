@@ -135,22 +135,33 @@ def _file_age_days(path: Path, now: datetime) -> float | None:
     return age_seconds / 86400.0 if age_seconds >= 0 else 0.0
 
 
-def _calibration_age_days(series: str, now: datetime) -> float | None:
+def calibration_age_days(series: str, now: datetime) -> float | None:
     target = CALIBRATION_TARGETS.get(series.upper())
     if target is None:
         return None
     slug, horizons = target
+    ages: list[float] = []
     for horizon in horizons:
-        path = CALIBRATION_ROOT / slug / horizon / "params.json"
-        if not path.exists():
-            continue
-        age = _file_age_days(path, now)
-        if age is not None:
-            return age
+        base_dir = CALIBRATION_ROOT / slug / horizon
+        candidate_paths: list[Path] = []
+        aggregated = base_dir / "params.json"
+        candidate_paths.append(aggregated)
+        if horizon == "hourly" and base_dir.exists():
+            for child in base_dir.iterdir():
+                if child.is_dir():
+                    candidate_paths.append(child / "params.json")
+        for path in candidate_paths:
+            if not path.exists():
+                continue
+            age = _file_age_days(path, now)
+            if age is not None:
+                ages.append(age)
+    if ages:
+        return min(ages)
     return None
 
 
-def _freshness_status() -> tuple[bool, list[str]]:
+def freshness_status() -> tuple[bool, list[str]]:
     payload = load_freshness_artifact(FRESHNESS_ARTIFACT_PATH)
     summary = summarize_freshness_artifact(payload, artifact_path=FRESHNESS_ARTIFACT_PATH)
     status = summary.get("status", "MISSING")
@@ -213,7 +224,7 @@ def evaluate_readiness(
             reasons.append(f"t-stat {t_stat:.2f} < {MIN_T_STAT}")
         if abs(alpha_gap) > MAX_ALPHA_GAP:
             reasons.append(f"fill-α gap {alpha_gap:+.3f} exceeds {MAX_ALPHA_GAP}")
-        calib_age = _calibration_age_days(series, now)
+        calib_age = calibration_age_days(series, now)
         if calib_age is None:
             reasons.append("calibration_missing")
         elif calib_age > MAX_CALIBRATION_AGE_DAYS:
@@ -278,7 +289,7 @@ def generate_report(
 ) -> list[SeriesReadiness]:
     ledger = _load_ledger(ledger_path)
     results = evaluate_readiness(ledger, now=now, window_days=window_days)
-    freshness_ok, freshness_reasons = _freshness_status()
+    freshness_ok, freshness_reasons = freshness_status()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         render_markdown(
@@ -304,7 +315,7 @@ def main(argv: list[str] | None = None) -> None:
         output_path=args.output,
         window_days=args.window,
     )
-    freshness_ok, freshness_reasons = _freshness_status()
+    freshness_ok, freshness_reasons = freshness_status()
     go_series = [entry.series for entry in results if entry.go]
     no_go_series = [entry.series for entry in results if not entry.go]
     print(f"[pilot_readiness] wrote {args.output}")

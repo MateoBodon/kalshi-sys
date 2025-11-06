@@ -7,6 +7,7 @@ import json
 import logging
 import math
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -28,6 +29,21 @@ ARTIFACTS_DIR = Path("reports/_artifacts")
 LOGGER = logging.getLogger(__name__)
 INDEX_SERIES_ORDER = ["INXU", "NASDAQ100U", "INX", "NASDAQ100"]
 INDEX_SERIES = set(INDEX_SERIES_ORDER)
+
+
+def _series_fills(frame: pl.DataFrame | None) -> float:
+    if frame is None or frame.is_empty():
+        return 0.0
+    columns = set(frame.columns)
+    if {"fill_ratio_observed", "size"}.issubset(columns):
+        total = frame.select(
+            (pl.col("fill_ratio_observed").fill_null(0.0) * pl.col("size").fill_null(0.0)).sum()
+        )
+        return float(total[0, 0]) if total.height else 0.0
+    if "expected_fills" in columns:
+        total = frame.select(pl.col("expected_fills").fill_null(0.0).sum())
+        return float(total[0, 0]) if total.height else 0.0
+    return 0.0
 
 
 def _alpha_model_metrics(
@@ -108,11 +124,22 @@ def main(argv: list[str] | None = None) -> None:
     windows = {int(max(days, 1)) for days in args.window}
     reports_dir = Path("reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
+    freshness_ok, freshness_reasons = pilot_readiness.freshness_status()
     for window in sorted(windows):
         summary = _build_summary(ledger, calibrations, alpha_state, window)
         output = reports_dir / f"scoreboard_{window}d.md"
-        _write_markdown(summary, window, output)
+        _write_markdown(
+            summary,
+            window,
+            output,
+            freshness_ok=freshness_ok,
+            freshness_reasons=freshness_reasons,
+        )
         print(f"[scoreboard] wrote {output}")
+        go_count = sum(1 for row in summary if row.get("go"))
+        series_list = ", ".join(row["series"] for row in summary if row.get("go"))
+        if summary:
+            print(f"  GO ({window}d): {go_count}/{len(summary)} [{series_list}]")
     pilot_path = reports_dir / "pilot_readiness.md"
     pilot_readiness.generate_report(
         ledger_path=LEDGER_PATH,
@@ -248,6 +275,9 @@ def _build_summary(  # noqa: PLR0912, PLR0915
         fill_minus_alpha = None
         if isinstance(avg_alpha, (int, float)) and avg_alpha is not None:
             fill_minus_alpha = fill_ratio - float(avg_alpha)
+        subset = frames_by_series.get(series)
+        fills_value = _series_fills(subset)
+        calib_age = pilot_readiness.calibration_age_days(series, now)
         metrics = {
             "series": series,
             "ev_after_fees": row.get("ev_after_fees", 0.0),
@@ -264,16 +294,18 @@ def _build_summary(  # noqa: PLR0912, PLR0915
             "sample_size": sample_size,
             "ev_expected_bps_mean": ev_expected_mean,
             "ev_realized_bps_mean": ev_realized_mean,
+            "ev_delta_mean": delta_mean,
             "t_stat": t_stat,
             "confidence_badge": badge,
             "ev_plot_lines": ev_plot_lines,
+            "fills_contracts": fills_value,
+            "calibration_age_days": calib_age,
         }
         calib = calib_lookup.get(series)
         if calib:
             metrics["crps_advantage"] = calib.get("crps_advantage")
             metrics["brier_advantage"] = calib.get("brier_advantage")
         records.append(metrics)
-        subset = frames_by_series.get(series)
         mean_fill_delta, abs_fill_delta = _alpha_model_metrics(alpha_curves.get(series), subset)
         if mean_fill_delta is not None:
             metrics["fill_minus_model"] = mean_fill_delta
@@ -284,6 +316,28 @@ def _build_summary(  # noqa: PLR0912, PLR0915
             metrics["slippage_delta_mean"] = slip_delta_mean
         if slip_delta_abs is not None:
             metrics["slippage_delta_abs"] = slip_delta_abs
+        reasons: list[str] = []
+        if fills_value < pilot_readiness.MIN_FILLS:
+            reasons.append(f"fills {fills_value:.0f} < {int(pilot_readiness.MIN_FILLS)}")
+        if delta_mean < pilot_readiness.MIN_DELTA_BPS:
+            reasons.append(f"Δbps {delta_mean:.1f} < {pilot_readiness.MIN_DELTA_BPS}")
+        if t_stat < pilot_readiness.MIN_T_STAT:
+            reasons.append(f"t-stat {t_stat:.2f} < {pilot_readiness.MIN_T_STAT}")
+        if (
+            fill_minus_alpha is not None
+            and abs(fill_minus_alpha) > pilot_readiness.MAX_ALPHA_GAP
+        ):
+            reasons.append(
+                f"fill-α gap {fill_minus_alpha:+.3f} exceeds {pilot_readiness.MAX_ALPHA_GAP}"
+            )
+        if calib_age is None:
+            reasons.append("calibration_missing")
+        elif calib_age > pilot_readiness.MAX_CALIBRATION_AGE_DAYS:
+            reasons.append(
+                f"calibration_age {calib_age:.1f}d > {pilot_readiness.MAX_CALIBRATION_AGE_DAYS:.0f}d"
+            )
+        metrics["go"] = not reasons
+        metrics["go_reasons"] = reasons
     return sorted(
         records,
         key=lambda row: (
@@ -343,14 +397,29 @@ def _ev_plot_lines(expected: float, realized: float) -> list[str]:
     return ["```", _bar("expected", expected), _bar("realized", realized), "```"]
 
 
-def _write_markdown(summary: list[dict[str, object]], window_days: int, output: Path) -> None:
+def _write_markdown(  # noqa: PLR0912, PLR0915
+    summary: list[dict[str, object]],
+    window_days: int,
+    output: Path,
+    *,
+    freshness_ok: bool = True,
+    freshness_reasons: Sequence[str] | None = None,
+) -> None:
     lines: list[str] = []
     lines.append(f"# Scoreboard ({window_days}-day)")
+    lines.append("")
+    lines.append(f"Data Freshness: {'OK' if freshness_ok else 'NO-GO'}")
+    reasons_iter = list(freshness_reasons or [])
+    if reasons_iter:
+        lines.append("- Freshness Reasons:")
+        for item in reasons_iter:
+            lines.append(f"  - {item}")
     lines.append("")
     if not summary:
         lines.append("_No ledger data available for this window._")
     for row in summary:
-        lines.append(f"## {row['series']}")
+        status = "GO" if row.get("go") else "NO-GO"
+        lines.append(f"## {row['series']} — {status}")
         lines.append(f"- CRPS Advantage: {row.get('crps_advantage', 'n/a')}")
         lines.append(f"- Brier Advantage: {row.get('brier_advantage', 'n/a')}")
         lines.append(f"- EV (after fees): {row['ev_after_fees']:.2f}")
@@ -373,6 +442,8 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
         lines.append(
             f"- Realized EV (bps): {row.get('ev_realized_bps_mean', 0.0):+.1f}"
         )
+        if row.get("ev_delta_mean") is not None:
+            lines.append(f"- Δbps (realized-expected): {row['ev_delta_mean']:+.1f}")
         if row.get("slippage_ticks_mean") is not None:
             lines.append(
                 f"- Avg Slippage (ticks): {row.get('slippage_ticks_mean', 0.0):.3f}"
@@ -395,6 +466,20 @@ def _write_markdown(summary: list[dict[str, object]], window_days: int, output: 
         alpha = row.get("avg_alpha")
         alpha_text = f"{alpha:.3f}" if isinstance(alpha, (int, float)) else "n/a"
         lines.append(f"- Avg α: {alpha_text}")
+        if row.get("fills_contracts") is not None:
+            lines.append(f"- Fills (contracts): {row['fills_contracts']:.0f}")
+        if row.get("calibration_age_days") is not None:
+            lines.append(
+                f"- Calibration Age (days): {row['calibration_age_days']:.1f}"
+            )
+        else:
+            lines.append("- Calibration Age (days): n/a")
+        if not row.get("go", True):
+            reasons = row.get("go_reasons") or []
+            if reasons:
+                lines.append("- NO-GO reasons:")
+                for reason in reasons:
+                    lines.append(f"  - {reason}")
         lines.append(f"- NO-GO Count: {row['no_go_count']}")
         lines.append("")
     output.write_text("\n".join(lines), encoding="utf-8")
