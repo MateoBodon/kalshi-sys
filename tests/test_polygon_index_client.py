@@ -189,8 +189,8 @@ async def test_stream_minute_aggregates_reconnects(monkeypatch: pytest.MonkeyPat
             self.closed = True
 
     connections = [
-        _FakeConnection(['{"ev": "XA", "sym": "I:SPX", "p": 5000.0}']),
-        _FakeConnection(['{"ev": "XA", "sym": "I:SPX", "p": 5001.0}']),
+        _FakeConnection(['{"ev": "AM", "sym": "I:SPX", "p": 5000.0}']),
+        _FakeConnection(['{"ev": "AM", "sym": "I:SPX", "p": 5001.0}']),
     ]
     iterator = iter(connections)
 
@@ -216,9 +216,9 @@ async def test_stream_minute_aggregates_reconnects(monkeypatch: pytest.MonkeyPat
     second = await anext(stream)
     await stream.aclose()
 
-    assert first["ev"] == "XA"
-    assert second["ev"] == "XA"
-    assert any("XA.I:SPX" in msg for msg in connections[0].sent)
+    assert first["ev"] == "AM"
+    assert second["ev"] == "AM"
+    assert any("AM.I:SPX" in msg for msg in connections[0].sent)
 
 
 def test_download_minute_history_chunks_and_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

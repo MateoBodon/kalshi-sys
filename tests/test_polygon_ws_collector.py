@@ -22,6 +22,7 @@ def test_process_entries_writes_snapshots_and_freshness(monkeypatch, tmp_path: P
         freshness_calls["config"] = config_path
         freshness_calls["output"] = output_path
         freshness_calls["now"] = now
+        output_path.write_text("{}", encoding="utf-8")
 
     monkeypatch.setattr(polygon_ws, "write_snapshot", fake_write_snapshot)
     monkeypatch.setattr(polygon_ws.freshness, "write_freshness_artifact", fake_freshness_artifact)
@@ -31,18 +32,17 @@ def test_process_entries_writes_snapshots_and_freshness(monkeypatch, tmp_path: P
     output_path = tmp_path / "freshness.json"
     now = datetime.now(tz=UTC)
 
-    entries = [
-        {
-            "ev": "A",
-            "sym": "I:SPX",
-            "c": 5025.0,
-            "s": 1_700_000_000_000,
-        }
-    ]
+    payload = {
+        "ev": "AM",
+        "sym": "I:SPX",
+        "c": 5025.0,
+        "s": 1_700_000_000_000,
+        "e": 1_700_000_060_000,
+    }
     polygon_ws._process_entries(  # type: ignore[attr-defined]
-        entries=entries,
+        entries=polygon_ws._normalize_entries(payload),
         alias_map={"I:SPX": ("INX", "INXU")},
-        channel_prefix="A",
+        channel_prefix="AM",
         now=now,
         proc_parquet=proc_parquet,
         freshness_config=cfg_path,
@@ -55,6 +55,7 @@ def test_process_entries_writes_snapshots_and_freshness(monkeypatch, tmp_path: P
     assert frame.height == 1
     assert freshness_calls.get("config") == cfg_path
     assert freshness_calls.get("output") == output_path
+    assert output_path.exists()
 
 
 def test_parse_args_uses_alias_overrides(monkeypatch) -> None:

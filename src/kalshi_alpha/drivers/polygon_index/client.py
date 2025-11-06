@@ -1,4 +1,4 @@
-"""Polygon indices client supporting REST, websocket, and historical ingestion."""
+"""Massive indices client supporting REST, websocket, and historical ingestion."""
 
 from __future__ import annotations
 
@@ -25,12 +25,16 @@ from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.utils.keys import load_polygon_api_key
 
 DEFAULT_REST_URL = "https://api.polygon.io"
-DEFAULT_WS_URL = "wss://socket.polygon.io/stocks"
-INDEX_MINUTE_CHANNEL = "XA"
-INDEX_SECOND_CHANNEL = "XS"
+DEFAULT_WS_URL = "wss://socket.massive.com/indices"
+INDEX_MINUTE_CHANNEL = "AM"
+INDEX_SECOND_CHANNEL = "AS"
 CHANNEL_BY_TIMESPAN = {
     "minute": INDEX_MINUTE_CHANNEL,
     "second": INDEX_SECOND_CHANNEL,
+}
+CHANNEL_EVENT_ALIASES: dict[str, set[str]] = {
+    INDEX_MINUTE_CHANNEL: {INDEX_MINUTE_CHANNEL, "XA"},
+    INDEX_SECOND_CHANNEL: {INDEX_SECOND_CHANNEL, "XS"},
 }
 ET = ZoneInfo("America/New_York")
 POLYGON_RAW_ROOT = (RAW_ROOT / "polygon").resolve()
@@ -76,7 +80,7 @@ class IndexSnapshot:
 
 
 class PolygonIndicesClient:
-    """REST + websocket client for Polygon index data."""
+    """REST + websocket client for Massive (Polygon) index data."""
 
     def __init__(  # noqa: PLR0913
         self,
@@ -443,6 +447,7 @@ class PolygonIndicesClient:
             channel = CHANNEL_BY_TIMESPAN[timespan]
         except KeyError as exc:
             raise ValueError(f"Unsupported aggregate timespan '{timespan}'") from exc
+        expected_events = CHANNEL_EVENT_ALIASES.get(channel, {channel})
 
         base_backoff = max(0.1, float(initial_backoff))
         ceiling = max(base_backoff, float(max_backoff))
@@ -463,7 +468,7 @@ class PolygonIndicesClient:
                         except json.JSONDecodeError:
                             continue
                         event_type = str(message.get("ev") or "").upper()
-                        if event_type != channel:
+                        if event_type not in expected_events:
                             continue
                         yield message
             except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation

@@ -2118,7 +2118,7 @@ def scan_series(  # noqa: PLR0913
     ops_metadata: dict[str, object] = {}
     if series_obj is not None:
         ops_metadata = _ops_window_metadata(series_obj.ticker, now_utc, target_time=target_time)
-    rule_validation = _validate_index_rules(series_obj, events_to_scan, rule_config)
+    rule_validation = _validate_index_rules(series_obj, events, rule_config)
     max_legs = max(2, int(max_legs))
     prob_sum_gap_threshold = float(max(prob_sum_gap_threshold, 0.0))
 

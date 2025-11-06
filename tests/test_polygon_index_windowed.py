@@ -93,9 +93,10 @@ class _Clock:
 def _aggregate_message(symbol: str, ts: datetime, channel: str) -> dict[str, Any]:
     timestamp_ms = int(ts.astimezone(UTC).timestamp() * 1000)
     return {
-        "ev": "XA" if channel == "minute" else "XS",
+        "ev": "AM" if channel == "minute" else "AS",
         "sym": symbol,
         "s": timestamp_ms,
+        "e": timestamp_ms + (60_000 if channel == "minute" else 1_000),
         "o": 5000.0,
         "h": 5001.0,
         "l": 4999.5,

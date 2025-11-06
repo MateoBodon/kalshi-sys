@@ -24,7 +24,11 @@ from kalshi_alpha.utils.keys import load_polygon_api_key
 
 DEFAULT_WS_URL = "wss://socket.massive.com/indices"
 DEFAULT_SYMBOLS = ("I:SPX", "I:NDX")
-DEFAULT_CHANNEL = "A"
+DEFAULT_CHANNEL = "AM"
+CHANNEL_EVENT_ALIASES: dict[str, tuple[str, ...]] = {
+    "AM": ("AM", "XA", "A"),
+    "AS": ("AS", "XS"),
+}
 DEFAULT_FRESHNESS_CONFIG = Path("/tmp/index_freshness.yaml")
 DEFAULT_FRESHNESS_OUTPUT = Path("reports/_artifacts/monitors/freshness.json")
 DEFAULT_PROC_PARQUET = Path("data/proc/polygon_index/snapshot_2025-11-04.parquet")
@@ -79,7 +83,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> CollectorConfig:
     parser.add_argument(
         "--channel-prefix",
         default=DEFAULT_CHANNEL,
-        help="Channel prefix for aggregate updates (default: A)",
+        help="Channel prefix for Massive aggregate updates (default: AM)",
     )
     parser.add_argument(
         "--freshness-config",
@@ -141,7 +145,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> CollectorConfig:
     return CollectorConfig(
         ws_url=args.ws_url,
         api_key=api_key,
-        channel_prefix=args.channel_prefix.strip() or DEFAULT_CHANNEL,
+        channel_prefix=(args.channel_prefix.strip() or DEFAULT_CHANNEL).upper(),
         alias_map=alias_map,
         freshness_config=args.freshness_config,
         freshness_output=args.freshness_output,
@@ -171,8 +175,11 @@ def _process_entries(
     freshness_output: Path,
 ) -> None:
     latest_ts: datetime | None = None
+    normalized_prefix = channel_prefix.upper()
+    accepted_events = set(CHANNEL_EVENT_ALIASES.get(normalized_prefix, (normalized_prefix,)))
     for entry in entries:
-        if entry.get("ev") != channel_prefix:
+        event = str(entry.get("ev") or "").upper()
+        if event not in accepted_events:
             continue
         symbol = str(entry.get("sym") or "").strip()
         aliases = alias_map.get(symbol)
@@ -184,6 +191,8 @@ def _process_entries(
         except (TypeError, ValueError):
             continue
         source_ts = entry.get("s")
+        if not isinstance(source_ts, (int, float)):
+            source_ts = entry.get("e")
         if isinstance(source_ts, (int, float)):
             try:
                 tick_ts = datetime.fromtimestamp(float(source_ts) / 1000.0, tz=UTC)
