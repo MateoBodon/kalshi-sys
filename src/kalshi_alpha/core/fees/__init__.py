@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable
 from decimal import ROUND_UP, Decimal, getcontext
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .index_series import IndexFeeCurve, get_index_fee_curve, load_index_fee_curves
 
@@ -17,6 +18,7 @@ CENT = Decimal("0.01")
 ONE = Decimal("1")
 INDEX_PREFIXES = ("INX", "NASDAQ100")
 INDEX_TAKER_RATE = Decimal("0.035")
+INDEX_MAKER_FEE_OVERRIDE_ENV = "OVERRIDE_INDEX_MAKER_FEE"
 
 ROOT = Path(__file__).resolve().parents[4]
 FEE_CONFIG_PATH = ROOT / "data" / "reference" / "kalshi_fee_schedule.json"
@@ -31,7 +33,7 @@ def _load_fee_config(config_path: Path | None = None) -> dict[str, Any]:
         path = FEE_OVERRIDE_PATH if FEE_OVERRIDE_PATH.exists() else FEE_CONFIG_PATH
     if not path.exists():  # pragma: no cover - configuration check
         raise FileNotFoundError(f"Fee configuration not found: {path}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast("dict[str, Any]", json.loads(path.read_text(encoding="utf-8")))
 
 
 def _to_decimal(value: float | int | Decimal) -> Decimal:
@@ -56,6 +58,34 @@ def round_up_to_cent(amount: float | Decimal) -> Decimal:
     return dec_amount.quantize(CENT, rounding=ROUND_UP)
 
 
+def _is_index_series(series_key: str | None) -> bool:
+    if not series_key:
+        return False
+    return any(series_key.startswith(prefix) for prefix in INDEX_PREFIXES)
+
+
+def _ensure_index_maker_fee_guard() -> None:
+    if os.getenv(INDEX_MAKER_FEE_OVERRIDE_ENV):
+        raise RuntimeError(
+            "Detected OVERRIDE_INDEX_MAKER_FEE in environment; update index maker fee rules before proceeding.",
+        )
+
+
+def fee_index_taker(*, price: float | Decimal, contracts: float | int | Decimal) -> Decimal:
+    """Return the taker fee for an index ladder, rounded up to the nearest cent."""
+
+    price_dec = _to_decimal(price)
+    if price_dec < 0 or price_dec > ONE:
+        raise ValueError("price must be expressed as a probability in [0, 1]")
+
+    contracts_dec = _to_decimal(contracts)
+    if contracts_dec <= 0:
+        raise ValueError("contracts must be positive")
+
+    raw_fee = INDEX_TAKER_RATE * contracts_dec * price_dec * (ONE - price_dec)
+    return round_up_to_cent(raw_fee)
+
+
 class FeeSchedule:
     """Encapsulates Kalshi maker/taker fee logic with JSON-backed configuration."""
 
@@ -78,7 +108,7 @@ class FeeSchedule:
         else:
             self.maker_enabled_series = frozenset(str(series).upper() for series in maker_series_config)
 
-        overrides: dict[str, dict[str, Any]] = {}
+        overrides: dict[str, dict[str, Decimal | bool]] = {}
         for entry in data.get("series_overrides", []):
             series = str(entry.get("series", "")).upper()
             if not series:
@@ -152,6 +182,14 @@ class FeeSchedule:
         if contracts_dec <= 0:
             raise ValueError("contracts must be positive")
 
+        series_key = series.upper() if isinstance(series, str) else None
+        if _is_index_series(series_key):
+            if rate_key == "maker_rate":
+                _ensure_index_maker_fee_guard()
+                return Decimal("0.00")
+            if rate_key == "taker_rate":
+                return fee_index_taker(price=price_dec, contracts=contracts_dec)
+
         rate = self._resolve_rate(
             base_rate,
             series=series,
@@ -163,7 +201,6 @@ class FeeSchedule:
             return Decimal("0.00")
 
         curve = None
-        series_key = series.upper() if isinstance(series, str) else None
         if rate_key == "maker_rate" and series_key:
             curve = get_index_fee_curve(series_key)
 
@@ -187,13 +224,12 @@ class FeeSchedule:
         series_key = series.upper() if isinstance(series, str) else None
 
         if series_key:
-            for prefix in INDEX_PREFIXES:
-                if series_key.startswith(prefix):
-                    if rate_key == "maker_rate":
-                        return Decimal("0")
-                    if rate_key == "taker_rate":
-                        return INDEX_TAKER_RATE
-                    break
+            if _is_index_series(series_key):
+                if rate_key == "maker_rate":
+                    _ensure_index_maker_fee_guard()
+                    return Decimal("0")
+                if rate_key == "taker_rate":
+                    return INDEX_TAKER_RATE
 
         if rate_key == "maker_rate":
             maker_enabled = self.maker_enabled_series
@@ -202,7 +238,9 @@ class FeeSchedule:
 
         if series_key and series_key in self.series_overrides:
             override = self.series_overrides[series_key]
-            rate = override.get(rate_key, rate)
+            override_rate = override.get(rate_key)
+            if isinstance(override_rate, Decimal):
+                rate = override_rate
             if override.get("half_rate"):
                 return rate / Decimal("2")
 
@@ -266,6 +304,7 @@ __all__ = [
     "DEFAULT_FEE_SCHEDULE",
     "maker_fee",
     "taker_fee",
+    "fee_index_taker",
     "round_up_to_cent",
     "IndexFeeCurve",
     "load_index_fee_curves",
