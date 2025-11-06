@@ -266,8 +266,8 @@ Pipeline steps per run:
 - `python -m kalshi_alpha.exec.runners.scan_ladders --series TNEY --offline --fixtures-root tests/data_fixtures --ev-honesty-shrink 0.9 --quiet`
 
 ### Hourly Index Run (13:00 ET — 2025-11-06)
-- `PYTHONPATH=src python -m kalshi_alpha.exec.collectors.polygon_ws --symbols I:SPX,I:NDX --max-runtime 120`  
-  Captured Massive indices websocket for ~2 min to refresh freshness heartbeat; wrote `reports/_artifacts/monitors/freshness.json` (status `ALERT`, stale feeds `dol_claims.latest_report`, `treasury_10y.daily`, `aaa_gas.daily`) and parquet heartbeat `data/proc/polygon_index/snapshot_2025-11-04.parquet`. Raw snapshots landed under `data/raw/2025/11/06/polygon_index/20251106T*.json.json` for SPX/NDX + ladder aliases.
+- `PYTHONPATH=src python -m kalshi_alpha.exec.collectors.polygon_ws --symbols I:SPX,I:NDX --freshness-config configs/freshness.index.yaml --freshness-output reports/_artifacts/monitors/freshness.json --max-runtime 120`  
+  Captured Massive indices websocket for ~2 min using the index-only freshness profile; wrote `reports/_artifacts/monitors/freshness.json` (status `OK`, polygon feed within 1 s) and parquet heartbeat `data/proc/polygon_index/snapshot_2025-11-04.parquet`. Raw snapshots landed under `data/raw/2025/11/06/polygon_index/20251106T*.json.json` for SPX/NDX + ladder aliases.
 - `PYTHONPATH=src:. python -m jobs.calibrate_hourly --symbols I:SPX I:NDX --months 12`  
   Rebuilt hourly calibrations at `data/proc/calib/index/spx/hourly/params.json` and `data/proc/calib/index/ndx/hourly/params.json`.
 - `PYTHONPATH=src:. python -m jobs.calibrate_close --symbols I:SPX I:NDX --months 12`  

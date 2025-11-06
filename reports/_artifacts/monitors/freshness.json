@@ -1,219 +1,44 @@
 {
-  "generated_at": "2025-11-06T18:15:05.050865+00:00",
-  "message": "Stale feeds: dol_claims.latest_report, treasury_10y.daily, aaa_gas.daily",
+  "generated_at": "2025-11-06T18:34:04.991825+00:00",
+  "message": "All required feeds fresh",
   "metrics": {
     "feeds": [
       {
-        "age_minutes": 6045.084,
+        "age_minutes": 0.017,
         "details": {
-          "age_days": 4.198,
-          "count": 1,
-          "threshold_days": 35.0
-        },
-        "id": "bls_cpi.latest_release",
-        "label": "BLS CPI (latest release)",
-        "last_ts": "2025-11-02T13:30:00+00:00",
-        "ok": true,
-        "required": true
-      },
-      {
-        "age_minutes": 28455.084,
-        "details": {
-          "age_days": 19.76,
-          "count": 1,
-          "threshold_days": 8.0
-        },
-        "id": "dol_claims.latest_report",
-        "label": "DOL Claims (ETA-539)",
-        "last_ts": "2025-10-18T00:00:00+00:00",
-        "ok": false,
-        "reason": "STALE>8.0d",
-        "required": true
-      },
-      {
-        "age_minutes": 11175.084,
-        "details": {
-          "age_business_days": 5.0,
-          "count": 2,
-          "threshold_business_days": 3.0
-        },
-        "id": "treasury_10y.daily",
-        "label": "Treasury 10Y Par Yield",
-        "last_ts": "2025-10-30T00:00:00+00:00",
-        "ok": false,
-        "reason": "STALE>3.0bd",
-        "required": true
-      },
-      {
-        "age_minutes": 9735.084,
-        "details": {
-          "age_days": 6.76,
-          "count": 2,
-          "threshold_days": 35.0
-        },
-        "id": "cleveland_nowcast.monthly",
-        "label": "Cleveland Fed Nowcast (monthly)",
-        "last_ts": "2025-10-31T00:00:00+00:00",
-        "ok": true,
-        "required": true
-      },
-      {
-        "age_minutes": 5415.084,
-        "details": {
-          "age_days": 3.76,
-          "price": 1.56,
-          "price_max": 6.0,
-          "price_min": 2.0,
-          "threshold_days": 2.0
-        },
-        "id": "aaa_gas.daily",
-        "label": "AAA National Gas (daily)",
-        "last_ts": "2025-11-03T00:00:00+00:00",
-        "ok": false,
-        "reason": "AAA_OUT_OF_RANGE",
-        "required": true
-      },
-      {
-        "age_minutes": null,
-        "details": {
-          "note": "not_required",
-          "stations": []
-        },
-        "id": "nws_daily_climate",
-        "label": "NWS Daily Climate (stations)",
-        "last_ts": null,
-        "ok": true,
-        "reason": "NOT_REQUIRED",
-        "required": false
-      },
-      {
-        "age_minutes": 0.001,
-        "details": {
-          "age_seconds": 0.051,
-          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T181505_NASDAQ100U_snapshot.json.json",
+          "age_seconds": 0.992,
+          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T183404_INXU_snapshot.json.json",
           "threshold_seconds": 2.0
         },
         "id": "polygon_index.websocket",
-        "label": "Polygon index websocket",
-        "last_ts": "2025-11-06T18:15:05+00:00",
+        "label": "Massive index websocket",
+        "last_ts": "2025-11-06T18:34:04+00:00",
         "ok": true,
         "required": true
       }
     ],
-    "generated_at": "2025-11-06T18:15:05.050865+00:00",
+    "generated_at": "2025-11-06T18:34:04.991825+00:00",
     "required_feeds": [
-      "bls_cpi.latest_release",
-      "dol_claims.latest_report",
-      "treasury_10y.daily",
-      "cleveland_nowcast.monthly",
-      "aaa_gas.daily",
       "polygon_index.websocket"
     ],
-    "required_feeds_ok": false,
-    "stale_feeds": [
-      "dol_claims.latest_report",
-      "treasury_10y.daily",
-      "aaa_gas.daily"
-    ],
+    "required_feeds_ok": true,
+    "stale_feeds": [],
     "table": [
       {
-        "age_minutes": 6045.084,
+        "age_minutes": 0.017,
         "details": {
-          "age_days": 4.198,
-          "count": 1,
-          "threshold_days": 35.0
-        },
-        "id": "bls_cpi.latest_release",
-        "label": "BLS CPI (latest release)",
-        "last_ts": "2025-11-02T13:30:00+00:00",
-        "ok": true,
-        "required": true
-      },
-      {
-        "age_minutes": 28455.084,
-        "details": {
-          "age_days": 19.76,
-          "count": 1,
-          "threshold_days": 8.0
-        },
-        "id": "dol_claims.latest_report",
-        "label": "DOL Claims (ETA-539)",
-        "last_ts": "2025-10-18T00:00:00+00:00",
-        "ok": false,
-        "reason": "STALE>8.0d",
-        "required": true
-      },
-      {
-        "age_minutes": 11175.084,
-        "details": {
-          "age_business_days": 5.0,
-          "count": 2,
-          "threshold_business_days": 3.0
-        },
-        "id": "treasury_10y.daily",
-        "label": "Treasury 10Y Par Yield",
-        "last_ts": "2025-10-30T00:00:00+00:00",
-        "ok": false,
-        "reason": "STALE>3.0bd",
-        "required": true
-      },
-      {
-        "age_minutes": 9735.084,
-        "details": {
-          "age_days": 6.76,
-          "count": 2,
-          "threshold_days": 35.0
-        },
-        "id": "cleveland_nowcast.monthly",
-        "label": "Cleveland Fed Nowcast (monthly)",
-        "last_ts": "2025-10-31T00:00:00+00:00",
-        "ok": true,
-        "required": true
-      },
-      {
-        "age_minutes": 5415.084,
-        "details": {
-          "age_days": 3.76,
-          "price": 1.56,
-          "price_max": 6.0,
-          "price_min": 2.0,
-          "threshold_days": 2.0
-        },
-        "id": "aaa_gas.daily",
-        "label": "AAA National Gas (daily)",
-        "last_ts": "2025-11-03T00:00:00+00:00",
-        "ok": false,
-        "reason": "AAA_OUT_OF_RANGE",
-        "required": true
-      },
-      {
-        "age_minutes": null,
-        "details": {
-          "note": "not_required",
-          "stations": []
-        },
-        "id": "nws_daily_climate",
-        "label": "NWS Daily Climate (stations)",
-        "last_ts": null,
-        "ok": true,
-        "reason": "NOT_REQUIRED",
-        "required": false
-      },
-      {
-        "age_minutes": 0.001,
-        "details": {
-          "age_seconds": 0.051,
-          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T181505_NASDAQ100U_snapshot.json.json",
+          "age_seconds": 0.992,
+          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T183404_INXU_snapshot.json.json",
           "threshold_seconds": 2.0
         },
         "id": "polygon_index.websocket",
-        "label": "Polygon index websocket",
-        "last_ts": "2025-11-06T18:15:05+00:00",
+        "label": "Massive index websocket",
+        "last_ts": "2025-11-06T18:34:04+00:00",
         "ok": true,
         "required": true
       }
     ]
   },
   "name": "data_freshness",
-  "status": "ALERT"
+  "status": "OK"
 }

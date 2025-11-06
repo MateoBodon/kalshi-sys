@@ -1,0 +1,9 @@
+required_order:
+  - polygon_index.websocket
+
+feeds:
+  polygon_index.websocket:
+    label: Massive index websocket
+    age_seconds: 2
+    required: true
+    namespace: polygon_index
