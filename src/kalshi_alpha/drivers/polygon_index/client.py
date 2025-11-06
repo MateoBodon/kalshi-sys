@@ -5,12 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import defaultdict
-from collections.abc import AsyncIterator, Iterable, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Iterable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
@@ -27,12 +27,30 @@ from kalshi_alpha.utils.keys import load_polygon_api_key
 DEFAULT_REST_URL = "https://api.polygon.io"
 DEFAULT_WS_URL = "wss://socket.polygon.io/stocks"
 INDEX_MINUTE_CHANNEL = "XA"
+INDEX_SECOND_CHANNEL = "XS"
+CHANNEL_BY_TIMESPAN = {
+    "minute": INDEX_MINUTE_CHANNEL,
+    "second": INDEX_SECOND_CHANNEL,
+}
 ET = ZoneInfo("America/New_York")
 POLYGON_RAW_ROOT = (RAW_ROOT / "polygon").resolve()
 
 
 class PolygonAPIError(RuntimeError):
     """Raised when the Polygon API returns an error."""
+
+
+def _safe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
 
 
 @dataclass(frozen=True)
@@ -122,7 +140,7 @@ class PolygonIndicesClient:
                 f"Polygon request failed ({response.status_code}): {response.text[:200]}"
             )
         try:
-            payload = response.json()
+            payload = cast("dict[str, Any]", response.json())
         except ValueError as exc:
             raise PolygonAPIError("Polygon response was not valid JSON") from exc
         status = payload.get("status")
@@ -310,8 +328,8 @@ class PolygonIndicesClient:
             if not rows:
                 continue
             frame = pl.DataFrame(rows).unique(subset="timestamp").sort("timestamp")
-            day = f"{key[0]:04d}-{key[1]:02d}-{key[2]:02d}"
-            path = symbol_dir / f"{day}.parquet"
+            day_label = f"{key[0]:04d}-{key[1]:02d}-{key[2]:02d}"
+            path = symbol_dir / f"{day_label}.parquet"
             frame.write_parquet(path)
             written.append(path)
         return written
@@ -321,22 +339,23 @@ class PolygonIndicesClient:
 
         path = f"/v2/snapshot/locale/us/market/indices/tickers/{symbol}"
         payload = self._request("GET", path)
-        results: dict[str, Any] = payload.get("results") or {}
-        last_quote = results.get("lastQuote") or {}
+        results = cast("dict[str, Any]", payload.get("results") or {})
+        last_quote = cast("dict[str, Any]", results.get("lastQuote") or {})
+        prev_day = cast("dict[str, Any]", results.get("prevDay") or {})
+        last_updated = results.get("lastUpdated")
+        last_price = _safe_float(last_quote.get("p")) or _safe_float(last_quote.get("P"))
+        change = _safe_float(results.get("todaysChange"))
+        change_percent = _safe_float(results.get("todaysChangePerc"))
+        previous_close = _safe_float(prev_day.get("c")) or _safe_float(prev_day.get("close"))
         return IndexSnapshot(
             ticker=str(results.get("ticker") or symbol),
-            last_price=float(last_quote.get("p") or last_quote.get("P") or 0.0) or None,
-            change=float(results.get("todaysChange") or 0.0) or None,
-            change_percent=float(results.get("todaysChangePerc") or 0.0) or None,
-            previous_close=float(
-                (results.get("prevDay") or {}).get("c")
-                or (results.get("prevDay") or {}).get("close")
-                or 0.0
-            )
-            or None,
+            last_price=last_price,
+            change=change,
+            change_percent=change_percent,
+            previous_close=previous_close,
             timestamp=(
-                datetime.fromtimestamp(float(results.get("lastUpdated")) / 1000.0, tz=UTC)
-                if results.get("lastUpdated")
+                datetime.fromtimestamp(float(last_updated) / 1000.0, tz=UTC)
+                if isinstance(last_updated, (int, float))
                 else None
             ),
         )
@@ -389,29 +408,41 @@ class PolygonIndicesClient:
             detail = message.get("message") or message.get("error") or raw
             raise PolygonAPIError(f"Polygon websocket auth failed: {detail}")
 
-    async def subscribe_minute_channels(
+    async def subscribe_aggregate_channel(
         self,
         connection: ClientConnection,
         symbols: Iterable[str],
+        *,
+        timespan: str = "minute",
     ) -> None:
-        """Subscribe to minute bar updates for the provided symbols."""
+        """Subscribe to aggregate updates for the provided symbols."""
 
         tickers = [symbol.strip() for symbol in symbols if symbol.strip()]
         if not tickers:
             return
-        params = ",".join(f"{INDEX_MINUTE_CHANNEL}.{ticker}" for ticker in tickers)
+        try:
+            channel = CHANNEL_BY_TIMESPAN[timespan]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported aggregate timespan '{timespan}'") from exc
+        params = ",".join(f"{channel}.{ticker}" for ticker in tickers)
         message = json.dumps({"action": "subscribe", "params": params})
         await connection.send(message)
 
-    async def stream_minute_aggregates(
+    async def stream_aggregates(
         self,
         symbols: Iterable[str],
         *,
+        timespan: str = "minute",
         reconnect_attempts: int | None = 5,
         initial_backoff: float = 0.5,
         max_backoff: float = 8.0,
-    ) -> AsyncIterator[dict[str, Any]]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """Yield websocket aggregate payloads with automatic reconnect/backoff."""
+
+        try:
+            channel = CHANNEL_BY_TIMESPAN[timespan]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported aggregate timespan '{timespan}'") from exc
 
         base_backoff = max(0.1, float(initial_backoff))
         ceiling = max(base_backoff, float(max_backoff))
@@ -422,7 +453,7 @@ class PolygonIndicesClient:
             try:
                 async with self.websocket() as connection:
                     if tickers:
-                        await self.subscribe_minute_channels(connection, tickers)
+                        await self.subscribe_aggregate_channel(connection, tickers, timespan=timespan)
                     attempts = 0
                     backoff = base_backoff
                     while True:
@@ -432,7 +463,7 @@ class PolygonIndicesClient:
                         except json.JSONDecodeError:
                             continue
                         event_type = str(message.get("ev") or "").upper()
-                        if event_type != INDEX_MINUTE_CHANNEL:
+                        if event_type != channel:
                             continue
                         yield message
             except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
@@ -450,6 +481,25 @@ class PolygonIndicesClient:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, ceiling)
                 continue
+
+    async def stream_minute_aggregates(
+        self,
+        symbols: Iterable[str],
+        *,
+        reconnect_attempts: int | None = 5,
+        initial_backoff: float = 0.5,
+        max_backoff: float = 8.0,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Backward-compatible minute aggregate stream wrapper."""
+
+        async for message in self.stream_aggregates(
+            symbols,
+            timespan="minute",
+            reconnect_attempts=reconnect_attempts,
+            initial_backoff=initial_backoff,
+            max_backoff=max_backoff,
+        ):
+            yield message
 
 
 __all__ = [

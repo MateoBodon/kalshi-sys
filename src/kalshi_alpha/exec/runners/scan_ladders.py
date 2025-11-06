@@ -2043,12 +2043,24 @@ def scan_series(  # noqa: PLR0913
         target_time = time(target_hour % 24, 0)
         current_hour = int(roll_decision.get("current_hour", 0)) if roll_decision else 0
         event_hours = {
-            (_parse_hour_label(event.ticker) or (None, None))[0]
-            for event in events
+            hour
+            for hour, _minute in (
+                _parse_hour_label(event.ticker) or (None, None)
+                for event in events
+            )
+            if hour is not None
         }
-        event_hours.discard(None)
+        filtered_hours = {
+            hour
+            for hour, _minute in (
+                _parse_hour_label(event.ticker) or (None, None)
+                for event in events_to_scan
+            )
+            if hour is not None
+        }
+        has_fallback_event = any(((hour - target_hour) % 24) == 1 for hour in filtered_hours)
         has_target_event = target_hour in event_hours
-        if seconds_to_boundary <= 180.0 and not has_target_event:
+        if seconds_to_boundary <= 180.0 and not has_target_event and not has_fallback_event:
             guardrail_reasons.append("next_hour_missing")
         if seconds_to_boundary <= 10.0 and seconds_to_boundary > 0.0:
             guardrail_reasons.append("pre_boundary_cooldown")
