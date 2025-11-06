@@ -8,7 +8,7 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
@@ -22,10 +22,12 @@ from kalshi_alpha.brokers.kalshi.base import BrokerOrder
 from kalshi_alpha.config import IndexOpsConfig, IndexOpsWindow, IndexRule, load_index_ops_config, lookup_index_rule
 from kalshi_alpha.core import kalshi_ws
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
+import kalshi_alpha.core.fees as fee_utils
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
 from kalshi_alpha.core.execution.index_models import load_alpha_curve, load_slippage_curve
 from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
+from kalshi_alpha.core.fees import index_series as index_fee_utils
 from kalshi_alpha.core.gates import QualityGateResult, load_quality_gate_config, run_quality_gates
 from kalshi_alpha.core.kalshi_api import Event, KalshiPublicClient, Market, Orderbook, Series
 from kalshi_alpha.core.pricing import (
@@ -108,8 +110,114 @@ _WINDOW_CLOSE = INDEX_OPS_CONFIG.window_close
 _TARGET_CLOSE = _WINDOW_CLOSE.end
 _ET_ZONE = ZoneInfo("America/New_York")
 _U_SERIES = {"INXU", "NASDAQ100U"}
+_INDEX_WS_SERIES = frozenset({"INX", "INXU", "NASDAQ100", "NASDAQ100U"})
 _HOUR_PATTERN = re.compile(r"H(?P<hour>\d{2})(?P<minute>\d{2})")
 CLOCK_SKEW_THRESHOLD_SECONDS = 1.5
+
+
+def _load_data_freshness_summary() -> dict[str, object]:
+    freshness_path = MONITOR_ARTIFACTS_DIR / FRESHNESS_ARTIFACT_PATH.name
+    payload = load_freshness_artifact(freshness_path)
+    return summarize_freshness_artifact(payload, artifact_path=freshness_path)
+
+
+def _safe_float(value: object) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_fee_paths(series: str | None) -> dict[str, str | None]:
+    override_path = fee_utils.FEE_OVERRIDE_PATH
+    config_path = fee_utils.FEE_CONFIG_PATH
+    taker_source = override_path if override_path.exists() else config_path
+
+    maker_source = taker_source
+    series_upper = series.upper() if isinstance(series, str) else None
+    if series_upper and series_upper.startswith(tuple(fee_utils.INDEX_PREFIXES)):
+        candidate = index_fee_utils.DEFAULT_INDEX_FEE_PATH.resolve()
+        if not candidate.exists() and index_fee_utils.LEGACY_INDEX_FEE_PATH.exists():
+            candidate = index_fee_utils.LEGACY_INDEX_FEE_PATH.resolve()
+        if candidate.exists():
+            maker_source = candidate
+
+    return {
+        "maker": maker_source.resolve().as_posix(),
+        "taker": taker_source.resolve().as_posix(),
+    }
+
+
+def _polygon_ws_freshness_detail(
+    *,
+    gate_details: Mapping[str, object] | None,
+    data_summary: Mapping[str, object] | None,
+    fatal_reason: str | None,
+) -> dict[str, object]:
+    age_hours = None
+    issues: set[str] = set()
+    if isinstance(gate_details, Mapping):
+        raw_age = gate_details.get("data_freshness.polygon_ws.age_hours")
+        age_hours = _safe_float(raw_age)
+        for key, value in gate_details.items():
+            if not isinstance(key, str):
+                continue
+            if not key.startswith("data_freshness.polygon_ws."):
+                continue
+            suffix = key.split("data_freshness.polygon_ws.", 1)[-1]
+            if suffix == "age_hours":
+                continue
+            issues.add(f"{suffix}={value}")
+
+    ok = fatal_reason not in {"polygon_ws_stale", "freshness_missing", "data_freshness_no_go"}
+    if issues:
+        ok = False
+
+    age_seconds = float(age_hours) * 3600.0 if age_hours is not None else None
+    artifact_status = None
+    artifact_generated = None
+    artifact_path = None
+    if isinstance(data_summary, Mapping):
+        artifact_status = data_summary.get("status")
+        artifact_generated = data_summary.get("generated_at")
+        artifact_path = data_summary.get("artifact_path")
+
+    detail: dict[str, object] = {
+        "ok": ok,
+        "fatal_reason": fatal_reason,
+        "age_hours": age_hours,
+        "age_seconds": age_seconds,
+        "artifact_status": artifact_status,
+        "artifact_generated_at": artifact_generated,
+        "artifact_path": artifact_path,
+    }
+    if issues:
+        detail["issues"] = tuple(sorted(issues))
+    return detail
+
+
+def _freshness_fatal_reason(
+    summary: Mapping[str, object] | None,
+    *,
+    require_polygon_ws: bool,
+) -> str | None:
+    if not require_polygon_ws:
+        return None
+    if summary is None:
+        return "freshness_missing"
+
+    status = str(summary.get("status") or "").upper()
+    required_ok = bool(summary.get("required_feeds_ok", True))
+    if status == "MISSING" and not required_ok:
+        return "freshness_missing"
+    if required_ok:
+        return None
+
+    stale_feeds = summary.get("stale_feeds") or []
+    stale_normalized = {str(feed).strip().lower() for feed in stale_feeds if isinstance(feed, str)}
+    if "polygon_index.websocket" in stale_normalized:
+        return "polygon_ws_stale"
+    return "data_freshness_no_go"
 
 
 def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float, bool]:  # noqa: PLR0912
@@ -472,6 +580,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
     offline_mode = args.offline or not args.online
+    series_upper = args.series.upper()
 
     outstanding_start = _clear_dry_orders_start(
         enabled=getattr(args, "clear_dry_orders_start", False),
@@ -556,7 +665,30 @@ def main(argv: Sequence[str] | None = None) -> None:
         if current_label or target_label:
             print(f"[u-roll] {current_label or '?'}→{target_label or '?'}")
 
-    proposals = outcome.proposals
+    data_freshness_summary = _load_data_freshness_summary()
+    outcome.monitors.setdefault("data_freshness", data_freshness_summary)
+    fatal_freshness_reason = _freshness_fatal_reason(
+        data_freshness_summary,
+        require_polygon_ws=args.series.upper() in _INDEX_WS_SERIES,
+    )
+
+    proposals = list(outcome.proposals)
+    cancel_reason: str | None = None
+    if fatal_freshness_reason:
+        outcome.monitors["fatal_data_freshness"] = {
+            "reason": fatal_freshness_reason,
+            "status": data_freshness_summary.get("status"),
+            "stale_feeds": tuple(data_freshness_summary.get("stale_feeds", [])),
+        }
+        if not args.quiet:
+            print(
+                "[freshness] fatal data freshness "
+                f"({fatal_freshness_reason}); cancelling outstanding quotes"
+            )
+        proposals = []
+        cancel_reason = fatal_freshness_reason
+    outcome.proposals = proposals
+
     books_at_scan = dict(getattr(outcome, "books_at_scan", {}))
     book_snapshot_started_at = getattr(outcome, "book_snapshot_started_at", None)
     book_snapshot_completed_at = getattr(outcome, "book_snapshot_completed_at", None)
@@ -571,6 +703,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             "book_snapshot_completed_at",
             book_snapshot_completed_at.isoformat(),
         )
+        outcome.monitors.setdefault(
+            "data_timestamp_used",
+            book_snapshot_completed_at.astimezone(UTC).isoformat(),
+        )
     outcome.monitors.setdefault(
         "outstanding_orders_start_total",
         sum(outstanding_start.values()),
@@ -583,6 +719,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         outcome.monitors["fill_alpha_auto"] = fill_alpha_value
     else:
         outcome.monitors.setdefault("fill_alpha", fill_alpha_value)
+    fee_series = outcome.series.ticker.upper() if outcome.series and getattr(outcome.series, "ticker", None) else series_upper
+    outcome.monitors.setdefault("fee_path", _resolve_fee_paths(fee_series))
     should_archive = args.report or args.paper_ledger
     if should_archive and outcome.markets:
         expected_market_ids = {market.id for market in outcome.markets}
@@ -590,16 +728,18 @@ def main(argv: Sequence[str] | None = None) -> None:
         if missing_market_ids:
             outcome.monitors["orderbook_snapshot_missing"] = len(missing_market_ids)
 
-    ledger = _maybe_simulate_ledger(
-        args,
-        proposals,
-        client,
-        orderbooks=books_at_scan,
-        fill_alpha=fill_alpha_value,
-        series=outcome.series,
-        events=outcome.events,
-        markets=outcome.markets,
-    )
+    ledger = None
+    if proposals:
+        ledger = _maybe_simulate_ledger(
+            args,
+            proposals,
+            client,
+            orderbooks=books_at_scan,
+            fill_alpha=fill_alpha_value,
+            series=outcome.series,
+            events=outcome.events,
+            markets=outcome.markets,
+        )
     execution_metrics: dict[str, object] | None = None
     if ledger:
         drawdown.record_pnl(ledger.total_expected_pnl())
@@ -708,12 +848,43 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     gate_result: QualityGateResult | None = None
     go_status: bool | None = None
-    if args.report or proposals:
-        gate_result = _quality_gate_for_broker(args, outcome.monitors)
+    if args.report or proposals or fatal_freshness_reason:
+        gate_result = _quality_gate_for_broker(
+            args,
+            outcome.monitors,
+            data_freshness_summary=data_freshness_summary,
+        )
         go_status = gate_result.go
         outcome.monitors.setdefault("quality_gate_go", gate_result.go)
         if gate_result.reasons:
             outcome.monitors.setdefault("quality_gate_reasons", tuple(gate_result.reasons))
+        polygon_ws_detail = _polygon_ws_freshness_detail(
+            gate_details=gate_result.details,
+            data_summary=data_freshness_summary,
+            fatal_reason=fatal_freshness_reason,
+        )
+        if "polygon_ws_stale" in (gate_result.reasons or []):
+            polygon_ws_detail["ok"] = False
+            polygon_ws_detail["fatal_reason"] = fatal_freshness_reason or "polygon_ws_stale"
+            existing_issues = set(polygon_ws_detail.get("issues", ()))
+            existing_issues.add("quality_gate_reason=polygon_ws_stale")
+            polygon_ws_detail["issues"] = tuple(sorted(existing_issues))
+        gate_result.details["polygon_ws_freshness"] = polygon_ws_detail
+        outcome.monitors["polygon_ws_freshness"] = polygon_ws_detail
+    else:
+        outcome.monitors.setdefault(
+            "polygon_ws_freshness",
+            _polygon_ws_freshness_detail(
+                gate_details=None,
+                data_summary=data_freshness_summary,
+                fatal_reason=fatal_freshness_reason,
+            ),
+        )
+
+    if cancel_reason:
+        state = OutstandingOrdersState.load()
+        state.mark_cancel_all(cancel_reason, modes=[args.broker])
+        outcome.monitors.setdefault("cancel_all_reason", cancel_reason)
 
     broker_status = None
     if proposals:
@@ -1107,6 +1278,8 @@ def _enforce_broker_guards(proposals: Sequence[Proposal], args: argparse.Namespa
 def _quality_gate_for_broker(
     args: argparse.Namespace,
     monitors: dict[str, object],
+    *,
+    data_freshness_summary: dict[str, object] | None = None,
 ) -> QualityGateResult:
     now_utc = datetime.now(tz=UTC)
     monitor_summary = summarize_monitor_artifacts(
@@ -1114,7 +1287,12 @@ def _quality_gate_for_broker(
         now=now_utc,
         window=timedelta(minutes=DEFAULT_PANIC_ALERT_WINDOW_MINUTES),
     )
-    config = load_quality_gate_config(resolve_quality_gate_config_path())
+    config_override = getattr(args, "quality_gates_config", None)
+    if config_override:
+        config_path = Path(config_override)
+    else:
+        config_path = resolve_quality_gate_config_path()
+    config = load_quality_gate_config(config_path)
     result = run_quality_gates(
         config=config,
         now=now_utc,
@@ -1128,13 +1306,21 @@ def _quality_gate_for_broker(
         now=now_utc,
     )
     freshness_path = MONITOR_ARTIFACTS_DIR / FRESHNESS_ARTIFACT_PATH.name
-    data_freshness_payload = load_freshness_artifact(freshness_path)
-    data_freshness_summary = summarize_freshness_artifact(
-        data_freshness_payload,
-        artifact_path=freshness_path,
-    )
+    if data_freshness_summary is None:
+        data_freshness_payload = load_freshness_artifact(freshness_path)
+        data_freshness_summary = summarize_freshness_artifact(
+            data_freshness_payload,
+            artifact_path=freshness_path,
+        )
+    else:
+        # Create a shallow copy to avoid mutating caller state.
+        data_freshness_summary = dict(data_freshness_summary)
 
     reasons = list(result.reasons)
+    for reason in result.reasons:
+        if isinstance(reason, str) and reason.startswith("data_freshness.polygon_ws.stale"):
+            if "polygon_ws_stale" not in reasons:
+                reasons.append("polygon_ws_stale")
     details = dict(result.details)
     details.setdefault("data_freshness", data_freshness_summary)
     clock_skew = None
@@ -1175,6 +1361,10 @@ def _quality_gate_for_broker(
             _append_reason(reason)
     if not data_freshness_summary.get("required_feeds_ok", True):
         _append_reason("STALE_FEEDS")
+        stale_feeds = data_freshness_summary.get("stale_feeds") or []
+        stale_normalized = {str(feed).strip().lower() for feed in stale_feeds if isinstance(feed, str)}
+        if "polygon_index.websocket" in stale_normalized:
+            _append_reason("polygon_ws_stale")
         if data_freshness_summary.get("status") == "MISSING":
             _append_reason("data_freshness_missing")
     monitor_reasons: list[str] = []
@@ -1441,6 +1631,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Offline fixtures root directory.",
     )
     parser.add_argument(
+        "--quality-gates-config",
+        type=Path,
+        default=None,
+        help="Override quality gates configuration file.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="exec/proposals",
         help="Directory for proposal JSON outputs.",
@@ -1664,6 +1860,7 @@ def _ops_window_metadata(series: str, now_utc: datetime, *, target_time: time | 
     resolved_target = target_time
     if resolved_target is None and window.start_offset_minutes is not None:
         resolved_target = _default_hourly_target(now_utc)
+    fallback_reason: str | None = None
     try:
         start_local, end_local = window.bounds_for(
             reference=reference,
@@ -1673,6 +1870,7 @@ def _ops_window_metadata(series: str, now_utc: datetime, *, target_time: time | 
     except ValueError:
         # Fall back to default target when offsets are defined but target missing
         if resolved_target is None:
+            fallback_reason = "on_before"
             start_local, end_local = window.bounds_for(
                 reference=reference,
                 target_time=_default_hourly_target(now_utc),
@@ -1681,13 +1879,21 @@ def _ops_window_metadata(series: str, now_utc: datetime, *, target_time: time | 
         else:
             raise
     cancel_buffer = float(window.cancel_buffer_seconds)
+    cancel_by = end_local - timedelta(seconds=cancel_buffer)
     seconds_to_cancel = max((end_local - reference).total_seconds() - cancel_buffer, 0.0)
+    target_dt_et = end_local
+    target_dt_utc = target_dt_et.astimezone(UTC)
     return {
         "ops_window_name": window.name,
         "ops_window_start_et": start_local.isoformat(),
         "ops_window_end_et": end_local.isoformat(),
         "ops_cancel_buffer_seconds": cancel_buffer,
         "ops_seconds_to_cancel": round(seconds_to_cancel, 3),
+        "ops_cancel_at": cancel_by.isoformat(),
+        "ops_timezone": tz.key if hasattr(tz, "key") else str(tz),
+        "ops_target_et": target_dt_et.isoformat(),
+        "ops_target_unix": int(target_dt_utc.timestamp()),
+        "ops_target_fallback": fallback_reason,
     }
 
 
@@ -2693,6 +2899,43 @@ def _evaluate_market(  # noqa: PLR0913
             )
         if constraint_details is not None:
             proposal_metadata["bin_constraint"] = constraint_details
+
+        if best_side is OrderSide.YES:
+            fee_price = yes_price
+        else:
+            fee_price = 1.0 - yes_price
+        fee_fn = DEFAULT_FEE_SCHEDULE.maker_fee
+        per_contract_fee = float(
+            fee_fn(
+                1,
+                fee_price,
+                series=series_ticker,
+                market_name=market_ticker,
+            )
+        )
+        total_fee = float(
+            fee_fn(
+                contract_count,
+                fee_price,
+                series=series_ticker,
+                market_name=market_ticker,
+            )
+        )
+        proposal_metadata["ev_components"] = {
+            "per_contract": {
+                "gross": per_contract_raw[maker_key] + per_contract_fee,
+                "net": per_contract_raw[maker_key],
+                "fee": per_contract_fee,
+            },
+            "total": {
+                "gross": total_ev_raw[maker_key] + total_fee,
+                "net": total_ev_raw[maker_key],
+                "fee": total_fee,
+            },
+            "fee_price": fee_price,
+            "liquidity": "maker",
+            "side": best_side.name.lower(),
+        }
 
         proposal = Proposal(
             market_id=market_id,

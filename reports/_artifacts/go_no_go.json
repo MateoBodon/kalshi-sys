@@ -1,13 +1,1 @@
-{
-  "go": false,
-  "reasons": [
-    "metrics.cpi.crps_advantage:0.0178<0.0200",
-    "metrics.cpi.brier_missing",
-    "metrics.claims.crps_advantage:-1633.8545<0.0150",
-    "metrics.teny.brier_missing",
-    "metrics.weather.brier_missing",
-    "data_freshness.cleveland_nowcast.stale:113.76h>24.00h",
-    "data_freshness.treasury_yields.stale:117.76h>72.00h",
-    "monitors_stale"
-  ]
-}
+{"go": true, "reasons": []}

@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping, MutableMapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from cryptography.hazmat.backends import default_backend
@@ -86,6 +87,11 @@ class KalshiHttpClient:
         self._retry_backoff = max(0.0, retry_backoff)
         self._clock = clock or Clock()
         self._sleep = sleeper or Sleep()
+
+        parsed = urlparse(self._base_url)
+        if not parsed.scheme or not parsed.netloc:
+            raise RuntimeError(f"Invalid Kalshi base URL: {self._base_url}")
+        self._base_path_prefix = parsed.path.rstrip("/")
 
         self._access_key_id = access_key_id or os.getenv("KALSHI_API_KEY_ID", "").strip()
         key_path = private_key_path or os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
@@ -205,10 +211,10 @@ class KalshiHttpClient:
 
     # Internal helpers --------------------------------------------------------------------------
 
-    def build_auth_headers(self, method: str, path: str) -> dict[str, str]:
+    def build_auth_headers(self, method: str, path: str, *, absolute: bool = False) -> dict[str, str]:
         method_upper = method.upper()
         canonical_path = self._canonical_path(path)
-        return self._auth_headers(method_upper, canonical_path)
+        return self._auth_headers(method_upper, canonical_path, absolute=absolute)
 
     def _sign(self, method: str, path: str) -> tuple[int, str]:
         now = self._clock.now()
@@ -228,8 +234,17 @@ class KalshiHttpClient:
         signature_b64 = base64.b64encode(signature_bytes).decode("ascii")
         return current_ms, signature_b64
 
-    def _auth_headers(self, method_upper: str, canonical_path: str) -> dict[str, str]:
-        timestamp_ms, signature = self._sign(method_upper, canonical_path)
+    def _auth_headers(
+        self,
+        method_upper: str,
+        canonical_path: str,
+        *,
+        absolute: bool = False,
+    ) -> dict[str, str]:
+        signing_path = canonical_path
+        if not absolute and self._base_path_prefix and not canonical_path.startswith(self._base_path_prefix):
+            signing_path = f"{self._base_path_prefix}{canonical_path}"
+        timestamp_ms, signature = self._sign(method_upper, signing_path)
         return {
             "KALSHI-ACCESS-KEY": self._access_key_id,
             "KALSHI-ACCESS-TIMESTAMP": str(timestamp_ms),

@@ -271,20 +271,19 @@ def expected_value_after_fees(  # noqa: PLR0913
 
     if series_key in _INDEX_SERIES:
         if liquidity is Liquidity.MAKER:
-            fee = 0.0
-        else:
-            fee = _index_fee(contracts, fee_price, series_key)
-    else:
-        fee_fn = schedule.maker_fee if liquidity is Liquidity.MAKER else schedule.taker_fee
-        fee = float(
-            fee_fn(
-                contracts,
-                fee_price,
-                series=series,
-                market_name=market_name,
-            )
-        )
+            return expected
+        fee = _index_fee(contracts, fee_price, series_key)
+        return expected - fee
 
+    fee_fn = schedule.maker_fee if liquidity is Liquidity.MAKER else schedule.taker_fee
+    fee = float(
+        fee_fn(
+            contracts,
+            fee_price,
+            series=series,
+            market_name=market_name,
+        )
+    )
     return expected - fee
 
 

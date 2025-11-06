@@ -1,5 +1,5 @@
 ---
-updated: 2025-11-03
+updated: 2025-11-04
 tick_size_usd: 0.01
 position_limit_usd: 7000000
 series:
@@ -75,11 +75,13 @@ The exchange-wide **position limit** is **$7,000,000 notional** per member acros
 
 - **Noon ladders (INXU / NASDAQ100U):** Recommended quoting window **11:45–12:00 ET**. Ensure Polygon minute feed latency is <30 seconds and websocket depth is healthy before quoting.
 - **Close ladders (INX / NASDAQ100):** Recommended quoting window **15:50–16:00 ET**. Require live Polygon minute bars with <20-second latency and closing auction sanity checks.
+- **Cancel buffer:** `configs/index_ops.yaml` holds the authoritative `cancel_buffer_seconds = 2`; scanners and microlive cancel-all at T−2 s and surface the value as `ops_cancel_buffer_seconds` in monitor payloads.
 
 ## Data Integrity Checklist
 
 1. Confirm Polygon API key loads via macOS Keychain label `kalshi-sys:POLYGON_API_KEY` or `POLYGON_API_KEY` environment variable.
 2. Snapshot archive must include the latest minute bars and websocket aggregates for both `I:SPX` and `I:NDX` (fallback equities: `SPY`, `QQQ`).
 3. Alerts: halt quoting if kill-switch present, websocket last message age ≥2 seconds, or ET clock drift exceeds 1 second.
+4. Verify monitor metadata: `ops_timezone` should read `America/New_York`, `ops_target_et`/`ops_target_unix` trace the target resolution, and `data_timestamp_used` reflects the orderbook snapshot time. If the `'on/before'` fallback fires, `ops_target_fallback` appears as `"on_before"`—log the rationale in the ops notes.
 
 > Always defer to the latest official Kalshi rule PDFs for definitive language. This summary is operational guidance for the index ladder pipeline.

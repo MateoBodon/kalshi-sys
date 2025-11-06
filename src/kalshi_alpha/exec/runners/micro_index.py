@@ -42,6 +42,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--contracts", type=int, default=1, help="Contracts per quote (default 1)")
     parser.add_argument("--regenerate-scoreboard", action="store_true", help="Regenerate index scoreboard after run")
     parser.add_argument("--quiet", action="store_true", help="Suppress scan_ladders stdout summary")
+    parser.add_argument(
+        "--quality-gates-config",
+        type=Path,
+        help="Override quality gates configuration file passed to scan_ladders.",
+    )
     parser.add_argument("--now", type=str, help="Override timestamp for logging (ISO-8601)")
     return parser.parse_args(list(argv) if argv is not None else None)
 
@@ -69,6 +74,8 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
         scan_args.append("--online")
     if args.kill_switch_file:
         scan_args.extend(["--kill-switch-file", args.kill_switch_file])
+    if args.quality_gates_config:
+        scan_args.extend(["--quality-gates-config", str(Path(args.quality_gates_config))])
     if args.broker == "live":
         scan_args.append("--i-understand-the-risks")
     if args.quiet:

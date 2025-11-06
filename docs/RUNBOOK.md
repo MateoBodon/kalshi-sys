@@ -11,7 +11,18 @@
 - Copy any local credentials into `.env.local` (never commit). The application automatically loads `.env.local` and `.env` via `kalshi_alpha.utils.env`.
 
 ### macOS Keychain bootstrap (preferred for local live access)
-For long-lived local shells on macOS, store the Kalshi credentials in Keychain and have your shell read them automatically:
+For long-lived local shells on macOS, store the Kalshi credentials in Keychain and have your shell read them automatically. Keep the canonical copy in 1Password (create an “API Credential” item with `KALSHI_API_KEY_ID`, attach the PEM, and restrict it to the trading vault). When you rotate keys:
+
+```bash
+# load from 1Password and refresh local cache (example)
+op signin <your-signin-shorthand> >/dev/null
+op item get "Kalshi – Prod" --field KALSHI_API_KEY_ID --vault "Trading Ops" --reveal |
+  xargs -I{} security add-generic-password -a "$USER" -s kalshi-sys:KALSHI_API_KEY_ID -w '{}' -U
+op item get "Kalshi – Prod" --field private_key --vault "Trading Ops" --reveal > ~/.kalshi/kalshi_private_key.pem
+chmod 600 ~/.kalshi/kalshi_private_key.pem
+```
+
+Then make the shell exports persistent:
 
 ```bash
 # one-time: move PEM out of the repo and lock permissions
@@ -34,6 +45,29 @@ source ~/.zshrc
 ```
 
 Replace the placeholder PEM path with your actual location, approve the Keychain prompts with “Always Allow”, and future shells will expose the correct environment variables without re-entering secrets. Rotate keys by updating the two Keychain entries (repeat the `security add-generic-password ... -w NEW_VALUE` commands).
+
+#### FinFeed API credentials (Polygon/Kalshi replay support)
+- API key is stored under Keychain service `finfeed`, account `API_KEY`.
+
+  ```bash
+  security add-generic-password \
+    -s "finfeed" \
+    -a "API_KEY" \
+    -w "6f0b172f-a985-4d6c-abd4-a247ab915638" \
+    -U
+  ```
+
+- HMAC signing secret for JWT auth is stored under the same service with account `JWT_SECRET`.
+
+  ```bash
+  security add-generic-password \
+    -s "finfeed" \
+    -a "JWT_SECRET" \
+    -w "0BDD700E6155C5D59A3C1E2F238D80923802D29697C36A38D80188677B3453AE" \
+    -U
+  ```
+
+Retrieve them programmatically with `security find-generic-password -s finfeed -a <ACCOUNT> -w` before generating short-lived Bearer tokens for FinFeed’s REST calls. Never commit the raw values; rotate by re-running the `add-generic-password` command with the new secret.
 
 ## Offline vs. Online Data
 - **Offline** mode uses fixtures under `tests/fixtures` (driver data) and `tests/data_fixtures` (public Kalshi payloads). This is the default for CI and testing.
@@ -171,12 +205,43 @@ Pipeline steps per run:
   python -m jobs.calibrate_close  --series INX  NASDAQ100   --days 55
   ```
   Outputs land in `data/proc/calib/index/<symbol>/{hourly,close}/params.json` (legacy `noon` directories remain read-only); raw Polygon payloads are snapshot to `data/raw/polygon_index/`.
+- Websocket collector: keep the Massive indices feed (`A.I:SPX`, `A.I:NDX`) running before any window so freshness stays ≤15 s. Options:
+  - `make collect-polygon-ws` (foreground burner — exits with Ctrl+C).
+  - Install `configs/launchd/kalshi_polygon_ws.plist` (macOS): update `WorkingDirectory`, `PYTHONPATH`, and `ProgramArguments[0]` if your repo or Python path differs, then:
+    ```bash
+    cp configs/launchd/kalshi_polygon_ws.plist ~/Library/LaunchAgents/
+    launchctl unload ~/Library/LaunchAgents/kalshi_polygon_ws.plist 2>/dev/null || true
+    launchctl load ~/Library/LaunchAgents/kalshi_polygon_ws.plist
+    launchctl start com.kalshi.polygon-ws
+    ```
+    Logs land in `~/Library/Logs/kalshi_polygon_ws*.log`; use `launchctl stop com.kalshi.polygon-ws` to halt.
+  - For Linux, run under systemd using the same entry point (`python -m kalshi_alpha.exec.collectors.polygon_ws`) inside a service unit.
+  Use `--max-runtime 300` for smoke tests; omit the flag for production.
+- Websocket operations (indices cluster):
+  - Trading hours: Massive only streams index aggregates while U.S. cash equities trade (≈09:30–16:00 ET). Outside that window the socket stays open but no ticks post, so the quality gate will read `polygon_ws_stale` even if you’re authenticated. Holidays follow the NYSE schedule.
+  - Run cadence: start the collector ~5 minutes before each ops window (11:45–12:00 ET, 15:50–16:00 ET) and shut it down once the window ends. This keeps the single Massive slot free and avoids overnight stale alerts.
+  - launchd automation: extend `~/Library/LaunchAgents/kalshi_polygon_ws.plist` with two `StartCalendarInterval` blocks (e.g. `{ "Hour": 11, "Minute": 40 }` and `{ "Hour": 15, "Minute": 45 }`) so macOS brings the feed up ahead of each window. Add matching stop triggers using macOS 15’s `StopCalendarInterval` (set to `12:02` and `16:02`) or a companion plist that runs `launchctl stop com.kalshi.polygon-ws`. After editing, reload with `launchctl bootout gui/$(id -u)/com.kalshi.polygon-ws && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/kalshi_polygon_ws.plist`.
+  - systemd automation: create `kalshi_polygon_ws.timer` with `OnCalendar=Mon-Fri 09:25`, `OnCalendar=Mon-Fri 11:40`, and `OnCalendar=Mon-Fri 15:45`, plus sibling stop timers at `09:35`, `12:02`, and `16:02`. Mask both timers (`systemctl mask --now ...`) on exchange holidays to keep the API key free.
+  - Background agent: if you keep a launchd/systemd unit, point it at `.venv/bin/python`, and disable it after the close (`launchctl bootout gui/…` or `systemctl stop`) so ad-hoc smoketests aren’t blocked by `max_connections`.
+  - Monitoring: check https://massive.com/system before connecting; a yellow/red “indices” cluster means no point in rebooting the collector. Locally, tail `~/Library/Logs/kalshi_polygon_ws.log` for `auth_success`/`subscribed` and confirm `reports/_artifacts/monitors/freshness.json` shows `age_seconds ≤ 2` once ticks resume.
+  - Troubleshooting: `max_connections` means another client is still attached—shut it down and restart. `nodename nor servname provided` usually indicates DNS/connectivity issues; retry after the Massive status page goes green.
+- Massive only allows one websocket connection per asset class; keep the launch agent as the canonical feed. If you see `max_connections` or `policy violation` in the log, another client is connected—shut it down, then `launchctl bootout/gui bootstrap` the agent. Our collector now fails fast and logs `[polygon-ws] error: ... max_connections ...` instead of spinning forever.
+- Freshness gate: `configs/quality_gates.index.yaml` requires the Massive snapshot age ≤2 s. Any gap longer than that surfaces `polygon_ws_stale` in `reports/_artifacts/go_no_go.json` and the scanners short-circuit proposals. Cross-check `reports/_artifacts/monitors/freshness.json` for `age_seconds` when debugging.
+- Quality gates: pass `--quality-gates-config configs/quality_gates.index.yaml` to every scanner and microlive run. The index-only gates enforce Polygon websocket freshness (`max_age_seconds=2`) while ignoring stale macro feeds; treat `polygon_ws_stale` as a hard NO-GO and cancel all orders by the T−2 s buffer baked into `configs/index_ops.yaml`.
+
+### Backtest & Replay Harness
+- `make backtest-build START=YYYY-MM-DD END=YYYY-MM-DD` snapshots Polygon minute bars into `data/backtest/index_minutes.parquet`. Each row tags the target ladder with the “on/before” settlement value—if the exact 12:00 ET or 16:00 ET print is missing, we fall back to the most recent prior minute per the exchange rule.
+- `make backtest-hourly` and `make backtest-close` load the latest calibrations (`data/proc/calib/index/**/params.json`) and write `reports/backtests/{hourly,close}/{metrics.md,ev_table.csv}` with CRPS/Brier summaries, PIT histograms, and EV-after-fees tables.
+- `make replay-yesterday` expects a Massive capture at `data/replay/<DATE>_spx_ndx.json` and replays yesterday’s 11:40–12:05 and 15:45–16:05 ET windows at 10× speed. The command refreshes `reports/_artifacts/monitors/freshness.json` and drops window-specific summaries under `reports/_artifacts/replay/`.
+- Index fee truth: makers in `INX*` / `NASDAQ100*` pay $0.00. Takers owe `ceil(0.035 × contracts × price × (1 − price) × 100) / 100`, so 100 contracts at p=0.50 cost $0.88.
+- Ops config is centralized in `configs/index_ops.yaml`; the 2 s cancel buffers there are the only supported knobs—never override them in per-run configs.
 - Pre-flight:
  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (hourly) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.
   2. Confirm calibration parquet mtimes ≤14 days.
-  3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, and EV after fees.
+  3. Dry run (`--offline --broker dry --contracts 1 --min-ev 0.05 --maker-only --report --quality-gates-config configs/quality_gates.index.yaml`) for the target series; inspect markdown for Polygon `snapshot_last_price`, `minutes_to_target`, EV after fees, and confirm GO/NO-GO reasons exclude `polygon_ws_stale`.
 - U-series rotation: scans at :40/:55 discover the **next** hour market and emit `[u-roll] ROLLED U-SERIES: HHHMM -> HHHMM`. When the boundary is within two seconds, the runner marks cancel-all before replaying proposals.
-- Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)`. EV honesty, ledger, and proposal math use these series-specific curves.
+- Fees: Indices maker fees are $0.00; indices taker fees use `0.035 × contracts × price × (1 − price)` (see [`docs/kalshi-fee-schedule.pdf`](kalshi-fee-schedule.pdf) for the underlying Polygon-derived curve). EV_after_fees, Δbps, and ledger golden rows must reflect these series-specific curves.
+- Target logging: scanner and microlive monitors now emit `ops_timezone=America/New_York`, `ops_target_et`, `ops_target_unix`, and `data_timestamp_used` so operators can confirm DST alignment. When the `'on/before'` fallback from the index rules applies, `ops_target_fallback` is recorded as `"on_before"` and should be cited in the ops log.
 - Freshness & clocks (gated by `reports/_artifacts/monitors/freshness.json`): abort when Polygon websocket heartbeat age >2 s, minute aggregates age >30 s (hourly) or >20 s (close), or ET clock skew exceeds 1.5 s. Monitor fields `clock_skew_seconds`/`clock_skew_exceeded` surface in GO/NO-GO artifacts.
 - Execution metrics: reports include a `Fill & Slippage` section (mean fill ratio, α target, slippage ticks/USD, EV bps). Defaults seed from `data/reference/index_execution_defaults.json` until the ledger-based stores (`data/proc/state/fill_alpha.json`, `data/proc/state/slippage.json`) are populated.
 - First-fill checklist (paper → live ramp):
@@ -187,7 +252,7 @@ Pipeline steps per run:
 - Post-run: archive proposals under `exec/proposals/index_*`, keep paper ledger CSV/JSON, regenerate readiness via `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`.
 
 ### First Microlive Clip
-1. Run the offline pipeline with `--report --paper-ledger`; confirm the markdown summarizes GO with clean EV honesty metrics.
+1. Run the offline pipeline with `--report --paper-ledger` (add `--quality-gates-config configs/quality_gates.index.yaml` when prepping index microlive); confirm the markdown summarizes GO with clean EV honesty metrics and no `polygon_ws_stale` reason.
 2. Execute `python -m kalshi_alpha.exec.scoreboard --window 7 --window 30` and review trend/fill stats for TNEY.
 3. Launch `python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<today>` for at least five minutes; ensure imbalance JSON updates and no websocket drops are logged.
 4. Validate monitors: `python -m kalshi_alpha.exec.monitors.cli --series TNEY` (or `make monitors`) should return all green; heartbeat file `data/proc/state/heartbeat.json` must be <5 min old.

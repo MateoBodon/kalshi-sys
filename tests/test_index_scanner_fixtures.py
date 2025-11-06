@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+import polars as pl
 
 from kalshi_alpha.core.kalshi_api import KalshiPublicClient
 from kalshi_alpha.core.risk import PALGuard, PALPolicy
@@ -35,6 +36,13 @@ def _copy_calibration(src: Path, proc_root: Path, symbol: str, horizon: str) -> 
     dest = proc_root / "calib" / "index" / symbol / horizon / "params.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(src.read_bytes())
+
+
+def _write_polygon_snapshot(proc_root: Path, snapshot_ts: datetime) -> None:
+    target_dir = proc_root / "polygon_index"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    frame = pl.DataFrame({"snapshot_ts": [snapshot_ts]})
+    frame.write_parquet(target_dir / "snapshot.parquet")
 
 
 def test_scan_series_over_index_fixture_produces_deterministic_ev(
@@ -83,34 +91,54 @@ def test_stale_freshness_blocks_execution(
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
     _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
-    quality_example = Path("configs/quality_gates.example.yaml").resolve()
-    configs_dir = tmp_path / "configs"
-    configs_dir.mkdir(parents=True, exist_ok=True)
-    gate_config_path = configs_dir / "quality_gates.example.yaml"
-    gate_config_path.write_text(
-        quality_example.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    gate_config_path = Path("configs/quality_gates.index.yaml").resolve()
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
     freshness_payload = {
-        "required_feeds_ok": False,
-        "feeds": [
-            {
-                "id": "polygon_index.websocket",
-                "label": "Polygon index websocket",
-                "required": True,
-                "ok": False,
-                "age_minutes": 5.0,
-                "reason": "STALE>2s",
-            }
-        ],
+        "name": "data_freshness",
+        "status": "ALERT",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": False,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": ["polygon_index.websocket"],
+            "feeds": [
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": False,
+                    "age_minutes": 5.0,
+                    "reason": "STALE>2s",
+                    "details": {"threshold_seconds": 2.0},
+                }
+            ],
+        },
     }
-    (artifacts_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+
+    configs_dir = tmp_path / "configs"
+    configs_dir.mkdir(parents=True, exist_ok=True)
+    legacy_config = "\n".join(
+        [
+            "data_freshness:",
+            "  - name: macro_feed",
+            "    namespace: macro/latest",
+            "    timestamp_field: as_of",
+            "    max_age_minutes: 10",
+            "    require_et: true",
+            "monitors:",
+            "  tz_not_et: 0",
+            "  non_monotone_ladders: 0",
+        ]
+    )
+    (configs_dir / "quality_gates.yaml").write_text(legacy_config + "\n", encoding="utf-8")
 
     monkeypatch.chdir(tmp_path)
     scan_ladders.main(
@@ -125,6 +153,9 @@ def test_stale_freshness_blocks_execution(
             "--contracts",
             "1",
             "--maker-only",
+            "--report",
+            "--quality-gates-config",
+            str(gate_config_path),
             "--pal-policy",
             str(pal_policy_path),
         ]
@@ -132,12 +163,140 @@ def test_stale_freshness_blocks_execution(
 
     go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
     assert go_artifact["go"] is False
+    reasons = go_artifact.get("reasons", [])
+    assert "STALE_FEEDS" in reasons
+    assert "polygon_ws_stale" in reasons
+
+    proposals_dir = tmp_path / "exec" / "proposals" / "INXU"
+    proposal_files = sorted(proposals_dir.glob("*.json"))
+    assert proposal_files, "expected proposals artifact"
+    proposals_payload = json.loads(proposal_files[-1].read_text(encoding="utf-8"))
+    assert proposals_payload.get("proposals") == []
 
     orders_path = proc_root / "state" / "orders.json"
     payload = json.loads(orders_path.read_text(encoding="utf-8"))
     cancel_entry = payload.get("cancel_all")
     assert cancel_entry is not None
-    assert cancel_entry.get("reason") == "quality_gate_no_go"
+    assert cancel_entry.get("reason") == "polygon_ws_stale"
+
+    report_dir = tmp_path / "reports" / "INXU"
+    report_files = sorted(report_dir.glob("*.md"))
+    assert report_files, "expected markdown report for INXU"
+    report_text = report_files[-1].read_text(encoding="utf-8")
+    assert "polygon_ws_freshness" in report_text
+    assert "ops_cancel_at" in report_text
+    assert "fee_path" in report_text
+
+
+def test_macro_stale_allows_execution_with_index_gates(
+    fixtures_root: Path,
+    isolated_data_roots: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, proc_root = isolated_data_roots
+    _configure_index_calibration(proc_root)
+    _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
+
+    fixtures_path = fixtures_root.resolve()
+    pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
+    gate_config_path = Path("configs/quality_gates.index.yaml").resolve()
+
+    artifacts_dir = tmp_path / "reports" / "_artifacts"
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
+    freshness_payload = {
+        "name": "data_freshness",
+        "status": "ALERT",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": ["macro_calendar.latest"],
+            "feeds": [
+                    {
+                        "id": "polygon_index.websocket",
+                        "label": "Polygon index websocket",
+                        "required": True,
+                        "ok": True,
+                        "age_minutes": 0.0005,
+                        "reason": None,
+                        "details": {"threshold_seconds": 2.0},
+                    },
+                {
+                    "id": "macro_calendar.latest",
+                    "label": "Macro calendar",
+                    "required": False,
+                    "ok": False,
+                    "age_minutes": 45.0,
+                    "reason": "STALE>10m",
+                },
+            ],
+        },
+    }
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    scan_ladders.main(
+        [
+            "--series",
+            "INXU",
+            "--fixtures-root",
+            str(fixtures_path),
+            "--offline",
+            "--min-ev",
+            "0.0",
+            "--contracts",
+            "1",
+            "--maker-only",
+            "--report",
+            "--quality-gates-config",
+            str(gate_config_path),
+            "--pal-policy",
+            str(pal_policy_path),
+        ]
+    )
+
+    go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
+    assert go_artifact["go"] is True
+    reasons = go_artifact.get("reasons", [])
+    assert "STALE_FEEDS" not in reasons
+    assert "polygon_ws_stale" not in reasons
+
+    proposals_dir = tmp_path / "exec" / "proposals" / "INXU"
+    proposal_files = sorted(proposals_dir.glob("*.json"))
+    assert proposal_files, "expected proposals artifact"
+    proposals_payload = json.loads(proposal_files[-1].read_text(encoding="utf-8"))
+    proposals = proposals_payload.get("proposals") or []
+    assert proposals, "expected proposals when macro feeds are stale but polygon OK"
+    first = proposals[0]
+    metadata = first.get("metadata") or {}
+    components = metadata.get("ev_components")
+    assert components is not None
+    per_contract = components.get("per_contract") or {}
+    total = components.get("total") or {}
+    assert per_contract, "expected per-contract EV components"
+    assert total, "expected total EV components"
+    assert per_contract.get("gross") == pytest.approx(
+        per_contract.get("net", 0.0) + per_contract.get("fee", 0.0),
+        rel=1e-9,
+        abs=1e-9,
+    )
+    assert total.get("gross") == pytest.approx(
+        total.get("net", 0.0) + total.get("fee", 0.0),
+        rel=1e-9,
+        abs=1e-9,
+    )
+    assert components.get("liquidity") == "maker"
+
+    report_dir = tmp_path / "reports" / "INXU"
+    report_files = sorted(report_dir.glob("*.md"))
+    assert report_files, "expected markdown report for INXU"
+    report_text = report_files[-1].read_text(encoding="utf-8")
+    assert "ops_cancel_at" in report_text
+    assert "polygon_ws_freshness" in report_text
+    assert "fee_path" in report_text
 
 
 def test_clock_skew_blocks_execution(
@@ -149,6 +308,7 @@ def test_clock_skew_blocks_execution(
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
     _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
@@ -162,12 +322,30 @@ def test_clock_skew_blocks_execution(
     )
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
     freshness_payload = {
-        "required_feeds_ok": True,
-        "feeds": [],
+        "name": "data_freshness",
+        "status": "OK",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": [],
+            "feeds": [
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 0.0005,
+                    "reason": None,
+                    "details": {"threshold_seconds": 2.0},
+                }
+            ],
+        },
     }
-    (artifacts_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
 
     monkeypatch.setattr(scan_ladders, "_clock_skew_seconds", lambda *_: 5.0)
     monkeypatch.chdir(tmp_path)
@@ -203,6 +381,7 @@ def test_index_rule_mismatch_forces_no_go(
     _, proc_root = isolated_data_roots
     _configure_index_calibration(proc_root)
     _copy_calibration(Path("tests/fixtures/index/spx/hourly/params.json"), proc_root, "spx", "hourly")
+    _write_polygon_snapshot(proc_root, datetime.now(tz=UTC))
 
     fixtures_path = fixtures_root.resolve()
     pal_policy_path = Path("configs/pal_policy.example.yaml").resolve()
@@ -216,12 +395,30 @@ def test_index_rule_mismatch_forces_no_go(
     )
 
     artifacts_dir = tmp_path / "reports" / "_artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monitors_dir = artifacts_dir / "monitors"
+    monitors_dir.mkdir(parents=True, exist_ok=True)
     freshness_payload = {
-        "required_feeds_ok": True,
-        "feeds": [],
+        "name": "data_freshness",
+        "status": "OK",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "metrics": {
+            "required_feeds_ok": True,
+            "required_feeds": ["polygon_index.websocket"],
+            "stale_feeds": [],
+            "feeds": [
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 0.0004,
+                    "reason": None,
+                    "details": {"threshold_seconds": 2.0},
+                }
+            ],
+        },
     }
-    (artifacts_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+    (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
 
     from kalshi_alpha.config import IndexRule
 

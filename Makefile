@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -104,6 +104,34 @@ micro-index:
 
 fees-parse:
 	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.parse_fees --pdf docs/kalshi-fee-schedule.pdf --output data/proc/state/fees.json
+
+collect-polygon-ws:
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.exec.collectors.polygon_ws
+
+backtest-build:
+	@if [ -z "$(START)" ] || [ -z "$(END)" ]; then \
+		echo "Usage: make backtest-build START=YYYY-MM-DD END=YYYY-MM-DD"; exit 1; \
+	fi
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.backtest.generate_dataset --start $(START) --end $(END)
+
+backtest-hourly:
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.backtest.score_hourly
+
+backtest-close:
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.backtest.score_close
+
+replay-yesterday:
+	@if command -v $(PYTHON) >/dev/null 2>&1; then \
+		REPLAY_DATE=$$($(PYTHON) -c 'from datetime import datetime, timedelta; from zoneinfo import ZoneInfo; print((datetime.now(tz=ZoneInfo("America/New_York")) - timedelta(days=1)).strftime("%Y-%m-%d"))'); \
+	else \
+		echo "Python interpreter not found; cannot compute replay date"; exit 1; \
+	fi; \
+	REPLAY_FILE="data/replay/$${REPLAY_DATE}_spx_ndx.json"; \
+	if [ ! -f "$${REPLAY_FILE}" ]; then \
+		echo "Replay file missing: $${REPLAY_FILE}"; exit 1; \
+	fi; \
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file "$${REPLAY_FILE}" --speed 10 --start "11:40" --end "12:05" --summary "reports/_artifacts/replay/polygon_index_replay_noon.json" --proc-parquet "reports/_artifacts/replay/polygon_replay_noon.parquet"; \
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file "$${REPLAY_FILE}" --speed 10 --start "15:45" --end "16:05" --summary "reports/_artifacts/replay/polygon_index_replay_close.json" --proc-parquet "reports/_artifacts/replay/polygon_replay_close.parquet"
 
 .PHONY: paper_live_offline paper_live_online
 

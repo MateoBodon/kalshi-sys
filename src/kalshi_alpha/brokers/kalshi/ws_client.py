@@ -87,7 +87,7 @@ class KalshiWebsocketClient:
         last_error: Exception | None = None
         for attempt in range(1, self._max_retries + 1):
             try:
-                headers = self._http_client.build_auth_headers("GET", self._path)
+                headers = self._http_client.build_auth_headers("GET", self._path, absolute=True)
                 connect_kwargs: dict[str, Any] = {
                     "open_timeout": self._timeout,
                     "ping_interval": self._ping_interval,

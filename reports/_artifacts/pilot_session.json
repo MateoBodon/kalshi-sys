@@ -1,21 +1,125 @@
 {
   "alerts_summary": {
-    "max_age_minutes": 61.2770673,
+    "max_age_minutes": 2682.62065745,
     "metrics": {
       "auth_error_streak": {
         "current_streak": 0,
         "last_error_ts": null,
         "max_streak": 0
       },
+      "data_freshness": {
+        "feeds": [
+          {
+            "age_minutes": 20160.0,
+            "details": {
+              "age_days": 14.0,
+              "count": 1,
+              "threshold_days": 35.0
+            },
+            "id": "bls_cpi.latest_release",
+            "label": "BLS CPI (latest release)",
+            "last_ts": "2025-10-20T12:00:00+00:00",
+            "ok": true,
+            "required": true
+          },
+          {
+            "age_minutes": 10080.0,
+            "details": {
+              "age_days": 7.0,
+              "count": 1,
+              "threshold_days": 8.0
+            },
+            "id": "dol_claims.latest_report",
+            "label": "DOL Claims (ETA-539)",
+            "last_ts": "2025-10-27T00:00:00+00:00",
+            "ok": true,
+            "required": true
+          },
+          {
+            "age_minutes": 1440.0,
+            "details": {
+              "age_business_days": 1.0,
+              "count": 1,
+              "threshold_business_days": 3.0
+            },
+            "id": "treasury_10y.daily",
+            "label": "Treasury 10Y Par Yield",
+            "last_ts": "2025-11-01T00:00:00+00:00",
+            "ok": true,
+            "required": true
+          },
+          {
+            "age_minutes": 30240.0,
+            "details": {
+              "age_days": 21.0,
+              "count": 1,
+              "threshold_days": 35.0
+            },
+            "id": "cleveland_nowcast.monthly",
+            "label": "Cleveland Fed Nowcast (monthly)",
+            "last_ts": "2025-10-13T00:00:00+00:00",
+            "ok": true,
+            "required": true
+          },
+          {
+            "age_minutes": 720.0,
+            "details": {
+              "age_days": 0.5,
+              "price": 3.456,
+              "price_max": 6.0,
+              "price_min": 2.0,
+              "threshold_days": 2.0
+            },
+            "id": "aaa_gas.daily",
+            "label": "AAA National Gas (daily)",
+            "last_ts": "2025-11-02T00:00:00+00:00",
+            "ok": true,
+            "required": true
+          },
+          {
+            "age_minutes": 720.0,
+            "details": {
+              "active_station_count": 1,
+              "stations": [
+                {
+                  "age_days": 0.5,
+                  "age_minutes": 720.0,
+                  "last_ts": "2025-11-02T00:00:00+00:00",
+                  "ok": true,
+                  "station": "KBOS",
+                  "threshold_days": 2.0
+                }
+              ],
+              "threshold_days": 2.0
+            },
+            "id": "nws_daily_climate",
+            "label": "NWS Daily Climate (stations)",
+            "last_ts": "2025-11-02T00:00:00+00:00",
+            "ok": true,
+            "required": true
+          }
+        ],
+        "required_feeds": [
+          "bls_cpi.latest_release",
+          "dol_claims.latest_report",
+          "treasury_10y.daily",
+          "cleveland_nowcast.monthly",
+          "aaa_gas.daily",
+          "nws_daily_climate"
+        ],
+        "required_feeds_ok": true,
+        "stale_feeds": []
+      },
       "drawdown": {
         "daily_cap": 2000.0,
-        "daily_pnl": 22.0,
+        "daily_pnl": 24.0,
         "weekly_cap": 6000.0,
-        "weekly_pnl": 148.33244842668913
+        "weekly_pnl": 150.33244842668913
       },
       "ev_gap": {
-        "count": 2,
-        "reason": "insufficient_samples"
+        "mean_delta_bps": -4718.3414682283865,
+        "sample_size": 8,
+        "t_stat": -44.321604771192
       },
       "ev_seq_guard": {
         "min_sample": 12,
@@ -23,9 +127,9 @@
         "series_stats": {
           "CPI": {
             "insufficient": true,
-            "max_negative": -9434.682936456773,
+            "max_negative": -37738.73174582709,
             "max_positive": 0.0,
-            "sample_size": 2
+            "sample_size": 8
           }
         }
       },
@@ -115,8 +219,9 @@
     "recent_alerts": [],
     "statuses": {
       "auth_error_streak": "OK",
+      "data_freshness": "OK",
       "drawdown": "OK",
-      "ev_gap": "NO_DATA",
+      "ev_gap": "ALERT",
       "ev_seq_guard": "NO_DATA",
       "fill_vs_alpha": "NO_DATA",
       "freeze_window": "OK",
@@ -124,7 +229,7 @@
       "ws_disconnect_rate": "OK"
     }
   },
-  "broker_mode": "live",
+  "broker_mode": "dry",
   "cusum_state": "NO_DATA",
   "cusum_status": "NO_DATA",
   "ev_honesty_max_delta": 0.0,
@@ -132,45 +237,45 @@
   "ev_honesty_table": [
     {
       "delta": 0.0,
-      "fill_price": 0.39,
-      "maker_ev_original": 0.44366829364567734,
-      "maker_ev_per_contract_original": 0.26366829364567723,
-      "maker_ev_per_contract_proposal": 0.44366829364567734,
-      "maker_ev_per_contract_replay": 0.26366829364567723,
-      "maker_ev_replay": 0.26366829364567723,
-      "market_id": "MKT_CPI_OCT2025_MM",
-      "market_ticker": "CPI-2025-10-MOM",
+      "fill_price": 0.45,
+      "maker_ev_original": 0.5494550899804835,
+      "maker_ev_per_contract_original": 0.5494550899804835,
+      "maker_ev_per_contract_proposal": 0.5494550899804835,
+      "maker_ev_per_contract_replay": 0.5494550899804835,
+      "maker_ev_replay": 0.5494550899804835,
+      "market_id": "MKT_NDQ100_H1600_RANGE",
+      "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
       "side": "YES",
-      "strike": 0.18
+      "strike": 15000.0
     },
     {
       "delta": 0.0,
-      "fill_price": 0.37,
-      "maker_ev_original": 0.5,
-      "maker_ev_per_contract_original": 0.36,
-      "maker_ev_per_contract_proposal": 0.5,
-      "maker_ev_per_contract_replay": 0.36,
-      "maker_ev_replay": 0.36,
-      "market_id": "MKT_CPI_OCT2025_MM",
-      "market_ticker": "CPI-2025-10-MOM",
+      "fill_price": 0.6,
+      "maker_ev_original": 0.32778624165066006,
+      "maker_ev_per_contract_original": 0.59778624165066,
+      "maker_ev_per_contract_proposal": 0.32778624165066006,
+      "maker_ev_per_contract_replay": 0.59778624165066,
+      "maker_ev_replay": 0.59778624165066,
+      "market_id": "MKT_NDQ100_H1600_RANGE",
+      "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
       "side": "NO",
-      "strike": 0.47
+      "strike": 15150.0
     }
   ],
   "ev_honesty_threshold": 0.1,
-  "family": "CPI",
+  "family": "NASDAQ100",
   "fill_realism_gap": null,
-  "generated_at": "2025-11-03T00:13:36.900252+00:00",
+  "generated_at": "2025-11-04T20:56:46.128793+00:00",
   "maker_only": true,
   "max_contracts_per_order": 1,
   "max_unique_bins": 2,
-  "mean_delta_bps_after_fees": -4718.3414682283865,
+  "mean_delta_bps_after_fees": 6682.280853589641,
   "n_trades": 2,
   "orders_recorded": 0,
   "require_live_broker": true,
   "sample_size": 2,
-  "series": "CPI",
-  "session_id": "pilot-cpi-20251103T001334Z-f3253a",
-  "started_at": "2025-11-03T00:13:34.960549+00:00",
-  "t_stat": -16.751991990266834
+  "series": "NASDAQ100",
+  "session_id": "pilot-nasdaq100-20251104T205645Z-200dac",
+  "started_at": "2025-11-04T20:56:45.623034+00:00",
+  "t_stat": 2291.9608755220884
 }

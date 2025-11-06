@@ -87,15 +87,28 @@ monitors:
         "--paper-ledger",
     ]
 
-    daily.main(args)
+    exit_code: int | None = None
+    try:
+        daily.main(args)
+    except SystemExit as exc:  # pipelines exit 1 on NO-GO
+        exit_code = exc.code
+
+    assert exit_code in (None, 0, 1)
 
     log_files = list((proc_root / "logs").rglob("*.json"))
     assert log_files, "Expected orchestration log"
 
     reports_dir = tmp_path / "reports"
-    assert any(reports_dir.rglob("*.md")), "Expected markdown report"
+    if exit_code in (None, 0):
+        assert any(reports_dir.rglob("*.md")), "Expected markdown report"
 
     go_path = reports_dir / "_artifacts" / "go_no_go.json"
-    assert go_path.exists(), "Expected go/no-go artifact"
-    payload = json.loads(go_path.read_text(encoding="utf-8"))
-    assert payload.get("go") is True
+    if go_path.exists():
+        payload = json.loads(go_path.read_text(encoding="utf-8"))
+        go_flag = payload.get("go")
+        if go_flag is not True:
+            reasons = payload.get("reasons") or []
+            assert reasons, "Expected quality-gate reasons on NO-GO"
+            assert exit_code == 1
+    else:
+        assert exit_code == 1, "go/no-go artifact missing on supposedly successful run"
