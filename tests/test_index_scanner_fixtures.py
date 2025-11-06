@@ -30,6 +30,8 @@ def _configure_index_calibration(proc_root: Path) -> None:
     hourly_above_below.HOURLY_CALIBRATION_PATH = base
     close_range.CLOSE_CALIBRATION_PATH = base
     index_cdf._load_calibration_cached.cache_clear()
+    hourly_above_below._load_hourly_calibration.cache_clear()
+    close_range._load_default_calibration.cache_clear()
 
 
 def _copy_calibration(src: Path, proc_root: Path, symbol: str, horizon: str) -> None:
