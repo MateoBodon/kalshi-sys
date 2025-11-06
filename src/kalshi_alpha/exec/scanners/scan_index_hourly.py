@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from kalshi_alpha.config import IndexRule, lookup_index_rule
 from kalshi_alpha.core.pricing import LadderBinProbability, OrderSide
@@ -24,6 +26,8 @@ from kalshi_alpha.strategies.index import cdf as index_cdf
 
 HOURLY_CALIBRATION_PATH = _HOURLY_CALIBRATION_PATH
 DEFAULT_SERIES: tuple[str, ...] = ("INXU", "NASDAQ100U")
+ET = ZoneInfo("America/New_York")
+DEFAULT_TARGET_HOURS = (10, 11, 12, 13, 14, 15, 16)
 
 
 @dataclass(frozen=True)
@@ -136,8 +140,21 @@ def evaluate_hourly(  # noqa: PLR0913
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser(DEFAULT_SERIES)
+    parser.add_argument(
+        "--target-hour",
+        dest="target_hours",
+        type=int,
+        action="append",
+        help="Specific ET target hour to scan (repeat for multiple). Default scans 10:00-16:00 ET.",
+    )
     args = parser.parse_args(argv)
-    timestamp = parse_timestamp(args.now)
+    base_timestamp = parse_timestamp(args.now) or datetime.now(tz=UTC)
+    base_date_et = base_timestamp.astimezone(ET).date()
+    target_hours = (
+        sorted({hour % 24 for hour in args.target_hours})
+        if args.target_hours
+        else list(DEFAULT_TARGET_HOURS)
+    )
     emit_report = True
     if getattr(args, "no_report", False):
         emit_report = False
@@ -153,22 +170,30 @@ def main(argv: Sequence[str] | None = None) -> None:
         maker_only = False
     elif getattr(args, "maker_only", False):
         maker_only = True
-    config = ScannerConfig(
-        series=tuple(s.upper() for s in args.series),
-        min_ev=float(args.min_ev),
-        max_bins=int(args.max_bins),
-        contracts=int(args.contracts),
-        kelly_cap=float(args.kelly_cap),
-        offline=bool(args.offline),
-        fixtures_root=Path(args.fixtures_root),
-        output_root=Path(args.output_root),
-        run_label="index_hourly",
-        timestamp=timestamp,
-        paper_ledger=paper_ledger,
-        maker_only=maker_only,
-        emit_report=emit_report,
-    )
-    run_index_scan(config)
+    fixtures_root = Path(args.fixtures_root)
+    base_output_root = Path(args.output_root)
+    for hour in target_hours:
+        target_time_et = time(hour % 24, 0)
+        target_dt_et = datetime.combine(base_date_et, target_time_et, tzinfo=ET)
+        now_override = target_dt_et - timedelta(minutes=5)
+        config = ScannerConfig(
+            series=tuple(s.upper() for s in args.series),
+            min_ev=float(args.min_ev),
+            max_bins=int(args.max_bins),
+            contracts=int(args.contracts),
+            kelly_cap=float(args.kelly_cap),
+            offline=bool(args.offline),
+            fixtures_root=fixtures_root,
+            output_root=base_output_root / f"{hour % 24:02d}00",
+            run_label=f"index_hourly_{hour % 24:02d}00",
+            timestamp=target_dt_et.astimezone(UTC),
+            now_override=now_override.astimezone(UTC),
+            target_time_et=target_time_et,
+            paper_ledger=paper_ledger,
+            maker_only=maker_only,
+            emit_report=emit_report,
+        )
+        run_index_scan(config)
 
 
 __all__ = [

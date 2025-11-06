@@ -7,7 +7,7 @@ import csv
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from functools import lru_cache
 from pathlib import Path
 
@@ -46,6 +46,8 @@ class ScannerConfig:
     output_root: Path = DEFAULT_OUTPUT_ROOT
     run_label: str = "index"
     timestamp: datetime | None = None
+    now_override: datetime | None = None
+    target_time_et: time | None = None
     paper_ledger: bool = True
     maker_only: bool = True
     emit_report: bool = True
@@ -266,7 +268,8 @@ def _write_outputs(  # noqa: PLR0913
 
 
 def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
-    timestamp = config.timestamp or datetime.now(tz=UTC)
+    scan_timestamp = config.timestamp or datetime.now(tz=UTC)
+    now_override = config.now_override or scan_timestamp
     client = _build_client(config.fixtures_root, offline=config.offline)
     results: dict[str, dict[str, Path | None]] = {}
     for series in config.series:
@@ -287,11 +290,13 @@ def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
             offline=config.offline,
             sizing_mode="kelly",
             kelly_cap=config.kelly_cap,
+            now_override=now_override,
+            target_time_override=config.target_time_et,
         )
         if not outcome.proposals:
             series_dir = config.output_root / series.upper()
             series_dir.mkdir(parents=True, exist_ok=True)
-            empty_csv = series_dir / f"{timestamp.strftime('%Y%m%dT%H%M%SZ')}.csv"
+            empty_csv = series_dir / f"{scan_timestamp.strftime('%Y%m%dT%H%M%SZ')}.csv"
             header = (
                 "series,market,strike,side,event,q_yes,model_probability,"
                 "market_probability,ev_after_fees,ev_per_contract,contracts,"
@@ -328,7 +333,7 @@ def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
             rows=selected,
             series=series,
             output_dir=series_dir,
-            timestamp=timestamp,
+            timestamp=scan_timestamp,
             monitors=outcome.monitors,
             ledger=ledger,
         )

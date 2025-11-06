@@ -37,7 +37,7 @@ def test_scan_index_hourly_cli(
         ]
     )
 
-    csv_files = sorted((output_root / "INXU").glob("*.csv"))
+    csv_files = sorted(output_root.glob("*/INXU/*.csv"))
     assert csv_files, "expected hourly scanner to emit CSV output"
     frame = pl.read_csv(csv_files[-1])
     assert "delta_bps" in frame.columns

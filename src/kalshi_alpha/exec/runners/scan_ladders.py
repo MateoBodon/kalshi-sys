@@ -17,12 +17,12 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
+import kalshi_alpha.core.fees as fee_utils
 from kalshi_alpha.brokers import create_broker
 from kalshi_alpha.brokers.kalshi.base import BrokerOrder
 from kalshi_alpha.config import IndexOpsConfig, IndexOpsWindow, IndexRule, load_index_ops_config, lookup_index_rule
 from kalshi_alpha.core import kalshi_ws
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
-import kalshi_alpha.core.fees as fee_utils
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
 from kalshi_alpha.core.execution.index_models import load_alpha_curve, load_slippage_curve
 from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
@@ -1924,6 +1924,25 @@ def _u_series_roll_decision(now_utc: datetime) -> dict[str, object]:
     }
 
 
+def _filter_events_by_hour(events: Sequence[Event], target_hour: int) -> list[Event]:
+    if not events:
+        return []
+    normalized_hour = target_hour % 24
+    matching: list[tuple[int, Event]] = []
+    fallback: list[Event] = []
+    for event in events:
+        parsed = _parse_hour_label(event.ticker)
+        if parsed is None:
+            fallback.append(event)
+            continue
+        if parsed[0] == normalized_hour:
+            matching.append((parsed[1], event))
+    if matching:
+        matching.sort(key=lambda item: item[0])
+        return [item[1] for item in matching]
+    return fallback if fallback else list(events)
+
+
 def _filter_u_series_events(
     events: Sequence[Event],
     *,
@@ -2024,6 +2043,7 @@ def scan_series(  # noqa: PLR0913
     pilot_config: PilotConfig | None = None,
     bin_constraints: BinConstraintResolver | None = None,
     now_override: datetime | None = None,
+    target_time_override: time | None = None,
 ) -> ScanOutcome:
     now_utc = now_override if now_override is not None else datetime.now(tz=UTC)
     series_obj = _find_series(client, series)
@@ -2035,62 +2055,66 @@ def scan_series(  # noqa: PLR0913
     events_to_scan = list(events)
     roll_decision: dict[str, object] | None = None
     guardrail_reasons: list[str] = []
-    target_time: time | None = None
+    target_time: time | None = target_time_override
     if series_obj.ticker.upper() in _U_SERIES:
-        roll_decision = _u_series_roll_decision(now_utc)
-        filtered = _filter_u_series_events(events_to_scan, decision=roll_decision)
-        if filtered:
-            events_to_scan = filtered
-        seconds_to_boundary = float(roll_decision.get("seconds_to_boundary", 0.0)) if roll_decision else 0.0
-        default_hourly_target = _default_hourly_target(now_utc)
-        target_hour = (
-            int(roll_decision.get("target_hour", default_hourly_target.hour))
-            if roll_decision
-            else default_hourly_target.hour
-        )
-        target_time = time(target_hour % 24, 0)
-        current_hour = int(roll_decision.get("current_hour", 0)) if roll_decision else 0
-        event_hours = {
-            hour
-            for hour, _minute in (
-                _parse_hour_label(event.ticker) or (None, None)
-                for event in events
+        if target_time_override is None:
+            roll_decision = _u_series_roll_decision(now_utc)
+            filtered = _filter_u_series_events(events_to_scan, decision=roll_decision)
+            if filtered:
+                events_to_scan = filtered
+            seconds_to_boundary = float(roll_decision.get("seconds_to_boundary", 0.0)) if roll_decision else 0.0
+            default_hourly_target = _default_hourly_target(now_utc)
+            target_hour = (
+                int(roll_decision.get("target_hour", default_hourly_target.hour))
+                if roll_decision
+                else default_hourly_target.hour
             )
-            if hour is not None
-        }
-        filtered_hours = {
-            hour
-            for hour, _minute in (
-                _parse_hour_label(event.ticker) or (None, None)
-                for event in events_to_scan
-            )
-            if hour is not None
-        }
-        has_fallback_event = any(((hour - target_hour) % 24) == 1 for hour in filtered_hours)
-        has_target_event = target_hour in event_hours
-        if seconds_to_boundary <= 180.0 and not has_target_event and not has_fallback_event:
-            guardrail_reasons.append("next_hour_missing")
-        if seconds_to_boundary <= 10.0 and seconds_to_boundary > 0.0:
-            guardrail_reasons.append("pre_boundary_cooldown")
-        if seconds_to_boundary <= 0.0:
-            guardrail_reasons.append("past_boundary")
-        cancel_buffer = _cancel_buffer_seconds(series_obj.ticker)
-        if seconds_to_boundary <= cancel_buffer:
-            state = OutstandingOrdersState.load()
-            if state.total() > 0:
-                guardrail_reasons.append("cancel_ack_pending")
-        now_et_value = roll_decision.get("now_et") if roll_decision else None
-        if isinstance(now_et_value, datetime):
-            seconds_since_boundary = float(
-                now_et_value.minute * 60
-                + now_et_value.second
-                + now_et_value.microsecond / 1_000_000
-            )
-            if current_hour == target_hour and seconds_since_boundary < 1.0:
-                guardrail_reasons.append("post_roll_delay")
-        guardrail_reasons = sorted(set(guardrail_reasons))
-        if guardrail_reasons:
-            events_to_scan = []
+            target_time = time(target_hour % 24, 0)
+            current_hour = int(roll_decision.get("current_hour", 0)) if roll_decision else 0
+            event_hours = {
+                hour
+                for hour, _minute in (
+                    _parse_hour_label(event.ticker) or (None, None)
+                    for event in events
+                )
+                if hour is not None
+            }
+            filtered_hours = {
+                hour
+                for hour, _minute in (
+                    _parse_hour_label(event.ticker) or (None, None)
+                    for event in events_to_scan
+                )
+                if hour is not None
+            }
+            has_fallback_event = any(((hour - target_hour) % 24) == 1 for hour in filtered_hours)
+            has_target_event = target_hour in event_hours
+            if seconds_to_boundary <= 180.0 and not has_target_event and not has_fallback_event:
+                guardrail_reasons.append("next_hour_missing")
+            if seconds_to_boundary <= 10.0 and seconds_to_boundary > 0.0:
+                guardrail_reasons.append("pre_boundary_cooldown")
+            if seconds_to_boundary <= 0.0:
+                guardrail_reasons.append("past_boundary")
+            cancel_buffer = _cancel_buffer_seconds(series_obj.ticker)
+            if seconds_to_boundary <= cancel_buffer:
+                state = OutstandingOrdersState.load()
+                if state.total() > 0:
+                    guardrail_reasons.append("cancel_ack_pending")
+            now_et_value = roll_decision.get("now_et") if roll_decision else None
+            if isinstance(now_et_value, datetime):
+                seconds_since_boundary = float(
+                    now_et_value.minute * 60
+                    + now_et_value.second
+                    + now_et_value.microsecond / 1_000_000
+                )
+                if current_hour == target_hour and seconds_since_boundary < 1.0:
+                    guardrail_reasons.append("post_roll_delay")
+            guardrail_reasons = sorted(set(guardrail_reasons))
+            if guardrail_reasons:
+                events_to_scan = []
+        else:
+            target_hour = target_time_override.hour
+            events_to_scan = _filter_events_by_hour(events_to_scan, target_hour)
     ops_metadata: dict[str, object] = {}
     if series_obj is not None:
         ops_metadata = _ops_window_metadata(series_obj.ticker, now_utc, target_time=target_time)

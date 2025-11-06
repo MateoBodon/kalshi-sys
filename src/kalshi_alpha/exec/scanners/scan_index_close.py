@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from kalshi_alpha.config import lookup_index_rule
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
@@ -88,12 +90,16 @@ def evaluate_close(  # noqa: PLR0913
 
 
 DEFAULT_SERIES: tuple[str, ...] = ("INX", "NASDAQ100")
+ET = ZoneInfo("America/New_York")
+TARGET_CLOSE_TIME = time(16, 0)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser(DEFAULT_SERIES)
     args = parser.parse_args(argv)
-    timestamp = parse_timestamp(args.now)
+    base_timestamp = parse_timestamp(args.now) or datetime.now(tz=UTC)
+    target_dt_et = datetime.combine(base_timestamp.astimezone(ET).date(), TARGET_CLOSE_TIME, tzinfo=ET)
+    now_override = target_dt_et - timedelta(minutes=10)
     emit_report = True
     if getattr(args, "no_report", False):
         emit_report = False
@@ -119,7 +125,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         fixtures_root=Path(args.fixtures_root),
         output_root=Path(args.output_root),
         run_label="index_close",
-        timestamp=timestamp,
+        timestamp=target_dt_et.astimezone(UTC),
+        now_override=now_override.astimezone(UTC),
+        target_time_et=TARGET_CLOSE_TIME,
         paper_ledger=paper_ledger,
         maker_only=maker_only,
         emit_report=emit_report,
