@@ -8,7 +8,7 @@
   "target": {
     "hour_et": "12:00"
   },
-  "generated_at": "2025-11-06T18:15:41.399062+00:00",
+  "generated_at": "2025-11-06T19:19:45.892565+00:00",
   "source_window": {
     "requested_start": "2025-02-27",
     "requested_end": "2025-11-06",
@@ -945,6 +945,6 @@
   "kappa_event": 1.65,
   "checksum": {
     "algorithm": "sha256",
-    "value": "2912662c50b25f0d44977675db55b268b8cf7696c71b079e9905d73d172855e4"
+    "value": "fef7f60294f0f6a4d624aeeb9fddd029c82e9e36ac606f63136c6bd008c6a6ab"
   }
 }

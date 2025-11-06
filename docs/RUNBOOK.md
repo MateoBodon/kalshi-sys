@@ -94,6 +94,41 @@ Retrieve them programmatically with `security find-generic-password -s finfeed -
   - Kill-switch and drawdown state are surfaced directly in monitor payloads so the final broker gate has a single source of truth.
 - When three or more distinct monitors alert within a 30-minute window the CLI emits a `panic_backoff=true` flag; the ramp policy treats this as a day-long `NO-GO` unless an ops override is signed off.
 
+## Index Hourly (14:00 ET) Run — 6 Nov 2025
+
+**Collector**
+- Run the Massive indices websocket alongside trading hours so the freshness gate stays green:  
+  `nohup ./scripts/run_polygon_ws.sh > logs/polygon_ws.log 2>&1 &`  
+  The wrapper sources `.venv`, subscribes to `AM.I:SPX` and `AM.I:NDX`, and passes `--freshness-config configs/freshness.index.yaml` so only the `polygon_index.websocket` feed is enforced. Stop or rotate it with `pkill -f kalshi_alpha.exec.collectors.polygon_ws`.
+- Freshness artifacts now only track the index feed: `reports/_artifacts/monitors/freshness.json`.
+
+**Calibration & scan commands**
+```
+source .venv/bin/activate
+PYTHONPATH=src:. python -m jobs.calibrate_hourly --symbols I:SPX I:NDX --months 12
+PYTHONPATH=src:. python -m jobs.calibrate_close   --symbols I:SPX I:NDX --months 12
+PYTHONPATH=src python -m kalshi_alpha.exec.scanners.scan_index_hourly \
+  --online \
+  --series INXU NASDAQ100U \
+  --target-hour 14 \
+  --report \
+  --paper-ledger \
+  --quality-gates-config configs/quality_gates.index.yaml \
+  --output-root reports/index_hourly
+```
+
+**Artifacts (14:00 ET window, 6 Nov 2025)**
+- `reports/index_hourly/1400/INXU/2025-11-06.md` and `reports/index_hourly/1400/NASDAQ100U/2025-11-06.md`
+- `reports/index_hourly/1400/INXU/20251106T190000Z.csv`, `reports/index_hourly/1400/NASDAQ100U/20251106T190000Z.csv`
+- `reports/_artifacts/go_no_go.json` (maker gate summary), `reports/_artifacts/monitors/freshness.json`
+- Online ledger aggregation: `data/proc/ledger_all.parquet`
+- Scoreboards & readiness: `reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`, `reports/pilot_readiness.md` (freshness = OK; current NO-GO reason is `insufficient_data`)
+
+**Gates**
+- Quality gates use `configs/quality_gates.index.yaml`, which reads the polygon snapshot parquet (`data/proc/polygon_index/snapshot*.parquet`) and ignores macro feeds.
+- Pilot readiness must also clear kill switch and historical fill thresholds before live execution; 6 Nov still fails on fill count despite freshness GO.
+- Collector logs stream to `logs/polygon_ws.log`. Tail that file when validating websocket latency alerts.
+
 ## Live Smoke Check
 - Before lining up a live pilot, run the read-only smoke test (requires `KALSHI_API_KEY_ID`, `KALSHI_PRIVATE_KEY_PEM_PATH`, and `KALSHI_ENV=prod`):
   ```bash
