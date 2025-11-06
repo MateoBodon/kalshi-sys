@@ -315,3 +315,98 @@ def _last_dst_transition(end_date: date, *, lookback_days: int = 365) -> date | 
         previous_offset = current_offset
         previous_day = day
     return None
+
+
+def minutes_curves(frame: pl.DataFrame, symbol: str) -> tuple[dict[int, float], dict[int, float], float]:
+    """Return per-minute sigma and drift curves for *symbol* along with residual std."""
+
+    subset = frame.filter(pl.col("symbol") == symbol)
+    if subset.is_empty():
+        return {}, {}, 0.0
+    sigma_curve: dict[int, float] = {}
+    drift_curve: dict[int, float] = {}
+    for row in subset.iter_rows(named=True):
+        minute = int(row["minutes_to_target"])
+        sigma_curve[minute] = float(row.get("sigma", 0.0))
+        drift_curve[minute] = float(row.get("drift", 0.0))
+    residual_std = 0.0
+    if "residual_std" in subset.columns:
+        residual_series = subset.get_column("residual_std").drop_nulls()
+        if residual_series.len():
+            residual_std = float(residual_series[0])
+    return sigma_curve, drift_curve, residual_std
+
+
+def compute_pit_bias(
+    records: pl.DataFrame,
+    symbol: str,
+    *,
+    sigma_curve: Mapping[int, float],
+    drift_curve: Mapping[int, float],
+) -> float | None:
+    """Return a logistic PIT bias estimated from normalized residuals."""
+
+    subset = records.filter(pl.col("symbol") == symbol)
+    if subset.is_empty():
+        return None
+    probabilities: list[float] = []
+    for row in subset.iter_rows(named=True):
+        minute = int(row["minutes_to_target"])
+        sigma = float(sigma_curve.get(minute, 0.0))
+        if sigma <= 0.0:
+            continue
+        drift = float(drift_curve.get(minute, 0.0))
+        residual = float(row["delta"]) - drift
+        z_score = residual / sigma
+        probability = 0.5 * (1.0 + math.erf(z_score / math.sqrt(2.0)))
+        probability = min(max(probability, 1e-9), 1.0 - 1e-9)
+        probabilities.append(probability)
+    if not probabilities:
+        return None
+    mean_prob = sum(probabilities) / len(probabilities)
+    if mean_prob <= 0.0 or mean_prob >= 1.0:
+        return None
+    return -math.log(mean_prob / (1.0 - mean_prob))
+
+
+def latest_observation_date(records: pl.DataFrame, symbol: str) -> date | None:
+    """Return the most recent observation date for *symbol* in *records*."""
+
+    subset = records.filter(pl.col("symbol") == symbol)
+    if subset.is_empty():
+        return None
+    date_column = subset.get_column("date")
+    if date_column.is_empty():
+        return None
+    latest = date_column.max()
+    if isinstance(latest, str):
+        try:
+            return date.fromisoformat(latest)
+        except ValueError:
+            return None
+    if isinstance(latest, date):
+        return latest
+    return None
+
+
+def symbol_slug(symbol: str) -> str:
+    """Return a lowercase slug for *symbol* suitable for filenames."""
+
+    if not symbol:
+        return "unknown"
+    return symbol.split(":")[-1].lower()
+
+
+__all__ = [
+    "build_sigma_curve",
+    "event_tail_multiplier",
+    "late_day_lambda",
+    "extend_calibration_window",
+    "minutes_curves",
+    "compute_pit_bias",
+    "latest_observation_date",
+    "symbol_slug",
+    "ET",
+    "MARKET_OPEN",
+    "MARKET_CLOSE",
+]

@@ -13,8 +13,30 @@ from jobs._index_calibration import (
     extend_calibration_window,
     late_day_lambda,
 )
-from jobs.calibrate_close import _write_params as write_close_params
-from jobs.calibrate_hourly import _write_params as write_hourly_params
+from jobs.calibrate_close import (
+    CalibrationWindow as CloseWindow,
+)
+from jobs.calibrate_close import (
+    _build_close_payload,
+)
+from jobs.calibrate_close import (
+    _derive_extras as derive_close_extras,
+)
+from jobs.calibrate_close import (
+    _write_payload as write_close_payload,
+)
+from jobs.calibrate_hourly import (
+    CalibrationWindow as HourlyWindow,
+)
+from jobs.calibrate_hourly import (
+    _build_hourly_payload,
+)
+from jobs.calibrate_hourly import (
+    _derive_event_extras as derive_hourly_extras,
+)
+from jobs.calibrate_hourly import (
+    _write_payload as write_hourly_payload,
+)
 from kalshi_alpha.drivers.polygon_index.client import MinuteBar
 
 _FIXTURE_ROOT = Path("tests/data_fixtures/index")
@@ -60,32 +82,52 @@ def test_build_sigma_curve_computes_minutes() -> None:
     assert max(minutes) == 15
 
 
-def test_write_params_emits_json(tmp_path) -> None:
+def test_build_hourly_payload_and_checksum(tmp_path: Path) -> None:
     bars = {"I:SPX": _load_minute_bars(_SPX_NOON_FIXTURE)}
-    frame = build_sigma_curve(bars, target_time=time(12, 0), residual_window=5)
-    write_hourly_params(frame, tmp_path)
-    params_path = tmp_path / "spx" / "hourly" / "params.json"
-    assert params_path.exists()
-    payload = json.loads(params_path.read_text(encoding="utf-8"))
-    assert payload["symbol"] == "I:SPX"
-    assert payload["horizon"] == "hourly"
-    minutes = payload["minutes_to_target"]
-    assert "0" in minutes and "sigma" in minutes["0"]
-    assert payload["kappa_event"] == pytest.approx(1.0, rel=1e-6)
+    frame, records = build_sigma_curve(
+        bars,
+        target_time=time(12, 0),
+        residual_window=5,
+        return_records=True,
+    )
+    extras = derive_hourly_extras(records, "I:SPX")
+    window = HourlyWindow(
+        requested_start=date(2024, 10, 1),
+        requested_end=date(2024, 10, 21),
+        start=date(2024, 10, 1),
+        end=date(2024, 10, 21),
+    )
+    payload = _build_hourly_payload(
+        symbol="I:SPX",
+        slug="spx",
+        frame=frame,
+        records=records,
+        target_hour=12,
+        window=window,
+        series_aliases={"I:SPX": ("INXU",)},
+        extras=extras,
+    )
+    hour_dir = tmp_path / "spx" / "hourly" / "1200"
+    agg_dir = tmp_path / "spx" / "hourly"
+    write_hourly_payload(payload, hour_dir)
+    write_hourly_payload(payload, agg_dir)
+
+    hour_params = json.loads((hour_dir / "params.json").read_text(encoding="utf-8"))
+    agg_params = json.loads((agg_dir / "params.json").read_text(encoding="utf-8"))
+
+    assert hour_params["symbol"] == "I:SPX"
+    assert hour_params["target"]["hour_et"] == "12:00"
+    assert hour_params["checksum"]["algorithm"] == "sha256"
+    assert hour_params["sigma_now"] >= 0.0
+    assert hour_params["m_tod"]["0"] == pytest.approx(1.0, rel=1e-9)
+    assert hour_params["age"]["last_observation"] is not None
+    assert hour_params["minutes_to_target"]["0"]["sigma"] == pytest.approx(
+        agg_params["minutes_to_target"]["0"]["sigma"],
+        rel=1e-9,
+    )
 
 
-def test_write_params_hourly_alias(tmp_path) -> None:
-    bars = {"I:SPX": _load_minute_bars(_SPX_NOON_FIXTURE)}
-    frame = build_sigma_curve(bars, target_time=time(12, 0), residual_window=5)
-    write_hourly_params(frame, tmp_path, horizon="noon")
-    params_path = tmp_path / "spx" / "noon" / "params.json"
-    assert params_path.exists()
-    payload = json.loads(params_path.read_text(encoding="utf-8"))
-    assert payload["horizon"] == "noon"
-    assert payload["kappa_event"] == pytest.approx(1.0, rel=1e-6)
-
-
-def test_close_write_params_includes_extras(tmp_path) -> None:
+def test_build_close_payload_includes_extras(tmp_path: Path) -> None:
     combined_bars = _load_minute_bars(_SPX_CLOSE_EVENT_FIXTURE) + _load_minute_bars(_SPX_CLOSE_BASE_FIXTURE)
     frame, records = build_sigma_curve(
         {"I:SPX": combined_bars},
@@ -107,16 +149,31 @@ def test_close_write_params_includes_extras(tmp_path) -> None:
         window=10,
         tags=("CPI", "FOMC"),
     )
-    extras = {"I:SPX": {"event_tail": {"tags": ("CPI", "FOMC"), "kappa": kappa}}}
-    if late_day is not None:
-        extras["I:SPX"]["late_day_variance"] = late_day
-    write_close_params(frame, tmp_path, horizon="close", extras=extras)
+    extras = derive_close_extras(records, frame, "I:SPX")
+    window = CloseWindow(
+        requested_start=date(2024, 8, 1),
+        requested_end=date(2024, 10, 21),
+        start=date(2024, 8, 1),
+        end=date(2024, 10, 21),
+    )
+    payload = _build_close_payload(
+        symbol="I:SPX",
+        slug="spx",
+        frame=frame,
+        records=records,
+        window=window,
+        series_aliases={"I:SPX": ("INX",)},
+        extras=extras,
+    )
+    write_close_payload(payload, tmp_path / "spx" / "close")
     params_path = tmp_path / "spx" / "close" / "params.json"
     payload = json.loads(params_path.read_text(encoding="utf-8"))
     assert payload["event_tail"]["tags"] == ["CPI", "FOMC"]
     assert 1.0 <= payload["event_tail"]["kappa"] <= 1.8
     assert payload["event_tail"]["kappa"] == pytest.approx(kappa, rel=1e-6)
     assert payload["kappa_event"] == pytest.approx(kappa, rel=1e-6)
+    assert payload["checksum"]["algorithm"] == "sha256"
+    assert payload["target"]["label"] == "close"
     if late_day is not None:
         assert payload["late_day_variance"]["minutes_threshold"] == late_day["minutes_threshold"]
         assert payload["late_day_variance"]["lambda"] == pytest.approx(late_day["lambda"], rel=1e-6)
