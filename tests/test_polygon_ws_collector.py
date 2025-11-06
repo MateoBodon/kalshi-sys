@@ -58,6 +58,45 @@ def test_process_entries_writes_snapshots_and_freshness(monkeypatch, tmp_path: P
     assert output_path.exists()
 
 
+def test_process_entries_updates_default_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured: list[object] = []
+
+    def fake_write_snapshot(snapshot: object) -> None:
+        captured.append(snapshot)
+
+    def fake_freshness_artifact(*, config_path: Path, output_path: Path, now: datetime) -> None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(polygon_ws, "write_snapshot", fake_write_snapshot)
+    monkeypatch.setattr(polygon_ws.freshness, "write_freshness_artifact", fake_freshness_artifact)
+    monkeypatch.chdir(tmp_path)
+
+    now = datetime.now(tz=UTC)
+    proc_parquet = Path("data/proc/polygon_index/snapshot.parquet")
+    freshness_output = Path("reports/_artifacts/monitors/freshness.json")
+
+    payload = {
+        "ev": "AM",
+        "sym": "I:SPX",
+        "c": 5000.0,
+        "s": 1_700_000_123_000,
+    }
+    polygon_ws._process_entries(  # type: ignore[attr-defined]
+        entries=polygon_ws._normalize_entries(payload),
+        alias_map={"I:SPX": ("INX",)},
+        channel_prefix="AM",
+        now=now,
+        proc_parquet=proc_parquet,
+        freshness_config=Path("configs/freshness.yaml"),
+        freshness_output=freshness_output,
+    )
+
+    assert captured  # snapshot written
+    assert proc_parquet.exists()
+    assert freshness_output.exists()
+
+
 def test_parse_args_uses_alias_overrides(monkeypatch) -> None:
     monkeypatch.setattr(polygon_ws, "load_polygon_api_key", lambda: "dummy-key")
     config = polygon_ws._parse_args(  # type: ignore[attr-defined]

@@ -10,7 +10,12 @@ from typing import Any
 import polars as pl
 import pytest
 
-from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, MinuteBar, PolygonIndicesClient
+from kalshi_alpha.drivers.polygon_index.client import (
+    INDICES_WS_URL,
+    IndexSnapshot,
+    MinuteBar,
+    PolygonIndicesClient,
+)
 
 
 class _FakeResponse:
@@ -161,7 +166,7 @@ async def test_websocket_authenticates(monkeypatch: pytest.MonkeyPatch) -> None:
         return _FakeConnection()
 
     monkeypatch.setattr("websockets.connect", _fake_connect)
-    client = PolygonIndicesClient(api_key="stub")
+    client = PolygonIndicesClient(api_key="stub", ws_url=INDICES_WS_URL)
     async with client.websocket() as connection:
         assert connection is not None
     assert any("auth" in msg for msg in messages)
@@ -169,7 +174,7 @@ async def test_websocket_authenticates(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_stream_minute_aggregates_reconnects(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = PolygonIndicesClient(api_key="stub")
+    client = PolygonIndicesClient(api_key="stub", ws_url=INDICES_WS_URL)
 
     class _FakeConnection:
         def __init__(self, payloads: list[str]) -> None:

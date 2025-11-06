@@ -1,4 +1,9 @@
-"""Massive indices client supporting REST, websocket, and historical ingestion."""
+"""Massive indices client supporting REST ingestion and optional Massive websocket.
+
+The Kalshi index ladders rely on Massive's dedicated indices feed (AM/AS).  Polygon's
+stock aggregate socket (XA/XS) is not used here deliberately; websocket streaming is
+disabled by default to avoid confusing the index and stock channels.
+"""
 
 from __future__ import annotations
 
@@ -25,7 +30,10 @@ from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.utils.keys import load_polygon_api_key
 
 DEFAULT_REST_URL = "https://api.polygon.io"
-DEFAULT_WS_URL = "wss://socket.massive.com/indices"
+# Websocket streaming defaults to disabled because the XA/XS stock channels do not
+# carry index aggregates.  Consumers must opt-in with the Massive indices socket.
+DEFAULT_WS_URL: str | None = None
+INDICES_WS_URL = "wss://socket.massive.com/indices"
 INDEX_MINUTE_CHANNEL = "AM"
 INDEX_SECOND_CHANNEL = "AS"
 CHANNEL_BY_TIMESPAN = {
@@ -87,7 +95,7 @@ class PolygonIndicesClient:
         *,
         api_key: str | None = None,
         rest_base_url: str = DEFAULT_REST_URL,
-        ws_url: str = DEFAULT_WS_URL,
+        ws_url: str | None = DEFAULT_WS_URL,
         session: requests.Session | None = None,
         timeout: float = 10.0,
         ws_ping_interval: float = 20.0,
@@ -383,7 +391,20 @@ class PolygonIndicesClient:
 
     @asynccontextmanager
     async def websocket(self) -> AsyncIterator[ClientConnection]:
-        """Yield an authenticated websocket connection."""
+        """Yield an authenticated websocket connection.
+
+        Returns:
+            ClientConnection: Authenticated Massive indices websocket.
+
+        Raises:
+            PolygonAPIError: If websocket streaming is disabled (default behaviour).
+        """
+
+        if not self._ws_url:
+            raise PolygonAPIError(
+                "Polygon indices websocket is disabled by default. Pass ws_url=INDICES_WS_URL "
+                "to opt into the Massive indices stream (AM/AS)."
+            )
 
         api_key = self._resolved_api_key()
         connection = await websockets.connect(
@@ -512,4 +533,5 @@ __all__ = [
     "PolygonIndicesClient",
     "MinuteBar",
     "IndexSnapshot",
+    "INDICES_WS_URL",
 ]
