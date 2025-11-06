@@ -205,6 +205,13 @@ Pipeline steps per run:
 - Massive only allows one websocket connection per asset class; keep the launch agent as the canonical feed. If you see `max_connections` or `policy violation` in the log, another client is connected—shut it down, then `launchctl bootout/gui bootstrap` the agent. Our collector now fails fast and logs `[polygon-ws] error: ... max_connections ...` instead of spinning forever.
 - Freshness gate: `configs/quality_gates.index.yaml` requires the Massive snapshot age ≤2 s. Any gap longer than that surfaces `polygon_ws_stale` in `reports/_artifacts/go_no_go.json` and the scanners short-circuit proposals. Cross-check `reports/_artifacts/monitors/freshness.json` for `age_seconds` when debugging.
 - Quality gates: pass `--quality-gates-config configs/quality_gates.index.yaml` to every scanner and microlive run. The index-only gates enforce Polygon websocket freshness (`max_age_seconds=2`) while ignoring stale macro feeds; treat `polygon_ws_stale` as a hard NO-GO and cancel all orders by the T−2 s buffer baked into `configs/index_ops.yaml`.
+
+### Backtest & Replay Harness
+- `make backtest-build START=YYYY-MM-DD END=YYYY-MM-DD` snapshots Polygon minute bars into `data/backtest/index_minutes.parquet`. Each row tags the target ladder with the “on/before” settlement value—if the exact 12:00 ET or 16:00 ET print is missing, we fall back to the most recent prior minute per the exchange rule.
+- `make backtest-hourly` and `make backtest-close` load the latest calibrations (`data/proc/calib/index/**/params.json`) and write `reports/backtests/{hourly,close}/{metrics.md,ev_table.csv}` with CRPS/Brier summaries, PIT histograms, and EV-after-fees tables.
+- `make replay-yesterday` expects a Massive capture at `data/replay/<DATE>_spx_ndx.json` and replays yesterday’s 11:40–12:05 and 15:45–16:05 ET windows at 10× speed. The command refreshes `reports/_artifacts/monitors/freshness.json` and drops window-specific summaries under `reports/_artifacts/replay/`.
+- Index fee truth: makers in `INX*` / `NASDAQ100*` pay $0.00. Takers owe `ceil(0.035 × contracts × price × (1 − price) × 100) / 100`, so 100 contracts at p=0.50 cost $0.88.
+- Ops config is centralized in `configs/index_ops.yaml`; the 2 s cancel buffers there are the only supported knobs—never override them in per-run configs.
 - Pre-flight:
  1. `python -m kalshi_alpha.exec.heartbeat` → Polygon minute latency ≤30 s (hourly) / ≤20 s (close); websocket tick age ≤2 s; kill-switch absent.
   2. Confirm calibration parquet mtimes ≤14 days.
