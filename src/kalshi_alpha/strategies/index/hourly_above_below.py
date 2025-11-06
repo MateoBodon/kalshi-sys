@@ -32,6 +32,7 @@ class HourlyInputs:
     residual_override: float | None = field(init=False, default=None)
     event_tags: tuple[str, ...] = field(init=False, default=())
     variance_multiplier_override: float | None = field(init=False, default=None)
+    target_hour_et: int | None = field(init=False, default=None)
 
     def __init__(  # noqa: PLR0913
         self,
@@ -46,6 +47,7 @@ class HourlyInputs:
         residual_override: float | None = None,
         event_tags: Sequence[str] | None = None,
         variance_multiplier_override: float | None = None,
+        target_hour: int | None = None,
     ) -> None:
         if minutes_to_target is not None and minutes_to_noon is not None:
             raise TypeError("Specify only one of minutes_to_target or minutes_to_noon")
@@ -58,9 +60,12 @@ class HourlyInputs:
                 stacklevel=2,
             )
             minutes_to_target = minutes_to_noon
+        if minutes_to_target is None:
+            raise TypeError("minutes_to_target is required")
+        minutes_value = int(minutes_to_target)
         object.__setattr__(self, "series", series)
         object.__setattr__(self, "current_price", current_price)
-        object.__setattr__(self, "minutes_to_target", int(minutes_to_target))
+        object.__setattr__(self, "minutes_to_target", minutes_value)
         object.__setattr__(self, "prev_close", prev_close)
         object.__setattr__(self, "drift_override", drift_override)
         object.__setattr__(self, "sigma_override", sigma_override)
@@ -68,6 +73,8 @@ class HourlyInputs:
         tags = tuple(tag for tag in (event_tags or ()) if tag is not None)
         object.__setattr__(self, "event_tags", tags)
         object.__setattr__(self, "variance_multiplier_override", variance_multiplier_override)
+        hour_value = None if target_hour is None else int(target_hour) % 24
+        object.__setattr__(self, "target_hour_et", hour_value)
 
     @property
     def minutes_to_noon(self) -> int:
@@ -87,7 +94,8 @@ def pmf(
 ) -> list[LadderBinProbability]:
     meta = _resolve_series(inputs.series)
     target_minutes = max(int(inputs.minutes_to_target), 0)
-    calib = calibration or _load_default_calibration(meta)
+    variant = _target_hour_variant(inputs.target_hour_et)
+    calib = calibration or _load_hourly_calibration(meta, variant)
     sigma = inputs.sigma_override if inputs.sigma_override is not None else calib.sigma(target_minutes)
     residual = inputs.residual_override if inputs.residual_override is not None else calib.residual_std
     effective_sigma = max(float(sigma), float(residual or 0.0), 0.5)
@@ -106,12 +114,32 @@ def _resolve_series(series: str) -> IndexSymbol:
         raise ValueError(str(exc)) from exc
 
 
-@lru_cache(maxsize=4)
-def _load_default_calibration(meta: IndexSymbol) -> SigmaCalibration:
+@lru_cache(maxsize=16)
+def _load_hourly_calibration(meta: IndexSymbol, variant: str | None) -> SigmaCalibration:
     try:
-        return load_calibration(HOURLY_CALIBRATION_PATH, meta.polygon_ticker, horizon="hourly")
+        return load_calibration(
+            HOURLY_CALIBRATION_PATH,
+            meta.polygon_ticker,
+            horizon="hourly",
+            variant=variant,
+        )
     except FileNotFoundError:
-        return load_calibration(HOURLY_CALIBRATION_PATH, meta.polygon_ticker, horizon="noon")
+        if variant:
+            try:
+                return load_calibration(
+                    HOURLY_CALIBRATION_PATH,
+                    meta.polygon_ticker,
+                    horizon="hourly",
+                    variant=None,
+                )
+            except FileNotFoundError:
+                pass
+        return load_calibration(
+            HOURLY_CALIBRATION_PATH,
+            meta.polygon_ticker,
+            horizon="noon",
+            variant=None,
+        )
 
 
 def _event_multiplier(inputs: HourlyInputs, calibration: SigmaCalibration) -> float:
@@ -126,6 +154,12 @@ def _event_multiplier(inputs: HourlyInputs, calibration: SigmaCalibration) -> fl
         value = max(value, MIN_EVENT_MULTIPLIER)
         return min(value, EVENT_MULTIPLIER_CAP)
     return 1.0
+
+
+def _target_hour_variant(target_hour: int | None) -> str | None:
+    if target_hour is None:
+        return None
+    return f"{int(target_hour) % 24:02d}00"
 
 
 __all__ = ["HourlyInputs", "pmf", "HOURLY_CALIBRATION_PATH"]

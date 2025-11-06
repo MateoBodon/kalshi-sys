@@ -719,7 +719,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         outcome.monitors["fill_alpha_auto"] = fill_alpha_value
     else:
         outcome.monitors.setdefault("fill_alpha", fill_alpha_value)
-    fee_series = outcome.series.ticker.upper() if outcome.series and getattr(outcome.series, "ticker", None) else series_upper
+    fee_series = (
+        outcome.series.ticker.upper()
+        if outcome.series and getattr(outcome.series, "ticker", None)
+        else series_upper
+    )
     outcome.monitors.setdefault("fee_path", _resolve_fee_paths(fee_series))
     should_archive = args.report or args.paper_ledger
     if should_archive and outcome.markets:
@@ -2039,7 +2043,11 @@ def scan_series(  # noqa: PLR0913
             events_to_scan = filtered
         seconds_to_boundary = float(roll_decision.get("seconds_to_boundary", 0.0)) if roll_decision else 0.0
         default_hourly_target = _default_hourly_target(now_utc)
-        target_hour = int(roll_decision.get("target_hour", default_hourly_target.hour)) if roll_decision else default_hourly_target.hour
+        target_hour = (
+            int(roll_decision.get("target_hour", default_hourly_target.hour))
+            if roll_decision
+            else default_hourly_target.hour
+        )
         target_time = time(target_hour % 24, 0)
         current_hour = int(roll_decision.get("current_hour", 0)) if roll_decision else 0
         event_hours = {
@@ -2431,6 +2439,7 @@ def _strategy_pmf_for_series(
             minutes_to_target=minutes_to_target,
             prev_close=snapshot.previous_close,
             event_tags=event_tags,
+            target_hour=hourly_target_time.hour,
         )
         pmf_values = index_strategy.hourly_pmf(strikes, inputs=inputs)
         metadata.update(

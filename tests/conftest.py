@@ -43,6 +43,7 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
     from kalshi_alpha.exec.pipelines import calendar as pipeline_calendar
     from kalshi_alpha.exec.runners import scan_ladders
+    from kalshi_alpha.exec.scanners import scan_index_close, scan_index_hourly
     from kalshi_alpha.strategies import claims as claims_strategy
     from kalshi_alpha.strategies import cpi as cpi_strategy
     from kalshi_alpha.strategies import index as index_strategy
@@ -104,6 +105,8 @@ def isolated_data_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tupl
     monkeypatch.setattr(index_hourly_strategy, "HOURLY_CALIBRATION_PATH", index_calib_root)
     monkeypatch.setattr(index_hourly_strategy, "NOON_CALIBRATION_PATH", index_calib_root)
     monkeypatch.setattr(index_close_strategy, "CLOSE_CALIBRATION_PATH", index_calib_root)
+    monkeypatch.setattr(scan_index_hourly, "HOURLY_CALIBRATION_PATH", index_calib_root)
+    monkeypatch.setattr(scan_index_close, "CLOSE_CALIBRATION_PATH", index_calib_root)
     monkeypatch.setattr(scan_ladders, "PROC_ROOT", proc_root)
     monkeypatch.setattr(scan_ladders, "RAW_ROOT", raw_root)
     monkeypatch.setattr(archiver, "RAW_ROOT", raw_root)

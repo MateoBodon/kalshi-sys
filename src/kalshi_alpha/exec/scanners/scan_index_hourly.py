@@ -57,26 +57,42 @@ def evaluate_hourly(  # noqa: PLR0913
 ) -> IndexScanResult:
     if len(strikes) != len(yes_prices):
         raise ValueError("strikes and prices must have equal length")
-    pmf = hourly_pmf(strikes, inputs)
-    survival = index_cdf.survival_map(strikes, pmf)
-    tail_lower = float(pmf[0].probability) if pmf else 0.0
-    tail_upper = float(pmf[-1].probability) if pmf else 0.0
+    variant = None
+    if getattr(inputs, "target_hour_et", None) is not None:
+        variant = f"{int(inputs.target_hour_et) % 24:02d}00"
     calibration = None
+    meta = resolve_index_series(inputs.series)
     try:
-        meta = resolve_index_series(inputs.series)
-        for horizon in ("hourly", "noon"):
+        calibration = index_cdf.load_calibration(
+            HOURLY_CALIBRATION_PATH,
+            meta.polygon_ticker,
+            horizon="hourly",
+            variant=variant,
+        )
+    except FileNotFoundError:
+        try:
+            calibration = index_cdf.load_calibration(
+                HOURLY_CALIBRATION_PATH,
+                meta.polygon_ticker,
+                horizon="hourly",
+                variant=None,
+            )
+        except Exception:  # pragma: no cover - defensive fallback
             try:
                 calibration = index_cdf.load_calibration(
                     HOURLY_CALIBRATION_PATH,
                     meta.polygon_ticker,
-                    horizon=horizon,
+                    horizon="noon",
+                    variant=None,
                 )
-                break
-            except FileNotFoundError:
-                continue
+            except Exception:
+                calibration = None
     except Exception:  # pragma: no cover - defensive fallback
         calibration = None
-
+    pmf = hourly_pmf(strikes, inputs, calibration=calibration)
+    survival = index_cdf.survival_map(strikes, pmf)
+    tail_lower = float(pmf[0].probability) if pmf else 0.0
+    tail_upper = float(pmf[-1].probability) if pmf else 0.0
     opportunities: list[QuoteOpportunity] = []
     for idx, (strike, yes_price) in enumerate(zip(strikes, yes_prices, strict=True)):
         model_prob = float(survival[float(strike)])

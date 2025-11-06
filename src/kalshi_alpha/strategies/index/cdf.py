@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.strategies import base
@@ -34,6 +34,10 @@ class SigmaCalibration:
     pit_bias: float | None = None
     late_day_variance: LateDayVariance | None = None
     event_tail: EventTail | None = None
+    sigma_now: float | None = None
+    m_tod_curve: Mapping[int, float] | None = None
+    micro_drift_curve: Mapping[int, float] | None = None
+    metadata: Mapping[str, Any] | None = None
 
     def sigma(self, minutes_to_target: int) -> float:
         return _nearest(self.sigma_curve, minutes_to_target)
@@ -58,7 +62,7 @@ def gaussian_pmf(
     min_std: float = 1.0,
 ) -> list[LadderBinProbability]:
     std_value = max(float(std), float(min_std))
-    return base.pmf_from_gaussian(strikes, mean, std_value)
+    return cast(list[LadderBinProbability], base.pmf_from_gaussian(strikes, mean, std_value))
 
 
 def survival_map(
@@ -104,8 +108,8 @@ def probability_between(
     return max(probability, 0.0)
 
 
-def load_calibration(path: Path, symbol: str, *, horizon: str) -> SigmaCalibration:
-    resolved_file = _resolve_calibration_file(path, symbol, horizon)
+def load_calibration(path: Path, symbol: str, *, horizon: str, variant: str | None = None) -> SigmaCalibration:
+    resolved_file = _resolve_calibration_file(path, symbol, horizon, variant=variant)
     return _load_calibration_cached(str(resolved_file))
 
 
@@ -169,7 +173,21 @@ def _extract_event_tail(data: Mapping[str, Any]) -> EventTail | None:
     return EventTail(tags=tags, kappa=kappa_value)
 
 
-@lru_cache(maxsize=12)
+def _extract_optional_curve(data: Mapping[str, Any], key: str) -> dict[int, float] | None:
+    section = data.get(key)
+    if not isinstance(section, Mapping):
+        return None
+    curve: dict[int, float] = {}
+    for minute, value in section.items():
+        try:
+            minute_int = int(minute)
+            curve[minute_int] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return curve or None
+
+
+@lru_cache(maxsize=32)
 def _load_calibration_cached(file_path: str) -> SigmaCalibration:
     path = Path(file_path)
     if not path.exists():
@@ -184,18 +202,51 @@ def _load_calibration_cached(file_path: str) -> SigmaCalibration:
         pit_bias=_extract_pit_bias(data),
         late_day_variance=_extract_late_day_variance(data),
         event_tail=_extract_event_tail(data),
+        sigma_now=_extract_sigma_now(data),
+        m_tod_curve=_extract_optional_curve(data, "m_tod"),
+        micro_drift_curve=_extract_optional_curve(data, "micro_drift"),
+        metadata=_extract_metadata(data),
     )
 
 
-def _resolve_calibration_file(path: Path, symbol: str, horizon: str) -> Path:
+def _extract_sigma_now(data: Mapping[str, Any]) -> float | None:
+    value = data.get("sigma_now")
+    if value is None:
+        return None
+    try:
+        return max(float(value), 0.0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_metadata(data: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    keys = ("source_window", "age", "checksum", "target", "series", "slug")
+    metadata: dict[str, Any] = {}
+    for key in keys:
+        if key in data:
+            metadata[key] = data[key]
+    return metadata or None
+
+
+def _resolve_calibration_file(path: Path, symbol: str, horizon: str, *, variant: str | None) -> Path:
     resolved = path.resolve()
     if resolved.is_file():
         return resolved
     slug = _symbol_slug(symbol)
-    file_path = resolved / slug / horizon / "params.json"
-    if not file_path.exists():
-        raise FileNotFoundError(f"Calibration params not found: {file_path}")
-    return file_path
+    base_dir = resolved / slug / horizon
+    if variant:
+        candidate = base_dir / variant / "params.json"
+        if candidate.exists():
+            return candidate
+    default_path = base_dir / "params.json"
+    if default_path.exists():
+        return default_path
+    # Legacy noon fallback for intraday calibrations
+    if horizon == "hourly":
+        legacy = resolved / slug / "noon" / "params.json"
+        if legacy.exists():
+            return legacy
+    raise FileNotFoundError(f"Calibration params not found for {symbol} horizon={horizon} variant={variant}")
 
 
 def _symbol_slug(symbol: str) -> str:

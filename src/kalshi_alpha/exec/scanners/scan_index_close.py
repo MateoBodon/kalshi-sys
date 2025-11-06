@@ -30,20 +30,21 @@ def evaluate_close(  # noqa: PLR0913
 ) -> IndexScanResult:
     if len(strikes) != len(yes_prices):
         raise ValueError("strikes and prices must have equal length")
-    pmf = close_pmf(strikes, inputs)
-    survival = index_cdf.survival_map(strikes, pmf)
-    tail_lower = float(pmf[0].probability) if pmf else 0.0
-    tail_upper = float(pmf[-1].probability) if pmf else 0.0
+    meta = resolve_index_series(inputs.series)
     calibration = None
     try:
-        meta = resolve_index_series(inputs.series)
         calibration = index_cdf.load_calibration(
             CLOSE_CALIBRATION_PATH,
             meta.polygon_ticker,
             horizon="close",
+            variant=None,
         )
     except Exception:  # pragma: no cover - defensive fallback
         calibration = None
+    pmf = close_pmf(strikes, inputs, calibration=calibration)
+    survival = index_cdf.survival_map(strikes, pmf)
+    tail_lower = float(pmf[0].probability) if pmf else 0.0
+    tail_upper = float(pmf[-1].probability) if pmf else 0.0
 
     opportunities: list[QuoteOpportunity] = []
     for idx, (strike, yes_price) in enumerate(zip(strikes, yes_prices, strict=True)):
