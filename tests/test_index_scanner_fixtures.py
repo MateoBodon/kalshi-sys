@@ -123,6 +123,23 @@ def test_stale_freshness_blocks_execution(
     }
     (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
 
+    configs_dir = tmp_path / "configs"
+    configs_dir.mkdir(parents=True, exist_ok=True)
+    legacy_config = "\n".join(
+        [
+            "data_freshness:",
+            "  - name: macro_feed",
+            "    namespace: macro/latest",
+            "    timestamp_field: as_of",
+            "    max_age_minutes: 10",
+            "    require_et: true",
+            "monitors:",
+            "  tz_not_et: 0",
+            "  non_monotone_ladders: 0",
+        ]
+    )
+    (configs_dir / "quality_gates.yaml").write_text(legacy_config + "\n", encoding="utf-8")
+
     monkeypatch.chdir(tmp_path)
     scan_ladders.main(
         [
@@ -136,6 +153,7 @@ def test_stale_freshness_blocks_execution(
             "--contracts",
             "1",
             "--maker-only",
+            "--report",
             "--quality-gates-config",
             str(gate_config_path),
             "--pal-policy",
@@ -159,7 +177,15 @@ def test_stale_freshness_blocks_execution(
     payload = json.loads(orders_path.read_text(encoding="utf-8"))
     cancel_entry = payload.get("cancel_all")
     assert cancel_entry is not None
-    assert cancel_entry.get("reason") == "quality_gate_no_go"
+    assert cancel_entry.get("reason") == "polygon_ws_stale"
+
+    report_dir = tmp_path / "reports" / "INXU"
+    report_files = sorted(report_dir.glob("*.md"))
+    assert report_files, "expected markdown report for INXU"
+    report_text = report_files[-1].read_text(encoding="utf-8")
+    assert "polygon_ws_freshness" in report_text
+    assert "ops_cancel_at" in report_text
+    assert "fee_path" in report_text
 
 
 def test_macro_stale_allows_execution_with_index_gates(
@@ -224,6 +250,7 @@ def test_macro_stale_allows_execution_with_index_gates(
             "--contracts",
             "1",
             "--maker-only",
+            "--report",
             "--quality-gates-config",
             str(gate_config_path),
             "--pal-policy",
@@ -243,6 +270,33 @@ def test_macro_stale_allows_execution_with_index_gates(
     proposals_payload = json.loads(proposal_files[-1].read_text(encoding="utf-8"))
     proposals = proposals_payload.get("proposals") or []
     assert proposals, "expected proposals when macro feeds are stale but polygon OK"
+    first = proposals[0]
+    metadata = first.get("metadata") or {}
+    components = metadata.get("ev_components")
+    assert components is not None
+    per_contract = components.get("per_contract") or {}
+    total = components.get("total") or {}
+    assert per_contract, "expected per-contract EV components"
+    assert total, "expected total EV components"
+    assert per_contract.get("gross") == pytest.approx(
+        per_contract.get("net", 0.0) + per_contract.get("fee", 0.0),
+        rel=1e-9,
+        abs=1e-9,
+    )
+    assert total.get("gross") == pytest.approx(
+        total.get("net", 0.0) + total.get("fee", 0.0),
+        rel=1e-9,
+        abs=1e-9,
+    )
+    assert components.get("liquidity") == "maker"
+
+    report_dir = tmp_path / "reports" / "INXU"
+    report_files = sorted(report_dir.glob("*.md"))
+    assert report_files, "expected markdown report for INXU"
+    report_text = report_files[-1].read_text(encoding="utf-8")
+    assert "ops_cancel_at" in report_text
+    assert "polygon_ws_freshness" in report_text
+    assert "fee_path" in report_text
 
 
 def test_clock_skew_blocks_execution(
