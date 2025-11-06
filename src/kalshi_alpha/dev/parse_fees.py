@@ -12,6 +12,7 @@ from kalshi_alpha.core import fees
 
 PDF_DEFAULT_PATH = fees.ROOT / "docs" / "kalshi-fee-schedule.pdf"
 OUTPUT_DEFAULT_PATH = fees.ROOT / "data" / "proc" / "state" / "fees.json"
+REFERENCE_DEFAULT_PATH = fees.FEE_CONFIG_PATH
 
 MAKER_PATTERN = re.compile(r"(?i)maker[^0-9]*([0-9]+(?:\.[0-9]+)?)")
 TAKER_PATTERN = re.compile(r"(?i)taker[^0-9]*([0-9]+(?:\.[0-9]+)?)")
@@ -99,7 +100,10 @@ def _parse_brackets(text: str) -> list[dict[str, Any]]:
 
 def parse_fee_schedule(pdf_path: Path, *, base_config: dict[str, Any] | None = None) -> dict[str, Any]:
     text = _normalize_text(pdf_path.read_bytes())
-    config = dict(base_config or fees._load_fee_config(fees.FEE_CONFIG_PATH))
+    if base_config is None:
+        fees._load_fee_config.cache_clear()
+        base_config = fees._load_fee_config(fees.FEE_CONFIG_PATH)
+    config = dict(base_config)
 
     config["maker_rate"] = _extract_rate(MAKER_PATTERN, text, float(config["maker_rate"]))
     config["taker_rate"] = _extract_rate(TAKER_PATTERN, text, float(config["taker_rate"]))
@@ -138,20 +142,37 @@ def main(argv: list[str] | None = None) -> Path:
     parser = argparse.ArgumentParser(description="Parse Kalshi fee schedule PDF into JSON format.")
     parser.add_argument("--pdf", type=Path, default=PDF_DEFAULT_PATH, help="Input PDF path.")
     parser.add_argument("--output", type=Path, default=OUTPUT_DEFAULT_PATH, help="Output JSON path.")
+    parser.add_argument(
+        "--reference",
+        type=Path,
+        default=REFERENCE_DEFAULT_PATH,
+        help="Reference JSON path (default: data/reference/kalshi_fee_schedule.json).",
+    )
     parser.add_argument("--quiet", action="store_true", help="Suppress status output.")
     args = parser.parse_args(argv)
 
     if not args.pdf.exists():
-        config = fees._load_fee_config(fees.FEE_CONFIG_PATH)
+        fees._load_fee_config.cache_clear()
+        config = fees._load_fee_config(args.reference)
     else:
-        base_config = fees._load_fee_config(fees.FEE_CONFIG_PATH)
+        fees._load_fee_config.cache_clear()
+        base_config = fees._load_fee_config(args.reference)
         config = parse_fee_schedule(args.pdf, base_config=base_config)
 
     output_path = args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
+    payload = json.dumps(config, indent=2, sort_keys=True)
+    output_path.write_text(payload, encoding="utf-8")
+
+    reference_path = args.reference
+    reference_path.parent.mkdir(parents=True, exist_ok=True)
+    if reference_path != output_path:
+        reference_path.write_text(payload, encoding="utf-8")
+
     if not args.quiet:
         print(f"Wrote Kalshi fee schedule to {output_path}")
+        if reference_path != output_path:
+            print(f"Updated canonical fee schedule at {reference_path}")
     return output_path
 
 

@@ -31,6 +31,13 @@ def test_half_rate_path() -> None:
     assert half == Decimal("0.80")
 
 
+@pytest.mark.parametrize("series", ["INX", "INXU", "NASDAQ100", "NASDAQ100U"])
+def test_index_series_half_rate_goldens(series: str) -> None:
+    schedule = FeeSchedule()
+    fee = schedule.taker_fee(100, 0.50, series=series)
+    assert fee == Decimal("0.88")
+
+
 def test_series_override_rates() -> None:
     config = {
         "effective_date": "2025-10-01",
@@ -160,6 +167,8 @@ def test_default_fee_config_schema() -> None:
     assert config["maker_rate"] == 0.0175
     assert config["taker_rate"] == 0.07
     assert config["half_rate_keywords"] == ["INX", "NASDAQ100"]
+    for series in ("INX", "INXU", "NASDAQ100", "NASDAQ100U"):
+        assert series in config["series_half_rate"]
     assert all(not series.startswith(("INX", "NASDAQ100")) for series in config["maker_series"])
     series_overrides = {entry["series"]: entry for entry in config["series_overrides"]}
     for series in ("INX", "INXU", "NASDAQ100", "NASDAQ100U"):

@@ -2,7 +2,12 @@
 
 GO series: 0/4
 
-Data Freshness: OK
+Data Freshness: NO-GO
+- Freshness Reasons:
+  - data_freshness_alert
+  - stale_feed:dol_claims.latest_report
+  - stale_feed:treasury_10y.daily
+  - stale_feed:aaa_gas.daily
 
 ## INXU — NO-GO
 - Fills: 0

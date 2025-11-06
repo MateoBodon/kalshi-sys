@@ -265,6 +265,22 @@ Pipeline steps per run:
 - `python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<contract>`
 - `python -m kalshi_alpha.exec.runners.scan_ladders --series TNEY --offline --fixtures-root tests/data_fixtures --ev-honesty-shrink 0.9 --quiet`
 
+### Hourly Index Run (13:00 ET — 2025-11-06)
+- `PYTHONPATH=src python -m kalshi_alpha.exec.collectors.polygon_ws --symbols I:SPX,I:NDX --max-runtime 120`  
+  Captured Massive indices websocket for ~2 min to refresh freshness heartbeat; wrote `reports/_artifacts/monitors/freshness.json` (status `ALERT`, stale feeds `dol_claims.latest_report`, `treasury_10y.daily`, `aaa_gas.daily`) and parquet heartbeat `data/proc/polygon_index/snapshot_2025-11-04.parquet`. Raw snapshots landed under `data/raw/2025/11/06/polygon_index/20251106T*.json.json` for SPX/NDX + ladder aliases.
+- `PYTHONPATH=src:. python -m jobs.calibrate_hourly --symbols I:SPX I:NDX --months 12`  
+  Rebuilt hourly calibrations at `data/proc/calib/index/spx/hourly/params.json` and `data/proc/calib/index/ndx/hourly/params.json`.
+- `PYTHONPATH=src:. python -m jobs.calibrate_close --symbols I:SPX I:NDX --months 12`  
+  Updated close calibrations at `data/proc/calib/index/spx/close/params.json` and `data/proc/calib/index/ndx/close/params.json`.
+- `PYTHONPATH=src:. python -m kalshi_alpha.exec.scanners.scan_index_hourly --online --series INXU NASDAQ100U --report --paper-ledger --quality-gates-config configs/quality_gates.index.yaml --target-hour 13`  
+  Generated fresh reports `reports/INXU/2025-11-06.md`, `reports/NASDAQ100U/2025-11-06.md` plus proposal bundles in `exec/proposals/{INXU,NASDAQ100U}/2025-11-06*.json` and EV honesty CSVs under `reports/_artifacts/`.
+- `PYTHONPATH=src:. python -m kalshi_alpha.exec.ledger.aggregate`  
+  Aggregated paper ledger rows into `data/proc/ledger_all.parquet`.
+- `PYTHONPATH=src:. python -m kalshi_alpha.exec.scoreboard --window 7 --window 30`  
+  Regenerated scoreboards (`reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`), both reflecting `NO-GO` because macro feeds remain stale per freshness monitor.
+- `PYTHONPATH=src:. python -m kalshi_alpha.exec.pilot_readiness`  
+  Updated `reports/pilot_readiness.md` (all index series `NO-GO`, reasons `insufficient_data` + freshness alert). Retain the latest `reports/_artifacts/pilot_session.json` for auditing.
+
 ## TENY Smoke Harness
 1. `python -m kalshi_alpha.dev.ws_smoke --tickers TNEY-<today> --run-seconds 600`
    - Pass: JSONL snapshots appended under `data/raw/kalshi/orderbook/TNEY-<today>/` and `data/proc/kalshi/orderbook_imbalance/TNEY-<today>.json` timestamp refreshes within two minutes.

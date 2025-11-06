@@ -1,17 +1,10 @@
 {
   "effective_date": "2025-10-01",
-  "maker_rate": 0.0175,
-  "taker_rate": 0.07,
-  "series_half_rate": [
-    "INX",
-    "INXU",
-    "NASDAQ100",
-    "NASDAQ100U"
-  ],
   "half_rate_keywords": [
     "INX",
     "NASDAQ100"
   ],
+  "maker_rate": 0.0175,
   "maker_series": [
     "CLAIMS",
     "CPI",
@@ -19,26 +12,35 @@
     "TNEY",
     "WEATHER"
   ],
+  "series_half_rate": [
+    "INX",
+    "INXU",
+    "NASDAQ100",
+    "NASDAQ100U",
+    "SP500",
+    "SPX"
+  ],
   "series_overrides": [
     {
+      "maker_rate": 0.0,
       "series": "INX",
-      "maker_rate": 0.0,
       "taker_rate": 0.035
     },
     {
+      "maker_rate": 0.0,
       "series": "INXU",
-      "maker_rate": 0.0,
       "taker_rate": 0.035
     },
     {
+      "maker_rate": 0.0,
       "series": "NASDAQ100",
-      "maker_rate": 0.0,
       "taker_rate": 0.035
     },
     {
-      "series": "NASDAQ100U",
       "maker_rate": 0.0,
+      "series": "NASDAQ100U",
       "taker_rate": 0.035
     }
-  ]
+  ],
+  "taker_rate": 0.07
 }
