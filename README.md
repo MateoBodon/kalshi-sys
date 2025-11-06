@@ -22,11 +22,13 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 - **State management (`exec/state`)** persists outstanding orders under `data/proc/state/orders.json` for restart recovery and reporting.
 - **Heartbeat & kill-switch (`exec/heartbeat.py`)** emit JSON heartbeats and gate execution when stale; presence of the kill-switch file forces NO-GO + cancel-all intent.
 - **Index ladder ops (`INX`, `INXU`, `NASDAQ100`, `NASDAQ100U`)** add hourly-U rotation with T−2s cancel-all, websocket freshness enforcement, ET clock-skew guards, and `Fill & Slippage` metrics in reports. Use `scripts/polygon_dump.py` or `scripts/make_index_fixtures.sh` to materialize Polygon minutes (11:45–12:05 ET and 15:45–16:05 ET) into `tests/data_fixtures/index/` for deterministic math + scanner tests.
+- **Index scanners (`exec/scanners/scan_index_hourly.py`, `scan_index_close.py`)** loop each target window (10:00–16:00 ET hourly plus the 16:00 close) and drop per-window CSV/Markdown under `reports/index_ladders/<HHMM>/` with EV-after-fees, α honesty, slippage drift, freshness, and calibration-age metadata.
+- **Pilot runners (`exec/runners/pilot_hourly.py`, `pilot_close.py`)** wrap `scan_ladders` with maker-only guards, 1-lot sizing, ≤2 unique bins, PAL/loss caps, kill-switch enforcement, and optional paper-ledger mode for dry rehearsals or controlled live sessions.
 
 ### Reporting & Monitoring
 - **Markdown reports (`reports/<SERIES>/`)** include GO/NO-GO badge, Live Pilot header, exposure stats, mispricings, replay scorecards, and outstanding order counts.
-- **Pilot readiness dashboard** (`reports/pilot_readiness.md`) summarizes the last 7 days across GO rate, EV after fees, fill realism (observed vs α), and replay deltas.
-- **Scoreboard tooling (`exec/scoreboard.py`)** produces rolling 7/30‑day scorecards and surfaces gate stats and replay metrics.
+- **Pilot readiness dashboard** (`reports/pilot_readiness.md`) summarizes the last 7 days across GO rate, EV after fees, fill realism (observed vs α), replay deltas, and calibration age.
+- **Scoreboard tooling (`exec/scoreboard.py`)** produces rolling 7/30‑day scorecards, surfaces gate stats and replay metrics, and now stamps GO/NO-GO decisions with fill, Δbps, α-gap, slippage drift, freshness, and calibration-age context.
 
 ### Safety Net
 - Quality gates merge model monitors with drawdown checks and heartbeat freshness.
@@ -130,6 +132,7 @@ Common targets:
   - `--force-run` (DRY broker only) now always produces a markdown report labelled **FORCE-RUN (DRY)** so manual reviews match production scans.
 - `python -m kalshi_alpha.exec.pipelines.preflight --mode ...` – quick ET-aware window + gate check (see “Window Gating & Preflight”).
 - `python -m kalshi_alpha.exec.scoreboard` – regenerate scoreboard + pilot readiness reports.
+- `make pilot-hourly BROKER=dry REPORT=1` – invoke the hourly pilot runner for the next target hour (set `BROKER=live ACK=1` once credentials, kill-switch, and readiness gates are satisfied).
 
 ---
 
