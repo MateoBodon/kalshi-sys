@@ -46,6 +46,29 @@ source ~/.zshrc
 
 Replace the placeholder PEM path with your actual location, approve the Keychain prompts with “Always Allow”, and future shells will expose the correct environment variables without re-entering secrets. Rotate keys by updating the two Keychain entries (repeat the `security add-generic-password ... -w NEW_VALUE` commands).
 
+#### FinFeed API credentials (Polygon/Kalshi replay support)
+- API key is stored under Keychain service `finfeed`, account `API_KEY`.
+
+  ```bash
+  security add-generic-password \
+    -s "finfeed" \
+    -a "API_KEY" \
+    -w "6f0b172f-a985-4d6c-abd4-a247ab915638" \
+    -U
+  ```
+
+- HMAC signing secret for JWT auth is stored under the same service with account `JWT_SECRET`.
+
+  ```bash
+  security add-generic-password \
+    -s "finfeed" \
+    -a "JWT_SECRET" \
+    -w "0BDD700E6155C5D59A3C1E2F238D80923802D29697C36A38D80188677B3453AE" \
+    -U
+  ```
+
+Retrieve them programmatically with `security find-generic-password -s finfeed -a <ACCOUNT> -w` before generating short-lived Bearer tokens for FinFeed’s REST calls. Never commit the raw values; rotate by re-running the `add-generic-password` command with the new secret.
+
 ## Offline vs. Online Data
 - **Offline** mode uses fixtures under `tests/fixtures` (driver data) and `tests/data_fixtures` (public Kalshi payloads). This is the default for CI and testing.
 - **Online** mode hits live endpoints. Use `--online` flags for scanner or pipeline commands.
