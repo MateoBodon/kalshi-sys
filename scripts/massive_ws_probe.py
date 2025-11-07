@@ -9,7 +9,7 @@ from kalshi_alpha.utils.keys import load_polygon_api_key
 async def main() -> None:
     api_key = load_polygon_api_key()
     uri = "wss://socket.massive.com/indices"
-    ws: websockets.WebSocketClientProtocol | None = None
+    ws: websockets.ClientConnection | None = None
     try:
         ws = await websockets.connect(
             uri,
@@ -30,7 +30,7 @@ async def main() -> None:
         except asyncio.TimeoutError:
             print("TIMEOUT: no data in 5s, closing...")
     finally:
-        if ws is not None and not ws.closed:
+        if ws is not None:
             await ws.close()
 
 
