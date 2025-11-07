@@ -23,10 +23,12 @@ async def main() -> None:
         print("SUB:", await ws.recv())
         try:
             for _ in range(10):
-                msg = await ws.recv()
+                msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
                 print("MSG:", msg)
         except websockets.ConnectionClosed as exc:
             print("CLOSED:", exc.code, exc.reason)
+        except asyncio.TimeoutError:
+            print("TIMEOUT: no data in 5s, closing...")
     finally:
         if ws is not None and not ws.closed:
             await ws.close()
