@@ -1,44 +1,48 @@
 {
-  "generated_at": "2025-11-06T19:31:06.023337+00:00",
-  "message": "All required feeds fresh",
+  "generated_at": "2025-11-06T21:22:35.027739+00:00",
+  "message": "Stale feeds: polygon_index.websocket",
   "metrics": {
     "feeds": [
       {
-        "age_minutes": 0.0,
+        "age_minutes": 0.184,
         "details": {
-          "age_seconds": 0.023,
-          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T193106_NASDAQ100U_snapshot.json.json",
-          "threshold_seconds": 2.0
+          "age_seconds": 11.028,
+          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T212224_NASDAQ100_snapshot.json.json",
+          "threshold_seconds": 10.0
         },
         "id": "polygon_index.websocket",
         "label": "Massive index websocket",
-        "last_ts": "2025-11-06T19:31:06+00:00",
-        "ok": true,
+        "last_ts": "2025-11-06T21:22:24+00:00",
+        "ok": false,
+        "reason": "STALE>10.0s",
         "required": true
       }
     ],
-    "generated_at": "2025-11-06T19:31:06.023337+00:00",
+    "generated_at": "2025-11-06T21:22:35.027739+00:00",
     "required_feeds": [
       "polygon_index.websocket"
     ],
-    "required_feeds_ok": true,
-    "stale_feeds": [],
+    "required_feeds_ok": false,
+    "stale_feeds": [
+      "polygon_index.websocket"
+    ],
     "table": [
       {
-        "age_minutes": 0.0,
+        "age_minutes": 0.184,
         "details": {
-          "age_seconds": 0.023,
-          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T193106_NASDAQ100U_snapshot.json.json",
-          "threshold_seconds": 2.0
+          "age_seconds": 11.028,
+          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/06/polygon_index/20251106T212224_NASDAQ100_snapshot.json.json",
+          "threshold_seconds": 10.0
         },
         "id": "polygon_index.websocket",
         "label": "Massive index websocket",
-        "last_ts": "2025-11-06T19:31:06+00:00",
-        "ok": true,
+        "last_ts": "2025-11-06T21:22:24+00:00",
+        "ok": false,
+        "reason": "STALE>10.0s",
         "required": true
       }
     ]
   },
   "name": "data_freshness",
-  "status": "OK"
+  "status": "ALERT"
 }

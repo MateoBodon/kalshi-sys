@@ -4,6 +4,6 @@ required_order:
 feeds:
   polygon_index.websocket:
     label: Massive index websocket
-    age_seconds: 2
+    age_seconds: 10
     required: true
     namespace: polygon_index

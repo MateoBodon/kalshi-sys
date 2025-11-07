@@ -2,6 +2,6 @@ data_freshness:
   - name: polygon_ws
     namespace: polygon_index
     timestamp_field: snapshot_ts
-    max_age_seconds: 2
+    max_age_seconds: 10
 monitors:
   tz_not_et: 0

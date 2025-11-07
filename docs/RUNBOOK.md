@@ -99,8 +99,9 @@ Retrieve them programmatically with `security find-generic-password -s finfeed -
 **Collector**
 - Run the Massive indices websocket alongside trading hours so the freshness gate stays green:  
   `nohup ./scripts/run_polygon_ws.sh > logs/polygon_ws.log 2>&1 &`  
-  The wrapper sources `.venv`, subscribes to `AM.I:SPX` and `AM.I:NDX`, and passes `--freshness-config configs/freshness.index.yaml` so only the `polygon_index.websocket` feed is enforced. Stop or rotate it with `pkill -f kalshi_alpha.exec.collectors.polygon_ws`.
-- Freshness artifacts now only track the index feed: `reports/_artifacts/monitors/freshness.json`.
+  The wrapper sources `.venv`, subscribes to the per-second `A.{symbol}` channel by default (`POLYGON_CHANNEL_PREFIX=AM` keeps the per-minute stream as a fallback), writes heartbeat parquet to `data/proc/polygon_index/snapshot*.parquet`, and regenerates `reports/_artifacts/monitors/freshness.json` after each tick.
+- The collector now performs a REST value-feed fallback if the websocket stalls for ~15 s and emits cadence logs whenever consecutive ticks are separated by more than 30 s. Check `logs/polygon_ws.log` for `[polygon-ws] info: ... cadence` lines when monitoring the feed.
+- Freshness artifacts track only the polygon index feed and the quality gate allows up to 10 s of staleness (`configs/quality_gates.index.yaml`). Adjust `--value-fallback-seconds` / `--cadence-log-threshold` via CLI when scheduling the collector.
 
 **Calibration & scan commands**
 ```

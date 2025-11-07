@@ -1,0 +1,31 @@
+import asyncio
+import json
+
+import websockets
+
+from kalshi_alpha.utils.keys import load_polygon_api_key
+
+
+async def main() -> None:
+    api_key = load_polygon_api_key()
+    uri = "wss://socket.massive.com/indices"
+    async with websockets.connect(
+        uri,
+        ping_interval=60,
+        ping_timeout=60,
+        close_timeout=5,
+    ) as ws:
+        await ws.send(json.dumps({"action": "auth", "params": api_key}))
+        print("AUTH:", await ws.recv())
+        await ws.send(json.dumps({"action": "subscribe", "params": "A.I:SPX,A.I:NDX"}))
+        print("SUB:", await ws.recv())
+        try:
+            for _ in range(10):
+                msg = await ws.recv()
+                print("MSG:", msg)
+        except websockets.ConnectionClosed as exc:
+            print("CLOSED:", exc.code, exc.reason)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

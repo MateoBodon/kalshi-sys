@@ -4,32 +4,34 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import ssl
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Sequence
+from typing import Any
 
 import certifi
 import polars as pl
 import websockets
 from websockets.asyncio.client import ClientConnection
 
-from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot
+from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, PolygonIndicesClient
 from kalshi_alpha.drivers.polygon_index.snapshots import write_snapshot
 from kalshi_alpha.exec.monitors import freshness
 from kalshi_alpha.utils.keys import load_polygon_api_key
 
 DEFAULT_WS_URL = "wss://socket.massive.com/indices"
 DEFAULT_SYMBOLS = ("I:SPX", "I:NDX")
-DEFAULT_CHANNEL = "AM"
+DEFAULT_CHANNEL = "A"
 CHANNEL_EVENT_ALIASES: dict[str, tuple[str, ...]] = {
-    "AM": ("AM", "XA", "A"),
+    "A": ("A",),
+    "AM": ("AM", "XA"),
     "AS": ("AS", "XS"),
 }
-DEFAULT_FRESHNESS_CONFIG = Path("/tmp/index_freshness.yaml")
+DEFAULT_FRESHNESS_CONFIG = Path("/tmp/index_freshness.yaml")  # noqa: S108
 DEFAULT_FRESHNESS_OUTPUT = Path("reports/_artifacts/monitors/freshness.json")
 DEFAULT_PROC_PARQUET = Path("data/proc/polygon_index/snapshot_2025-11-04.parquet")
 
@@ -47,6 +49,30 @@ class CollectorConfig:
     proc_parquet: Path
     sleep_seconds: float
     max_runtime: float | None
+    cadence_log_threshold: float
+    value_fallback_seconds: float
+
+
+class CadenceTracker:
+    def __init__(self, *, log_threshold_seconds: float) -> None:
+        self._threshold = max(0.0, float(log_threshold_seconds))
+        self._last_tick: dict[str, datetime] = {}
+
+    @property
+    def last_tick(self) -> dict[str, datetime]:
+        return self._last_tick
+
+    def update(self, symbol: str, tick_ts: datetime) -> None:
+        previous = self._last_tick.get(symbol)
+        self._last_tick[symbol] = tick_ts
+        if previous is None or self._threshold <= 0.0:
+            return
+        delta = (tick_ts - previous).total_seconds()
+        if delta >= self._threshold:
+            print(
+                f"[polygon-ws] info: {symbol} cadence delta={delta:.3f}s",
+                flush=True,
+            )
 
 
 def _resolved_aliases(raw: Sequence[str]) -> AliasMap:
@@ -104,6 +130,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> CollectorConfig:
         help="Parquet heartbeat updated per tick for quality gates.",
     )
     parser.add_argument(
+        "--cadence-log-threshold",
+        type=float,
+        default=30.0,
+        help="Log a cadence message when successive ticks for a symbol exceed this many seconds.",
+    )
+    parser.add_argument(
+        "--value-fallback-seconds",
+        type=float,
+        default=15.0,
+        help="If no websocket tick arrives within this many seconds, fetch the REST snapshot as a fallback.",
+    )
+    parser.add_argument(
         "--sleep-seconds",
         type=float,
         default=0.25,
@@ -152,6 +190,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> CollectorConfig:
         proc_parquet=args.proc_parquet,
         sleep_seconds=max(0.1, float(args.sleep_seconds)),
         max_runtime=float(args.max_runtime) if args.max_runtime is not None else None,
+        cadence_log_threshold=max(0.0, float(args.cadence_log_threshold)),
+        value_fallback_seconds=max(0.0, float(args.value_fallback_seconds)),
     )
 
 
@@ -164,7 +204,7 @@ def _normalize_entries(payload: object) -> Iterable[dict[str, Any]]:
                 yield entry
 
 
-def _process_entries(
+def _process_entries(  # noqa: PLR0913
     *,
     entries: Iterable[dict[str, Any]],
     alias_map: AliasMap,
@@ -173,6 +213,7 @@ def _process_entries(
     proc_parquet: Path,
     freshness_config: Path,
     freshness_output: Path,
+    tracker: CadenceTracker,
 ) -> None:
     latest_ts: datetime | None = None
     normalized_prefix = channel_prefix.upper()
@@ -212,6 +253,7 @@ def _process_entries(
                 )
             )
         latest_ts = tick_ts if latest_ts is None else max(latest_ts, tick_ts)
+        tracker.update(symbol, tick_ts)
 
     if latest_ts is None:
         return
@@ -291,13 +333,17 @@ async def _connect_once(
     factory = connection_factory or websockets.connect
     channel_prefix = config.channel_prefix
     subscribe_payload = ",".join(f"{channel_prefix}.{symbol}" for symbol in config.alias_map)
-    async with factory(
-        config.ws_url,
-        ping_interval=60.0,
-        ping_timeout=60.0,
-        ssl=ssl_context,
-    ) as websocket:
-        await websocket.send(json.dumps({"action": "auth", "params": config.api_key}))
+    tracker = CadenceTracker(log_threshold_seconds=config.cadence_log_threshold)
+    fallback_task: asyncio.Task[None] | None = None
+    client: PolygonIndicesClient | None = None
+    try:
+        async with factory(
+            config.ws_url,
+            ping_interval=60.0,
+            ping_timeout=60.0,
+            ssl=ssl_context,
+        ) as websocket:
+            await websocket.send(json.dumps({"action": "auth", "params": config.api_key}))
         prebuffer = await _await_status(
             websocket,
             expected={"auth_success", "authenticated"},
@@ -311,6 +357,22 @@ async def _connect_once(
         )
 
         start = datetime.now(tz=UTC).timestamp()
+
+        async def _maybe_start_fallback() -> None:
+            nonlocal fallback_task, client
+            if fallback_task is not None:
+                return
+            client = PolygonIndicesClient(api_key=config.api_key)
+            fallback_task = asyncio.create_task(
+                _value_fallback_loop(
+                    config=config,
+                    tracker=tracker,
+                    client=client,
+                )
+            )
+
+        await _maybe_start_fallback()
+
         for payload in prebuffer:
             now = datetime.now(tz=UTC)
             _process_entries(
@@ -321,6 +383,7 @@ async def _connect_once(
                 proc_parquet=config.proc_parquet,
                 freshness_config=config.freshness_config,
                 freshness_output=config.freshness_output,
+                tracker=tracker,
             )
         async for raw in websocket:
             now = datetime.now(tz=UTC)
@@ -347,9 +410,17 @@ async def _connect_once(
                 proc_parquet=config.proc_parquet,
                 freshness_config=config.freshness_config,
                 freshness_output=config.freshness_output,
+                tracker=tracker,
             )
             if config.max_runtime is not None and (now.timestamp() - start) >= config.max_runtime:
                 break
+    finally:
+        if fallback_task is not None:
+            fallback_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await fallback_task
+        if client is not None:
+            client._session.close()
 
 
 async def _run_forever(config: CollectorConfig) -> None:
@@ -379,6 +450,64 @@ def main(argv: Sequence[str] | None = None) -> None:
         asyncio.run(_run_forever(config))
     except KeyboardInterrupt:  # pragma: no cover - interactive run
         return
+
+
+async def _value_fallback_loop(
+    *,
+    config: CollectorConfig,
+    tracker: CadenceTracker,
+    client: PolygonIndicesClient,
+) -> None:
+    if config.value_fallback_seconds <= 0:
+        return
+    interval = float(config.value_fallback_seconds)
+    while True:
+        await asyncio.sleep(interval)
+        now = datetime.now(tz=UTC)
+        stale_symbols: list[str] = []
+        for symbol in config.alias_map:
+            last = tracker.last_tick.get(symbol)
+            if last is None or (now - last).total_seconds() >= interval:
+                stale_symbols.append(symbol)
+        if not stale_symbols:
+            continue
+        for symbol in stale_symbols:
+            try:
+                snapshot = client.fetch_snapshot(symbol)
+            except Exception as exc:  # pragma: no cover - network fallback
+                print(f"[polygon-ws] warning: fallback snapshot failed for {symbol}: {exc}", flush=True)
+                continue
+            tick_ts = snapshot.timestamp or now
+            tick_age = (now - tick_ts).total_seconds()
+            if tick_age >= interval or tick_age < 0:
+                tick_ts = now
+            for alias in config.alias_map.get(symbol, (symbol,)):
+                write_snapshot(
+                    IndexSnapshot(
+                        ticker=alias,
+                        last_price=snapshot.last_price,
+                        change=snapshot.change,
+                        change_percent=snapshot.change_percent,
+                        previous_close=snapshot.previous_close,
+                        timestamp=tick_ts,
+                    )
+                )
+            tracker.update(symbol, tick_ts)
+            print(f"[polygon-ws] info: fallback snapshot refreshed {symbol}", flush=True)
+            frame = pl.DataFrame(
+                {
+                    "snapshot_ts": [tick_ts],
+                    "generated_at": [now],
+                    "source": ["massive_ws_fallback"],
+                }
+            )
+            config.proc_parquet.parent.mkdir(parents=True, exist_ok=True)
+            frame.write_parquet(config.proc_parquet)
+            freshness.write_freshness_artifact(
+                config_path=config.freshness_config,
+                output_path=config.freshness_output,
+                now=now,
+            )
 
 
 __all__ = ["main"]

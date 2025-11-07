@@ -16,6 +16,7 @@ from kalshi_alpha.exec.collectors.polygon_ws import (
     DEFAULT_FRESHNESS_OUTPUT,
     DEFAULT_PROC_PARQUET,
     DEFAULT_SYMBOLS,
+    CadenceTracker,
     _normalize_entries,
     _process_entries,
     _resolved_aliases,
@@ -124,6 +125,7 @@ def _run_replay(config: ReplayConfig) -> None:
     }
 
     previous_ts: datetime | None = None
+    tracker = CadenceTracker(log_threshold_seconds=0.0)
     for record in filtered:
         if previous_ts is not None and config.speed > 0:
             delta = max((record.timestamp - previous_ts).total_seconds(), 0.0)
@@ -133,6 +135,7 @@ def _run_replay(config: ReplayConfig) -> None:
             payload=record.payload,
             timestamp=record.timestamp,
             config=config,
+            tracker=tracker,
         )
         previous_ts = record.timestamp
         summary["messages_processed"] += 1
@@ -146,7 +149,7 @@ def _run_replay(config: ReplayConfig) -> None:
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _replay_step(*, payload: dict[str, object], timestamp: datetime, config: ReplayConfig) -> None:
+def _replay_step(*, payload: dict[str, object], timestamp: datetime, config: ReplayConfig, tracker: polygon_ws.CadenceTracker) -> None:
     entries = _normalize_entries(payload)
     now_utc = timestamp.astimezone(UTC)
     _process_entries(
@@ -157,6 +160,7 @@ def _replay_step(*, payload: dict[str, object], timestamp: datetime, config: Rep
         proc_parquet=config.proc_parquet,
         freshness_config=config.freshness_config,
         freshness_output=config.freshness_output,
+        tracker=tracker,
     )
 
 

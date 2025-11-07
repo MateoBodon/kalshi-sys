@@ -39,6 +39,7 @@ def test_process_entries_writes_snapshots_and_freshness(monkeypatch, tmp_path: P
         "s": 1_700_000_000_000,
         "e": 1_700_000_060_000,
     }
+    tracker = polygon_ws.CadenceTracker(log_threshold_seconds=60.0)
     polygon_ws._process_entries(  # type: ignore[attr-defined]
         entries=polygon_ws._normalize_entries(payload),
         alias_map={"I:SPX": ("INX", "INXU")},
@@ -47,6 +48,7 @@ def test_process_entries_writes_snapshots_and_freshness(monkeypatch, tmp_path: P
         proc_parquet=proc_parquet,
         freshness_config=cfg_path,
         freshness_output=output_path,
+        tracker=tracker,
     )
 
     assert len(captured) == 2
@@ -82,6 +84,7 @@ def test_process_entries_updates_default_artifacts(monkeypatch: pytest.MonkeyPat
         "c": 5000.0,
         "s": 1_700_000_123_000,
     }
+    tracker = polygon_ws.CadenceTracker(log_threshold_seconds=60.0)
     polygon_ws._process_entries(  # type: ignore[attr-defined]
         entries=polygon_ws._normalize_entries(payload),
         alias_map={"I:SPX": ("INX",)},
@@ -90,6 +93,7 @@ def test_process_entries_updates_default_artifacts(monkeypatch: pytest.MonkeyPat
         proc_parquet=proc_parquet,
         freshness_config=Path("configs/freshness.yaml"),
         freshness_output=freshness_output,
+        tracker=tracker,
     )
 
     assert captured  # snapshot written

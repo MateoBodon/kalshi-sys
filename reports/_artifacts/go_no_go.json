@@ -1,1 +1,9 @@
-{"go": true, "reasons": []}
+{
+  "go": false,
+  "reasons": [
+    "data_freshness.polygon_ws.stale:0.00h>0.00h",
+    "polygon_ws_stale",
+    "STALE_FEEDS",
+    "monitors_stale"
+  ]
+}
