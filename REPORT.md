@@ -1,9 +1,10 @@
-# Execution Snapshot — 2025-11-02
+# Execution Snapshot — 2025-11-10
 
-- Generated scoreboards via `make report` (7-day and 30-day Markdown written to `reports/`).
-- Telemetry sink exercised with `make telemetry-smoke`; sample JSONL rows appended in `data/raw/kalshi/` for log-pipeline validation.
-- Calibration state refreshed: `data/proc/state/fill_alpha.json` captures CPI/TENY alphas, `data/proc/state/slippage.json` stores the fitted depth curve.
-- Risk guardrails verified locally with `pytest tests/test_config_guardrails.py`; CI will fail if PAL/portfolio/quality gates are loosened.
+- **Fees:** added `configs/fees.json` (versioned indices taker coefficients + rounding metadata) and a dedicated loader under `kalshi_alpha.exec.fees`. Scanner metadata now reports the config path and EV components use true per-order rounding. Unit coverage: `tests/test_exec_fees.py` (1/2/100/1000-lot goldens).
+- **Scheduler & safety:** introduced `kalshi_alpha.sched.windows` (US/Eastern hourly + close windows). Scanner emits `scheduler_window` and auto issues `scheduler_t_minus_2s` cancel-all before each target. Maker-only is the default; taker paths require `--allow-taker`.
+- **Freshness sentry:** `kalshi_alpha.data.ws_sentry.WSFreshnessSentry` powers the new final-minute guard. When `ws_freshness_age_ms > 700` inside the last minute, scanner enters `polygon_ws_final_minute_stale`, clears proposals, and marks cancel-all. Scoreboards now surface Polygon WS latency in the header (see `reports/scoreboard_7d.md`).
+- **Docs & ops:** published `.env.local.example` plus per-window runbooks (`docs/runbooks/hourly.md`, `docs/runbooks/eod.md`) covering scheduler timings, freshness guard, and kill-switch steps. README updated to highlight the new defaults.
+- **Verification:** `pytest -q` (unit), plus manual `kalshi-scan --series INXU --offline` smoke to confirm fee paths and scheduler metadata. Scoreboard regeneration confirms fresh metrics rendered; kill-switch tests assert the guard triggers before quality gates.
 
 ## Runtime Monitors
 <!-- monitors:start -->

@@ -1,0 +1,33 @@
+{
+  "updated": "2025-11-10",
+  "rounding": {
+    "mode": "ROUND_UP",
+    "quantum": 0.01
+  },
+  "series": {
+    "INX": {
+      "label": "S&P 500 close",
+      "coefficient": 0.035,
+      "maker_fee": 0.0,
+      "taker_fee": 0.035
+    },
+    "INXU": {
+      "label": "S&P 500 hourly",
+      "coefficient": 0.035,
+      "maker_fee": 0.0,
+      "taker_fee": 0.035
+    },
+    "NASDAQ100": {
+      "label": "Nasdaq-100 close",
+      "coefficient": 0.035,
+      "maker_fee": 0.0,
+      "taker_fee": 0.035
+    },
+    "NASDAQ100U": {
+      "label": "Nasdaq-100 hourly",
+      "coefficient": 0.035,
+      "maker_fee": 0.0,
+      "taker_fee": 0.035
+    }
+  }
+}
