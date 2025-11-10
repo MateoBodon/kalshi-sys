@@ -1,10 +1,4 @@
 {
-  "updated": "2025-11-03",
-  "notes": "Maker fee schedule for index ladders: fee = coefficient * contracts * p * (1 - p) rounded up to nearest cent",
-  "series": {
-    "INX": {"coefficient": 0.035},
-    "INXU": {"coefficient": 0.035},
-    "NASDAQ100": {"coefficient": 0.035},
-    "NASDAQ100U": {"coefficient": 0.035}
-  }
+  "extends": "../fees.json",
+  "notes": "Deprecated shim. Use configs/fees.json instead."
 }
