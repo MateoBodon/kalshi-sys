@@ -54,7 +54,7 @@ def _sample_order() -> BrokerOrder:
         price=0.45,
         contracts=2,
         probability=0.6,
-        metadata={"order_id": "ORD-1"},
+        metadata={"order_id": "ORD-1", "market_ticker": "TEST-TICKER", "liquidity": "maker"},
     )
 
 
@@ -69,7 +69,7 @@ def test_request_signs_headers_without_authorization(
 
     with requests_mock.Mocker() as mocker:
         mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/orders",
+            "https://api.elections.kalshi.com/trade-api/v2/portfolio/orders",
             json={"order_id": "O-1"},
             status_code=201,
         )
@@ -77,7 +77,7 @@ def test_request_signs_headers_without_authorization(
         clock = _FixedClock(datetime.now(tz=UTC))
         client = KalshiHttpClient(session=requests.Session(), clock=clock)
         response = client.post(
-            "/orders",
+            "/portfolio/orders",
             json_body={"market_id": "M1"},
             idempotency_key="idem-1234",
         )
@@ -89,7 +89,7 @@ def test_request_signs_headers_without_authorization(
         timestamp_ms = request.headers["KALSHI-ACCESS-TIMESTAMP"]
         assert len(timestamp_ms) == 13
         signature_b64 = request.headers["KALSHI-ACCESS-SIGNATURE"]
-        expected_path = "/orders"
+        expected_path = "/portfolio/orders"
         prefix = getattr(client, "_base_path_prefix", "")
         if prefix and not expected_path.startswith(prefix):
             expected_path = f"{prefix}{expected_path}"
@@ -213,7 +213,7 @@ def test_retry_on_retryable_status(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     with requests_mock.Mocker() as mocker:
         mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/orders",
+            "https://api.elections.kalshi.com/trade-api/v2/portfolio/orders",
             [
                 {"status_code": 500},
                 {"json": {"order_id": "O-2"}, "status_code": 200},
@@ -225,7 +225,7 @@ def test_retry_on_retryable_status(tmp_path: Path, monkeypatch: pytest.MonkeyPat
             sleeper=capture_sleep,
             retry_backoff=0.1,
         )
-        response = client.post("/orders", json_body={"market_id": "M2"})
+        response = client.post("/portfolio/orders", json_body={"market_id": "M2"})
         assert response.status_code == 200
         assert sleeps == [0.1]
 
@@ -252,11 +252,11 @@ def test_live_broker_order_lifecycle_with_mocked_http(
 
     with requests_mock.Mocker() as mocker:
         mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/orders",
+            "https://api.elections.kalshi.com/trade-api/v2/portfolio/orders",
             [{"json": {"order_id": "ORD-1"}, "status_code": 201}],
         )
-        mocker.post(
-            "https://api.elections.kalshi.com/trade-api/v2/orders/ORD-1/cancel",
+        mocker.delete(
+            "https://api.elections.kalshi.com/trade-api/v2/portfolio/orders/ORD-1",
             [{"status_code": 200}],
         )
 
@@ -280,8 +280,8 @@ def test_live_broker_order_lifecycle_with_mocked_http(
         broker.cancel(["ORD-1"])
 
         paths = [req.path for req in mocker.request_history]
-        assert "/trade-api/v2/orders" in paths
-        assert any(path.lower() == "/trade-api/v2/orders/ord-1/cancel" for path in paths)
+        assert "/trade-api/v2/portfolio/orders" in paths
+        assert any(path.lower() == "/trade-api/v2/portfolio/orders/ord-1" for path in paths)
 
         audit_files = sorted((tmp_path / "data" / "proc" / "audit").glob("live_orders_*.jsonl"))
         assert audit_files, "audit file should be written"

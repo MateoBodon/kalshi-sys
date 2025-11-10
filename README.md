@@ -374,6 +374,9 @@ python -m kalshi_alpha.exec.scoreboard --window 7 --window 30
 - **Replay analytics** – when adding replay metrics, persist them under `reports/_artifacts/scorecards/` so scoreboard + pilot readiness ingest them automatically.
 - **Kalshi elections API migration** – migrate to the header-only RSA-PSS authentication flow for `https://api.elections.kalshi.com/`, add integration tests, and update this README once live submissions succeed.
 
+### Live Broker Notes
+- All order routes now target the `/portfolio` namespace (`POST /portfolio/orders`, `DELETE /portfolio/orders/{order_id}`, etc.) on `https://api.elections.kalshi.com/trade-api/v2`. Make sure any custom tooling, curl smoke tests, or docs reference those paths; `/orders` is deprecated and returns HTTP 404.
+
 ---
 
 ## Reference Commands
@@ -397,3 +400,4 @@ python -m kalshi_alpha.exec.scoreboard --window 7 --window 30
 ## License
 
 This project is released under the MIT License. See `LICENSE` for details.
+- `python -m kalshi_alpha.exec.monitors.cli --freeze-series INX INXU NASDAQ100 NASDAQ100U --no-report` refreshes runtime monitor artifacts while scoping the `freeze_window` check to the index ladders only (handy when CPI/TenY freezes should not block INX/NDX). Omit `--freeze-series` to evaluate the full default set.

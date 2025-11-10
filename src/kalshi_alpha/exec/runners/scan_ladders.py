@@ -1227,6 +1227,12 @@ def execute_broker(
 def _proposal_to_broker_order(proposal: Proposal) -> BrokerOrder:
     key_source = f"{proposal.market_id}|{proposal.side}|{proposal.strike:.3f}|{proposal.contracts}"
     key = hashlib.sha256(key_source.encode("utf-8")).hexdigest()
+    metadata = dict(proposal.metadata or {})
+    metadata.setdefault("market_ticker", proposal.market_ticker)
+    metadata.setdefault("series", proposal.series)
+    metadata.setdefault("liquidity", metadata.get("liquidity", "maker"))
+    metadata.setdefault("strike", proposal.strike)
+    metadata.setdefault("market_id", proposal.market_id)
     return BrokerOrder(
         idempotency_key=key,
         market_id=proposal.market_id,
@@ -1235,7 +1241,7 @@ def _proposal_to_broker_order(proposal: Proposal) -> BrokerOrder:
         price=proposal.market_yes_price,
         contracts=proposal.contracts,
         probability=proposal.strategy_probability,
-        metadata=proposal.metadata or {},
+        metadata=metadata,
     )
 
 

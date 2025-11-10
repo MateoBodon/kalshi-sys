@@ -365,8 +365,12 @@ python -m kalshi_alpha.exec.runners.scan_ladders \
 - `make telemetry-smoke` appends a synthetic execution trace to the telemetry sink for end-to-end log validation.
 - `make live-smoke` runs the read-only REST/WebSocket health check (`kalshi_alpha.dev.sanity_check --live-smoke`).
 
+### Runtime Monitor CLI Tips
+- `python -m kalshi_alpha.exec.monitors.cli --freeze-series INX INXU NASDAQ100 NASDAQ100U` restricts the `freeze_window` monitor to the listed tickers so unrelated freezes (e.g., TenY) do not block index-only runs. Omit the flag to evaluate *all* supported series (default behavior).
+- Use `--no-report` when you only need fresh JSON artifacts and do not want to touch `REPORT.md`. Always rerun this command before arming live submissions so `freeze_window.json` reflects the current scope.
+
 ## Live Trading Connectivity
-- **Endpoints**: REST `https://api.elections.kalshi.com/trade-api/v2`, WebSocket `wss://api.elections.kalshi.com/trade-api/ws/v2`.
+- **Endpoints**: REST `https://api.elections.kalshi.com/trade-api/v2`, WebSocket `wss://api.elections.kalshi.com/trade-api/ws/v2`. Order creation/cancel flows use the `/portfolio/orders` resource family (POST `/portfolio/orders`, DELETE `/portfolio/orders/{order_id}`, etc.).
 - **Header signing**: every REST call signs `timestamp_ms + METHOD + PATH` (RSA-PSS, SHA-256). Only the path component participates in the signature—query strings are excluded by definition.
 - **Headers**: attach `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-TIMESTAMP` (milliseconds), and `KALSHI-ACCESS-SIGNATURE`; no bearer tokens are exchanged. HTTP 401 responses bubble to operators for manual remediation.
 - **Clock guard**: system clock drift greater than 5 s raises a `KalshiClockSkewError` locally—sync with NTP before enabling `--broker live`.

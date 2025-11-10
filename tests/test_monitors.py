@@ -79,7 +79,7 @@ def test_runtime_monitors_emit_alerts(tmp_path: Path, monkeypatch: pytest.Monkey
             "event_type": "reject",
             "data": {
                 "error": "Failed to execute Kalshi trading API request",
-                "error_cause": "Kalshi API returned 401 for POST /orders: unauthorized",
+                "error_cause": "Kalshi API returned 401 for POST /portfolio/orders: unauthorized",
             },
         },
         {
@@ -87,7 +87,7 @@ def test_runtime_monitors_emit_alerts(tmp_path: Path, monkeypatch: pytest.Monkey
             "event_type": "reject",
             "data": {
                 "error": "Failed to execute Kalshi trading API request",
-                "error_cause": "Kalshi API returned 401 for POST /orders: unauthorized",
+                "error_cause": "Kalshi API returned 401 for POST /portfolio/orders: unauthorized",
             },
         },
         {
@@ -95,7 +95,7 @@ def test_runtime_monitors_emit_alerts(tmp_path: Path, monkeypatch: pytest.Monkey
             "event_type": "reject",
             "data": {
                 "error": "Failed to execute Kalshi trading API request",
-                "error_cause": "Kalshi API returned 401 for POST /orders: unauthorized",
+                "error_cause": "Kalshi API returned 401 for POST /portfolio/orders: unauthorized",
             },
         },
     ]

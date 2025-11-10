@@ -64,6 +64,7 @@ class RuntimeMonitorConfig:
     seq_cusum_threshold: float = DEFAULT_SEQ_THRESHOLD
     seq_cusum_drift: float = DEFAULT_SEQ_DRIFT
     seq_min_sample: int = DEFAULT_SEQ_MIN_SAMPLE
+    freeze_series: tuple[str, ...] | None = None
 
 
 def compute_runtime_monitors(
@@ -101,15 +102,18 @@ def compute_runtime_monitors(
         window_start=moment - timedelta(days=cfg.ledger_lookback_days),
     )
     results.append(_monitor_ev_sequential(seq_result, seq_params))
-    freeze_series = set(DEFAULT_FREEZE_SERIES)
-    if "series" in ledger_frame.columns:
-        derived = (
-            ledger_frame.select(pl.col("series").str.to_uppercase().alias("series"))
-            .unique()
-            .to_series()
-            .to_list()
-        )
-        freeze_series.update(derived)
+    if cfg.freeze_series:
+        freeze_series = {series.upper() for series in cfg.freeze_series}
+    else:
+        freeze_series = set(DEFAULT_FREEZE_SERIES)
+        if "series" in ledger_frame.columns:
+            derived = (
+                ledger_frame.select(pl.col("series").str.to_uppercase().alias("series"))
+                .unique()
+                .to_series()
+                .to_list()
+            )
+            freeze_series.update(derived)
     freeze_evaluations = [
         evaluate_freeze_for_series(series, now=moment)
         for series in sorted(freeze_series)

@@ -53,7 +53,7 @@ def _sample_order() -> BrokerOrder:
         price=0.42,
         contracts=3,
         probability=0.63,
-        metadata={"order_id": "O-1"},
+        metadata={"order_id": "O-1", "market_ticker": "TEST-TICKER", "liquidity": "maker"},
     )
 
 
@@ -184,7 +184,7 @@ def test_live_broker_cancel_serializes_intent(
     )
 
     broker.cancel(["ORD-1"])
-    assert client_stub.requests[0]["path"] == "/orders/ORD-1/cancel"
+    assert client_stub.requests[0]["path"] == "/portfolio/orders/ORD-1"
     audit_files = sorted((tmp_path / "data" / "proc" / "audit").glob("live_orders_*.jsonl"))
     assert audit_files, "cancel intent should have been recorded"
     lines = [cast(dict[str, Any], json.loads(line)) for line in audit_files[0].read_text().splitlines()]

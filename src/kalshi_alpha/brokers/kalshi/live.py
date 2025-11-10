@@ -126,7 +126,7 @@ class LiveBroker(Broker):
             try:
                 response = self._request(
                     "POST",
-                    "/orders",
+                    "/portfolio/orders",
                     json_body=payload,
                     idempotency_key=order.idempotency_key,
                 )
@@ -188,10 +188,10 @@ class LiveBroker(Broker):
             self._emit_telemetry("reject", telem_payload)
 
     def _submit_cancel(self, order_id: str) -> None:
-        endpoint = f"/orders/{order_id}/cancel"
+        endpoint = f"/portfolio/orders/{order_id}"
         start_ns = time.perf_counter_ns()
         try:
-            response = self._request("POST", endpoint, json_body={})
+            response = self._request("DELETE", endpoint, json_body={})
         except Exception as exc:  # pragma: no cover - network errors surfaced in tests
             self._emit_telemetry(
                 "reject",
@@ -216,7 +216,7 @@ class LiveBroker(Broker):
 
     def _submit_replace(self, order_id: str, order: BrokerOrder) -> None:
         payload = self._order_payload(order)
-        endpoint = f"/orders/{order_id}/replace"
+        endpoint = f"/portfolio/orders/{order_id}/replace"
         event_payload = self._telemetry_payload(order, payload)
         event_payload["replace_of"] = order_id
         self._emit_telemetry("sent", event_payload)
@@ -246,15 +246,26 @@ class LiveBroker(Broker):
         )
 
     def _order_payload(self, order: BrokerOrder) -> dict[str, Any]:
-        return {
-            "market_id": order.market_id,
-            "side": order.side.upper(),
-            "price": order.price,
-            "contracts": order.contracts,
-            "probability": order.probability,
-            "metadata": order.metadata or {},
-            "strike": order.strike,
+        metadata = dict(order.metadata or {})
+        ticker = metadata.get("market_ticker") or metadata.get("ticker")
+        if not ticker:
+            raise RuntimeError("Missing market ticker for Kalshi order payload")
+        liquidity = str(metadata.get("liquidity") or "maker").lower()
+        action = metadata.get("action") or ("sell" if liquidity == "maker" else "buy")
+        side = order.side.lower()
+        yes_price = float(order.price)
+        payload: dict[str, Any] = {
+            "ticker": ticker,
+            "action": action.lower(),
+            "side": side,
+            "type": "limit",
+            "count": int(order.contracts),
+            "yes_price": yes_price,
+            "client_order_id": order.idempotency_key,
         }
+        # Provide the complementary price to avoid ambiguity on NO orders.
+        payload["no_price"] = max(0.0, min(1.0, 1.0 - yes_price))
+        return payload
 
     def _telemetry_payload(self, order: BrokerOrder, payload: dict[str, Any]) -> dict[str, Any]:
         metadata = dict(order.metadata or {})

@@ -256,7 +256,15 @@ def _process_entries(  # noqa: PLR0913
         tracker.update(symbol, tick_ts)
 
     if latest_ts is None:
-        return
+        tracker_latest = max(tracker.last_tick.values(), default=None)
+        if tracker_latest is None:
+            return
+        latest_ts = tracker_latest
+    else:
+        tracker_latest = max(tracker.last_tick.values(), default=None)
+        if tracker_latest is not None and tracker_latest > latest_ts:
+            latest_ts = tracker_latest
+    latest_ts = max(latest_ts, now)
     frame = pl.DataFrame(
         {
             "snapshot_ts": [latest_ts],
@@ -344,76 +352,76 @@ async def _connect_once(
             ssl=ssl_context,
         ) as websocket:
             await websocket.send(json.dumps({"action": "auth", "params": config.api_key}))
-        prebuffer = await _await_status(
-            websocket,
-            expected={"auth_success", "authenticated"},
-        )
-        await websocket.send(json.dumps({"action": "subscribe", "params": subscribe_payload}))
-        prebuffer.extend(
-            await _await_status(
+            prebuffer = await _await_status(
                 websocket,
-                expected={"success", "subscribed", "subscribed to"},
+                expected={"auth_success", "authenticated"},
             )
-        )
-
-        start = datetime.now(tz=UTC).timestamp()
-
-        async def _maybe_start_fallback() -> None:
-            nonlocal fallback_task, client
-            if fallback_task is not None:
-                return
-            client = PolygonIndicesClient(api_key=config.api_key)
-            fallback_task = asyncio.create_task(
-                _value_fallback_loop(
-                    config=config,
-                    tracker=tracker,
-                    client=client,
+            await websocket.send(json.dumps({"action": "subscribe", "params": subscribe_payload}))
+            prebuffer.extend(
+                await _await_status(
+                    websocket,
+                    expected={"success", "subscribed", "subscribed to"},
                 )
             )
 
-        await _maybe_start_fallback()
+            start = datetime.now(tz=UTC).timestamp()
 
-        for payload in prebuffer:
-            now = datetime.now(tz=UTC)
-            _process_entries(
-                entries=_normalize_entries(payload),
-                alias_map=config.alias_map,
-                channel_prefix=channel_prefix,
-                now=now,
-                proc_parquet=config.proc_parquet,
-                freshness_config=config.freshness_config,
-                freshness_output=config.freshness_output,
-                tracker=tracker,
-            )
-        async for raw in websocket:
-            now = datetime.now(tz=UTC)
-            try:
-                payload = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
-            for status_entry in _iter_status(payload):
-                status = str(status_entry.get("status") or "").lower()
-                message = str(status_entry.get("message") or "").strip()
-                if status == "max_connections":
-                    raise TooManyConnectionsError(
-                        "Massive websocket rejected connection: max_connections limit reached"
+            async def _maybe_start_fallback() -> None:
+                nonlocal fallback_task, client
+                if fallback_task is not None:
+                    return
+                client = PolygonIndicesClient(api_key=config.api_key)
+                fallback_task = asyncio.create_task(
+                    _value_fallback_loop(
+                        config=config,
+                        tracker=tracker,
+                        client=client,
                     )
-                if status in {"auth_failed", "authentication_failed", "unauthorized"}:
-                    raise RuntimeError(f"Massive websocket authentication failed: {message or status}")
-                if status in {"error", "subscription_error"}:
-                    raise RuntimeError(f"Massive websocket error: {message or status}")
-            _process_entries(
-                entries=_normalize_entries(payload),
-                alias_map=config.alias_map,
-                channel_prefix=channel_prefix,
-                now=now,
-                proc_parquet=config.proc_parquet,
-                freshness_config=config.freshness_config,
-                freshness_output=config.freshness_output,
-                tracker=tracker,
-            )
-            if config.max_runtime is not None and (now.timestamp() - start) >= config.max_runtime:
-                break
+                )
+
+            await _maybe_start_fallback()
+
+            for payload in prebuffer:
+                now = datetime.now(tz=UTC)
+                _process_entries(
+                    entries=_normalize_entries(payload),
+                    alias_map=config.alias_map,
+                    channel_prefix=channel_prefix,
+                    now=now,
+                    proc_parquet=config.proc_parquet,
+                    freshness_config=config.freshness_config,
+                    freshness_output=config.freshness_output,
+                    tracker=tracker,
+                )
+            async for raw in websocket:
+                now = datetime.now(tz=UTC)
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                for status_entry in _iter_status(payload):
+                    status = str(status_entry.get("status") or "").lower()
+                    message = str(status_entry.get("message") or "").strip()
+                    if status == "max_connections":
+                        raise TooManyConnectionsError(
+                            "Massive websocket rejected connection: max_connections limit reached"
+                        )
+                    if status in {"auth_failed", "authentication_failed", "unauthorized"}:
+                        raise RuntimeError(f"Massive websocket authentication failed: {message or status}")
+                    if status in {"error", "subscription_error"}:
+                        raise RuntimeError(f"Massive websocket error: {message or status}")
+                _process_entries(
+                    entries=_normalize_entries(payload),
+                    alias_map=config.alias_map,
+                    channel_prefix=channel_prefix,
+                    now=now,
+                    proc_parquet=config.proc_parquet,
+                    freshness_config=config.freshness_config,
+                    freshness_output=config.freshness_output,
+                    tracker=tracker,
+                )
+                if config.max_runtime is not None and (now.timestamp() - start) >= config.max_runtime:
+                    break
     finally:
         if fallback_task is not None:
             fallback_task.cancel()

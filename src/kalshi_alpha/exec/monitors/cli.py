@@ -132,6 +132,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=defaults.seq_min_sample,
         help="Minimum trades per series for sequential guard evaluation.",
     )
+    parser.add_argument(
+        "--freeze-series",
+        nargs="+",
+        help="Override the list of series evaluated for freeze windows (default: CPI, CLAIMS, TENY and ledger-derived series).",
+    )
     return parser.parse_args(argv)
 
 
@@ -151,6 +156,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         seq_cusum_threshold=args.seq_threshold,
         seq_cusum_drift=args.seq_drift,
         seq_min_sample=args.seq_min_sample,
+        freeze_series=tuple(s.upper() for s in args.freeze_series) if args.freeze_series else None,
     )
 
     results = compute_runtime_monitors(
