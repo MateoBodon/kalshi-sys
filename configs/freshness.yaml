@@ -5,34 +5,33 @@
 # an alternate config file.
 
 required_order:
-  - bls_cpi.latest_release
-  - dol_claims.latest_report
-  - treasury_10y.daily
-  - cleveland_nowcast.monthly
-  - aaa_gas.daily
-  - nws_daily_climate
+  - polygon_index.websocket
 
 feeds:
+  polygon_index.websocket:
+    label: Massive index websocket
+    age_seconds: 10
+    required: true
+    namespace: polygon_index
   bls_cpi.latest_release:
-    # Latest CPI release should be within the current publication cycle (≈monthly).
     age_days: 35
+    required: false
   dol_claims.latest_report:
-    # Initial claims are published weekly; flag if older than 8 days.
     age_days: 8
+    required: false
   treasury_10y.daily:
-    # Ten-year settlement guard: require DGS10 within three business days.
     age_business_days: 3
     expected_maturity: DGS10
+    required: false
   cleveland_nowcast.monthly:
-    # Cleveland Fed nowcast refreshes monthly; allow a 35-day grace period.
     age_days: 35
+    required: false
   aaa_gas.daily:
-    # AAA national gasoline price used for CPI deltas; guard against stale data and outliers.
     age_days: 2
     price_min: 2.0
     price_max: 6.0
+    required: false
   nws_daily_climate:
-    # Weather ladders rely on active trading stations only. Populate active_stations when
-    # weather is in production; leave empty to mark the feed as not required.
     age_days: 2
     active_stations: []
+    required: false

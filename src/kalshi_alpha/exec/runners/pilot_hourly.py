@@ -68,6 +68,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Acknowledge live trading risks (required when --broker live).",
     )
+    parser.add_argument(
+        "--quality-gates-config",
+        type=Path,
+        default=Path("configs/quality_gates.index.yaml"),
+        help="Override quality gates configuration (default: configs/quality_gates.index.yaml).",
+    )
     return parser.parse_args(argv)
 
 
@@ -98,6 +104,8 @@ def _forward_args(series: str, config: argparse.Namespace) -> list[str]:
         forwarded.append("--report")
     if config.quiet:
         forwarded.append("--quiet")
+    if config.quality_gates_config:
+        forwarded.extend(["--quality-gates-config", str(config.quality_gates_config)])
     if config.broker == "live":
         if not config.ack:
             raise ValueError("Live pilot mode requires --ack acknowledgement flag.")
