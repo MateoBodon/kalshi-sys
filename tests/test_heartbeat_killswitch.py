@@ -96,3 +96,33 @@ def test_execute_broker_halts_on_kill_switch(
     cancel_payload = state.cancel_all_request()
     assert cancel_payload is not None
     assert cancel_payload["reason"] == "kill_switch_engaged"
+
+
+def test_kill_switch_checked_before_quality_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_data_roots: tuple[Path, Path],
+) -> None:
+    kill_switch_file = tmp_path / "kill_switch"
+    kill_switch_file.write_text("halt", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    def _boom(*_args, **_kwargs):  # pragma: no cover - should never run
+        raise AssertionError("quality gate should not be evaluated when kill switch is armed")
+
+    monkeypatch.setattr(scan_ladders, "_quality_gate_for_broker", _boom)
+    args = Namespace(
+        kill_switch_file=str(kill_switch_file),
+        broker="dry",
+        i_understand_the_risks=False,
+    )
+    with pytest.raises(RuntimeError, match="Kill switch engaged"):
+        execute_broker(
+            broker_mode="dry",
+            proposals=[_sample_proposal()],
+            args=args,
+            monitors={},
+            quiet=True,
+            go_status=None,
+        )

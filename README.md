@@ -211,6 +211,8 @@ Each pipeline writes:
 ## Index Ladders (SPX/NDX)
 
 - **Series coverage:** intraday hourly (12:00 ET; `INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only by default with 1-lot sizing and a two-bin cap per market.
+- **Scheduler & freshness guards:** `kalshi_alpha.sched.windows` resolves US/Eastern windows (start, freeze, final-minute). Scanner metadata now includes `scheduler_window`, and `ws_final_minute_guard` enforces the ≤700 ms Massive WS latency in the final minute (auto-freeze + cancel-all if breached).
+- **Runbooks:** operational checklists live under `docs/runbooks/hourly.md` and `docs/runbooks/eod.md`.
 - **Secrets:** Polygon indices use macOS Keychain item `kalshi-sys:POLYGON_API_KEY` first and fall back to the `POLYGON_API_KEY` environment variable. Approving the Keychain prompt once keeps subsequent scans non-interactive.
 - **Calibrations:**
   ```bash
@@ -228,10 +230,11 @@ Each pipeline writes:
     --broker dry \
     --contracts 1 \
     --min-ev 0.05 \
-    --maker-only \
     --report
+
+  Maker-only is enforced by default; pass `--allow-taker` **only** when explicitly testing taker flows in dry-run mode.
   ```
-- **Outputs:** scanner metadata now includes Polygon snapshot prices, minutes-to-target, and EV after indices maker=$0.00; indices taker=0.035*C*p*(1-p). Reports render under `reports/index_*` when `--report` is set, and ledger EV columns reflect the updated fee schedule.
+- **Outputs:** scanner metadata now includes Polygon snapshot prices, minutes-to-target, full `scheduler_window`, and EV components computed with per-order rounding from `configs/fees.json` (maker=$0.00, taker=0.035*C*p*(1−p)). Reports render under `reports/index_*` when `--report` is set, and ledger EV columns reflect the updated fee schedule.
 
 ---
 
@@ -239,7 +242,7 @@ Each pipeline writes:
 
 ### 1. Populate credentials
 
-Create `.env.local` (git-ignored) with API keys. Multi-line secrets must be quoted:
+Copy `.env.local.example` to `.env.local` (git-ignored) and populate API keys. Multi-line secrets must be quoted:
 
 ```ini
 EIA_API_KEY=...
@@ -247,9 +250,10 @@ FRED_API_KEY=...
 NASDAQ_API_KEY=...
 KALSHI_API_KEY_ID=...
 KALSHI_PRIVATE_KEY_PEM_PATH=/Users/example/kalshi_private_key.pem
+POLYGON_API_KEY=...
 ```
 
-`kalshi_alpha.utils.env.load_env()` loads `.env.local` first, `.env` next, then falls back to environment variables.
+`kalshi_alpha.utils.env.load_env()` now loads `.env.local` automatically at process start (scanners call it before parsing args), then `.env`, then falls back to environment variables.
 
 ### 2. Safety checklist before arming live
 

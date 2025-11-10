@@ -58,6 +58,8 @@ from kalshi_alpha.drivers.aaa_gas import ingest as aaa_ingest
 from kalshi_alpha.drivers.calendar.loader import calendar_tags_for
 from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, PolygonAPIError, PolygonIndicesClient
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
+from kalshi_alpha.exec import fees as exec_fees
+from kalshi_alpha.data import WSFreshnessSentry
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
 from kalshi_alpha.exec.heartbeat import (
     heartbeat_stale,
@@ -92,11 +94,13 @@ from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
+from kalshi_alpha.sched import TradingWindow, current_window as scheduler_current_window
 from kalshi_alpha.strategies import claims as claims_strategy
 from kalshi_alpha.strategies import cpi as cpi_strategy
 from kalshi_alpha.strategies import index as index_strategy
 from kalshi_alpha.strategies import teny as teny_strategy
 from kalshi_alpha.strategies import weather as weather_strategy
+from kalshi_alpha.utils.env import load_env
 
 INDEX_OPS_CONFIG: IndexOpsConfig = load_index_ops_config()
 
@@ -133,14 +137,18 @@ def _resolve_fee_paths(series: str | None) -> dict[str, str | None]:
     config_path = fee_utils.FEE_CONFIG_PATH
     taker_source = override_path if override_path.exists() else config_path
 
-    maker_source = taker_source
+    maker_source: Path | None = None
     series_upper = series.upper() if isinstance(series, str) else None
     if series_upper and series_upper.startswith(tuple(fee_utils.INDEX_PREFIXES)):
-        candidate = index_fee_utils.DEFAULT_INDEX_FEE_PATH.resolve()
+        candidate = exec_fees.DEFAULT_FEES_PATH
+        if not candidate.exists():
+            candidate = index_fee_utils.DEFAULT_INDEX_FEE_PATH.resolve()
         if not candidate.exists() and index_fee_utils.LEGACY_INDEX_FEE_PATH.exists():
             candidate = index_fee_utils.LEGACY_INDEX_FEE_PATH.resolve()
         if candidate.exists():
             maker_source = candidate
+    if maker_source is None:
+        maker_source = taker_source
 
     return {
         "maker": maker_source.resolve().as_posix(),
@@ -194,6 +202,29 @@ def _polygon_ws_freshness_detail(
     if issues:
         detail["issues"] = tuple(sorted(issues))
     return detail
+
+
+def _polygon_ws_age_ms(summary: Mapping[str, object] | None) -> float | None:
+    if not isinstance(summary, Mapping):
+        return None
+    feeds = summary.get("feeds")
+    if not isinstance(feeds, list):
+        return None
+    for feed in feeds:
+        if not isinstance(feed, Mapping):
+            continue
+        feed_id = str(feed.get("id") or "").strip().lower()
+        if feed_id != "polygon_index.websocket":
+            continue
+        details = feed.get("details") if isinstance(feed.get("details"), Mapping) else {}
+        if isinstance(details, Mapping):
+            age_seconds = details.get("age_seconds")
+            if isinstance(age_seconds, (int, float)):
+                return float(age_seconds) * 1000.0
+        age_minutes = feed.get("age_minutes")
+        if isinstance(age_minutes, (int, float)):
+            return float(age_minutes) * 60_000.0
+    return None
 
 
 def _freshness_fatal_reason(
@@ -565,7 +596,16 @@ def _clear_dry_orders_start(
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    load_env()
     args = parse_args(argv)
+    try:
+        exec_fees.load_fee_config()
+    except FileNotFoundError as exc:  # pragma: no cover - fails fast in live mode
+        raise RuntimeError(
+            "Index fee configuration missing (expected configs/fees.json); refusing to run."
+        ) from exc
+    except ValueError as exc:  # pragma: no cover - config validation
+        raise RuntimeError(f"Invalid fee configuration: {exc}") from exc
     pilot_session: PilotSession | None = apply_pilot_mode(args)
     pilot_config: PilotConfig | None = pilot_session.config if pilot_session else None
     bin_constraints = _load_ev_honesty_constraints(args.series) if pilot_session else None
@@ -612,6 +652,15 @@ def main(argv: Sequence[str] | None = None) -> None:
                 print(f"[u-roll] Cancel-all requested for {args.series.upper()} ahead of {target_label}")
     else:
         roll_decision = None
+    scheduler_window = scheduler_current_window(series_upper, now_override)
+    if scheduler_window and scheduler_window.seconds_to_freeze(now_override) <= 0 and not cancel_requested:
+        state = OutstandingOrdersState.load()
+        state.mark_cancel_all("scheduler_t_minus_2s", modes=[args.broker])
+        cancel_requested = True
+        if not args.quiet:
+            print(
+                f"[scheduler] Cancel-all requested for {series_upper} ahead of {scheduler_window.label}"
+            )
 
     outcome = scan_series(
         series=args.series,
@@ -643,6 +692,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     if pilot_session:
         outcome.monitors.setdefault("pilot_session_id", pilot_session.session_id)
         outcome.monitors.setdefault("pilot_session_started_at", pilot_session.started_at.isoformat())
+    if scheduler_window:
+        payload = _scheduler_window_payload(scheduler_window)
+        if payload:
+            outcome.monitors.setdefault("scheduler_window", payload)
 
     outcome.monitors.setdefault("clock_skew_seconds", round(float(clock_skew_seconds), 6))
     if clock_skew_seconds > CLOCK_SKEW_THRESHOLD_SECONDS:
@@ -671,6 +724,29 @@ def main(argv: Sequence[str] | None = None) -> None:
         data_freshness_summary,
         require_polygon_ws=args.series.upper() in _INDEX_WS_SERIES,
     )
+    ws_age_ms = _polygon_ws_age_ms(data_freshness_summary)
+    if ws_age_ms is not None:
+        outcome.monitors.setdefault("ws_freshness_age_ms", ws_age_ms)
+    ws_sentry = WSFreshnessSentry()
+    now_for_freshness = datetime.now(tz=UTC)
+    if ws_age_ms is not None:
+        ws_sentry.record_latency(ws_age_ms, now=now_for_freshness)
+    active_window = scheduler_current_window(series_upper, now_for_freshness)
+    strict_final_minute = bool(active_window and active_window.in_final_minute(now_for_freshness))
+    final_minute_reason: str | None = None
+    if strict_final_minute:
+        freshness_ok = ws_sentry.is_fresh(strict=True, now=now_for_freshness) if ws_age_ms is not None else False
+        if not freshness_ok:
+            final_minute_reason = "polygon_ws_final_minute_stale"
+            fatal_freshness_reason = fatal_freshness_reason or final_minute_reason
+    outcome.monitors.setdefault(
+        "ws_final_minute_guard",
+        {
+            "strict": strict_final_minute,
+            "window_label": active_window.label if active_window else None,
+            "age_ms": ws_age_ms,
+        },
+    )
 
     proposals = list(outcome.proposals)
     cancel_reason: str | None = None
@@ -680,6 +756,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             "status": data_freshness_summary.get("status"),
             "stale_feeds": tuple(data_freshness_summary.get("stale_feeds", [])),
         }
+        if final_minute_reason and fatal_freshness_reason == final_minute_reason:
+            outcome.monitors["final_minute_freeze"] = {
+                "reason": final_minute_reason,
+                "age_ms": ws_age_ms,
+            }
         if not args.quiet:
             print(
                 "[freshness] fatal data freshness "
@@ -1728,8 +1809,15 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--maker-only",
+        dest="maker_only",
         action="store_true",
-        help="Only consider maker-side executions.",
+        help="Only consider maker-side executions (default).",
+    )
+    parser.add_argument(
+        "--allow-taker",
+        dest="maker_only",
+        action="store_false",
+        help="Permit taker-side proposals (unsafe; disables maker-only guard).",
     )
     parser.add_argument(
         "--max-loss-per-strike",
@@ -1817,6 +1905,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Suppress stdout summary.",
     )
+    parser.set_defaults(maker_only=True)
     return parser.parse_args(argv)
 
 
@@ -1904,6 +1993,20 @@ def _ops_window_metadata(series: str, now_utc: datetime, *, target_time: time | 
         "ops_target_et": target_dt_et.isoformat(),
         "ops_target_unix": int(target_dt_utc.timestamp()),
         "ops_target_fallback": fallback_reason,
+    }
+
+
+def _scheduler_window_payload(window: TradingWindow | None) -> dict[str, object] | None:
+    if window is None:
+        return None
+    return {
+        "label": window.label,
+        "target_type": window.target_type,
+        "series": window.series,
+        "start_et": window.start_et.isoformat(),
+        "target_et": window.target_et.isoformat(),
+        "freeze_et": window.freeze_et.isoformat(),
+        "freshness_strict_et": window.freshness_strict_et.isoformat(),
     }
 
 
@@ -2955,23 +3058,33 @@ def _evaluate_market(  # noqa: PLR0913
             fee_price = yes_price
         else:
             fee_price = 1.0 - yes_price
-        fee_fn = DEFAULT_FEE_SCHEDULE.maker_fee
-        per_contract_fee = float(
-            fee_fn(
-                1,
-                fee_price,
+        if series_ticker.upper().startswith(tuple(fee_utils.INDEX_PREFIXES)):
+            fee_details = exec_fees.fee_breakdown(
                 series=series_ticker,
-                market_name=market_ticker,
+                price=fee_price,
+                contracts=contract_count,
+                liquidity="maker",
             )
-        )
-        total_fee = float(
-            fee_fn(
-                contract_count,
-                fee_price,
-                series=series_ticker,
-                market_name=market_ticker,
+            per_contract_fee = float(fee_details["per_contract_effective"])
+            total_fee = float(fee_details["per_order"])
+        else:
+            fee_fn = DEFAULT_FEE_SCHEDULE.maker_fee
+            per_contract_fee = float(
+                fee_fn(
+                    1,
+                    fee_price,
+                    series=series_ticker,
+                    market_name=market_ticker,
+                )
             )
-        )
+            total_fee = float(
+                fee_fn(
+                    contract_count,
+                    fee_price,
+                    series=series_ticker,
+                    market_name=market_ticker,
+                )
+            )
         proposal_metadata["ev_components"] = {
             "per_contract": {
                 "gross": per_contract_raw[maker_key] + per_contract_fee,

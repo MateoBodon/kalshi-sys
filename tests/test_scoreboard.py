@@ -39,7 +39,17 @@ def _write_freshness(path: Path, now: datetime) -> None:
                     "age_minutes": 5.0,
                     "last_ts": now.isoformat(),
                     "reason": None,
-                }
+                },
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon Index WS",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 0.01,
+                    "last_ts": now.isoformat(),
+                    "reason": None,
+                    "details": {"age_seconds": 0.5},
+                },
             ],
         },
     }
@@ -133,6 +143,7 @@ def test_scoreboard_generates_markdown(
     contents = report_7d.read_text(encoding="utf-8")
     assert "## INX" in contents
     assert "CRPS Advantage" in contents
+    assert "Polygon WS age" in contents
     assert "Avg α" in contents
     assert "Avg Slippage (ticks)" in contents
     assert "Fill - α" in contents

@@ -7,7 +7,7 @@ import json
 import logging
 import math
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -21,6 +21,11 @@ from kalshi_alpha.core.execution.index_models import (
     load_slippage_curve,
 )
 from kalshi_alpha.exec import pilot_readiness
+from kalshi_alpha.exec.monitors.freshness import (
+    FRESHNESS_ARTIFACT_PATH,
+    load_artifact as load_freshness_artifact,
+    summarize_artifact as summarize_freshness_artifact,
+)
 
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 CALIBRATION_PATH = Path("data/proc/calibration_metrics.parquet")
@@ -125,6 +130,7 @@ def main(argv: list[str] | None = None) -> None:
     reports_dir = Path("reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
     freshness_ok, freshness_reasons = pilot_readiness.freshness_status()
+    freshness_summary = _load_freshness_summary()
     for window in sorted(windows):
         summary = _build_summary(ledger, calibrations, alpha_state, window)
         output = reports_dir / f"scoreboard_{window}d.md"
@@ -134,6 +140,7 @@ def main(argv: list[str] | None = None) -> None:
             output,
             freshness_ok=freshness_ok,
             freshness_reasons=freshness_reasons,
+            freshness_summary=freshness_summary,
         )
         print(f"[scoreboard] wrote {output}")
         go_count = sum(1 for row in summary if row.get("go"))
@@ -190,6 +197,35 @@ def _load_alpha_state() -> dict[str, float]:
         except (TypeError, ValueError, AttributeError):
             continue
     return result
+
+
+def _load_freshness_summary() -> dict[str, object]:
+    payload = load_freshness_artifact(FRESHNESS_ARTIFACT_PATH)
+    return summarize_freshness_artifact(payload, artifact_path=FRESHNESS_ARTIFACT_PATH)
+
+
+def _format_freshness_metrics(summary: Mapping[str, object]) -> list[str]:
+    feeds = summary.get("feeds") if isinstance(summary, Mapping) else None
+    if not isinstance(feeds, list):
+        return []
+    lines: list[str] = []
+    for feed in feeds:
+        if not isinstance(feed, Mapping):
+            continue
+        feed_id = str(feed.get("id") or "").lower()
+        if feed_id != "polygon_index.websocket":
+            continue
+        status = "OK" if feed.get("ok", True) else "STALE"
+        details = feed.get("details") if isinstance(feed.get("details"), Mapping) else {}
+        age_seconds: float | None = None
+        if isinstance(details, Mapping) and isinstance(details.get("age_seconds"), (int, float)):
+            age_seconds = float(details["age_seconds"])
+        elif isinstance(feed.get("age_minutes"), (int, float)):
+            age_seconds = float(feed.get("age_minutes")) * 60.0
+        if age_seconds is None:
+            continue
+        lines.append(f"Polygon WS age: {age_seconds*1000:.0f} ms ({status})")
+    return lines
 
 
 def _build_summary(  # noqa: PLR0912, PLR0915
@@ -404,6 +440,7 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
     *,
     freshness_ok: bool = True,
     freshness_reasons: Sequence[str] | None = None,
+    freshness_summary: dict[str, object] | None = None,
 ) -> None:
     lines: list[str] = []
     lines.append(f"# Scoreboard ({window_days}-day)")
@@ -414,6 +451,10 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
         lines.append("- Freshness Reasons:")
         for item in reasons_iter:
             lines.append(f"  - {item}")
+    metric_lines = _format_freshness_metrics(freshness_summary or {})
+    if metric_lines:
+        lines.append("- Freshness Metrics:")
+        lines.extend(f"  - {line}" for line in metric_lines)
     lines.append("")
     if not summary:
         lines.append("_No ledger data available for this window._")

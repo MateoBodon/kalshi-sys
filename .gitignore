@@ -14,6 +14,7 @@ logs/
 *.env
 !.env.example
 .env.local
+!.env.local.example
 
 data/raw/
 data/proc/*
