@@ -1,11 +1,10 @@
 {
-  "generated_at": "2025-11-03T00:14:08.889010+00:00",
-  "message": "\u0394bps -4718.34 (t=-44.32) below guardrails",
+  "generated_at": "2025-11-10T19:57:44.153629+00:00",
+  "message": null,
   "metrics": {
-    "mean_delta_bps": -4718.3414682283865,
-    "sample_size": 8,
-    "t_stat": -44.321604771192
+    "count": 4,
+    "reason": "insufficient_samples"
   },
   "name": "ev_gap",
-  "status": "ALERT"
+  "status": "NO_DATA"
 }

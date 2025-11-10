@@ -1,11 +1,11 @@
 {
-  "generated_at": "2025-11-03T00:14:08.889010+00:00",
+  "generated_at": "2025-11-10T19:57:44.153629+00:00",
   "message": null,
   "metrics": {
     "daily_cap": 2000.0,
-    "daily_pnl": 24.0,
+    "daily_pnl": 17.459127550866928,
     "weekly_cap": 6000.0,
-    "weekly_pnl": 150.33244842668913
+    "weekly_pnl": 17.459127550866928
   },
   "name": "drawdown",
   "status": "OK"

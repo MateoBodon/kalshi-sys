@@ -1,0 +1,76 @@
+[
+  {
+    "contracts": 1,
+    "idempotency_key": "934d92e8658cf9ab7c313ea31cb2be0c5a0bd3c4c10f8f08da462b064e0eeafb",
+    "market_id": "MKT_NDQ100U_H1300_A",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.39,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.28483821925660724,
+          "net": 0.28483821925660724
+        },
+        "side": "yes",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.28483821925660724,
+          "net": 0.28483821925660724
+        }
+      },
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.21999999999999997,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.6503235614867855,
+        "uncertainty_penalty": 0.0
+      }
+    },
+    "price": 0.39,
+    "probability": 0.6748382192566073,
+    "side": "YES",
+    "strike": 15000.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "a773cbfb42b2130efb338dd0c570a8b0b2bf82ffcd21ce5d850554fd3cbdfa16",
+    "market_id": "MKT_NDQ100U_H1300_A",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.72,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.28,
+          "net": 0.28
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.28,
+          "net": 0.28
+        }
+      },
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.43999999999999995,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0
+      }
+    },
+    "price": 0.28,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 15060.0
+  }
+]
