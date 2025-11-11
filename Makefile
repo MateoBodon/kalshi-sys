@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay parity-ci
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay aws-deploy-dashboards parity-ci
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -141,6 +141,12 @@ aws-replay:
 	REPLAY_FILE=$${FILE:-data/replay/$${REPLAY_DATE}_spx_ndx.json}; \
 	if [ ! -f "$$REPLAY_FILE" ]; then echo "Replay file missing: $$REPLAY_FILE"; exit 1; fi; \
 	$(PYTHON) scripts/aws_job.py --job replay --command "PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file $$REPLAY_FILE --speed 20 --start 11:40 --end 12:05" --artifact reports/_artifacts/replay_ev.parquet
+
+aws-deploy-dashboards:
+	@mkdir -p reports/_artifacts/monitors
+	@echo "Bundling monitor artifacts for dashboard deploy..."
+	@tar -czf reports/_artifacts/monitors/dashboard_bundle.tgz reports/_artifacts/monitors >/dev/null 2>&1 || true
+	@ls -lh reports/_artifacts/monitors/dashboard_bundle.tgz
 
 parity-ci:
 	$(PYTHON) scripts/parity_gate.py --threshold 0.15
