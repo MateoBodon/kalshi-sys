@@ -33,6 +33,7 @@ CALIBRATION_PATH = Path("data/proc/calibration_metrics.parquet")
 ALPHA_STATE_PATH = Path("data/proc/state/fill_alpha.json")
 ARTIFACTS_DIR = Path("reports/_artifacts")
 HONESTY_ARTIFACT_ROOT = ARTIFACTS_DIR / "honesty"
+STRUCTURE_ARTIFACT_ROOT = ARTIFACTS_DIR / "structures"
 LOGGER = logging.getLogger(__name__)
 INDEX_SERIES_ORDER = ["INXU", "NASDAQ100U", "INX", "NASDAQ100"]
 INDEX_SERIES = set(INDEX_SERIES_ORDER)
@@ -380,6 +381,27 @@ def _build_summary(  # noqa: PLR0912, PLR0915
             "fills_contracts": fills_value,
             "calibration_age_days": calib_age,
         }
+        structure_info = _load_structure_artifact(series)
+        if structure_info:
+            metrics["regime"] = structure_info.get("regime")
+            metrics["regime_size_multiplier"] = structure_info.get("regime_size_multiplier")
+            metrics["regime_slo_multiplier"] = structure_info.get("regime_slo_multiplier")
+            metrics["contracts_per_quote"] = structure_info.get("contracts_per_quote")
+            range_sigma = structure_info.get("range_ab_sigma")
+            if range_sigma is not None:
+                try:
+                    metrics["range_ab_sigma"] = float(range_sigma)
+                except (TypeError, ValueError):
+                    pass
+            throttle = structure_info.get("replacement_throttle")
+            if isinstance(throttle, dict):
+                counts = [
+                    int(value)
+                    for value in throttle.values()
+                    if isinstance(value, (int, float))
+                ]
+                if counts:
+                    metrics["replacement_throttle_max"] = max(counts)
         calib = calib_lookup.get(series)
         if calib:
             metrics["crps_advantage"] = calib.get("crps_advantage")
@@ -557,6 +579,17 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
             lines.append(f"- Fill - model α: {row['fill_minus_model']:+.3f}")
         if row.get("fill_gap_model_abs") is not None:
             lines.append(f"- |Fill-model|: {row['fill_gap_model_abs']:.3f}")
+        if row.get("regime"):
+            size_mult = float(row.get("regime_size_multiplier", 1.0) or 1.0)
+            lines.append(f"- Regime: {row['regime']} (size×{size_mult:.2f})")
+        if row.get("contracts_per_quote"):
+            lines.append(f"- Contracts/quote: {int(row['contracts_per_quote'])}")
+        if row.get("range_ab_sigma") is not None:
+            lines.append(f"- Range σ (contracts): {float(row['range_ab_sigma']):.2f}")
+        if row.get("replacement_throttle_max") is not None:
+            lines.append(
+                f"- Microprice throttle (max/window): {int(row['replacement_throttle_max'])}"
+            )
         lines.append(f"- Sample Size: {row.get('sample_size', 0)} trades")
         lines.append(
             f"- Expected EV (bps): {row.get('ev_expected_bps_mean', 0.0):+.1f}"
@@ -639,6 +672,17 @@ def _slo_markdown_lines(entry: slo.SLOSeriesMetrics) -> list[str]:
     else:
         lines.append("  - Active NO-GO reasons: none")
     return lines
+
+
+def _load_structure_artifact(series: str) -> dict[str, object] | None:
+    path = STRUCTURE_ARTIFACT_ROOT / f"{series.upper()}.json"
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 if __name__ == "__main__":

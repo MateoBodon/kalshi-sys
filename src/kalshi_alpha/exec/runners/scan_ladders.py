@@ -60,6 +60,7 @@ from kalshi_alpha.drivers.calendar.loader import calendar_tags_for
 from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, PolygonAPIError, PolygonIndicesClient
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
 from kalshi_alpha.exec import fees as exec_fees
+from kalshi_alpha.exec import quote_microprice
 from kalshi_alpha.data import WSFreshnessSentry
 from kalshi_alpha.exec.limits import LossBudget, ProposalLimitChecker, LimitViolation
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
@@ -81,7 +82,7 @@ from kalshi_alpha.exec.monitors.summary import (
     MONITOR_ARTIFACTS_DIR,
     summarize_monitor_artifacts,
 )
-from kalshi_alpha.exec.quote_optim import QuoteContext, QuoteOptimizer, microprice_from_orderbook
+from kalshi_alpha.exec.quote_optim import QuoteContext, QuoteOptimizer
 from kalshi_alpha.exec.pilot import (
     PilotConfig,
     PilotSession,
@@ -93,7 +94,8 @@ from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.markets.discovery import discover_markets_for_day
-from kalshi_alpha.sched import TradingWindow, current_window as scheduler_current_window
+from kalshi_alpha.structures import build_range_structures
+from kalshi_alpha.sched import TradingWindow, current_window as scheduler_current_window, regimes
 from kalshi_alpha.strategies import claims as claims_strategy
 from kalshi_alpha.strategies import cpi as cpi_strategy
 from kalshi_alpha.strategies import index as index_strategy
@@ -2257,6 +2259,10 @@ def scan_series(  # noqa: PLR0913
     freshness_ms: float | None = None,
 ) -> ScanOutcome:
     now_utc = now_override if now_override is not None else datetime.now(tz=UTC)
+    regime_flags = regimes.regime_for(now_utc)
+    base_contracts = max(int(contracts), 1)
+    contracts_per_quote = max(1, int(round(base_contracts * regime_flags.size_multiplier)))
+    kelly_cap_regime = max(float(kelly_cap) * regime_flags.slo_multiplier, 0.05)
     sigma_artifact = sigma_drift.load_artifact()
     sigma_shrink: float | None = None
     series_obj = _find_series(client, series)
@@ -2353,6 +2359,9 @@ def scan_series(  # noqa: PLR0913
     book_snapshot_failures = 0
     book_snapshot_started_at = now_utc
     pilot_trimmed_bins = 0
+    range_structure_summary: list[dict[str, object]] = []
+    range_structure_sigma = 0.0
+    replacement_throttle = quote_microprice.ReplacementThrottle()
 
     model_metadata: dict[str, object] = {}
     imbalance_cache: dict[str, float | None] = {}
@@ -2405,6 +2414,23 @@ def scan_series(  # noqa: PLR0913
             strategy_survival = pmf_to_survival(strategy_pmf, [rung.strike for rung in rungs])
             if correlation_guard is not None:
                 correlation_guard.update_surface(series_obj.ticker, [rung.strike for rung in rungs], strategy_survival)
+            structures = build_range_structures(
+                series=series_obj.ticker if series_obj is not None else series,
+                market_id=market.id,
+                market_ticker=market.ticker,
+                rungs=rungs,
+                strategy_survival=strategy_survival,
+                contracts=contracts_per_quote,
+            )
+            if structures:
+                range_structure_summary.append(
+                    {
+                        "market_id": market.id,
+                        "market_ticker": market.ticker,
+                        "structures": [entry.to_summary() for entry in structures],
+                    }
+                )
+                range_structure_sigma += sum(entry.sigma for entry in structures)
             allowed_indices = None
             if not allow_tails:
                 allowed_indices = _adjacent_indices(strategy_pmf, len(rungs))
@@ -2470,7 +2496,7 @@ def scan_series(  # noqa: PLR0913
                 max_var=max_var,
                 strategy_name=series_obj.ticker.upper(),
                 sizing_mode=sizing_mode,
-                kelly_cap=kelly_cap,
+                kelly_cap=kelly_cap_regime,
                 uncertainty_penalty=uncertainty_penalty,
                 ob_imbalance_penalty=ob_imbalance_penalty,
                 daily_budget=daily_budget,
@@ -2484,6 +2510,8 @@ def scan_series(  # noqa: PLR0913
                 quote_optimizer=quote_optimizer,
                 orderbook=books_at_scan.get(market.id),
                 freshness_ms=freshness_ms,
+                replacement_throttle=replacement_throttle,
+                now_ts=now_utc,
             )
             if pilot_config is not None:
                 rung_proposals, trimmed = _limit_proposals_for_pilot(
@@ -2501,6 +2529,11 @@ def scan_series(  # noqa: PLR0913
         "tz_not_et": _tz_not_et(),
         "orderbook_snapshots": len(books_at_scan),
         "ev_honesty_shrink": ev_honesty_shrink,
+        "contracts_per_quote": contracts_per_quote,
+        "kelly_cap_effective": round(kelly_cap_regime, 4),
+        "regime": regime_flags.label,
+        "regime_size_multiplier": regime_flags.size_multiplier,
+        "regime_slo_multiplier": regime_flags.slo_multiplier,
     }
     if sigma_shrink is not None:
         monitors["sigma_drift_shrink"] = sigma_shrink
@@ -2533,6 +2566,12 @@ def scan_series(  # noqa: PLR0913
     if series_obj is not None:
         monitors.setdefault("series", series_obj.ticker.upper())
     monitors.setdefault("model_version", model_version)
+    if range_structure_summary:
+        monitors["range_ab_structures"] = tuple(range_structure_summary)
+        monitors["range_ab_sigma"] = round(range_structure_sigma, 6)
+    throttle_snapshot = replacement_throttle.snapshot() if replacement_throttle is not None else {}
+    if throttle_snapshot:
+        monitors["replacement_throttle"] = throttle_snapshot
     if mispricing_records:
         monitors["max_prob_sum_gap"] = max(record["prob_sum_gap"] for record in mispricing_records)
     if book_snapshot_failures:
@@ -3019,13 +3058,18 @@ def _evaluate_market(  # noqa: PLR0913
     quote_optimizer: QuoteOptimizer | None = None,
     orderbook: Orderbook | None = None,
     freshness_ms: float | None = None,
+    replacement_throttle: quote_microprice.ReplacementThrottle | None = None,
+    now_ts: datetime | None = None,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
     uncertainty_penalty = max(0.0, uncertainty_penalty)
     ob_imbalance_penalty = max(0.0, ob_imbalance_penalty)
     series_upper = series_ticker.upper()
     apply_shrink = 0.0 < ev_shrink < 1.0
-    microprice_value, best_bid_price, best_ask_price = microprice_from_orderbook(orderbook)
+    microprice_signal = quote_microprice.compute_signal(orderbook)
+    microprice_value = microprice_signal.microprice
+    best_bid_price = microprice_signal.best_bid
+    best_ask_price = microprice_signal.best_ask
 
     for index, rung in enumerate(rungs):
         if allowed_indices is not None and index not in allowed_indices:
@@ -3074,7 +3118,10 @@ def _evaluate_market(  # noqa: PLR0913
         effective_min_ev = min_ev + penalty
         if best_ev < effective_min_ev:
             continue
-        if throttle_key and quote_optimizer is not None and quote_optimizer.should_throttle(throttle_key):
+        if throttle_key and replacement_throttle is not None and replacement_throttle.should_block(
+            throttle_key,
+            now=now_ts,
+        ):
             continue
 
         order_id = f"{market_ticker}:{rung.strike}"
@@ -3319,8 +3366,8 @@ def _evaluate_market(  # noqa: PLR0913
 
         if correlation_guard is not None and correlation_exposure is not None:
             correlation_guard.register(correlation_exposure)
-        if quote_optimizer is not None and throttle_key is not None:
-            quote_optimizer.record_submission(throttle_key)
+        if replacement_throttle is not None and throttle_key is not None:
+            replacement_throttle.record(throttle_key, now=now_ts)
 
         proposal = Proposal(
             market_id=market_id,

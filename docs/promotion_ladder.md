@@ -20,3 +20,4 @@
 - **Automation**: CloudWatch publishing enabled (`python -m kalshi_alpha.exec.scoreboard --publish-slo-cloudwatch`), daily digest pushed to S3, fee/sigma monitors in CI.
 - **Runbooks & postmortems**: no open NO-GO reasons; last two incidents documented via `docs/postmortem_template.md`.
 - **Approvals**: ops + risk sign-off recorded in REPORT.md with links to scoreboard/digest artifacts and monitor JSON.
+- **Allocator & regimes**: Range/AB structure sigma, regime multipliers, and microprice throttle stats included in daily digest + scoreboard; allocator budgets signed off in REPORT.md.
