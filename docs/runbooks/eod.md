@@ -35,6 +35,7 @@
 ## After Close
 - [ ] Verify cancel-all succeeded (`OutstandingOrdersState.total() == 0`).
 - [ ] Tag ledger/report with `scheduler_window` metadata for auditing.
+- [ ] Replay parity: `python -m tools.replay --families SPX,NDX --date YYYY-MM-DD --hours 16 --epsilon 0.15 --out reports/_artifacts/` followed by `python scripts/parity_gate.py --threshold 0.15 --path reports/_artifacts/replay_ev.parquet --output-json reports/_artifacts/monitors/ev_gap.json`. Review the JSON summary before signing off.
 - [ ] Regenerate scoreboard + pilot readiness (`make scoreboard`) so Polygon freshness metrics appear in the header.
 - [ ] Generate the daily digest (`python -m report.digest --date YYYY-MM-DD --write --s3 s3://<bucket>/kalshi-sys/reports/`) and include the link in `REPORT.md`.
 - [ ] Use the shimmed automation when large calibration/replay runs are needed: `make aws-calib` (hourly σ job) and `make aws-replay FILE=data/replay/YYYY-MM-DD_spx_ndx.json` capture artifacts + metrics under `reports/_artifacts/aws_jobs/`.

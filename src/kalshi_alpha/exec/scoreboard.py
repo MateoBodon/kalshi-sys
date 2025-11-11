@@ -638,13 +638,13 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
         lines.append(f"- NO-GO Count: {row['no_go_count']}")
         slo_entry = (slo_metrics or {}).get(str(row["series"]).upper()) if row.get("series") else None
         if slo_entry:
-            lines.extend(_slo_markdown_lines(slo_entry))
+            lines.extend(_slo_markdown_lines(slo_entry, window_days=window_days))
         lines.append("")
     output.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _slo_markdown_lines(entry: slo.SLOSeriesMetrics) -> list[str]:
-    lines = ["- SLO Metrics:"]
+def _slo_markdown_lines(entry: slo.SLOSeriesMetrics, *, window_days: int) -> list[str]:
+    lines = [f"- SLO Metrics ({window_days}d):"]
     freshness_parts: list[str] = []
     if entry.freshness_p95_ms is not None:
         freshness_parts.append(f"p95={entry.freshness_p95_ms:.0f} ms")

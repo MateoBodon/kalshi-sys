@@ -51,16 +51,26 @@ def main(argv=None) -> None:
         .alias("delta")
     )
     enriched = frame.with_columns([per_contract_original, delta_col])
-    window_map = _window_max(enriched, args.window_column)
-    max_delta = max(window_map.values())
-    for window, value in sorted(window_map.items()):
-        print(f"[parity] window={window} max ΔEV per contract = {value:.4f} (threshold {args.threshold:.4f})")
+    type_map = _window_max(enriched, args.window_column)
+    label_map = _window_max(enriched, "window_label") if "window_label" in enriched.columns else {}
+    max_delta = max(type_map.values()) if type_map else 0.0
+    for window, value in sorted(type_map.items()):
+        print(
+            f"[parity] window_type={window} max ΔEV per contract = {value:.4f} USD "
+            f"({value * 100:.2f}¢) threshold={args.threshold:.4f} USD"
+        )
     if args.output_json:
-        _write_summary(args.output_json, args.threshold, window_map, max_delta)
-    offenders = {window: value for window, value in window_map.items() if value > args.threshold}
+        _write_summary(
+            path=args.output_json,
+            threshold=args.threshold,
+            window_type_map=type_map,
+            window_label_map=label_map,
+            max_delta=max_delta,
+        )
+    offenders = {window: value for window, value in type_map.items() if value > args.threshold}
     if offenders:
         raise SystemExit(
-            "per-window ΔEV parity exceeded threshold: "
+            "per-window-type ΔEV parity exceeded threshold: "
             + ", ".join(f"{window}={value:.4f}" for window, value in sorted(offenders.items()))
         )
 
@@ -73,12 +83,20 @@ def _window_max(frame: pl.DataFrame, column: str) -> dict[str, float]:
     return {"all": value}
 
 
-def _write_summary(path: Path, threshold: float, window_map: dict[str, float], max_delta: float) -> None:
+def _write_summary(
+    *,
+    path: Path,
+    threshold: float,
+    window_type_map: dict[str, float],
+    window_label_map: dict[str, float],
+    max_delta: float,
+) -> None:
     payload = {
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "threshold": threshold,
         "max_delta": max_delta,
-        "by_window": window_map,
+        "by_window_type": window_type_map,
+        "by_window": window_label_map,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

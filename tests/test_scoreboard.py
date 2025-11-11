@@ -175,7 +175,7 @@ def test_scoreboard_generates_markdown(
     assert "NO-GO Count" in contents
     assert "Sample Size" in contents
     assert "Confidence" in contents
-    assert "SLO Metrics" in contents
+    assert "SLO Metrics (7d)" in contents
     assert "Freshness" in contents
 
     pilot_report = tmp_path / "reports" / "pilot_readiness.md"

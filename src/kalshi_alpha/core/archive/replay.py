@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import polars as pl
 
@@ -104,9 +104,10 @@ def replay_manifest(
             continue
 
         side = str(proposal.get("side", "YES")).upper()
+        liquidity = _proposal_liquidity(proposal)
         ob = orderbooks.get(market.id)
         fill_price = yes_price
-        if ob is not None:
+        if ob is not None and liquidity == "taker":
             try:
                 fill_price, _ = price_with_slippage(
                     side=side,
@@ -147,6 +148,7 @@ def replay_manifest(
                 "market_ticker": market.ticker,
                 "strike": strike,
                 "side": side,
+                "liquidity": liquidity,
                 "contracts": contracts,
                 "strategy_probability": event_probability,
                 "market_survival": float(market_survival[idx]),
@@ -209,6 +211,22 @@ def _load_proposals(ctx: _ReplayContext) -> list[dict[str, Any]]:
             return []
     payload = json.loads(path.read_text(encoding="utf-8"))
     return list(payload.get("proposals", []))
+
+
+def _proposal_liquidity(proposal: Mapping[str, Any]) -> str:
+    metadata = proposal.get("metadata")
+    liquidity = proposal.get("liquidity")
+    if metadata and isinstance(metadata, Mapping):
+        direct = metadata.get("liquidity")
+        if direct:
+            liquidity = direct
+        ev_components = metadata.get("ev_components")
+        if not liquidity and isinstance(ev_components, Mapping):
+            liquidity = ev_components.get("liquidity")
+    label = str(liquidity or "").strip().lower()
+    if not label:
+        return "maker"
+    return label
 
 
 def _resolve_driver_fixtures(ctx: _ReplayContext) -> Path:

@@ -104,7 +104,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         lookback_days=max(int(args.lookback), 1),
         now=datetime.combine(target_date, time(23, 59, tzinfo=ET)).astimezone(UTC),
     )
-    digest_md = _render_markdown(target_date, series_rows, slo_metrics)
+    replay_summary = _load_replay_summary(target_date, args.reports)
+    digest_md = _render_markdown(target_date, series_rows, slo_metrics, replay_summary)
     output_dir = args.output
     output_dir.mkdir(parents=True, exist_ok=True)
     filename = f"digest_{target_date.isoformat()}"
@@ -276,6 +277,7 @@ def _render_markdown(
     target_date: date,
     series_rows: Sequence[SeriesDigest],
     slo_metrics: Mapping[str, slo.SLOSeriesMetrics],
+    replay_summary: Mapping[str, object] | None,
 ) -> str:
     total_trades = sum(row.trades for row in series_rows)
     total_ev = sum(row.ev_usd for row in series_rows)
@@ -335,6 +337,9 @@ def _render_markdown(
             pieces.append("no telemetry on file")
         lines.append(f"- **{row.series}**: {', '.join(pieces)}")
     lines.append("")
+    lines.append("## Replay Parity")
+    lines.extend(_replay_summary_lines(replay_summary))
+    lines.append("")
     lines.append("## Monitor Status")
     monitor_summary = summarize_monitor_artifacts(
         MONITOR_ARTIFACTS_DIR,
@@ -359,6 +364,42 @@ def _render_markdown(
     lines.append("")
     lines.append("Generated via `python -m report.digest`. Attach the PNG plot alongside this markdown when archiving.")
     return "\n".join(lines)
+
+
+def _replay_summary_lines(summary: Mapping[str, object] | None) -> list[str]:
+    if not summary:
+        return ["- No replay summary on file."]
+    epsilon = float(summary.get("epsilon") or 0.0)
+    window_type_max = summary.get("window_type_max") or {}
+    windows = summary.get("windows") or []
+    lines = [f"- Threshold: {epsilon:.2f} USD/contract"]
+    if window_type_max:
+        for label, value in sorted(window_type_max.items()):
+            lines.append(f"  - {label}: max |ΔEV| {float(value):.3f} USD")
+    else:
+        lines.append("  - No window types recorded.")
+    if windows:
+        lines.append("- Windows:")
+        for window in windows:
+            label = window.get("window_label") or window.get("series") or "unknown"
+            window_type = window.get("window_type", "unknown")
+            max_delta = float(window.get("max_abs_delta") or 0.0)
+            breach = "⚠️" if window.get("threshold_breach") else "✓"
+            lines.append(f"  - {label} ({window_type}): {max_delta:.3f} USD {breach}")
+    else:
+        lines.append("- No replay windows recorded.")
+    worst_bins = summary.get("worst_bins") or []
+    if worst_bins:
+        lines.append("- Worst bins:")
+        for entry in worst_bins:
+            market = entry.get("market_ticker", "-")
+            strike = entry.get("strike")
+            strike_text = f"{float(strike):.2f}" if isinstance(strike, (int, float)) else str(strike or "-")
+            delta = float(entry.get("delta_per_contract") or 0.0)
+            lines.append(f"  - {market} {strike_text}: {delta:+.3f} USD")
+    else:
+        lines.append("- No per-bin replay stats.")
+    return lines
 
 
 def _render_plot(series_rows: Sequence[SeriesDigest], output: Path) -> None:
@@ -386,6 +427,17 @@ def _render_plot(series_rows: Sequence[SeriesDigest], output: Path) -> None:
     fig.tight_layout()
     fig.savefig(output, dpi=200)
     plt.close(fig)
+
+
+def _load_replay_summary(target_date: date, reports_dir: Path) -> dict[str, object] | None:
+    summary_path = reports_dir / "_artifacts" / "replay" / f"replay_summary_{target_date.isoformat()}.json"
+    if not summary_path.exists():
+        return None
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _upload_to_s3(uri: str, paths: Iterable[Path | None]) -> list[str]:

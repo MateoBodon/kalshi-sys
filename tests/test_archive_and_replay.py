@@ -83,3 +83,4 @@ def test_archive_and_replay(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert replay_path.exists()
     frame = pl.read_parquet(replay_path)
     assert frame.height == 1
+    assert frame["fill_price"][0] == pytest.approx(0.45)
