@@ -1,0 +1,19 @@
+{
+  "file_count": 11,
+  "generated_at": "2025-11-11T18:52:51.303218+00:00",
+  "max_age_minutes": 1375.1191598166665,
+  "statuses": {
+    "auth_error_streak": "OK",
+    "data_freshness": "OK",
+    "drawdown": "OK",
+    "ev_gap": "NO_DATA",
+    "ev_seq_guard": "NO_DATA",
+    "fee_rules": "OK",
+    "fill_vs_alpha": "NO_DATA",
+    "freeze_window": "OK",
+    "kill_switch": "OK",
+    "sigma_drift": "OK",
+    "ws_disconnect_rate": "OK"
+  },
+  "target_date": "2025-11-11"
+}

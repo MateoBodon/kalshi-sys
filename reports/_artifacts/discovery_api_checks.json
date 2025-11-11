@@ -1,0 +1,26 @@
+{
+  "generated_at": "2025-11-11T17:22:12.645934+00:00",
+  "base_url": "https://api.elections.kalshi.com/trade-api/v2",
+  "series": {
+    "INXU": {
+      "series_ticker": "INXU",
+      "event_count": 0,
+      "market_count": 0
+    },
+    "NASDAQ100U": {
+      "series_ticker": "NASDAQ100U",
+      "event_count": 0,
+      "market_count": 0
+    },
+    "INX": {
+      "series_ticker": "INX",
+      "event_count": 0,
+      "market_count": 0
+    },
+    "NASDAQ100": {
+      "series_ticker": "NASDAQ100",
+      "event_count": 0,
+      "market_count": 0
+    }
+  }
+}

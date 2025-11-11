@@ -14,8 +14,14 @@ from kalshi_alpha.sched import TradingWindow, windows_for_day
 
 ET = ZoneInfo("America/New_York")
 _TARGET_SERIES = ("INXU", "NASDAQ100U", "INX", "NASDAQ100")
+_TARGET_SERIES_SET = frozenset(_TARGET_SERIES)
 _MATCH_TOLERANCE = timedelta(seconds=90)
 _TICKER_PATTERN = re.compile(r"-(?P<year>\d{2})(?P<month>[A-Z]{3})(?P<day>\d{2})H(?P<hour>\d{2})(?P<minute>\d{2})")
+_KX_PREFIX = "KX"
+_CANONICAL_ALIASES = {
+    f"{_KX_PREFIX}{label}": label
+    for label in _TARGET_SERIES
+}
 _MONTHS = {
     "JAN": 1,
     "FEB": 2,
@@ -106,12 +112,41 @@ def _normalize_series(series: Sequence[str] | None) -> tuple[str, ...]:
     ordered: list[str] = []
     seen: set[str] = set()
     for entry in (series or _TARGET_SERIES):
-        normalized = entry.upper()
+        normalized = _canonical_series(entry)
         if normalized in seen:
             continue
         ordered.append(normalized)
         seen.add(normalized)
     return tuple(ordered)
+
+
+def _canonical_series(label: str) -> str:
+    normalized = (label or "").strip().upper()
+    if not normalized:
+        return ""
+    canonical = _CANONICAL_ALIASES.get(normalized)
+    if canonical:
+        return canonical
+    if normalized.startswith(_KX_PREFIX) and normalized[2:]:
+        stripped = normalized[2:]
+        return stripped if stripped in _TARGET_SERIES_SET else normalized
+    return normalized
+
+
+def _series_query_candidates(series_code: str) -> tuple[str, ...]:
+    normalized = (series_code or "").strip().upper()
+    if not normalized:
+        return ()
+    candidates: list[str] = [normalized]
+    if normalized.startswith(_KX_PREFIX) and len(normalized) > 2:
+        candidates.append(normalized[2:])
+    else:
+        candidates.append(f"{_KX_PREFIX}{normalized}")
+    deduped: list[str] = []
+    for candidate in candidates:
+        if candidate and candidate not in deduped:
+            deduped.append(candidate)
+    return tuple(deduped)
 
 
 def _collect_markets(
@@ -123,7 +158,12 @@ def _collect_markets(
 ) -> dict[str, list[DiscoveredMarket]]:
     per_series: dict[str, list[DiscoveredMarket]] = {}
     for series_code in series_list:
-        markets = client.search_markets(series_ticker=series_code, status=status)
+        markets: list[Market] = []
+        for candidate in _series_query_candidates(series_code):
+            candidate_markets = client.search_markets(series_ticker=candidate, status=status)
+            if candidate_markets:
+                markets = candidate_markets
+                break
         grouped = _group_by_event(markets, trading_day)
         if grouped:
             per_series[series_code] = grouped
@@ -144,7 +184,7 @@ def _group_by_event(markets: Sequence[Market], trading_day: date) -> list[Discov
     discovered: list[DiscoveredMarket] = []
     for event_id, entries in grouped.items():
         entries = sorted(entries, key=lambda market: market.ticker)
-        series = (entries[0].series_ticker or "").upper()
+        series = _canonical_series(entries[0].series_ticker or "")
         if not series:
             continue
         close_dt = entries[0].close_time or _infer_close_from_ticker(entries[0].ticker)

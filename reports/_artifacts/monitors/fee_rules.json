@@ -1,0 +1,21 @@
+{
+  "changed": [],
+  "generated_at": "2025-11-11T17:04:20.563166+00:00",
+  "message": null,
+  "requires_ack": false,
+  "status": "OK",
+  "targets": {
+    "kalshi_fees": {
+      "checksum": "ed94e9c586e2a48a05bda0b37dd488349375a681316fb97923c10cce184c35ef",
+      "content_length": 273459,
+      "fetched_at": "2025-11-11T17:04:20.367508+00:00",
+      "url": "https://help.kalshi.com/trading/fees"
+    },
+    "kalshi_rulebook": {
+      "checksum": "99387baee9b60f95df16cf12367e8eb3ff298eb235cd16d1d21f5e02d73b99f8",
+      "content_length": 275487,
+      "fetched_at": "2025-11-11T17:04:20.562679+00:00",
+      "url": "https://help.kalshi.com/markets/markets-101/market-rules/rules-summary"
+    }
+  }
+}

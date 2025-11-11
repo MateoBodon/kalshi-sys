@@ -1,10 +1,8 @@
 {
-  "generated_at": "2025-11-10T19:57:44.153629+00:00",
-  "message": null,
-  "metrics": {
-    "count": 4,
-    "reason": "insufficient_samples"
-  },
-  "name": "ev_gap",
-  "status": "NO_DATA"
+  "generated_at": "2025-11-11T18:49:50.120418+00:00",
+  "threshold": 0.15,
+  "max_delta": 0.0,
+  "by_window": {
+    "all": 0.0
+  }
 }

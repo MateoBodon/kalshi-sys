@@ -9,19 +9,38 @@ References:
 from __future__ import annotations
 
 import json
+import os
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Mapping, Sequence, cast
 
 import requests
 from cachetools import LRUCache
 
-DEFAULT_BASE_URL = "https://trading-api.kalshi.com/v1"
+DEFAULT_BASE_URL = os.getenv("KALSHI_PUBLIC_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
 MARKETS_SEARCH_OFFLINE_STUB = "markets_search.json"
 CacheKey = tuple[str, tuple[tuple[str, Any], ...]]
 Payload = dict[str, Any] | list[Any]
+_STATUS_EQUIVALENTS: dict[str, set[str]] = {
+    "open": {"open", "active", "initialized"},
+    "unopened": {"unopened", "scheduled"},
+    "closed": {"closed"},
+    "settled": {"settled", "resolved"},
+}
+_CANONICAL_SERIES = ("INXU", "NASDAQ100U", "INX", "NASDAQ100")
+_SERIES_CANONICAL_MAP = {
+    **{label: label for label in _CANONICAL_SERIES},
+    **{f"KX{label}": label for label in _CANONICAL_SERIES},
+}
+_SERIES_QUERY_CACHE: dict[str, tuple[str, ...]] = {}
+_TICKER_STRIKE_PATTERN = re.compile(r"[-:]([0-9]+(?:\.[0-9]+)?)$")
+
+
+class KalshiPublicClientError(RuntimeError):
+    """Raised when the public Kalshi API client encounters unrecoverable errors."""
 
 
 @dataclass(frozen=True)
@@ -32,10 +51,12 @@ class Series:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Series:
+        ticker = str(payload.get("ticker") or payload.get("series_ticker"))
+        identifier = payload.get("id") or payload.get("series_id") or ticker
         return cls(
-            id=str(payload.get("id") or payload.get("series_id")),
-            ticker=str(payload.get("ticker")),
-            name=str(payload.get("name") or payload.get("title") or payload.get("ticker")),
+            id=str(identifier),
+            ticker=ticker,
+            name=str(payload.get("name") or payload.get("title") or ticker),
         )
 
 
@@ -48,11 +69,12 @@ class Event:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Event:
+        event_ticker = payload.get("event_ticker") or payload.get("ticker")
         return cls(
-            id=str(payload.get("id") or payload.get("event_id")),
-            series_id=str(payload.get("series_id")),
-            ticker=str(payload.get("ticker")),
-            title=str(payload.get("title") or payload.get("name") or payload.get("ticker")),
+            id=str(payload.get("id") or payload.get("event_id") or event_ticker),
+            series_id=str(payload.get("series_id") or payload.get("series_ticker") or ""),
+            ticker=str(event_ticker),
+            title=str(payload.get("title") or payload.get("name") or event_ticker),
         )
 
 
@@ -68,18 +90,28 @@ class Market:
     series_ticker: str | None = None
     status: str | None = None
     close_time: datetime | None = None
+    rung_tickers: list[str] | None = None
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Market:
         strikes = payload.get("ladder_strikes") or payload.get("strike_prices") or []
         yes_prices = payload.get("ladder_yes_prices") or payload.get("yes_prices") or []
-        close_time = _parse_timestamp(payload.get("close_ts"))
+        close_time = _parse_timestamp(payload.get("close_ts") or payload.get("close_time"))
         event_ticker = payload.get("event_ticker") or payload.get("event")
         series_ticker = payload.get("series_ticker") or payload.get("series")
+        if not series_ticker and isinstance(event_ticker, str) and "-" in event_ticker:
+            series_ticker = event_ticker.split("-", 1)[0]
         status = payload.get("status")
+        market_id = payload.get("id") or payload.get("market_id") or payload.get("ticker")
+        event_id = payload.get("event_id") or event_ticker
+        rung_tickers = payload.get("rung_tickers") or None
+        if isinstance(rung_tickers, list):
+            rung_tickers = [str(item) for item in rung_tickers]
+        else:
+            rung_tickers = None
         return cls(
-            id=str(payload.get("id") or payload.get("market_id")),
-            event_id=str(payload.get("event_id")),
+            id=str(market_id) if market_id is not None else "",
+            event_id=str(event_id) if event_id is not None else "",
             ticker=str(payload.get("ticker")),
             title=str(payload.get("title") or payload.get("name") or payload.get("ticker")),
             ladder_strikes=[float(value) for value in strikes],
@@ -88,6 +120,7 @@ class Market:
             series_ticker=str(series_ticker).upper() if series_ticker else None,
             status=str(status).lower() if isinstance(status, str) else None,
             close_time=close_time,
+            rung_tickers=rung_tickers,
         )
 
 
@@ -99,10 +132,19 @@ class Orderbook:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Orderbook:
+        if "orderbook" in payload:
+            payload = payload["orderbook"]
+        bids = list(payload.get("bids", []))
+        asks = list(payload.get("asks", []))
+        if not bids and "yes" in payload:
+            bids = _orderbook_side_from_levels(payload.get("yes"), payload.get("yes_dollars"))
+        if not asks and "no" in payload:
+            asks = _orderbook_side_from_levels(payload.get("no"), payload.get("no_dollars"))
+        market_id = str(payload.get("market_id") or payload.get("ticker") or "")
         return cls(
-            market_id=str(payload.get("market_id")),
-            bids=list(payload.get("bids", [])),
-            asks=list(payload.get("asks", [])),
+            market_id=market_id,
+            bids=bids,
+            asks=asks,
         )
 
     def depth_weighted_mid(self) -> float:
@@ -149,33 +191,57 @@ class KalshiPublicClient:
         return [Series.from_payload(item) for item in data or []]
 
     def get_events(self, series_id: str, *, force_refresh: bool = False) -> list[Event]:
-        payload = self._get(
-            f"/series/{series_id}/events",
-            cache_key=("events", series_id),
-            offline_stub=f"events_{series_id}.json",
-            force_refresh=force_refresh,
-        )
-        data = payload.get("events") if isinstance(payload, dict) else payload
-        return [Event.from_payload(item) for item in data or []]
+        candidates = _series_query_candidates(series_id) or (series_id,)
+        for candidate in candidates:
+            payload = self._get(
+                "/events",
+                params={"series_ticker": candidate},
+                cache_key=("events", candidate),
+                offline_stub=f"events_{candidate}.json",
+                force_refresh=force_refresh,
+            )
+            data = payload.get("events") if isinstance(payload, dict) else payload
+            if not data:
+                continue
+            events = [Event.from_payload(item) for item in data]
+            for event in events:
+                if not event.series_id:
+                    event.series_id = candidate  # type: ignore[attr-defined]
+            return events
+        return []
 
     def get_markets(self, event_id: str, *, force_refresh: bool = False) -> list[Market]:
+        if self.use_offline:
+            payload = self._get(
+                f"/events/{event_id}/markets",
+                cache_key=("markets", event_id),
+                offline_stub=f"markets_{event_id}.json",
+                force_refresh=force_refresh,
+            )
+            data = payload.get("markets") if isinstance(payload, dict) else payload
+            return [Market.from_payload(item) for item in data or []]
         payload = self._get(
-            f"/events/{event_id}/markets",
-            cache_key=("markets", event_id),
+            "/markets",
+            params={"event_ticker": event_id, "limit": 1000},
+            cache_key=("markets_event", event_id),
             offline_stub=f"markets_{event_id}.json",
             force_refresh=force_refresh,
         )
         data = payload.get("markets") if isinstance(payload, dict) else payload
-        return [Market.from_payload(item) for item in data or []]
+        aggregated = _aggregate_markets(event_id, data or [])
+        return [Market.from_payload(aggregated)] if aggregated else []
 
     def get_orderbook(self, market_id: str, *, force_refresh: bool = False) -> Orderbook:
-        payload = self._get(
-            f"/markets/{market_id}/orderbook",
-            cache_key=("orderbook", market_id),
-            offline_stub=f"orderbook_{market_id}.json",
-            force_refresh=force_refresh,
-        )
-        return Orderbook.from_payload(payload if isinstance(payload, dict) else payload[0])
+        if self.use_offline:
+            payload = self._get(
+                f"/markets/{market_id}/orderbook",
+                cache_key=("orderbook", market_id),
+                offline_stub=f"orderbook_{market_id}.json",
+                force_refresh=force_refresh,
+            )
+            return Orderbook.from_payload(payload if isinstance(payload, dict) else payload[0])
+        # Aggregated orderbooks are no longer available via the public API; return empty structure.
+        return Orderbook(market_id=market_id, bids=[], asks=[])
 
     def search_markets(  # noqa: PLR0913 - filter flexibility
         self,
@@ -210,7 +276,18 @@ class KalshiPublicClient:
             force_refresh=force_refresh,
         )
         data = payload.get("markets") if isinstance(payload, dict) else payload
-        markets = [Market.from_payload(item) for item in data or []]
+        markets: list[Market] = []
+        if data and isinstance(data, list) and data and "ladder_strikes" not in data[0]:
+            grouped: dict[str, list[Mapping[str, Any]]] = {}
+            for entry in data:
+                event_key = str(entry.get("event_ticker") or entry.get("event_id") or entry.get("ticker") or "")
+                grouped.setdefault(event_key, []).append(entry)
+            for event_id, entries in grouped.items():
+                aggregated = _aggregate_markets(event_id, entries)
+                if aggregated:
+                    markets.append(Market.from_payload(aggregated))
+        else:
+            markets = [Market.from_payload(item) for item in data or []]
         return [
             market
             for market in markets
@@ -241,8 +318,11 @@ class KalshiPublicClient:
                 response = self.session.get(url, params=params, timeout=self.timeout)
                 response.raise_for_status()
                 payload = cast(Payload, response.json())
-            except (requests.RequestException, json.JSONDecodeError):
-                payload = self._load_offline(offline_stub)
+            except (requests.RequestException, json.JSONDecodeError) as exc:
+                if offline_stub:
+                    payload = self._load_offline(offline_stub)
+                else:
+                    raise KalshiPublicClientError(f"Kalshi request failed: {exc}") from exc
 
         self._cache[key] = payload
         return payload
@@ -263,13 +343,196 @@ def _matches_filter(
     status: str | None,
     event_ticker: str | None,
 ) -> bool:
-    if series_ticker and (market.series_ticker or "").upper() != series_ticker:
-        return False
-    if status and (market.status or "").lower() != status:
-        return False
+    if series_ticker:
+        market_series = (market.series_ticker or "").upper()
+        if market_series and market_series != series_ticker:
+            return False
+    if status:
+        normalized = (market.status or "").lower()
+        accepted = _STATUS_EQUIVALENTS.get(status, {status})
+        if normalized not in accepted:
+            return False
     if event_ticker and (market.event_ticker or "").upper() != event_ticker.upper():
         return False
     return True
+
+
+def _canonical_series_label(label: str | None) -> str:
+    if not label:
+        return ""
+    normalized = label.strip().upper()
+    return _SERIES_CANONICAL_MAP.get(normalized, normalized)
+
+
+def _series_query_candidates(label: str | None) -> tuple[str, ...]:
+    key = (label or "").strip().upper()
+    if not key:
+        return ()
+    cached = _SERIES_QUERY_CACHE.get(key)
+    if cached:
+        return cached
+    candidates: list[str] = [key]
+    if key.startswith("KX") and len(key) > 2:
+        stripped = key[2:]
+        candidates.append(stripped)
+    else:
+        candidates.append(f"KX{key}")
+    deduped: list[str] = []
+    for entry in candidates:
+        if entry and entry not in deduped:
+            deduped.append(entry)
+    result = tuple(deduped)
+    _SERIES_QUERY_CACHE[key] = result
+    return result
+
+
+def _aggregate_markets(event_id: str, entries: Sequence[Mapping[str, Any]]) -> dict[str, Any] | None:
+    if not entries:
+        return None
+    preferred_entries = list(entries)
+    has_between = any(
+        isinstance(entry.get("strike_type"), str)
+        and entry["strike_type"].lower() == "between"
+        for entry in preferred_entries
+    )
+    if has_between:
+        preferred_entries = [
+            entry for entry in preferred_entries if str(entry.get("strike_type", "")).lower() == "between"
+        ]
+    rung_details: list[tuple[float, float, str]] = []
+    seen: set[float] = set()
+    for entry in preferred_entries:
+        strike = _resolve_strike(entry)
+        price = _resolve_yes_price(entry)
+        if strike is None or price is None:
+            continue
+        if strike in seen:
+            continue
+        seen.add(strike)
+        rung_details.append((strike, max(0.0, min(1.0, price)), str(entry.get("ticker") or "")))
+    if not rung_details:
+        return None
+    rung_details.sort(key=lambda item: item[0])
+    rung_strikes = [strike for strike, _, _ in rung_details]
+    rung_prices = [price for _, price, _ in rung_details]
+    rung_tickers = [ticker for _, _, ticker in rung_details]
+    first = entries[0]
+    market_id = str(first.get("market_id") or first.get("event_ticker") or event_id)
+    ticker = str(first.get("event_ticker") or first.get("ticker") or market_id)
+    title = str(first.get("title") or first.get("event_ticker") or event_id)
+    return {
+        "id": market_id,
+        "event_id": str(first.get("event_ticker") or event_id),
+        "ticker": ticker,
+        "title": title,
+        "ladder_strikes": rung_strikes,
+        "ladder_yes_prices": rung_prices,
+        "rung_tickers": rung_tickers,
+    }
+
+
+def _resolve_strike(entry: Mapping[str, Any]) -> float | None:
+    for key in ("floor_strike", "functional_strike", "cap_strike"):
+        value = entry.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                continue
+    ticker = entry.get("ticker")
+    if isinstance(ticker, str):
+        match = _TICKER_STRIKE_PATTERN.search(ticker.replace("-", ":"))
+        if match:
+            try:
+                return float(match.group(1))
+            except (ValueError, IndexError):
+                return None
+    return None
+
+
+def _resolve_yes_price(entry: Mapping[str, Any]) -> float | None:
+    yes_values: list[float] = []
+    for key in ("yes_bid_dollars", "yes_ask_dollars", "last_price_dollars"):
+        value = entry.get(key)
+        parsed = _parse_price_value(value)
+        if parsed is not None:
+            yes_values.append(parsed)
+    for key in ("yes_bid", "yes_ask", "last_price"):
+        value = entry.get(key)
+        parsed = _parse_price_value(value, assume_cents=True)
+        if parsed is not None:
+            yes_values.append(parsed)
+    if yes_values:
+        if len(yes_values) >= 2:
+            return sum(yes_values[:2]) / 2.0
+        return yes_values[0]
+    no_values: list[float] = []
+    for key in ("no_bid_dollars", "no_ask_dollars"):
+        value = entry.get(key)
+        parsed = _parse_price_value(value)
+        if parsed is not None:
+            no_values.append(1.0 - parsed)
+    for key in ("no_bid", "no_ask"):
+        value = entry.get(key)
+        parsed = _parse_price_value(value, assume_cents=True)
+        if parsed is not None:
+            no_values.append(1.0 - parsed)
+    if no_values:
+        if len(no_values) >= 2:
+            return sum(no_values[:2]) / 2.0
+        return no_values[0]
+    return None
+
+
+def _parse_price_value(value: Any, *, assume_cents: bool = False) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        price = float(value)
+        if assume_cents and price > 1.0:
+            return price / 100.0
+        return price
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            price = float(stripped)
+        except ValueError:
+            return None
+        return price
+    return None
+
+
+def _orderbook_side_from_levels(
+    levels_raw: Any,
+    dollars_raw: Any,
+) -> list[dict[str, Any]]:
+    levels: list[list[float]] = []
+    if isinstance(dollars_raw, Sequence):
+        for entry in dollars_raw:
+            if isinstance(entry, Sequence) and len(entry) >= 2:
+                try:
+                    price = float(entry[0])
+                    size = float(entry[1])
+                except (TypeError, ValueError):
+                    continue
+                levels.append([price, size])
+    if not levels and isinstance(levels_raw, Sequence):
+        for entry in levels_raw:
+            if isinstance(entry, Sequence) and len(entry) >= 2:
+                try:
+                    price = float(entry[0]) / (100.0 if float(entry[0]) > 1.0 else 1.0)
+                    size = float(entry[1])
+                except (TypeError, ValueError):
+                    continue
+                levels.append([price, size])
+    result: list[dict[str, Any]] = []
+    for price, size in levels:
+        result.append({"price": price, "size": size})
+    return result
 
 
 def _parse_timestamp(value: Any) -> datetime | None:

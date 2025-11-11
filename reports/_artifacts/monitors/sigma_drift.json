@@ -1,0 +1,44 @@
+{
+  "generated_at": "2025-11-11T17:04:57.858706+00:00",
+  "lookback_days": 7,
+  "series": {
+    "INX": {
+      "drift": -0.9464827215539885,
+      "forecast_sigma": 37.69133342392632,
+      "ratio": 0.053517278446011556,
+      "realized_sigma": 2.017137585849727,
+      "samples": 153,
+      "shrink": 1.0,
+      "status": "OK"
+    },
+    "INXU": {
+      "drift": -0.903327507354263,
+      "forecast_sigma": 20.86568299466186,
+      "ratio": 0.09667249264573693,
+      "realized_sigma": 2.017137585849727,
+      "samples": 153,
+      "shrink": 1.0,
+      "status": "OK"
+    },
+    "NASDAQ100": {
+      "drift": -0.9348764103681976,
+      "forecast_sigma": 157.8122944473025,
+      "ratio": 0.06512358963180238,
+      "realized_sigma": 10.277303102439294,
+      "samples": 153,
+      "shrink": 1.0,
+      "status": "OK"
+    },
+    "NASDAQ100U": {
+      "drift": -0.8849789766540388,
+      "forecast_sigma": 89.35151856132536,
+      "ratio": 0.11502102334596125,
+      "realized_sigma": 10.277303102439294,
+      "samples": 153,
+      "shrink": 1.0,
+      "status": "OK"
+    }
+  },
+  "status": "OK",
+  "threshold": 0.25
+}

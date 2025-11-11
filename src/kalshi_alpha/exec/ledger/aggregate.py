@@ -11,7 +11,7 @@ from kalshi_alpha.exec.ledger.schema import LedgerRowV1
 
 DEFAULT_REPORTS_DIR = Path("reports/_artifacts")
 DEFAULT_OUTPUT_PATH = Path("data/proc/ledger_all.parquet")
-COLUMN_DEFAULTS: dict[str, float | int] = {
+COLUMN_DEFAULTS: dict[str, float | int | str] = {
     "t_fill_ms": 0.0,
     "size_partial": 0,
     "slippage_ticks": 0.0,
@@ -30,6 +30,40 @@ COLUMN_DEFAULTS: dict[str, float | int] = {
     "minutes_to_event": 0.0,
 }
 SUPPORTED_VERSIONS = {1, 2}
+FLOAT_COLUMNS = {
+    "bin",
+    "price",
+    "model_p",
+    "market_p",
+    "delta_p",
+    "fill_ratio",
+    "fill_ratio_observed",
+    "alpha_target",
+    "visible_depth",
+    "side_depth_total",
+    "depth_fraction",
+    "best_bid",
+    "best_ask",
+    "spread",
+    "seconds_to_event",
+    "minutes_to_event",
+    "t_fill_ms",
+    "slippage_ticks",
+    "ev_expected_bps",
+    "ev_realized_bps",
+    "fees_bps",
+    "impact_cap",
+    "fees_maker",
+    "ev_after_fees",
+    "pnl_simulated",
+}
+INT_COLUMNS = {
+    "size",
+    "expected_contracts",
+    "expected_fills",
+    "size_partial",
+    "ledger_schema_version",
+}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -91,6 +125,10 @@ def main(argv: list[str] | None = None) -> None:
             )
         if 1 in versions:
             frame = frame.with_columns(pl.lit(2).alias("ledger_schema_version"))
+        float_casts = [pl.col(col).cast(pl.Float64, strict=False).alias(col) for col in FLOAT_COLUMNS if col in frame.columns]
+        int_casts = [pl.col(col).cast(pl.Int64, strict=False).alias(col) for col in INT_COLUMNS if col in frame.columns]
+        if float_casts or int_casts:
+            frame = frame.with_columns([*float_casts, *int_casts])
         frames.append(frame.select(expected_columns))
 
     combined = pl.concat(frames, how="vertical")
@@ -114,43 +152,9 @@ def _write_empty_output(output_path: Path) -> None:
     expected_columns = LedgerRowV1.canonical_fields()
     schema = {column: pl.Utf8 for column in expected_columns}
     # refine known numeric types
-    numeric_float = {
-        "bin",
-        "price",
-        "model_p",
-        "market_p",
-        "delta_p",
-        "fill_ratio",
-        "fill_ratio_observed",
-        "alpha_target",
-        "visible_depth",
-        "side_depth_total",
-        "depth_fraction",
-        "best_bid",
-        "best_ask",
-        "spread",
-        "seconds_to_event",
-        "minutes_to_event",
-        "t_fill_ms",
-        "slippage_ticks",
-        "ev_expected_bps",
-        "ev_realized_bps",
-        "fees_bps",
-        "impact_cap",
-        "fees_maker",
-        "ev_after_fees",
-        "pnl_simulated",
-    }
-    numeric_int = {
-        "size",
-        "expected_contracts",
-        "expected_fills",
-        "size_partial",
-        "ledger_schema_version",
-    }
-    for column in numeric_float:
+    for column in FLOAT_COLUMNS:
         schema[column] = pl.Float64
-    for column in numeric_int:
+    for column in INT_COLUMNS:
         schema[column] = pl.Int64
     empty = pl.DataFrame(schema=schema)
     output_path.parent.mkdir(parents=True, exist_ok=True)

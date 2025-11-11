@@ -1,0 +1,1488 @@
+{
+  "series": "NASDAQ100U",
+  "generated_at": "2025-11-11T18:48:51.802037+00:00",
+  "proposals": [
+    {
+      "market_id": "KXNASDAQ100U-25NOV11H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV11H1400",
+      "strike": 23000.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.985,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.985,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.985,
+      "survival_market": 0.985,
+      "survival_strategy": 0.0,
+      "max_loss": 0.025000000000000015,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.97,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.985,
+            "net": 0.985,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.985,
+            "net": 0.985,
+            "fee": 0.0
+          },
+          "fee_price": 0.015000000000000013,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV11H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV11H1400",
+      "strike": 23010.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.985,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.985,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.985,
+      "survival_market": 0.985,
+      "survival_strategy": 0.0,
+      "max_loss": 0.025000000000000015,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.97,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.985,
+            "net": 0.985,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.985,
+            "net": 0.985,
+            "fee": 0.0
+          },
+          "fee_price": 0.015000000000000013,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV10H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV10H1400",
+      "strike": 23100.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV10H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV10H1400",
+      "strike": 23110.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV07H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV07H1400",
+      "strike": 23600.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV07H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV07H1400",
+      "strike": 23610.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV06H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV06H1400",
+      "strike": 23400.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV06H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV06H1400",
+      "strike": 23410.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV05H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV05H1400",
+      "strike": 23900.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV05H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV05H1400",
+      "strike": 23910.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV04H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV04H1400",
+      "strike": 23900.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV04H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV04H1400",
+      "strike": 23910.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV03H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV03H1400",
+      "strike": 23700.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25NOV03H1400",
+      "market_ticker": "KXNASDAQ100U-25NOV03H1400",
+      "strike": 23710.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT31H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT31H1400",
+      "strike": 24100.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT31H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT31H1400",
+      "strike": 24110.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT30H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT30H1400",
+      "strike": 24000.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT30H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT30H1400",
+      "strike": 24010.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT29H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT29H1400",
+      "strike": 23800.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT29H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT29H1400",
+      "strike": 23810.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT28H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT28H1400",
+      "strike": 23300.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT28H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT28H1400",
+      "strike": 23310.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT27H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT27H1400",
+      "strike": 23000.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT27H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT27H1400",
+      "strike": 23010.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT24H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT24H1400",
+      "strike": 22800.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXNASDAQ100U-25OCT24H1400",
+      "market_ticker": "KXNASDAQ100U-25OCT24H1400",
+      "strike": 22810.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "NASDAQ100U",
+      "series": "NASDAQ100U",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": null,
+          "daily_loss_after": null,
+          "weekly_loss_before": null,
+          "weekly_loss_after": null
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    }
+  ]
+}

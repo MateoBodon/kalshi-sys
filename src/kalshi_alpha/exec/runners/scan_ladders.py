@@ -2368,14 +2368,17 @@ def scan_series(  # noqa: PLR0913
             if not market.ladder_strikes or not market.ladder_yes_prices:
                 continue
 
-            rungs = [
-                LadderRung(strike=float(strike), yes_price=float(price))
-                for strike, price in zip(
+            rung_labels = market.rung_tickers or []
+            rungs: list[LadderRung] = []
+            for idx, (strike, price) in enumerate(
+                zip(
                     market.ladder_strikes,
                     market.ladder_yes_prices,
                     strict=True,
                 )
-            ]
+            ):
+                label = rung_labels[idx] if idx < len(rung_labels) else None
+                rungs.append(LadderRung(strike=float(strike), yes_price=float(price), label=label))
             market_pmf = pmf_from_quotes(rungs)
             market_survival = _market_survival_from_pmf(market_pmf, rungs)
 
@@ -3322,9 +3325,13 @@ def _evaluate_market(  # noqa: PLR0913
         if quote_optimizer is not None and throttle_key is not None:
             quote_optimizer.record_submission(throttle_key)
 
+        actual_market_id = rung.label or market_id
+        actual_market_ticker = rung.label or market_ticker
+        proposal_metadata.setdefault("event_ticker", market_ticker)
+
         proposal = Proposal(
-            market_id=market_id,
-            market_ticker=market_ticker,
+            market_id=actual_market_id,
+            market_ticker=actual_market_ticker,
             strike=rung.strike,
             side=best_side.name,
             contracts=contract_count,

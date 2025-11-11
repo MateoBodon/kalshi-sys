@@ -263,8 +263,6 @@ class LiveBroker(Broker):
             "yes_price": yes_price,
             "client_order_id": order.idempotency_key,
         }
-        # Provide the complementary price to avoid ambiguity on NO orders.
-        payload["no_price"] = max(0.0, min(1.0, 1.0 - yes_price))
         return payload
 
     def _telemetry_payload(self, order: BrokerOrder, payload: dict[str, Any]) -> dict[str, Any]:

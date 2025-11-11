@@ -1,0 +1,1488 @@
+{
+  "series": "INXU",
+  "generated_at": "2025-11-11T19:10:35.219416+00:00",
+  "proposals": [
+    {
+      "market_id": "KXINXU-25NOV11H1400",
+      "market_ticker": "KXINXU-25NOV11H1400",
+      "strike": 5725.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2500.0,
+          "weekly_loss_after": 2499.49
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV11H1400",
+      "market_ticker": "KXINXU-25NOV11H1400",
+      "strike": 5730.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2499.49,
+          "weekly_loss_after": 2498.9799999999996
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV10H1400",
+      "market_ticker": "KXINXU-25NOV10H1400",
+      "strike": 5700.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2498.9799999999996,
+          "weekly_loss_after": 2498.4699999999993
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV10H1400",
+      "market_ticker": "KXINXU-25NOV10H1400",
+      "strike": 5705.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2498.4699999999993,
+          "weekly_loss_after": 2497.959999999999
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV07H1400",
+      "market_ticker": "KXINXU-25NOV07H1400",
+      "strike": 5775.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2497.959999999999,
+          "weekly_loss_after": 2497.449999999999
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV07H1400",
+      "market_ticker": "KXINXU-25NOV07H1400",
+      "strike": 5780.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2497.449999999999,
+          "weekly_loss_after": 2496.9399999999987
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV06H1400",
+      "market_ticker": "KXINXU-25NOV06H1400",
+      "strike": 5750.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2496.9399999999987,
+          "weekly_loss_after": 2496.4299999999985
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV06H1400",
+      "market_ticker": "KXINXU-25NOV06H1400",
+      "strike": 5755.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2496.4299999999985,
+          "weekly_loss_after": 2495.9199999999983
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV05H1400",
+      "market_ticker": "KXINXU-25NOV05H1400",
+      "strike": 5825.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2495.9199999999983,
+          "weekly_loss_after": 2495.409999999998
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV05H1400",
+      "market_ticker": "KXINXU-25NOV05H1400",
+      "strike": 5830.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2495.409999999998,
+          "weekly_loss_after": 2494.899999999998
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV04H1400",
+      "market_ticker": "KXINXU-25NOV04H1400",
+      "strike": 5825.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2494.899999999998,
+          "weekly_loss_after": 2494.3899999999976
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV04H1400",
+      "market_ticker": "KXINXU-25NOV04H1400",
+      "strike": 5830.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2494.3899999999976,
+          "weekly_loss_after": 2493.8799999999974
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV03H1400",
+      "market_ticker": "KXINXU-25NOV03H1400",
+      "strike": 5800.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2493.8799999999974,
+          "weekly_loss_after": 2493.369999999997
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25NOV03H1400",
+      "market_ticker": "KXINXU-25NOV03H1400",
+      "strike": 5805.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2493.369999999997,
+          "weekly_loss_after": 2492.859999999997
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT31H1400",
+      "market_ticker": "KXINXU-25OCT31H1400",
+      "strike": 5875.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2492.859999999997,
+          "weekly_loss_after": 2492.3499999999967
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT31H1400",
+      "market_ticker": "KXINXU-25OCT31H1400",
+      "strike": 5880.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2492.3499999999967,
+          "weekly_loss_after": 2491.8399999999965
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT30H1400",
+      "market_ticker": "KXINXU-25OCT30H1400",
+      "strike": 5875.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2491.8399999999965,
+          "weekly_loss_after": 2491.3299999999963
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT30H1400",
+      "market_ticker": "KXINXU-25OCT30H1400",
+      "strike": 5880.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2491.3299999999963,
+          "weekly_loss_after": 2490.819999999996
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT29H1400",
+      "market_ticker": "KXINXU-25OCT29H1400",
+      "strike": 5875.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2490.819999999996,
+          "weekly_loss_after": 2490.309999999996
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT29H1400",
+      "market_ticker": "KXINXU-25OCT29H1400",
+      "strike": 5880.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2490.309999999996,
+          "weekly_loss_after": 2489.7999999999956
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT28H1400",
+      "market_ticker": "KXINXU-25OCT28H1400",
+      "strike": 5775.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2489.7999999999956,
+          "weekly_loss_after": 2489.2899999999954
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT28H1400",
+      "market_ticker": "KXINXU-25OCT28H1400",
+      "strike": 5780.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2489.2899999999954,
+          "weekly_loss_after": 2488.779999999995
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT27H1400",
+      "market_ticker": "KXINXU-25OCT27H1400",
+      "strike": 5725.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2488.779999999995,
+          "weekly_loss_after": 2488.269999999995
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT27H1400",
+      "market_ticker": "KXINXU-25OCT27H1400",
+      "strike": 5730.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2488.269999999995,
+          "weekly_loss_after": 2487.7599999999948
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT24H1400",
+      "market_ticker": "KXINXU-25OCT24H1400",
+      "strike": 5675.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2487.7599999999948,
+          "weekly_loss_after": 2487.2499999999945
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    },
+    {
+      "market_id": "KXINXU-25OCT24H1400",
+      "market_ticker": "KXINXU-25OCT24H1400",
+      "strike": 5680.0,
+      "side": "NO",
+      "contracts": 1,
+      "maker_ev": 0.5,
+      "taker_ev": 0.0,
+      "maker_ev_per_contract": 0.5,
+      "taker_ev_per_contract": 0.0,
+      "strategy_probability": 0.0,
+      "market_yes_price": 0.5,
+      "survival_market": 0.5,
+      "survival_strategy": 0.0,
+      "max_loss": 0.51,
+      "strategy": "INXU",
+      "series": "INXU",
+      "metadata": {
+        "sizing": {
+          "kelly_raw": null,
+          "kelly_truncated": null,
+          "kelly_scaled": null,
+          "uncertainty_metric": 0.0,
+          "uncertainty_penalty": 0.0,
+          "ob_imbalance_metric": 0.0,
+          "ob_imbalance_penalty": 0.0,
+          "daily_loss_before": 500.0,
+          "daily_loss_after": 500.0,
+          "weekly_loss_before": 2487.2499999999945,
+          "weekly_loss_after": 2486.7399999999943
+        },
+        "risk": {
+          "correlation": {
+            "tilt": 1.0,
+            "portfolio_var": 0.0,
+            "portfolio_limit": 3200.0,
+            "family_var": 0.0,
+            "family_limit": 2200.0
+          }
+        },
+        "ev_components": {
+          "per_contract": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "total": {
+            "gross": 0.5,
+            "net": 0.5,
+            "fee": 0.0
+          },
+          "fee_price": 0.5,
+          "liquidity": "maker",
+          "side": "no"
+        }
+      }
+    }
+  ]
+}
