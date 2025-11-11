@@ -48,6 +48,10 @@ class SeriesDigest:
     slippage_ticks: float | None
     var_latest: float | None
     monitors: list[str]
+    regime: str | None = None
+    contracts_per_quote: int | None = None
+    range_sigma: float | None = None
+    replacement_throttle_max: int | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -61,6 +65,10 @@ class SeriesDigest:
             "slippage_ticks": self.slippage_ticks,
             "var_latest": self.var_latest,
             "monitors": list(self.monitors),
+            "regime": self.regime,
+            "contracts_per_quote": self.contracts_per_quote,
+            "range_sigma": self.range_sigma,
+            "replacement_throttle_max": self.replacement_throttle_max,
         }
 
 
@@ -168,6 +176,16 @@ def _series_summaries(frame: pl.DataFrame, reports_dir: Path, target_date: date)
         monitors: list[str] = []
         if report_path and report_path.exists():
             monitors = _extract_monitor_lines(report_path)
+        structure_info = _structure_metrics(reports_dir, series)
+        contracts_per_quote = structure_info.get("contracts_per_quote") if structure_info else None
+        range_sigma = structure_info.get("range_ab_sigma") if structure_info else None
+        throttle_max = None
+        if structure_info:
+            throttle = structure_info.get("replacement_throttle")
+            if isinstance(throttle, dict):
+                counts = [int(value) for value in throttle.values() if isinstance(value, (int, float))]
+                if counts:
+                    throttle_max = max(counts)
         summaries.append(
             SeriesDigest(
                 series=series,
@@ -180,6 +198,12 @@ def _series_summaries(frame: pl.DataFrame, reports_dir: Path, target_date: date)
                 slippage_ticks=_safe_float(row.get("slippage_ticks")),
                 var_latest=var_value,
                 monitors=monitors,
+                regime=structure_info.get("regime") if structure_info else None,
+                contracts_per_quote=int(contracts_per_quote)
+                if isinstance(contracts_per_quote, (int, float))
+                else None,
+                range_sigma=float(range_sigma) if isinstance(range_sigma, (int, float)) else None,
+                replacement_throttle_max=throttle_max,
             )
         )
     summaries.sort(key=lambda entry: entry.series)
@@ -237,6 +261,17 @@ def _extract_monitor_lines(path: Path) -> list[str]:
     return lines
 
 
+def _structure_metrics(reports_dir: Path, series: str) -> dict[str, object]:
+    path = reports_dir / "_artifacts" / "structures" / f"{series.upper()}.json"
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def _render_markdown(
     target_date: date,
     series_rows: Sequence[SeriesDigest],
@@ -263,6 +298,24 @@ def _render_markdown(
         lines.append(
             f"| {row.series} | {row.trades} | {row.ev_usd:.2f} | {row.pnl_usd:.2f} | {delta} | {fill_gap} | {var_text} |"
         )
+    lines.append("")
+    lines.append("## Structures & Allocator")
+    any_structure = False
+    for row in series_rows:
+        entries: list[str] = []
+        if row.regime:
+            entries.append(f"regime={row.regime}")
+        if row.contracts_per_quote:
+            entries.append(f"contracts={row.contracts_per_quote}")
+        if row.range_sigma is not None:
+            entries.append(f"range σ={row.range_sigma:.2f}")
+        if row.replacement_throttle_max is not None:
+            entries.append(f"microprice replacements={row.replacement_throttle_max}")
+        if entries:
+            any_structure = True
+            lines.append(f"- **{row.series}**: {', '.join(entries)}")
+    if not any_structure:
+        lines.append("- No structure telemetry available.")
     lines.append("")
     lines.append("## SLO Snapshots")
     for row in series_rows:

@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import json
 from datetime import UTC, datetime, time
 from functools import lru_cache
 from pathlib import Path
@@ -32,6 +33,7 @@ DEFAULT_OUTPUT_ROOT = Path("reports/index_ladders")
 MIN_ALPHA_FALLBACK = 0.4
 PAL_POLICY_PATH = Path("configs/pal_policy.yaml")
 PAL_POLICY_FALLBACK_PATH = Path("configs/pal_policy.example.yaml")
+STRUCTURE_ARTIFACT_ROOT = Path("reports/_artifacts/structures")
 
 
 @dataclass(frozen=True)
@@ -388,10 +390,33 @@ def run_index_scan(config: ScannerConfig) -> dict[str, dict[str, Path | None]]:
                 )
                 writer.writerow(["-", "", "", "", "", "", "", "no_ev_honesty_data"])
             LOGGER.debug("wrote placeholder ev honesty table for %s to %s", series, artifact_path)
-        if not config.emit_report:
-            md_path = None
-        results[series.upper()] = {"csv": csv_path, "markdown": md_path}
+    if not config.emit_report:
+        md_path = None
+    results[series.upper()] = {"csv": csv_path, "markdown": md_path}
+    _persist_structure_artifact(series, outcome.monitors)
     return results
+
+
+def _persist_structure_artifact(series: str, monitors: Mapping[str, object] | None) -> None:
+    if not monitors:
+        return
+    keys = (
+        "range_ab_structures",
+        "range_ab_sigma",
+        "replacement_throttle",
+        "contracts_per_quote",
+        "regime",
+        "regime_size_multiplier",
+        "regime_slo_multiplier",
+    )
+    payload = {key: monitors.get(key) for key in keys if key in monitors}
+    if not payload:
+        return
+    payload["series"] = series.upper()
+    payload["generated_at"] = datetime.now(tz=UTC).isoformat()
+    STRUCTURE_ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    path = STRUCTURE_ARTIFACT_ROOT / f"{series.upper()}.json"
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def build_parser(default_series: Sequence[str]) -> argparse.ArgumentParser:
