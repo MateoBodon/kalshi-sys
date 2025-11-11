@@ -1,5 +1,15 @@
 # Changelog
 
+# Changelog
+
+## 2025-11-11
+- Added market discovery plumbing (`kalshi_alpha.markets.discovery` + `scan_ladders --discover`) so ops can confirm INX/NDX ladders before arming the scheduler; fixtures/tests live under `tests/test_market_discovery.py` and `tests/test_scan_ladders_discover.py`.
+- Landed the new PMF bridge (`kalshi_alpha.models.pmf_index`) plus hourly/EOD calibration jobs (`jobs/calib_hourly.py`, `jobs/calib_eod.py`), persistence paths, and plotting hooks — see `tests/test_pmf_calib_jobs.py` and `tests/test_index_pmf_model.py`.
+- `python -m report.honesty` now computes reliability curves, Brier, and ECE; scoreboard consumes the artifact, scan_ladders applies per-series clamps, and telemetry exposes the shrink factors.
+- Built the TOB recorder + fill-model pipeline (`kalshi_alpha.exec.collectors.kalshi_tob`, `kalshi_alpha.replay.fill_model`, `kalshi_alpha.core.execution.fillprob`) so fill alpha automatically downshifts off real depth snapshots.
+- Enforced per-family VaR caps via `kalshi_alpha.risk.var_index` and surfaced exposure snapshots in scanner monitors.
+- Shipped the AWS shim (`scripts/aws_job.py`, Dockerfile) with `make aws-calib` / `make aws-replay`, plus the ΔEV parity gate (`scripts/parity_gate.py`, `make parity-ci`).
+
 ## 2025-11-03
 - Added `kalshi_alpha.exec.monitors.freshness` with configurable thresholds (`configs/freshness.yaml`) for CPI, Claims, TenY, Cleveland, AAA Gas, and NWS climate feeds; the monitor emits `reports/_artifacts/monitors/freshness.json` and a CLI table (`make freshness-smoke`).
 - Ramp readiness now ingests the freshness artifact, surfaces a “Data Freshness” table in JSON/Markdown, and stamps `STALE_FEEDS` when any required feed is stale, missing, out-of-range (AAA), or misaligned (TenY series identity).

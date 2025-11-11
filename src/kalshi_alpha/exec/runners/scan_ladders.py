@@ -23,6 +23,7 @@ from kalshi_alpha.brokers.kalshi.base import BrokerOrder
 from kalshi_alpha.config import IndexOpsConfig, IndexOpsWindow, IndexRule, load_index_ops_config, lookup_index_rule
 from kalshi_alpha.core import kalshi_ws
 from kalshi_alpha.core.archive import archive_scan, replay_manifest
+from kalshi_alpha.core.execution import fillprob
 from kalshi_alpha.core.execution.fillratio import FillRatioEstimator, load_alpha, tune_alpha
 from kalshi_alpha.core.execution.index_models import load_alpha_curve, load_slippage_curve
 from kalshi_alpha.core.execution.slippage import SlippageModel, load_slippage_model
@@ -94,12 +95,14 @@ from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.scanners import cpi
 from kalshi_alpha.exec.scanners.utils import expected_value_summary, pmf_to_survival
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
+from kalshi_alpha.markets.discovery import discover_markets_for_day
 from kalshi_alpha.sched import TradingWindow, current_window as scheduler_current_window
 from kalshi_alpha.strategies import claims as claims_strategy
 from kalshi_alpha.strategies import cpi as cpi_strategy
 from kalshi_alpha.strategies import index as index_strategy
 from kalshi_alpha.strategies import teny as teny_strategy
 from kalshi_alpha.strategies import weather as weather_strategy
+from kalshi_alpha.risk import var_index
 from kalshi_alpha.utils.env import load_env
 
 INDEX_OPS_CONFIG: IndexOpsConfig = load_index_ops_config()
@@ -117,6 +120,7 @@ _U_SERIES = {"INXU", "NASDAQ100U"}
 _INDEX_WS_SERIES = frozenset({"INX", "INXU", "NASDAQ100", "NASDAQ100U"})
 _HOUR_PATTERN = re.compile(r"H(?P<hour>\d{2})(?P<minute>\d{2})")
 CLOCK_SKEW_THRESHOLD_SECONDS = 1.5
+HONESTY_CLAMP_PATH = Path("reports/_artifacts/honesty/honesty_clamp.json")
 
 
 def _load_data_freshness_summary() -> dict[str, object]:
@@ -294,7 +298,8 @@ def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float,
 
     if candidate is None:
         candidate = DEFAULT_FILL_ALPHA
-    return candidate, auto
+    adjusted = fillprob.adjust_alpha(series, float(candidate))
+    return adjusted, auto
 
 
 @dataclass
@@ -540,6 +545,29 @@ def _load_ev_honesty_constraints(series: str, readiness_path: Path | None = None
     return BinConstraintResolver(entries, source_path=path)
 
 
+def _load_honesty_clamp(series: str) -> float | None:
+    if not HONESTY_CLAMP_PATH.exists():
+        return None
+    try:
+        payload = json.loads(HONESTY_CLAMP_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    series_payload = payload.get("series")
+    if not isinstance(series_payload, dict):
+        return None
+    entry = series_payload.get(series.upper())
+    if not isinstance(entry, dict):
+        return None
+    clamp = entry.get("clamp")
+    try:
+        value = float(clamp)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0.0 or value > 1.0:
+        return None
+    return value
+
+
 class _LossBudget:
     def __init__(self, cap: float | None) -> None:
         self.cap = cap if cap is not None and cap > 0.0 else None
@@ -598,6 +626,15 @@ def _clear_dry_orders_start(
 def main(argv: Sequence[str] | None = None) -> None:
     load_env()
     args = parse_args(argv)
+    if args.online and args.offline:
+        raise ValueError("Cannot specify both --online and --offline.")
+    if args.today and not args.discover:
+        raise ValueError("--today is only supported with --discover.")
+    if args.discover:
+        _run_discovery(args)
+        return
+    if not args.series:
+        raise ValueError("--series is required unless --discover is specified.")
     try:
         exec_fees.load_fee_config()
     except FileNotFoundError as exc:  # pragma: no cover - fails fast in live mode
@@ -612,15 +649,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     fixtures_root = Path(args.fixtures_root).resolve()
     driver_fixtures = fixtures_root / "drivers"
 
-    if args.online and args.offline:
-        raise ValueError("Cannot specify both --online and --offline.")
-
     client = _build_client(fixtures_root, use_online=args.online)
     fill_alpha_value, fill_alpha_auto = _resolve_fill_alpha_arg(args.fill_alpha, args.series)
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
+    var_limiter = var_index.FamilyVarLimiter(var_index.load_family_limits())
     offline_mode = args.offline or not args.online
     series_upper = args.series.upper()
+    honesty_clamp = _load_honesty_clamp(series_upper)
+    if honesty_clamp is not None:
+        args.ev_honesty_shrink = min(float(args.ev_honesty_shrink), honesty_clamp)
 
     outstanding_start = _clear_dry_orders_start(
         enabled=getattr(args, "clear_dry_orders_start", False),
@@ -687,6 +725,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         pilot_config=pilot_config,
         bin_constraints=bin_constraints,
         now_override=now_override,
+        target_time_override=target_time,
+        var_limiter=var_limiter,
     )
 
     if pilot_session:
@@ -1061,6 +1101,52 @@ def _build_client(fixtures_root: Path, *, use_online: bool) -> KalshiPublicClien
         offline_dir=api_fixtures,
         use_offline=not use_online,
     )
+
+
+def _run_discovery(args: argparse.Namespace) -> None:
+    trading_day = _resolve_discover_day(args)
+    fixtures_root = Path(args.fixtures_root).resolve()
+    client = _build_client(fixtures_root, use_online=args.online)
+    status = "open"
+    results = discover_markets_for_day(client, trading_day=trading_day, status=status)
+    mode = "online" if args.online else "offline"
+    print(
+        f"[discover] trading day {trading_day.isoformat()} (mode={mode}, status={status})"
+    )
+    if not results:
+        print("[discover] no eligible INX/NDX markets found")
+        return
+    for window in results:
+        expected = ", ".join(window.expected_series) if window.expected_series else "-"
+        print(
+            f"[discover] {window.label} ({window.target_type}) "
+            f"target={window.target_et.isoformat()} expected={expected}"
+        )
+        if window.markets:
+            for market in window.markets:
+                event_label = market.event_ticker or market.event_id
+                close_et = market.close_time_et.isoformat()
+                print(
+                    "  - {series} event={event} close={close} bins={bins}".format(
+                        series=market.series,
+                        event=event_label,
+                        close=close_et,
+                        bins=market.market_count,
+                    )
+                )
+        else:
+            print("  - (no matching markets)")
+        if window.missing_series:
+            print(f"    missing: {', '.join(window.missing_series)}")
+
+
+def _resolve_discover_day(args: argparse.Namespace) -> date:
+    if args.discover_date and args.today:
+        raise ValueError("--discover-date cannot be combined with --today.")
+    if args.discover_date:
+        return args.discover_date
+    reference = datetime.now(tz=_ET_ZONE)
+    return reference.date()
 
 
 def _build_pal_guard(args: argparse.Namespace) -> PALGuard:
@@ -1692,14 +1778,35 @@ def _apply_ev_honesty_gate(monitors: dict[str, object], *, threshold: float) -> 
         monitors["ev_honesty_delta_excess"] = round(max_delta - threshold, 6)
 
 
+def _parse_date_arg(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Trading day must be YYYY-MM-DD") from exc
+
+
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Scan Kalshi ladders and output dry-run proposals."
     )
     parser.add_argument(
         "--series",
-        required=True,
         help="Kalshi series ticker, e.g. CPI",
+    )
+    parser.add_argument(
+        "--discover",
+        action="store_true",
+        help="List INX/NDX markets for the requested trading day and exit without scanning.",
+    )
+    parser.add_argument(
+        "--discover-date",
+        type=_parse_date_arg,
+        help="Trading day (YYYY-MM-DD) for --discover outputs (defaults to today in ET).",
+    )
+    parser.add_argument(
+        "--today",
+        action="store_true",
+        help="Shortcut for --discover-date=<today in ET> (only valid with --discover).",
     )
     parser.add_argument(
         "--dry-run",
@@ -1782,7 +1889,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--ev-honesty-shrink",
         type=float,
-        default=0.9,
+        default=1.0,
         help="Maker EV shrink factor used for EV honesty (0-1).",
     )
     parser.add_argument(
@@ -2153,6 +2260,7 @@ def scan_series(  # noqa: PLR0913
     bin_constraints: BinConstraintResolver | None = None,
     now_override: datetime | None = None,
     target_time_override: time | None = None,
+    var_limiter: var_index.FamilyVarLimiter | None = None,
 ) -> ScanOutcome:
     now_utc = now_override if now_override is not None else datetime.now(tz=UTC)
     series_obj = _find_series(client, series)
@@ -2363,6 +2471,7 @@ def scan_series(  # noqa: PLR0913
                 series_ticker=series_obj.ticker,
                 ev_shrink=ev_honesty_shrink,
                 bin_constraints=bin_constraints,
+                var_limiter=var_limiter,
             )
             if pilot_config is not None:
                 rung_proposals, trimmed = _limit_proposals_for_pilot(
@@ -2425,6 +2534,10 @@ def scan_series(  # noqa: PLR0913
             monitors["ev_honesty_bins_adjusted"] = applied_count
         if dropped_count:
             monitors["ev_honesty_bins_blocked"] = dropped_count
+    if 0.0 < ev_honesty_shrink < 1.0:
+        monitors.setdefault("ev_honesty_shrink_factor", ev_honesty_shrink)
+    if var_limiter is not None:
+        monitors["var_family_exposure"] = var_limiter.snapshot()
     roll_payload: dict[str, object] | None = None
     if roll_decision is not None:
         now_et_value = roll_decision.get("now_et")
@@ -2879,12 +2992,13 @@ def _evaluate_market(  # noqa: PLR0913
     series_ticker: str,
     ev_shrink: float,
     bin_constraints: BinConstraintResolver | None = None,
+    var_limiter: var_index.FamilyVarLimiter | None = None,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
     uncertainty_penalty = max(0.0, uncertainty_penalty)
     ob_imbalance_penalty = max(0.0, ob_imbalance_penalty)
     series_upper = series_ticker.upper()
-    apply_shrink = series_upper == "TNEY" and 0.0 < ev_shrink < 1.0
+    apply_shrink = 0.0 < ev_shrink < 1.0
 
     for index, rung in enumerate(rungs):
         if allowed_indices is not None and index not in allowed_indices:
@@ -3026,7 +3140,11 @@ def _evaluate_market(  # noqa: PLR0913
         ):
             continue
 
+        if var_limiter and not var_limiter.can_accept(series_ticker, total_max_loss):
+            continue
         daily_budget.consume(total_max_loss)
+        if var_limiter:
+            var_limiter.register(series_ticker, total_max_loss)
         budget_after = daily_budget.remaining
 
         proposal_metadata: dict[str, object] = {

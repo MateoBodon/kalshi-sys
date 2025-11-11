@@ -1,0 +1,4 @@
+limits:
+  SPX: 7500
+  NDX: 7500
+  OTHER: 5000

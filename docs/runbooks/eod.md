@@ -10,6 +10,8 @@
 - [ ] `reports/_artifacts/monitors/freshness.json` generated within 5 minutes; `polygon_index.websocket` entry present.
 - [ ] Review scoreboard freshness metrics (`Polygon WS age`) and ensure data plane GO.
 - [ ] Confirm `OutstandingOrdersState` empty and kill switch **not** armed.
+- [ ] `python -m kalshi_alpha.exec.runners.scan_ladders --discover --today --offline --series INX` verifies the close ladder is listed before you arm quoting.
+- [ ] Run the honesty calc (`python -m report.honesty --window 7 --window 30`) so the EOD clamp in `honesty_window30.json` reflects the latest fills.
 
 ## Active Window (15:50 ET → 15:59:58 ET)
 - [ ] Run `kalshi-scan --series INX --maker-only --online` (repeat for `NASDAQ100`).
@@ -26,3 +28,4 @@
 - [ ] Verify cancel-all succeeded (`OutstandingOrdersState.total() == 0`).
 - [ ] Tag ledger/report with `scheduler_window` metadata for auditing.
 - [ ] Regenerate scoreboard + pilot readiness (`make scoreboard`) so Polygon freshness metrics appear in the header.
+- [ ] Use the shimmed automation when large calibration/replay runs are needed: `make aws-calib` (hourly σ job) and `make aws-replay FILE=data/replay/YYYY-MM-DD_spx_ndx.json` capture artifacts + metrics under `reports/_artifacts/aws_jobs/`.
