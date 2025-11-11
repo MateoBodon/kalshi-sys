@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -57,6 +58,24 @@ def test_digest_writes_markdown_and_plot(tmp_path: Path, monkeypatch: pytest.Mon
     )
     for series in ("INX", "NASDAQ100"):
         (reports_dir / series / "2025-11-10.md").write_text(report_body, encoding="utf-8")
+    replay_dir = reports_dir / "_artifacts" / "replay"
+    replay_dir.mkdir(parents=True, exist_ok=True)
+    replay_summary = {
+        "epsilon": 0.15,
+        "window_type_max": {"close": 0.12},
+        "windows": [
+            {
+                "window_label": "INX 2025-11-10 16:00",
+                "window_type": "close",
+                "max_abs_delta": 0.12,
+                "threshold_breach": False,
+            }
+        ],
+        "worst_bins": [
+            {"market_ticker": "KXINX-TEST", "strike": 5000.0, "delta_per_contract": -0.12},
+        ],
+    }
+    (replay_dir / "replay_summary_2025-11-10.json").write_text(json.dumps(replay_summary), encoding="utf-8")
 
     output_dir = tmp_path / "digests"
     args = [
@@ -79,4 +98,6 @@ def test_digest_writes_markdown_and_plot(tmp_path: Path, monkeypatch: pytest.Mon
     assert "Daily Digest" in contents
     assert "INX" in contents
     assert "NASDAQ100" in contents
+    assert "Replay Parity" in contents
+    assert "INX 2025-11-10 16:00" in contents
     assert "Monitor Status" in contents

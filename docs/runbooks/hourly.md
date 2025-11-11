@@ -35,6 +35,7 @@
 ## Post-Window
 - [ ] Confirm `reports/INXU/YYYY-MM-DD.md` captures the `fee_path`, `scheduler_window`, and `ws_freshness` entries.
 - [ ] Archive ledger/telemetry via `make ladders-archive` if orders were sent.
+- [ ] Replay parity: `python -m tools.replay --families SPX,NDX --date YYYY-MM-DD --hours 10,11,12,13,14,15,16 --epsilon 0.15 --out reports/_artifacts/` then `python scripts/parity_gate.py --threshold 0.15 --path reports/_artifacts/replay_ev.parquet --output-json reports/_artifacts/monitors/ev_gap.json`. Paste the summary (worst windows/bins) into the ops notes / digest.
 - [ ] Generate the daily digest (`python -m report.digest --date YYYY-MM-DD --write --s3 s3://<bucket>/kalshi-sys/reports/`) and paste the Markdown/PNG links into `REPORT.md`.
 - [ ] Update `docs/runbooks/hourly.md` with any anomalies.
 - [ ] When calibrations drift past SLA, kick `make aws-calib` (runs the new TOB-aware hourly calibration job in the AWS-compatible shim) and archive the resulting `reports/_artifacts/aws_jobs/*` metrics for the session log.
