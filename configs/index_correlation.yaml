@@ -1,0 +1,25 @@
+---
+# Correlation-aware VaR configuration for SPX/NDX hourly + EOD ladders.
+# portfolio_limit is denominated in USD at the configured confidence level.
+portfolio_limit: 3200.0
+confidence_z: 2.05  # ≈97.9% one-sided
+families:
+  SPX:
+    limit: 2200.0
+    tilt_limit: 1400.0
+    series:
+      - INX
+      - INXU
+  NDX:
+    limit: 2200.0
+    tilt_limit: 1400.0
+    series:
+      - NASDAQ100
+      - NASDAQ100U
+correlations:
+  SPX:
+    SPX: 1.0
+    NDX: 0.82
+  NDX:
+    SPX: 0.82
+    NDX: 1.0
