@@ -3,6 +3,12 @@
 # Changelog
 
 ## 2025-11-11
+- Landed correlation-aware VaR caps and inventory tilt: `kalshi_alpha.risk.correlation` feeds `scan_ladders` with cross-bin/cross-index sizing adjustments, new config `configs/index_correlation.yaml`, and unit coverage in `tests/test_correlation_var.py`.
+- Added dynamic quote optimization (`kalshi_alpha.exec.quote_optim`) wired into `scan_ladders` to apply PMF-skew/microprice penalties, freshness widening, and replacement throttles; covered via `tests/test_quote_optim.py`.
+- Built the dual-feed failover controller (`kalshi_alpha.data.failover`) plus `python -m tools.failover_smoke --dry-run`; CI/unit coverage lives in `tests/test_failover.py`.
+- Shipped `kalshi_alpha.sched.hotrestart.HotRestartManager` with hot-restart snapshots (`data/proc/state/hot_restart.json`) and regression tests (`tests/test_hotrestart.py`); runbooks reference the workflow.
+- Tightened ΔEV parity CI: `scripts/parity_gate.py` now enforces per-window thresholds, emits `reports/_artifacts/monitors/ev_gap.json`, and is exercised by `tests/test_parity_gate.py`.
+- Documentation refresh: hourly/EOD runbooks include hot-restart + dual-feed guidance, new `docs/runbooks/outage_playbook.md`, and a reusable [Post-Mortem Template](docs/runbooks/postmortem_template.md).
 - Added market discovery plumbing (`kalshi_alpha.markets.discovery` + `scan_ladders --discover`) so ops can confirm INX/NDX ladders before arming the scheduler; fixtures/tests live under `tests/test_market_discovery.py` and `tests/test_scan_ladders_discover.py`.
 - Landed the new PMF bridge (`kalshi_alpha.models.pmf_index`) plus hourly/EOD calibration jobs (`jobs/calib_hourly.py`, `jobs/calib_eod.py`), persistence paths, and plotting hooks — see `tests/test_pmf_calib_jobs.py` and `tests/test_index_pmf_model.py`.
 - `python -m report.honesty` now computes reliability curves, Brier, and ECE; scoreboard consumes the artifact, scan_ladders applies per-series clamps, and telemetry exposes the shrink factors.
