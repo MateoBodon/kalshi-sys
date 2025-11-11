@@ -1,9 +1,26 @@
-[discover] trading day 2025-11-11 (mode=online, status=open)
-[discover] derived-1400 (hourly) target=2025-11-11T14:00:00-05:00 expected=INXU, NASDAQ100U
-  - INXU event=KXINXU-25NOV11H1400 close=2025-11-11T14:00:00-05:00 bins=40
-  - NASDAQ100U event=KXNASDAQ100U-25NOV11H1400 close=2025-11-11T14:00:00-05:00 bins=40
-[discover] derived-1600 (close) target=2025-11-11T16:00:00-05:00 expected=INX, INXU, NASDAQ100, NASDAQ100U
-  - INX event=KXINX-25NOV11H1600 close=2025-11-11T16:00:00-05:00 bins=30
+[discover] trading day 2025-11-11 (mode=online, status=any)
+[discover] hourly-1000 (hourly) target=2025-11-11T10:00:00-05:00 expected=INXU, NASDAQ100U
+  - INXU event=KXINXU-25NOV11H1000 close=2025-11-11T10:00:00-05:00 bins=400
+  - NASDAQ100U event=KXNASDAQ100U-25NOV11H1000 close=2025-11-11T10:00:00-05:00 bins=400
+[discover] hourly-1100 (hourly) target=2025-11-11T11:00:00-05:00 expected=INXU, NASDAQ100U
+  - INXU event=KXINXU-25NOV11H1100 close=2025-11-11T11:00:00-05:00 bins=400
+  - NASDAQ100U event=KXNASDAQ100U-25NOV11H1100 close=2025-11-11T11:00:00-05:00 bins=400
+[discover] hourly-1200 (hourly) target=2025-11-11T12:00:00-05:00 expected=INXU, NASDAQ100U
+  - INXU event=KXINXU-25NOV11H1200 close=2025-11-11T12:00:00-05:00 bins=400
+  - NASDAQ100U event=KXNASDAQ100U-25NOV11H1200 close=2025-11-11T12:00:00-05:00 bins=400
+[discover] hourly-1300 (hourly) target=2025-11-11T13:00:00-05:00 expected=INXU, NASDAQ100U
+  - INXU event=KXINXU-25NOV11H1300 close=2025-11-11T13:00:00-05:00 bins=400
+  - NASDAQ100U event=KXNASDAQ100U-25NOV11H1300 close=2025-11-11T13:00:00-05:00 bins=400
+[discover] hourly-1400 (hourly) target=2025-11-11T14:00:00-05:00 expected=INXU, NASDAQ100U
+  - INXU event=KXINXU-25NOV11H1400 close=2025-11-11T14:00:00-05:00 bins=400
+  - NASDAQ100U event=KXNASDAQ100U-25NOV11H1400 close=2025-11-11T14:00:00-05:00 bins=400
+[discover] hourly-1500 (hourly) target=2025-11-11T15:00:00-05:00 expected=INXU, NASDAQ100U
+  - INXU event=KXINXU-25NOV11H1500 close=2025-11-11T15:00:00-05:00 bins=400
+  - NASDAQ100U event=KXNASDAQ100U-25NOV11H1500 close=2025-11-11T15:00:00-05:00 bins=400
+[discover] hourly-1600 (hourly) target=2025-11-11T16:00:00-05:00 expected=INXU, NASDAQ100U
   - INXU event=KXINXU-25NOV11H1600 close=2025-11-11T16:00:00-05:00 bins=60
-  - NASDAQ100 event=KXNASDAQ100-25NOV11H1600 close=2025-11-11T16:00:00-05:00 bins=30
   - NASDAQ100U event=KXNASDAQ100U-25NOV11H1600 close=2025-11-11T16:00:00-05:00 bins=60
+[discover] close-1600 (close) target=2025-11-11T16:00:00-05:00 expected=INX, NASDAQ100
+  - INX event=KXINX-25NOV11H1600 close=2025-11-11T16:00:00-05:00 bins=30
+  - NASDAQ100 event=KXNASDAQ100-25NOV11H1600 close=2025-11-11T16:00:00-05:00 bins=30
+[discover] wrote reports/_artifacts/discovery_today.json

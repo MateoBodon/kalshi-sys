@@ -1,23 +1,23 @@
 {
-  "generated_at": "2025-11-11T19:21:48.138359+00:00",
+  "generated_at": "2025-11-11T22:43:50.374829+00:00",
   "message": "All required feeds fresh",
   "metrics": {
     "feeds": [
       {
-        "age_minutes": 0.002,
+        "age_minutes": 0.006,
         "details": {
-          "age_seconds": 0.138,
-          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/11/polygon_index/20251111T192148_NASDAQ100U_snapshot.json.json",
+          "age_seconds": 0.375,
+          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/11/polygon_index/20251111T224350_NASDAQ100U_snapshot.json.json",
           "threshold_seconds": 10.0
         },
         "id": "polygon_index.websocket",
         "label": "Massive index websocket",
-        "last_ts": "2025-11-11T19:21:48+00:00",
+        "last_ts": "2025-11-11T22:43:50+00:00",
         "ok": true,
         "required": true
       }
     ],
-    "generated_at": "2025-11-11T19:21:48.138359+00:00",
+    "generated_at": "2025-11-11T22:43:50.374829+00:00",
     "required_feeds": [
       "polygon_index.websocket"
     ],
@@ -25,15 +25,15 @@
     "stale_feeds": [],
     "table": [
       {
-        "age_minutes": 0.002,
+        "age_minutes": 0.006,
         "details": {
-          "age_seconds": 0.138,
-          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/11/polygon_index/20251111T192148_NASDAQ100U_snapshot.json.json",
+          "age_seconds": 0.375,
+          "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/11/polygon_index/20251111T224350_NASDAQ100U_snapshot.json.json",
           "threshold_seconds": 10.0
         },
         "id": "polygon_index.websocket",
         "label": "Massive index websocket",
-        "last_ts": "2025-11-11T19:21:48+00:00",
+        "last_ts": "2025-11-11T22:43:50+00:00",
         "ok": true,
         "required": true
       }

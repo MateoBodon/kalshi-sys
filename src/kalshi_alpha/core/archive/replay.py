@@ -12,7 +12,6 @@ from typing import Any
 import polars as pl
 
 from kalshi_alpha.core import kalshi_ws
-from kalshi_alpha.core.execution.slippage import SlippageModel, price_with_slippage
 from kalshi_alpha.core.fees import DEFAULT_FEE_SCHEDULE
 from kalshi_alpha.core.kalshi_api import Market, Orderbook, Series
 from kalshi_alpha.core.pricing import LadderBinProbability, LadderRung, pmf_from_quotes
@@ -98,7 +97,8 @@ def replay_manifest(
                 event_probability = float(strategy_survival[idx])
         else:
             event_probability = float(strategy_survival[idx])
-        yes_price = float(rungs[idx].yes_price)
+        proposal_price = _proposal_yes_price(proposal, rungs[idx].yes_price)
+        yes_price = proposal_price
         contracts = int(proposal.get("contracts", 0))
         if contracts <= 0:
             continue
@@ -106,17 +106,6 @@ def replay_manifest(
         side = str(proposal.get("side", "YES")).upper()
         ob = orderbooks.get(market.id)
         fill_price = yes_price
-        if ob is not None:
-            try:
-                fill_price, _ = price_with_slippage(
-                    side=side,
-                    contracts=contracts,
-                    proposal_price=yes_price,
-                    orderbook=ob,
-                    model=SlippageModel(mode="top"),
-                )
-            except Exception:  # pragma: no cover - defensive fallback
-                fill_price = yes_price
 
         summary_total = expected_value_summary(
             contracts=contracts,
@@ -446,3 +435,13 @@ def _write_output(records: list[dict[str, Any]], artifacts_dir: Path) -> Path:
     output_path = artifacts_dir / "replay_ev.parquet"
     frame.write_parquet(output_path)
     return output_path
+
+
+def _proposal_yes_price(proposal: Mapping[str, Any], fallback: float) -> float:
+    value = proposal.get("market_yes_price")
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(fallback)
