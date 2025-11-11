@@ -133,6 +133,29 @@ def test_scoreboard_generates_markdown(
         encoding="utf-8",
     )
 
+    # SLO filesystem fixtures: polygon snapshots + recent reports w/ ops metadata
+    polygon_dir = tmp_path / "data" / "raw" / f"{now.year:04d}" / f"{now.month:02d}" / f"{now.day:02d}" / "polygon_index"
+    polygon_dir.mkdir(parents=True, exist_ok=True)
+    ingest_stamp = now.strftime("%Y%m%dT%H%M%S")
+    for ticker in ("INX", "INXU", "NASDAQ100", "NASDAQ100U"):
+        snapshot_path = polygon_dir / f"{ingest_stamp}_{ticker}_snapshot.json"
+        snapshot_path.write_text(
+            json.dumps({"timestamp": now.isoformat()}),
+            encoding="utf-8",
+        )
+        report_dir = tmp_path / "reports" / ticker
+        report_dir.mkdir(parents=True, exist_ok=True)
+        report_path = report_dir / f"{now.date().isoformat()}.md"
+        report_path.write_text(
+            "\n".join(
+                [
+                    f"- ops_seconds_to_cancel: {120 + len(ticker)}",
+                    "- Portfolio VaR: 10.0 USD",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
     scoreboard.main([])
 
     report_7d = tmp_path / "reports" / "scoreboard_7d.md"
@@ -152,6 +175,8 @@ def test_scoreboard_generates_markdown(
     assert "NO-GO Count" in contents
     assert "Sample Size" in contents
     assert "Confidence" in contents
+    assert "SLO Metrics" in contents
+    assert "Freshness" in contents
 
     pilot_report = tmp_path / "reports" / "pilot_readiness.md"
     assert pilot_report.exists()

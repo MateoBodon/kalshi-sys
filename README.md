@@ -29,9 +29,13 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 - **Markdown reports (`reports/<SERIES>/`)** include GO/NO-GO badge, Live Pilot header, exposure stats, mispricings, replay scorecards, and outstanding order counts.
 - **Pilot readiness dashboard** (`reports/pilot_readiness.md`) summarizes the last 7 days across GO rate, EV after fees, fill realism (observed vs α), replay deltas, and calibration age.
 - **Scoreboard tooling (`exec/scoreboard.py`)** produces rolling 7/30‑day scorecards, surfaces gate stats and replay metrics, and now stamps GO/NO-GO decisions with fill, Δbps, α-gap, slippage drift, freshness, and calibration-age context.
+- **SLO metrics (`kalshi_alpha.exec.slo`)** compute freshness p95/p99, time-at-risk, EV honesty, fill gap, and VaR headroom per series; `python -m kalshi_alpha.exec.scoreboard --publish-slo-cloudwatch` pushes the aggregates to CloudWatch.
+- **Daily digest (`report/digest.py`)** turns each trading day into a Markdown + PNG bundle (and optional S3 upload) so REPORT.md can link the canonical summary for ops/risk review.
 
 ### Safety Net
 - Quality gates merge model monitors with drawdown checks and heartbeat freshness.
+- Sigma drift monitor (`monitor/drift_sigma_tod.py`) compares realized vs forecast σ_tod and auto-shrinks EV sizing when drift > threshold.
+- Fee/rule watcher (`monitor/fee_rules_watch.py`) hashes the official Kalshi fee schedule + rulebook; `scan_ladders` refuses to run until changes are acknowledged.
 - Kill-switch file (`data/proc/state/kill_switch`) halts new orders and records cancel-all intents.
 - Bounded cancel/replace queue (shared by dry & live brokers) enforces FIFO with retries, backoff, and audit drops.
 - `dev/sanity_check.py` fails if to-do/NotImplemented markers exist outside tests/docs or if code prints env var names (protects against secret leakage).

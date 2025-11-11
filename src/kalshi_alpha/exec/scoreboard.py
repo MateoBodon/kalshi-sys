@@ -13,6 +13,7 @@ from pathlib import Path
 
 import polars as pl
 
+from kalshi_alpha.exec import slo
 from kalshi_alpha.core.execution import defaults as execution_defaults
 from kalshi_alpha.core.execution.index_models import (
     AlphaCurve,
@@ -119,11 +120,32 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[7, 30],
         help="Rolling window in days (default: 7 and 30). Can be supplied multiple times.",
     )
+    parser.add_argument(
+        "--publish-slo-cloudwatch",
+        action="store_true",
+        help="Publish collected SLO metrics to CloudWatch after markdown generation.",
+    )
+    parser.add_argument(
+        "--cloudwatch-namespace",
+        default="KalshiSys/SLO",
+        help="CloudWatch namespace used when --publish-slo-cloudwatch is set.",
+    )
+    parser.add_argument(
+        "--cloudwatch-region",
+        default=None,
+        help="Optional AWS region for CloudWatch publishing.",
+    )
+    parser.add_argument(
+        "--cloudwatch-profile",
+        default=None,
+        help="Optional AWS profile name for CloudWatch publishing.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    now = datetime.now(tz=UTC)
     ledger = _load_ledger()
     calibrations = _load_calibrations()
     alpha_state = _load_alpha_state()
@@ -132,8 +154,17 @@ def main(argv: list[str] | None = None) -> None:
     reports_dir.mkdir(parents=True, exist_ok=True)
     freshness_ok, freshness_reasons = pilot_readiness.freshness_status()
     freshness_summary = _load_freshness_summary()
+    cw_window = max(windows) if windows else None
+    cw_metrics: dict[str, slo.SLOSeriesMetrics] | None = None
     for window in sorted(windows):
         summary = _build_summary(ledger, calibrations, alpha_state, window)
+        slo_metrics = slo.collect_metrics(
+            summary,
+            reports_root=reports_dir,
+            raw_root=Path("data/raw"),
+            lookback_days=window,
+            now=now,
+        )
         output = reports_dir / f"scoreboard_{window}d.md"
         _write_markdown(
             summary,
@@ -142,12 +173,15 @@ def main(argv: list[str] | None = None) -> None:
             freshness_ok=freshness_ok,
             freshness_reasons=freshness_reasons,
             freshness_summary=freshness_summary,
+            slo_metrics=slo_metrics,
         )
         print(f"[scoreboard] wrote {output}")
         go_count = sum(1 for row in summary if row.get("go"))
         series_list = ", ".join(row["series"] for row in summary if row.get("go"))
         if summary:
             print(f"  GO ({window}d): {go_count}/{len(summary)} [{series_list}]")
+        if cw_window is not None and window == cw_window:
+            cw_metrics = slo_metrics
     pilot_path = reports_dir / "pilot_readiness.md"
     pilot_readiness.generate_report(
         ledger_path=LEDGER_PATH,
@@ -155,6 +189,13 @@ def main(argv: list[str] | None = None) -> None:
         window_days=pilot_readiness.WINDOW_DAYS_DEFAULT,
     )
     print(f"[scoreboard] wrote {pilot_path}")
+    if args.publish_slo_cloudwatch and cw_metrics:
+        slo.publish_cloudwatch(
+            cw_metrics.values(),
+            namespace=args.cloudwatch_namespace,
+            region=args.cloudwatch_region,
+            profile=args.cloudwatch_profile,
+        )
 
 
 def _load_ledger() -> pl.DataFrame:
@@ -472,6 +513,7 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
     freshness_ok: bool = True,
     freshness_reasons: Sequence[str] | None = None,
     freshness_summary: dict[str, object] | None = None,
+    slo_metrics: Mapping[str, slo.SLOSeriesMetrics] | None = None,
 ) -> None:
     lines: list[str] = []
     lines.append(f"# Scoreboard ({window_days}-day)")
@@ -561,9 +603,42 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
                 for reason in reasons:
                     lines.append(f"  - {reason}")
         lines.append(f"- NO-GO Count: {row['no_go_count']}")
+        slo_entry = (slo_metrics or {}).get(str(row["series"]).upper()) if row.get("series") else None
+        if slo_entry:
+            lines.extend(_slo_markdown_lines(slo_entry))
         lines.append("")
     output.write_text("\n".join(lines), encoding="utf-8")
 
+
+def _slo_markdown_lines(entry: slo.SLOSeriesMetrics) -> list[str]:
+    lines = ["- SLO Metrics:"]
+    freshness_parts: list[str] = []
+    if entry.freshness_p95_ms is not None:
+        freshness_parts.append(f"p95={entry.freshness_p95_ms:.0f} ms")
+    if entry.freshness_p99_ms is not None:
+        freshness_parts.append(f"p99={entry.freshness_p99_ms:.0f} ms")
+    if freshness_parts:
+        lines.append("  - Freshness " + " / ".join(freshness_parts))
+    tar_parts: list[str] = []
+    if entry.time_at_risk_p95_s is not None:
+        tar_parts.append(f"p95={entry.time_at_risk_p95_s:.1f} s")
+    if entry.time_at_risk_p99_s is not None:
+        tar_parts.append(f"p99={entry.time_at_risk_p99_s:.1f} s")
+    if tar_parts:
+        lines.append("  - Time-at-risk " + " / ".join(tar_parts))
+    if entry.ev_honesty_brier is not None:
+        lines.append(f"  - EV Honesty (Brier): {entry.ev_honesty_brier:.4f}")
+    if entry.ev_gap_bps is not None:
+        lines.append(f"  - ΔEV (bps): {entry.ev_gap_bps:+.1f}")
+    if entry.fill_gap_pp is not None:
+        lines.append(f"  - Fill-α gap: {entry.fill_gap_pp:+.2f} pp")
+    if entry.var_headroom_usd is not None:
+        lines.append(f"  - VaR headroom: {entry.var_headroom_usd:.2f} USD")
+    if entry.no_go_reasons:
+        lines.append("  - Active NO-GO reasons: " + ", ".join(entry.no_go_reasons))
+    else:
+        lines.append("  - Active NO-GO reasons: none")
+    return lines
 
 
 if __name__ == "__main__":

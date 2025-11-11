@@ -1,11 +1,17 @@
 # Execution Snapshot — 2025-11-11
 
 - **Risk & sizing:** added correlation-aware VaR + inventory tilt (`kalshi_alpha.risk.correlation`, `configs/index_correlation.yaml`) with CI coverage (`tests/test_correlation_var.py`). `scan_ladders` now caps per-window risk using the limiter snapshots exposed in monitors.
+- **SLO dashboarding:** `kalshi_alpha.exec.slo` feeds scoreboard SLO lines (freshness/time-at-risk/VaR headroom, EV honesty) and `python -m kalshi_alpha.exec.scoreboard --publish-slo-cloudwatch` pushes metrics upstream.
+- **Daily digest:** `python -m report.digest --date yesterday --write --s3 s3://$${S3_BUCKET}/kalshi-sys/reports/` emits Markdown + PNG per trading day and `REPORT.md` now links the latest artifact.
+- **Sigma-drift monitor:** `monitor/drift_sigma_tod.py` compares realized vs forecast σ_tod, writes `reports/_artifacts/monitors/sigma_drift.json`, and scanner shrink factors obey the alert (covered by `tests/test_sigma_drift_monitor.py`).
+- **Fee/rule watcher:** `monitor/fee_rules_watch.py` fingerprints the official Kalshi fee schedule + rulebook and `scan_ladders` fails closed until the change is acknowledged (tests in `tests/test_fee_rules_watch.py`).
+- **Inline PAL/stops:** new `kalshi_alpha.exec.limits` enforces PAL plus daily/weekly loss caps while proposals are built; `_enforce_broker_guards` reuses the helper and `tests/test_limits.py` covers edge cases.
 - **Quote optimizer:** `kalshi_alpha.exec.quote_optim` injects PMF skew, microprice bias, freshness decay, and replacement throttles into sizing decisions; unit coverage under `tests/test_quote_optim.py`.
 - **Data resilience:** dual-feed failover (`kalshi_alpha.data.failover`) powers the Massive↔Polygon selection, `python -m tools.failover_smoke --dry-run` tests the telemetry, and dashboards ingest the JSON summary.
 - **Hot restart:** `kalshi_alpha.sched.hotrestart.HotRestartManager` persists window/outstanding summaries (<5 s restore). Runbooks instruct operators to validate snapshot freshness before arming quoting; `tests/test_hotrestart.py` guards the file format.
 - **Parity CI & dashboards:** `scripts/parity_gate.py` now enforces per-window ΔEV parity, writes `reports/_artifacts/monitors/ev_gap.json`, and feeds CloudWatch dashboards. Tests updated (`tests/test_parity_gate.py`).
 - **Docs:** hourly/EOD runbooks reference hot-restart + failover hooks, new outage/DST playbook (`docs/runbooks/outage_playbook.md`), and a reusable post-mortem template (`docs/runbooks/postmortem_template.md`).
+- **Promotion ladder:** `docs/promotion_ladder.md` codifies the Stage 0→3 criteria (SLO thresholds, digest links, monitor status) so ops/risk share the same checklist.
 
 - **Fees:** added `configs/fees.json` (versioned indices taker coefficients + rounding metadata) and a dedicated loader under `kalshi_alpha.exec.fees`. Scanner metadata now reports the config path and EV components use true per-order rounding. Unit coverage: `tests/test_exec_fees.py` (1/2/100/1000-lot goldens).
 - **Discovery:** fresh `python -m kalshi_alpha.exec.runners.scan_ladders --discover` mode plus the new `kalshi_alpha.markets.discovery` helper ensure INX/NDX hourly + close ladders are listed before the scheduler arms. Covered via `tests/test_market_discovery.py` and `tests/test_scan_ladders_discover.py`.
@@ -18,6 +24,10 @@
 - **Freshness sentry:** `kalshi_alpha.data.ws_sentry.WSFreshnessSentry` powers the new final-minute guard. When `ws_freshness_age_ms > 700` inside the last minute, scanner enters `polygon_ws_final_minute_stale`, clears proposals, and marks cancel-all. Scoreboards now surface Polygon WS latency in the header (see `reports/scoreboard_7d.md`).
 - **Docs & ops:** published `.env.local.example` plus per-window runbooks (`docs/runbooks/hourly.md`, `docs/runbooks/eod.md`) covering scheduler timings, freshness guard, kill-switch steps, and the new discovery/honesty/AWS shim flows. README updated to highlight the defaults.
 - **Verification:** `pytest -q` (unit), plus manual `kalshi-scan --series INXU --offline` smoke to confirm fee paths and scheduler metadata. Scoreboard regeneration confirms fresh metrics rendered; kill-switch tests assert the guard triggers before quality gates.
+
+## Daily Digest
+- Local: `reports/digests/digest_2025-11-10.md` (PNG beside the markdown).
+- S3: `s3://kalshi-sys/reports/digests/2025-11-10/digest_2025-11-10.md`
 
 ## Runtime Monitors
 <!-- monitors:start -->

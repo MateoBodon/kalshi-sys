@@ -8,11 +8,13 @@
 ## Pre-Window Checklist (15:40–15:50 ET)
 - [ ] `.env.local` present + loaded (see `.env.local.example`).
 - [ ] `reports/_artifacts/monitors/freshness.json` generated within 5 minutes; `polygon_index.websocket` entry present.
+- [ ] Run `python monitor/fee_rules_watch.py` (no flags) to ensure it reports `status=OK`; acknowledge changes only after reviewing the official docs.
 - [ ] Review scoreboard freshness metrics (`Polygon WS age`) and ensure data plane GO.
 - [ ] Hot-restart snapshot age `< 5s` (`python - <<'PY'\nfrom kalshi_alpha.sched.hotrestart import HotRestartManager\nsnap = HotRestartManager().restore()\nprint(snap.age_seconds() if snap else 'missing')\nPY`). If missing/stale, capture before arming quoting.
 - [ ] Confirm `OutstandingOrdersState` empty and kill switch **not** armed.
 - [ ] `python -m kalshi_alpha.exec.runners.scan_ladders --discover --today --offline --series INX` verifies the close ladder is listed before you arm quoting.
 - [ ] Run the honesty calc (`python -m report.honesty --window 7 --window 30`) so the EOD clamp in `honesty_window30.json` reflects the latest fills.
+- [ ] Refresh sigma drift monitor (`python monitor/drift_sigma_tod.py --lookback-days 7`); if shrink < 1.0, log the plan before arming quoting.
 
 ## Active Window (15:50 ET → 15:59:58 ET)
 - [ ] Run `kalshi-scan --series INX --maker-only --online` (repeat for `NASDAQ100`).
@@ -34,4 +36,5 @@
 - [ ] Verify cancel-all succeeded (`OutstandingOrdersState.total() == 0`).
 - [ ] Tag ledger/report with `scheduler_window` metadata for auditing.
 - [ ] Regenerate scoreboard + pilot readiness (`make scoreboard`) so Polygon freshness metrics appear in the header.
+- [ ] Generate the daily digest (`python -m report.digest --date YYYY-MM-DD --write --s3 s3://<bucket>/kalshi-sys/reports/`) and include the link in `REPORT.md`.
 - [ ] Use the shimmed automation when large calibration/replay runs are needed: `make aws-calib` (hourly σ job) and `make aws-replay FILE=data/replay/YYYY-MM-DD_spx_ndx.json` capture artifacts + metrics under `reports/_artifacts/aws_jobs/`.
