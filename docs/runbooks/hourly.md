@@ -9,6 +9,7 @@
 - [ ] Ensure `.env.local` exists (see `.env.local.example`) and `python -m kalshi_alpha.exec.runners.scan_ladders --series INXU --maker-only` loads secrets without prompting.
 - [ ] `python -m kalshi_alpha.exec.runners.scan_ladders --discover --today --offline --series INXU` confirms Kalshi listed today’s hourly markets before you arm the scheduler.
 - [ ] Verify `reports/_artifacts/monitors/freshness.json` was refreshed in the last 5 min. `polygon_index.websocket` `age_seconds` should be `< 2` before arming quoting.
+- [ ] Hot-restart snapshot current: `python - <<'PY'\nfrom kalshi_alpha.sched.hotrestart import HotRestartManager\nprint(HotRestartManager().restore())\nPY` should report `age_seconds < 5`. Re-run capture if stale.
 - [ ] Regenerate honesty metrics (`python -m report.honesty --window 7 --window 30`) and glance at `reports/_artifacts/honesty/honesty_window7.json`; if `clamp < 0.75`, expect reduced EV sizing.
 - [ ] Confirm `OutstandingOrdersState` has **0 live orders** (`python -m kalshi_alpha.exec.state.orders --summary`).
 - [ ] Pilot checks: scoreboard GO, `pilot_readiness` GO, loss caps reset.
@@ -23,6 +24,11 @@
 - [ ] Freshness sentry: `ws_final_minute_guard.strict` will flip to `true`. If `ws_freshness_age_ms > 700`, scanner forces `polygon_ws_final_minute_stale` and issues `cancel_all`.
 - [ ] Manually verify the Massive WS dashboard (Polygon portal) if freeze triggers twice in a session.
 - [ ] Ensure cancel-all hits before `scheduler_t_minus_2s`. Outstanding orders should read zero at target.
+
+## Failover & Maintenance Hooks
+- Dual-feed failover is handled by `kalshi_alpha.data.failover.DualFeedFailover`. Monitor `reports/_artifacts/monitors/ev_gap.json` for `active_feed=massive`. Dry-run via `python -m tools.failover_smoke --dry-run`.
+- DST / maintenance windows follow the [Outage / DST / Maintenance Playbook](docs/runbooks/outage_playbook.md). Log any incidents in the new [Post-Mortem Template](docs/runbooks/postmortem_template.md).
+- If Kalshi schedules maintenance, issue `OutstandingOrdersState.mark_cancel_all("kalshi_maintenance")`, stop the scheduler, and rely on the hot-restart snapshot after the window.
 
 ## Post-Window
 - [ ] Confirm `reports/INXU/YYYY-MM-DD.md` captures the `fee_path`, `scheduler_window`, and `ws_freshness` entries.

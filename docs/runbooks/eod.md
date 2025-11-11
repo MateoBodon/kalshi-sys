@@ -9,6 +9,7 @@
 - [ ] `.env.local` present + loaded (see `.env.local.example`).
 - [ ] `reports/_artifacts/monitors/freshness.json` generated within 5 minutes; `polygon_index.websocket` entry present.
 - [ ] Review scoreboard freshness metrics (`Polygon WS age`) and ensure data plane GO.
+- [ ] Hot-restart snapshot age `< 5s` (`python - <<'PY'\nfrom kalshi_alpha.sched.hotrestart import HotRestartManager\nsnap = HotRestartManager().restore()\nprint(snap.age_seconds() if snap else 'missing')\nPY`). If missing/stale, capture before arming quoting.
 - [ ] Confirm `OutstandingOrdersState` empty and kill switch **not** armed.
 - [ ] `python -m kalshi_alpha.exec.runners.scan_ladders --discover --today --offline --series INX` verifies the close ladder is listed before you arm quoting.
 - [ ] Run the honesty calc (`python -m report.honesty --window 7 --window 30`) so the EOD clamp in `honesty_window30.json` reflects the latest fills.
@@ -23,6 +24,11 @@
 - [ ] `ws_final_minute_guard.strict` = `true`.
 - [ ] If `ws_freshness_age_ms > 700`, scanner tags `polygon_ws_final_minute_stale`, wipes proposals, and marks `cancel_reason`. Validate the alert, then stand down until feed recovers.
 - [ ] Keep Massive dashboard open for real-time visibility; log incidents in `REPORT.md`.
+
+## Outages / DST / Maintenance
+- Reference `docs/runbooks/outage_playbook.md` for DST tweaks, maintenance windows, and dual-feed failover (run `python -m tools.failover_smoke --dry-run` after status incidents).
+- Capture a post-close hot-restart snapshot so overnight recovery stays <5s.
+- File a [Post-Mortem](docs/runbooks/postmortem_template.md) for any NO-GO, freeze miss, or extended data outage.
 
 ## After Close
 - [ ] Verify cancel-all succeeded (`OutstandingOrdersState.total() == 0`).
