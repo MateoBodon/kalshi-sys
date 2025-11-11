@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday
+.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay parity-ci
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -132,6 +132,18 @@ replay-yesterday:
 	fi; \
 	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file "$${REPLAY_FILE}" --speed 10 --start "11:40" --end "12:05" --summary "reports/_artifacts/replay/polygon_index_replay_noon.json" --proc-parquet "reports/_artifacts/replay/polygon_replay_noon.parquet"; \
 	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file "$${REPLAY_FILE}" --speed 10 --start "15:45" --end "16:05" --summary "reports/_artifacts/replay/polygon_index_replay_close.json" --proc-parquet "reports/_artifacts/replay/polygon_replay_close.parquet"
+
+aws-calib:
+	$(PYTHON) scripts/aws_job.py --job calib_hourly --command "$(PYTHON) -m jobs.calib_hourly --series INXU NASDAQ100U" --artifact data/proc/calib/index
+
+aws-replay:
+	@REPLAY_DATE=$$($(PYTHON) -c 'from datetime import datetime, timedelta; from zoneinfo import ZoneInfo; print((datetime.now(tz=ZoneInfo("America/New_York")) - timedelta(days=1)).strftime("%Y-%m-%d"))'); \
+	REPLAY_FILE=$${FILE:-data/replay/$${REPLAY_DATE}_spx_ndx.json}; \
+	if [ ! -f "$$REPLAY_FILE" ]; then echo "Replay file missing: $$REPLAY_FILE"; exit 1; fi; \
+	$(PYTHON) scripts/aws_job.py --job replay --command "PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file $$REPLAY_FILE --speed 20 --start 11:40 --end 12:05" --artifact reports/_artifacts/replay_ev.parquet
+
+parity-ci:
+	$(PYTHON) scripts/parity_gate.py --threshold 0.15
 
 .PHONY: paper_live_offline paper_live_online
 

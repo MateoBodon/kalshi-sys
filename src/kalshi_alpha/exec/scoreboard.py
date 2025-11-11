@@ -31,6 +31,7 @@ LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 CALIBRATION_PATH = Path("data/proc/calibration_metrics.parquet")
 ALPHA_STATE_PATH = Path("data/proc/state/fill_alpha.json")
 ARTIFACTS_DIR = Path("reports/_artifacts")
+HONESTY_ARTIFACT_ROOT = ARTIFACTS_DIR / "honesty"
 LOGGER = logging.getLogger(__name__)
 INDEX_SERIES_ORDER = ["INXU", "NASDAQ100U", "INX", "NASDAQ100"]
 INDEX_SERIES = set(INDEX_SERIES_ORDER)
@@ -237,6 +238,7 @@ def _build_summary(  # noqa: PLR0912, PLR0915
     now = datetime.now(tz=UTC)
     window_start = now - timedelta(days=window_days)
     gate_metrics = _load_gate_metrics(window_days)
+    honesty_metrics = _load_honesty_metrics(window_days)
     if ledger.is_empty():
         return []
     filtered = ledger
@@ -341,6 +343,12 @@ def _build_summary(  # noqa: PLR0912, PLR0915
         if calib:
             metrics["crps_advantage"] = calib.get("crps_advantage")
             metrics["brier_advantage"] = calib.get("brier_advantage")
+        honesty = honesty_metrics.get(series, {})
+        if honesty:
+            metrics["honesty_brier"] = honesty.get("brier")
+            metrics["honesty_ece"] = honesty.get("ece")
+            metrics["honesty_sample"] = honesty.get("sample_size")
+            metrics["honesty_clamp"] = honesty.get("clamp")
         records.append(metrics)
         mean_fill_delta, abs_fill_delta = _alpha_model_metrics(alpha_curves.get(series), subset)
         if mean_fill_delta is not None:
@@ -365,6 +373,10 @@ def _build_summary(  # noqa: PLR0912, PLR0915
         ):
             reasons.append(
                 f"fill-α gap {fill_minus_alpha:+.3f} exceeds {pilot_readiness.MAX_ALPHA_GAP}"
+            )
+        if honesty and honesty.get("clamp") is not None and float(honesty.get("clamp")) < 0.75:
+            reasons.append(
+                f"honesty clamp {float(honesty['clamp']):.2f} < 0.75"
             )
         if calib_age is None:
             reasons.append("calibration_missing")
@@ -410,6 +422,25 @@ def _load_gate_metrics(window_days: int) -> dict[str, dict[str, int]]:
         else:
             metrics[series]["no_go"] += 1
     return metrics
+
+
+def _load_honesty_metrics(window_days: int) -> dict[str, dict[str, object]]:
+    path = HONESTY_ARTIFACT_ROOT / f"honesty_window{window_days}.json"
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    series_payload = payload.get("series")
+    if not isinstance(series_payload, dict):
+        return {}
+    result: dict[str, dict[str, object]] = {}
+    for series, metrics in series_payload.items():
+        if not isinstance(metrics, dict):
+            continue
+        result[str(series).upper()] = metrics
+    return result
 
 
 def _confidence_badge(sample_size: int, t_stat: float) -> str:
@@ -463,6 +494,14 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
         lines.append(f"## {row['series']} — {status}")
         lines.append(f"- CRPS Advantage: {row.get('crps_advantage', 'n/a')}")
         lines.append(f"- Brier Advantage: {row.get('brier_advantage', 'n/a')}")
+        if row.get("honesty_brier") is not None:
+            lines.append(f"- Honesty Brier: {row['honesty_brier']:.4f}")
+        if row.get("honesty_ece") is not None:
+            lines.append(f"- Honesty ECE: {row['honesty_ece']:.4f}")
+        if row.get("honesty_clamp") is not None:
+            lines.append(f"- Honesty Clamp: {row['honesty_clamp']:.2f}")
+        if row.get("honesty_sample") is not None:
+            lines.append(f"- Honesty Sample: {int(row['honesty_sample'])}")
         lines.append(f"- EV (after fees): {row['ev_after_fees']:.2f}")
         lines.append(f"- Realized PnL: {row['realized_pnl']:.2f}")
         lines.append(

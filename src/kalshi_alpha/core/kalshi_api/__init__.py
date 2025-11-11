@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,6 +19,7 @@ import requests
 from cachetools import LRUCache
 
 DEFAULT_BASE_URL = "https://trading-api.kalshi.com/v1"
+MARKETS_SEARCH_OFFLINE_STUB = "markets_search.json"
 CacheKey = tuple[str, tuple[tuple[str, Any], ...]]
 Payload = dict[str, Any] | list[Any]
 
@@ -62,11 +64,19 @@ class Market:
     title: str
     ladder_strikes: list[float]
     ladder_yes_prices: list[float]
+    event_ticker: str | None = None
+    series_ticker: str | None = None
+    status: str | None = None
+    close_time: datetime | None = None
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Market:
         strikes = payload.get("ladder_strikes") or payload.get("strike_prices") or []
         yes_prices = payload.get("ladder_yes_prices") or payload.get("yes_prices") or []
+        close_time = _parse_timestamp(payload.get("close_ts"))
+        event_ticker = payload.get("event_ticker") or payload.get("event")
+        series_ticker = payload.get("series_ticker") or payload.get("series")
+        status = payload.get("status")
         return cls(
             id=str(payload.get("id") or payload.get("market_id")),
             event_id=str(payload.get("event_id")),
@@ -74,6 +84,10 @@ class Market:
             title=str(payload.get("title") or payload.get("name") or payload.get("ticker")),
             ladder_strikes=[float(value) for value in strikes],
             ladder_yes_prices=[float(value) for value in yes_prices],
+            event_ticker=str(event_ticker) if event_ticker else None,
+            series_ticker=str(series_ticker).upper() if series_ticker else None,
+            status=str(status).lower() if isinstance(status, str) else None,
+            close_time=close_time,
         )
 
 
@@ -163,6 +177,46 @@ class KalshiPublicClient:
         )
         return Orderbook.from_payload(payload if isinstance(payload, dict) else payload[0])
 
+    def search_markets(  # noqa: PLR0913 - filter flexibility
+        self,
+        *,
+        series_ticker: str | None = None,
+        status: str | None = None,
+        event_ticker: str | None = None,
+        limit: int | None = None,
+        force_refresh: bool = False,
+    ) -> list[Market]:
+        params: dict[str, Any] = {}
+        series_value = series_ticker.upper() if isinstance(series_ticker, str) else None
+        status_value = status.lower() if isinstance(status, str) else None
+        if series_value:
+            params["series_ticker"] = series_value
+        if status_value:
+            params["status"] = status_value
+        if event_ticker:
+            params["event_ticker"] = str(event_ticker)
+        if limit is not None:
+            params["limit"] = int(limit)
+
+        cache_key = (
+            "markets_search",
+            tuple(sorted((key, str(value)) for key, value in params.items())),
+        )
+        payload = self._get(
+            "/markets",
+            params=params or None,
+            cache_key=cache_key,
+            offline_stub=MARKETS_SEARCH_OFFLINE_STUB,
+            force_refresh=force_refresh,
+        )
+        data = payload.get("markets") if isinstance(payload, dict) else payload
+        markets = [Market.from_payload(item) for item in data or []]
+        return [
+            market
+            for market in markets
+            if _matches_filter(market, series_value, status_value, event_ticker)
+        ]
+
     # Internal helpers -------------------------------------------------------------------------
 
     def _get(
@@ -201,3 +255,45 @@ class KalshiPublicClient:
             raise FileNotFoundError(f"Offline fixture missing: {offline_path}")
         with offline_path.open("r", encoding="utf-8") as handle:
             return cast(Payload, json.load(handle))
+
+
+def _matches_filter(
+    market: Market,
+    series_ticker: str | None,
+    status: str | None,
+    event_ticker: str | None,
+) -> bool:
+    if series_ticker and (market.series_ticker or "").upper() != series_ticker:
+        return False
+    if status and (market.status or "").lower() != status:
+        return False
+    if event_ticker and (market.event_ticker or "").upper() != event_ticker.upper():
+        return False
+    return True
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, (int, float)):
+        seconds = float(value)
+        if seconds > 1_000_000_000_000:
+            seconds /= 1000.0
+        return datetime.fromtimestamp(seconds, tz=UTC)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        if raw.isdigit():
+            return datetime.fromtimestamp(float(raw), tz=UTC)
+        normalized = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+    return None
