@@ -4,17 +4,31 @@
 from __future__ import annotations
 
 import argparse
+import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
 
 REPLAY_PATH = Path("reports/_artifacts/replay_ev.parquet")
+DEFAULT_MONITOR_PATH = Path("reports/_artifacts/monitors/ev_gap.json")
 
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check ΔEV parity between replay and live proposals.")
     parser.add_argument("--threshold", type=float, default=0.15, help="Max allowed per-contract delta (USD).")
     parser.add_argument("--path", type=Path, default=REPLAY_PATH, help="Replay EV parquet path (default: reports/_artifacts/replay_ev.parquet).")
+    parser.add_argument(
+        "--window-column",
+        default="window_type",
+        help="Column name to group by when enforcing per-window parity (set to 'none' to disable).",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        default=DEFAULT_MONITOR_PATH,
+        help="Path to write JSON summary for dashboards.",
+    )
     return parser.parse_args(argv)
 
 
@@ -37,10 +51,37 @@ def main(argv=None) -> None:
         .alias("delta")
     )
     enriched = frame.with_columns([per_contract_original, delta_col])
-    max_delta = float(enriched.select(pl.max("delta")).item())
-    print(f"[parity] max ΔEV per contract = {max_delta:.4f} (threshold {args.threshold:.4f})")
-    if max_delta > args.threshold:
-        raise SystemExit(1)
+    window_map = _window_max(enriched, args.window_column)
+    max_delta = max(window_map.values())
+    for window, value in sorted(window_map.items()):
+        print(f"[parity] window={window} max ΔEV per contract = {value:.4f} (threshold {args.threshold:.4f})")
+    if args.output_json:
+        _write_summary(args.output_json, args.threshold, window_map, max_delta)
+    offenders = {window: value for window, value in window_map.items() if value > args.threshold}
+    if offenders:
+        raise SystemExit(
+            "per-window ΔEV parity exceeded threshold: "
+            + ", ".join(f"{window}={value:.4f}" for window, value in sorted(offenders.items()))
+        )
+
+
+def _window_max(frame: pl.DataFrame, column: str) -> dict[str, float]:
+    if column and column.lower() != "none" and column in frame.columns:
+        grouped = frame.group_by(column).agg(pl.max("delta").alias("window_delta"))
+        return {str(row[column]): float(row["window_delta"]) for row in grouped.to_dicts()}
+    value = float(frame.select(pl.max("delta")).item())
+    return {"all": value}
+
+
+def _write_summary(path: Path, threshold: float, window_map: dict[str, float], max_delta: float) -> None:
+    payload = {
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "threshold": threshold,
+        "max_delta": max_delta,
+        "by_window": window_map,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -1,4 +1,11 @@
-# Execution Snapshot — 2025-11-10
+# Execution Snapshot — 2025-11-11
+
+- **Risk & sizing:** added correlation-aware VaR + inventory tilt (`kalshi_alpha.risk.correlation`, `configs/index_correlation.yaml`) with CI coverage (`tests/test_correlation_var.py`). `scan_ladders` now caps per-window risk using the limiter snapshots exposed in monitors.
+- **Quote optimizer:** `kalshi_alpha.exec.quote_optim` injects PMF skew, microprice bias, freshness decay, and replacement throttles into sizing decisions; unit coverage under `tests/test_quote_optim.py`.
+- **Data resilience:** dual-feed failover (`kalshi_alpha.data.failover`) powers the Massive↔Polygon selection, `python -m tools.failover_smoke --dry-run` tests the telemetry, and dashboards ingest the JSON summary.
+- **Hot restart:** `kalshi_alpha.sched.hotrestart.HotRestartManager` persists window/outstanding summaries (<5 s restore). Runbooks instruct operators to validate snapshot freshness before arming quoting; `tests/test_hotrestart.py` guards the file format.
+- **Parity CI & dashboards:** `scripts/parity_gate.py` now enforces per-window ΔEV parity, writes `reports/_artifacts/monitors/ev_gap.json`, and feeds CloudWatch dashboards. Tests updated (`tests/test_parity_gate.py`).
+- **Docs:** hourly/EOD runbooks reference hot-restart + failover hooks, new outage/DST playbook (`docs/runbooks/outage_playbook.md`), and a reusable post-mortem template (`docs/runbooks/postmortem_template.md`).
 
 - **Fees:** added `configs/fees.json` (versioned indices taker coefficients + rounding metadata) and a dedicated loader under `kalshi_alpha.exec.fees`. Scanner metadata now reports the config path and EV components use true per-order rounding. Unit coverage: `tests/test_exec_fees.py` (1/2/100/1000-lot goldens).
 - **Discovery:** fresh `python -m kalshi_alpha.exec.runners.scan_ladders --discover` mode plus the new `kalshi_alpha.markets.discovery` helper ensure INX/NDX hourly + close ladders are listed before the scheduler arms. Covered via `tests/test_market_discovery.py` and `tests/test_scan_ladders_discover.py`.
@@ -25,3 +32,4 @@ _No runtime monitor run recorded._
 - EV honesty bins: CPI-2025-10-MOM YES@0.18 and NO@0.47 remain Δ=0.00, no caps/flags applied.
 - Connectivity: `make live-smoke` now succeeds against prod (balance + markets endpoints reachable with new API key).
 - Latest bundle: reports/pilot_bundle_20251103_001419.tar.gz (includes readiness, monitors, ledger snapshot, telemetry).
+- Verification: `pytest -q` (full suite) plus targeted runs `pytest tests/test_correlation_var.py tests/test_quote_optim.py tests/test_failover.py tests/test_hotrestart.py tests/test_parity_gate.py`, `python -m tools.failover_smoke --dry-run`, and `python scripts/parity_gate.py --threshold 0.15 --path reports/_artifacts/replay_ev.parquet --output-json reports/_artifacts/monitors/ev_gap.json`.

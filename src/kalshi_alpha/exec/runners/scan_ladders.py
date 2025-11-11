@@ -85,6 +85,7 @@ from kalshi_alpha.exec.monitors.summary import (
     MONITOR_ARTIFACTS_DIR,
     summarize_monitor_artifacts,
 )
+from kalshi_alpha.exec.quote_optim import QuoteContext, QuoteOptimizer, microprice_from_orderbook
 from kalshi_alpha.exec.pilot import (
     PilotConfig,
     PilotSession,
@@ -102,6 +103,7 @@ from kalshi_alpha.strategies import cpi as cpi_strategy
 from kalshi_alpha.strategies import index as index_strategy
 from kalshi_alpha.strategies import teny as teny_strategy
 from kalshi_alpha.strategies import weather as weather_strategy
+from kalshi_alpha.risk import CORRELATION_CONFIG_PATH, CorrelationAwareLimiter
 from kalshi_alpha.risk import var_index
 from kalshi_alpha.utils.env import load_env
 
@@ -654,6 +656,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
     var_limiter = var_index.FamilyVarLimiter(var_index.load_family_limits())
+    correlation_config_path = Path(args.correlation_config) if args.correlation_config else CORRELATION_CONFIG_PATH
+    correlation_guard = CorrelationAwareLimiter.from_yaml(correlation_config_path)
+    quote_optimizer = QuoteOptimizer()
     offline_mode = args.offline or not args.online
     series_upper = args.series.upper()
     honesty_clamp = _load_honesty_clamp(series_upper)
@@ -700,6 +705,26 @@ def main(argv: Sequence[str] | None = None) -> None:
                 f"[scheduler] Cancel-all requested for {series_upper} ahead of {scheduler_window.label}"
             )
 
+    data_freshness_summary = _load_data_freshness_summary()
+    fatal_freshness_reason = _freshness_fatal_reason(
+        data_freshness_summary,
+        require_polygon_ws=args.series.upper() in _INDEX_WS_SERIES,
+    )
+    ws_age_ms = _polygon_ws_age_ms(data_freshness_summary)
+    ws_sentry = WSFreshnessSentry()
+    now_for_freshness = datetime.now(tz=UTC)
+    if ws_age_ms is not None:
+        ws_sentry.record_latency(ws_age_ms, now=now_for_freshness)
+    active_window = scheduler_current_window(series_upper, now_for_freshness)
+    strict_final_minute = bool(active_window and active_window.in_final_minute(now_for_freshness))
+    final_minute_reason: str | None = None
+    if strict_final_minute:
+        freshness_ok = ws_sentry.is_fresh(strict=True, now=now_for_freshness) if ws_age_ms is not None else False
+        if not freshness_ok:
+            final_minute_reason = "polygon_ws_final_minute_stale"
+            fatal_freshness_reason = fatal_freshness_reason or final_minute_reason
+
+    target_time = None
     outcome = scan_series(
         series=args.series,
         client=client,
@@ -727,6 +752,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         now_override=now_override,
         target_time_override=target_time,
         var_limiter=var_limiter,
+        correlation_guard=correlation_guard,
+        quote_optimizer=quote_optimizer,
+        freshness_ms=ws_age_ms,
     )
 
     if pilot_session:
@@ -758,27 +786,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         if current_label or target_label:
             print(f"[u-roll] {current_label or '?'}→{target_label or '?'}")
 
-    data_freshness_summary = _load_data_freshness_summary()
     outcome.monitors.setdefault("data_freshness", data_freshness_summary)
-    fatal_freshness_reason = _freshness_fatal_reason(
-        data_freshness_summary,
-        require_polygon_ws=args.series.upper() in _INDEX_WS_SERIES,
-    )
-    ws_age_ms = _polygon_ws_age_ms(data_freshness_summary)
     if ws_age_ms is not None:
         outcome.monitors.setdefault("ws_freshness_age_ms", ws_age_ms)
-    ws_sentry = WSFreshnessSentry()
-    now_for_freshness = datetime.now(tz=UTC)
-    if ws_age_ms is not None:
-        ws_sentry.record_latency(ws_age_ms, now=now_for_freshness)
-    active_window = scheduler_current_window(series_upper, now_for_freshness)
-    strict_final_minute = bool(active_window and active_window.in_final_minute(now_for_freshness))
-    final_minute_reason: str | None = None
-    if strict_final_minute:
-        freshness_ok = ws_sentry.is_fresh(strict=True, now=now_for_freshness) if ws_age_ms is not None else False
-        if not freshness_ok:
-            final_minute_reason = "polygon_ws_final_minute_stale"
-            fatal_freshness_reason = fatal_freshness_reason or final_minute_reason
     outcome.monitors.setdefault(
         "ws_final_minute_guard",
         {
@@ -1946,6 +1956,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Maximum portfolio VaR allowed (USD).",
     )
     parser.add_argument(
+        "--correlation-config",
+        type=Path,
+        default=CORRELATION_CONFIG_PATH,
+        help="Path to correlation-aware VaR configuration file.",
+    )
+    parser.add_argument(
         "--portfolio-config",
         type=Path,
         help="Path to portfolio factor configuration YAML file.",
@@ -2261,6 +2277,9 @@ def scan_series(  # noqa: PLR0913
     now_override: datetime | None = None,
     target_time_override: time | None = None,
     var_limiter: var_index.FamilyVarLimiter | None = None,
+    correlation_guard: CorrelationAwareLimiter | None = None,
+    quote_optimizer: QuoteOptimizer | None = None,
+    freshness_ms: float | None = None,
 ) -> ScanOutcome:
     now_utc = now_override if now_override is not None else datetime.now(tz=UTC)
     series_obj = _find_series(client, series)
@@ -2399,6 +2418,8 @@ def scan_series(  # noqa: PLR0913
             if metadata and not model_metadata:
                 model_metadata = dict(metadata)
             strategy_survival = pmf_to_survival(strategy_pmf, [rung.strike for rung in rungs])
+            if correlation_guard is not None:
+                correlation_guard.update_surface(series_obj.ticker, [rung.strike for rung in rungs], strategy_survival)
             allowed_indices = None
             if not allow_tails:
                 allowed_indices = _adjacent_indices(strategy_pmf, len(rungs))
@@ -2472,6 +2493,10 @@ def scan_series(  # noqa: PLR0913
                 ev_shrink=ev_honesty_shrink,
                 bin_constraints=bin_constraints,
                 var_limiter=var_limiter,
+                correlation_guard=correlation_guard,
+                quote_optimizer=quote_optimizer,
+                orderbook=books_at_scan.get(market.id),
+                freshness_ms=freshness_ms,
             )
             if pilot_config is not None:
                 rung_proposals, trimmed = _limit_proposals_for_pilot(
@@ -2538,6 +2563,8 @@ def scan_series(  # noqa: PLR0913
         monitors.setdefault("ev_honesty_shrink_factor", ev_honesty_shrink)
     if var_limiter is not None:
         monitors["var_family_exposure"] = var_limiter.snapshot()
+    if correlation_guard is not None:
+        monitors["correlation_var"] = correlation_guard.snapshot()
     roll_payload: dict[str, object] | None = None
     if roll_decision is not None:
         now_et_value = roll_decision.get("now_et")
@@ -2993,12 +3020,17 @@ def _evaluate_market(  # noqa: PLR0913
     ev_shrink: float,
     bin_constraints: BinConstraintResolver | None = None,
     var_limiter: var_index.FamilyVarLimiter | None = None,
+    correlation_guard: CorrelationAwareLimiter | None = None,
+    quote_optimizer: QuoteOptimizer | None = None,
+    orderbook: Orderbook | None = None,
+    freshness_ms: float | None = None,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
     uncertainty_penalty = max(0.0, uncertainty_penalty)
     ob_imbalance_penalty = max(0.0, ob_imbalance_penalty)
     series_upper = series_ticker.upper()
     apply_shrink = 0.0 < ev_shrink < 1.0
+    microprice_value, best_bid_price, best_ask_price = microprice_from_orderbook(orderbook)
 
     for index, rung in enumerate(rungs):
         if allowed_indices is not None and index not in allowed_indices:
@@ -3025,7 +3057,29 @@ def _evaluate_market(  # noqa: PLR0913
             per_contract_eval["maker_yes"] *= ev_shrink
             per_contract_eval["maker_no"] *= ev_shrink
         best_side, best_ev = _choose_side(per_contract_eval, maker_only=maker_only)
-        if best_ev < min_ev:
+        maker_key = "maker_yes" if best_side is OrderSide.YES else "maker_no"
+        taker_key = "taker_yes" if best_side is OrderSide.YES else "taker_no"
+        throttle_key: str | None = None
+        penalty = 0.0
+        if quote_optimizer is not None:
+            quote_context = QuoteContext(
+                market_id=market_id,
+                strike=rung.strike,
+                side=best_side,
+                pmf_probability=event_probability,
+                market_probability=survival_market,
+                microprice=microprice_value,
+                best_bid=best_bid_price,
+                best_ask=best_ask_price,
+                freshness_ms=freshness_ms,
+                maker_ev_per_contract=per_contract_eval[maker_key],
+            )
+            penalty = quote_optimizer.penalty(quote_context)
+            throttle_key = quote_optimizer.key_for_order(market_id, rung.strike, best_side)
+        effective_min_ev = min_ev + penalty
+        if best_ev < effective_min_ev:
+            continue
+        if throttle_key and quote_optimizer is not None and quote_optimizer.should_throttle(throttle_key):
             continue
 
         order_id = f"{market_ticker}:{rung.strike}"
@@ -3111,6 +3165,25 @@ def _evaluate_market(  # noqa: PLR0913
                 contract_count = adjusted_contracts
                 total_max_loss = max_loss_single * contract_count
 
+        correlation_metadata: dict[str, float] | None = None
+        correlation_exposure = None
+        if correlation_guard is not None:
+            capped_contracts, exposure_record, metadata = correlation_guard.cap_contracts(
+                series=series_ticker,
+                strike=rung.strike,
+                side=best_side,
+                contracts=contract_count,
+                probability=event_probability,
+            )
+            if capped_contracts <= 0:
+                continue
+            if capped_contracts != contract_count:
+                contract_count = capped_contracts
+                total_max_loss = max_loss_single * contract_count
+            correlation_exposure = exposure_record
+            if metadata:
+                correlation_metadata = metadata
+
         total_ev_raw = expected_value_summary(
             contracts=contract_count,
             yes_price=yes_price,
@@ -3124,8 +3197,6 @@ def _evaluate_market(  # noqa: PLR0913
             total_ev_eval["maker_yes"] *= ev_shrink
             total_ev_eval["maker_no"] *= ev_shrink
 
-        maker_key = "maker_yes" if best_side is OrderSide.YES else "maker_no"
-        taker_key = "taker_yes" if best_side is OrderSide.YES else "taker_no"
         if maker_only:
             total_ev_eval[taker_key] = 0.0
             per_contract_eval[taker_key] = 0.0
@@ -3171,6 +3242,15 @@ def _evaluate_market(  # noqa: PLR0913
             )
         if constraint_details is not None:
             proposal_metadata["bin_constraint"] = constraint_details
+
+        if correlation_metadata is not None:
+            risk_block = proposal_metadata.setdefault("risk", {})
+            risk_block["correlation"] = correlation_metadata
+        if penalty > 0.0:
+            risk_block = proposal_metadata.setdefault("risk", {})
+            optim_meta = risk_block.setdefault("quote_optim", {})
+            optim_meta["ev_penalty"] = penalty
+            optim_meta["min_ev"] = effective_min_ev
 
         if best_side is OrderSide.YES:
             fee_price = yes_price
@@ -3218,6 +3298,11 @@ def _evaluate_market(  # noqa: PLR0913
             "liquidity": "maker",
             "side": best_side.name.lower(),
         }
+
+        if correlation_guard is not None and correlation_exposure is not None:
+            correlation_guard.register(correlation_exposure)
+        if quote_optimizer is not None and throttle_key is not None:
+            quote_optimizer.record_submission(throttle_key)
 
         proposal = Proposal(
             market_id=market_id,
