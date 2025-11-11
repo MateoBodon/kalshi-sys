@@ -1,0 +1,6 @@
+# Official Kalshi fee schedule & rulebook references monitored for changes.
+targets:
+  - id: kalshi_fees
+    url: https://help.kalshi.com/hc/en-us/articles/4408225627419-What-are-Kalshi-s-fees
+  - id: kalshi_rulebook
+    url: https://help.kalshi.com/hc/en-us/articles/4408232761627-What-is-the-Kalshi-rulebook

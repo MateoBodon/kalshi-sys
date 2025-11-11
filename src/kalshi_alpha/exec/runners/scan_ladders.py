@@ -61,6 +61,7 @@ from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, PolygonAPIE
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
 from kalshi_alpha.exec import fees as exec_fees
 from kalshi_alpha.data import WSFreshnessSentry
+from kalshi_alpha.exec.limits import LossBudget, ProposalLimitChecker, LimitViolation
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
 from kalshi_alpha.exec.heartbeat import (
     heartbeat_stale,
@@ -69,15 +70,10 @@ from kalshi_alpha.exec.heartbeat import (
     write_heartbeat,
 )
 from kalshi_alpha.exec.ledger import ExecutionMetrics, PaperLedger, simulate_fills
-from kalshi_alpha.exec.monitors.freshness import (
-    FRESHNESS_ARTIFACT_PATH,
-)
-from kalshi_alpha.exec.monitors.freshness import (
-    load_artifact as load_freshness_artifact,
-)
-from kalshi_alpha.exec.monitors.freshness import (
-    summarize_artifact as summarize_freshness_artifact,
-)
+from kalshi_alpha.exec.monitors import fee_rules, sigma_drift
+from kalshi_alpha.exec.monitors.freshness import FRESHNESS_ARTIFACT_PATH
+from kalshi_alpha.exec.monitors.freshness import load_artifact as load_freshness_artifact
+from kalshi_alpha.exec.monitors.freshness import summarize_artifact as summarize_freshness_artifact
 from kalshi_alpha.exec.monitors.summary import (
     DEFAULT_MONITOR_MAX_AGE_MINUTES,
     DEFAULT_PANIC_ALERT_THRESHOLD,
@@ -570,27 +566,6 @@ def _load_honesty_clamp(series: str) -> float | None:
     return value
 
 
-class _LossBudget:
-    def __init__(self, cap: float | None) -> None:
-        self.cap = cap if cap is not None and cap > 0.0 else None
-        self.remaining: float | None = float(self.cap) if self.cap is not None else None
-
-    def max_contracts(self, unit_loss: float, requested: int) -> int:
-        if self.cap is None or unit_loss <= 0 or requested <= 0:
-            return requested
-        if self.remaining is None or self.remaining <= 0:
-            return 0
-        allowed = int(self.remaining // unit_loss)
-        return min(requested, allowed)
-
-    def consume(self, loss: float) -> None:
-        if self.cap is None or loss <= 0:
-            return
-        if self.remaining is None:
-            self.remaining = float(self.cap)
-        self.remaining = max(0.0, self.remaining - loss)
-
-
 _PORTFOLIO_CONFIG_CACHE: PortfolioConfig | None = None
 
 
@@ -681,6 +656,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             print(f"[drawdown] Skipping scan due to {reasons}")
         return
 
+    fee_ready, fee_reason = fee_rules.is_ready()
+    if not fee_ready:
+        raise RuntimeError(f"Fee/rule watcher pending: {fee_reason or 'unknown'}")
+
     now_override = datetime.now(tz=UTC)
     clock_skew_seconds = _clock_skew_seconds(now_override)
     cancel_requested = False
@@ -744,6 +723,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         ob_imbalance_penalty=args.ob_imbalance_penalty,
         ev_honesty_shrink=args.ev_honesty_shrink,
         daily_loss_cap=args.daily_loss_cap,
+        weekly_loss_cap=args.weekly_loss_cap,
         mispricing_only=args.mispricing_only,
         max_legs=args.max_legs,
         prob_sum_gap_threshold=args.prob_sum_gap_threshold,
@@ -1426,8 +1406,11 @@ def _enforce_broker_guards(proposals: Sequence[Proposal], args: argparse.Namespa
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
     max_var = getattr(args, "max_var", None)
-    daily_budget = _LossBudget(getattr(args, "daily_loss_cap", None))
-    weekly_budget = _LossBudget(getattr(args, "weekly_loss_cap", None))
+    daily_loss_cap = getattr(args, "daily_loss_cap", None)
+    weekly_loss_cap = getattr(args, "weekly_loss_cap", None)
+    daily_budget = LossBudget(daily_loss_cap)
+    weekly_budget = LossBudget(weekly_loss_cap)
+    limit_checker = ProposalLimitChecker(pal_guard, daily_budget=daily_budget, weekly_budget=weekly_budget)
 
     for proposal in proposals:
         order_id = f"{proposal.market_ticker}:{proposal.strike}"
@@ -1440,26 +1423,17 @@ def _enforce_broker_guards(proposals: Sequence[Proposal], args: argparse.Namespa
             market_name=proposal.market_ticker,
             series=proposal.series,
         )
-        if not pal_guard.can_accept(order):
-            raise RuntimeError(f"PAL guard rejected order for {order_id}")
-        pal_guard.register(order)
-
+        total_max_loss = proposal.max_loss
         if risk_manager and not risk_manager.can_accept(
             strategy=proposal.strategy,
-            max_loss=proposal.max_loss,
+            max_loss=total_max_loss,
             max_var=max_var,
         ):
             raise RuntimeError("Portfolio VaR limit reached; aborting broker submission")
-
-        per_contract_loss = proposal.max_loss / max(proposal.contracts, 1)
-        if daily_budget.cap is not None:
-            if daily_budget.max_contracts(per_contract_loss, proposal.contracts) < proposal.contracts:
-                raise RuntimeError("Daily loss cap exceeded during broker validation")
-            daily_budget.consume(per_contract_loss * proposal.contracts)
-        if weekly_budget.cap is not None:
-            if weekly_budget.max_contracts(per_contract_loss, proposal.contracts) < proposal.contracts:
-                raise RuntimeError("Weekly loss cap exceeded during broker validation")
-            weekly_budget.consume(per_contract_loss * proposal.contracts)
+        try:
+            limit_checker.try_accept(order, max_loss=total_max_loss)
+        except LimitViolation as exc:  # pragma: no cover - defensive
+            raise RuntimeError(f"Limit violation for {order_id}: {exc}") from exc
 
 
 def _quality_gate_for_broker(
@@ -2268,6 +2242,7 @@ def scan_series(  # noqa: PLR0913
     ob_imbalance_penalty: float = 0.0,
     ev_honesty_shrink: float = 0.9,
     daily_loss_cap: float | None = None,
+    weekly_loss_cap: float | None = None,
     mispricing_only: bool = False,
     max_legs: int = 4,
     prob_sum_gap_threshold: float = 0.0,
@@ -2282,7 +2257,17 @@ def scan_series(  # noqa: PLR0913
     freshness_ms: float | None = None,
 ) -> ScanOutcome:
     now_utc = now_override if now_override is not None else datetime.now(tz=UTC)
+    sigma_artifact = sigma_drift.load_artifact()
+    sigma_shrink: float | None = None
     series_obj = _find_series(client, series)
+    daily_budget = LossBudget(daily_loss_cap)
+    weekly_budget = LossBudget(weekly_loss_cap)
+    limit_checker = ProposalLimitChecker(pal_guard, daily_budget=daily_budget, weekly_budget=weekly_budget)
+    if series_obj is not None:
+        sigma_candidate = sigma_drift.shrink_for_series(series_obj.ticker, artifact=sigma_artifact)
+        if sigma_candidate is not None and 0.0 < sigma_candidate < ev_honesty_shrink:
+            sigma_shrink = sigma_candidate
+            ev_honesty_shrink = sigma_candidate
     events = client.get_events(series_obj.id)
     try:
         rule_config = lookup_index_rule(series_obj.ticker)
@@ -2360,7 +2345,7 @@ def scan_series(  # noqa: PLR0913
 
     proposals: list[Proposal] = []
     non_monotone = 0
-    daily_budget = _LossBudget(daily_loss_cap)
+    daily_budget = LossBudget(daily_loss_cap)
     cdf_diffs: list[dict[str, object]] = []
     mispricing_records: list[dict[str, object]] = []
     all_markets: list[Market] = []
@@ -2489,6 +2474,8 @@ def scan_series(  # noqa: PLR0913
                 uncertainty_penalty=uncertainty_penalty,
                 ob_imbalance_penalty=ob_imbalance_penalty,
                 daily_budget=daily_budget,
+                weekly_budget=weekly_budget,
+                limit_checker=limit_checker,
                 series_ticker=series_obj.ticker,
                 ev_shrink=ev_honesty_shrink,
                 bin_constraints=bin_constraints,
@@ -2515,8 +2502,14 @@ def scan_series(  # noqa: PLR0913
         "orderbook_snapshots": len(books_at_scan),
         "ev_honesty_shrink": ev_honesty_shrink,
     }
+    if sigma_shrink is not None:
+        monitors["sigma_drift_shrink"] = sigma_shrink
     if ops_metadata:
         monitors.update(ops_metadata)
+    if daily_budget.cap is not None:
+        monitors.setdefault("daily_loss_remaining", daily_budget.remaining)
+    if weekly_budget.cap is not None:
+        monitors.setdefault("weekly_loss_remaining", weekly_budget.remaining)
     if rule_validation is not None:
         monitors.setdefault("index_rules_ok", bool(rule_validation.get("ok", True)))
         if not rule_validation.get("ok", True) and rule_validation.get("reasons"):
@@ -3015,7 +3008,9 @@ def _evaluate_market(  # noqa: PLR0913
     kelly_cap: float,
     uncertainty_penalty: float,
     ob_imbalance_penalty: float,
-    daily_budget: _LossBudget,
+    daily_budget: LossBudget,
+    weekly_budget: LossBudget,
+    limit_checker: ProposalLimitChecker,
     series_ticker: str,
     ev_shrink: float,
     bin_constraints: BinConstraintResolver | None = None,
@@ -3139,7 +3134,8 @@ def _evaluate_market(  # noqa: PLR0913
             if contract_count <= 0:
                 continue
 
-        budget_before = daily_budget.remaining
+        daily_before = daily_budget.remaining
+        weekly_before = weekly_budget.remaining
         total_max_loss = max_loss_single * contract_count
         if total_max_loss <= 0:
             continue
@@ -3148,6 +3144,13 @@ def _evaluate_market(  # noqa: PLR0913
             continue
         if allowed_contracts < contract_count:
             contract_count = allowed_contracts
+            total_max_loss = max_loss_single * contract_count
+
+        weekly_allowed = weekly_budget.max_contracts(max_loss_single, contract_count)
+        if weekly_allowed <= 0:
+            continue
+        if weekly_allowed < contract_count:
+            contract_count = weekly_allowed
             total_max_loss = max_loss_single * contract_count
 
         constraint_details = None
@@ -3213,10 +3216,23 @@ def _evaluate_market(  # noqa: PLR0913
 
         if var_limiter and not var_limiter.can_accept(series_ticker, total_max_loss):
             continue
-        daily_budget.consume(total_max_loss)
+        order = OrderProposal(
+            strike_id=order_id,
+            yes_price=yes_price,
+            contracts=contract_count,
+            side=best_side,
+            liquidity=Liquidity.MAKER,
+            market_name=market_ticker,
+            series=series_ticker,
+        )
+        try:
+            limit_checker.try_accept(order, max_loss=total_max_loss)
+        except LimitViolation:
+            continue
         if var_limiter:
             var_limiter.register(series_ticker, total_max_loss)
-        budget_after = daily_budget.remaining
+        daily_after = daily_budget.remaining
+        weekly_after = weekly_budget.remaining
 
         proposal_metadata: dict[str, object] = {
             "sizing": {
@@ -3227,8 +3243,10 @@ def _evaluate_market(  # noqa: PLR0913
                 "uncertainty_penalty": uncertainty_penalty,
                 "ob_imbalance_metric": float(imbalance_metric),
                 "ob_imbalance_penalty": float(ob_imbalance_penalty) if ob_imbalance_penalty else 0.0,
-                "daily_loss_before": budget_before,
-                "daily_loss_after": budget_after,
+                "daily_loss_before": daily_before,
+                "daily_loss_after": daily_after,
+                "weekly_loss_before": weekly_before,
+                "weekly_loss_after": weekly_after,
             }
         }
         if apply_shrink:
@@ -3322,17 +3340,6 @@ def _evaluate_market(  # noqa: PLR0913
             strategy=strategy_name,
             series=series_upper,
             metadata=proposal_metadata,
-        )
-        pal_guard.register(
-            OrderProposal(
-                strike_id=order_id,
-                yes_price=yes_price,
-                contracts=contract_count,
-                side=best_side,
-                liquidity=Liquidity.MAKER,
-                market_name=market_ticker,
-                series=series_ticker,
-            )
         )
         proposals.append(proposal)
     return proposals

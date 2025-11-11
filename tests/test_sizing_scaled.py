@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from kalshi_alpha.core.sizing.kelly import scale_kelly
-from kalshi_alpha.exec.runners.scan_ladders import _LossBudget
+from kalshi_alpha.exec.limits import LossBudget
 
 
 def test_scale_kelly_applies_penalties() -> None:
@@ -19,7 +19,7 @@ def test_scale_kelly_caps_value() -> None:
 
 
 def test_loss_budget_allocation_and_exhaustion() -> None:
-    budget = _LossBudget(100.0)
+    budget = LossBudget(100.0)
     assert budget.max_contracts(25.0, 10) == 4
     budget.consume(60.0)
     assert budget.remaining == 40.0
@@ -30,7 +30,7 @@ def test_loss_budget_allocation_and_exhaustion() -> None:
 
 
 def test_loss_budget_unbounded() -> None:
-    budget = _LossBudget(None)
+    budget = LossBudget(None)
     assert budget.max_contracts(100.0, 5) == 5
     budget.consume(500.0)
     assert budget.remaining is None

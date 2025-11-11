@@ -9,8 +9,10 @@
 - [ ] Ensure `.env.local` exists (see `.env.local.example`) and `python -m kalshi_alpha.exec.runners.scan_ladders --series INXU --maker-only` loads secrets without prompting.
 - [ ] `python -m kalshi_alpha.exec.runners.scan_ladders --discover --today --offline --series INXU` confirms Kalshi listed today’s hourly markets before you arm the scheduler.
 - [ ] Verify `reports/_artifacts/monitors/freshness.json` was refreshed in the last 5 min. `polygon_index.websocket` `age_seconds` should be `< 2` before arming quoting.
+- [ ] Run `python monitor/fee_rules_watch.py` (no flags) to ensure it prints `status=OK`. If it reports `ALERT`, review the diff and rerun with `--ack` after validating the Kalshi docs.
 - [ ] Hot-restart snapshot current: `python - <<'PY'\nfrom kalshi_alpha.sched.hotrestart import HotRestartManager\nprint(HotRestartManager().restore())\nPY` should report `age_seconds < 5`. Re-run capture if stale.
 - [ ] Regenerate honesty metrics (`python -m report.honesty --window 7 --window 30`) and glance at `reports/_artifacts/honesty/honesty_window7.json`; if `clamp < 0.75`, expect reduced EV sizing.
+- [ ] Refresh sigma drift monitor (`python monitor/drift_sigma_tod.py --lookback-days 7`); if it shrinks EV (<1.0), document the mitigation before arming quoting.
 - [ ] Confirm `OutstandingOrdersState` has **0 live orders** (`python -m kalshi_alpha.exec.state.orders --summary`).
 - [ ] Pilot checks: scoreboard GO, `pilot_readiness` GO, loss caps reset.
 
@@ -33,5 +35,6 @@
 ## Post-Window
 - [ ] Confirm `reports/INXU/YYYY-MM-DD.md` captures the `fee_path`, `scheduler_window`, and `ws_freshness` entries.
 - [ ] Archive ledger/telemetry via `make ladders-archive` if orders were sent.
+- [ ] Generate the daily digest (`python -m report.digest --date YYYY-MM-DD --write --s3 s3://<bucket>/kalshi-sys/reports/`) and paste the Markdown/PNG links into `REPORT.md`.
 - [ ] Update `docs/runbooks/hourly.md` with any anomalies.
 - [ ] When calibrations drift past SLA, kick `make aws-calib` (runs the new TOB-aware hourly calibration job in the AWS-compatible shim) and archive the resulting `reports/_artifacts/aws_jobs/*` metrics for the session log.

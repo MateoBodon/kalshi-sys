@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay aws-deploy-dashboards parity-ci
+.PHONY: fmt lint typecheck test scan telemetry-smoke report digest sigma-drift fee-rules-watch live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay aws-deploy-dashboards parity-ci
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -51,6 +51,15 @@ telemetry-smoke:
 
 report:
 	$(PYTHON) -m kalshi_alpha.exec.scoreboard
+
+digest:
+	$(PYTHON) -m report.digest --date yesterday --write
+
+sigma-drift:
+	$(PYTHON) monitor/drift_sigma_tod.py
+
+fee-rules-watch:
+	$(PYTHON) monitor/fee_rules_watch.py
 
 monitors:
 	@if command -v uv >/dev/null 2>&1; then \

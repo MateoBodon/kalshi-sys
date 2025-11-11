@@ -71,6 +71,42 @@ def test_scan_series_targets_next_hour_event(
     assert result.roll_info["target_hour_label"] == "H1300"
 
 
+def test_sigma_drift_shrink_applied(
+    fixtures_root: Path,
+    isolated_data_roots: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, proc_root = isolated_data_roots
+    _copy_index_calibration(proc_root, "spx", "hourly")
+    client = KalshiPublicClient(offline_dir=fixtures_root / "kalshi", use_offline=True)
+    pal_guard = PALGuard(PALPolicy(series="INXU", default_max_loss=10_000.0))
+
+    def _fake_artifact(path=None):  # type: ignore[unused-argument]
+        return {"series": {"INXU": {"shrink": 0.5}}}
+
+    monkeypatch.setattr(scan_ladders.sigma_drift, "load_artifact", _fake_artifact)
+    now_et = datetime(2025, 11, 3, 12, 55, tzinfo=ZoneInfo("America/New_York"))
+    result = scan_ladders.scan_series(
+        series="INXU",
+        client=client,
+        min_ev=0.0,
+        contracts=1,
+        pal_guard=pal_guard,
+        driver_fixtures=fixtures_root / "drivers",
+        strategy_name="auto",
+        maker_only=True,
+        allow_tails=False,
+        risk_manager=None,
+        max_var=None,
+        offline=True,
+        sizing_mode="kelly",
+        kelly_cap=0.25,
+        now_override=now_et.astimezone(UTC),
+    )
+    assert result.monitors.get("sigma_drift_shrink") == 0.5
+    assert result.monitors.get("ev_honesty_shrink") == 0.5
+
+
 def test_main_emits_roll_log_and_cancel(
     fixtures_root: Path,
     isolated_data_roots: tuple[Path, Path],

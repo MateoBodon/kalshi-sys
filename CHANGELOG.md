@@ -3,6 +3,12 @@
 # Changelog
 
 ## 2025-11-11
+- Rolled out `kalshi_alpha.exec.slo` + scoreboard SLO lines (freshness/time-at-risk/VaR headroom) with optional CloudWatch publishing via `python -m kalshi_alpha.exec.scoreboard --publish-slo-cloudwatch`.
+- Added `python -m report.digest` (daily Markdown + PNG digest with optional S3 upload) and linked it from REPORT/runbooks.
+- Delivered `monitor/drift_sigma_tod.py` + `kalshi_alpha.exec.monitors.sigma_drift`; scanner shrink factors now respect Sigma drift alerts (`tests/test_sigma_drift_monitor.py`).
+- Landed the fee/rule watcher CLI (`monitor/fee_rules_watch.py`), stateful ack flow, and a runtime gate that blocks `scan_ladders` until the change is acknowledged (`tests/test_fee_rules_watch.py`).
+- Introduced `kalshi_alpha.exec.limits` (public `LossBudget` + `ProposalLimitChecker`) so PAL + daily/weekly stops are enforced during proposal generation; runners and tests were updated accordingly (`tests/test_limits.py`, `tests/test_u_hourly_rotation.py`).
+- Documented promotion milestones in `docs/promotion_ladder.md` and wired hourly/EOD runbooks to the fee watcher, sigma drift monitor, and daily digest workflow.
 - Landed correlation-aware VaR caps and inventory tilt: `kalshi_alpha.risk.correlation` feeds `scan_ladders` with cross-bin/cross-index sizing adjustments, new config `configs/index_correlation.yaml`, and unit coverage in `tests/test_correlation_var.py`.
 - Added dynamic quote optimization (`kalshi_alpha.exec.quote_optim`) wired into `scan_ladders` to apply PMF-skew/microprice penalties, freshness widening, and replacement throttles; covered via `tests/test_quote_optim.py`.
 - Built the dual-feed failover controller (`kalshi_alpha.data.failover`) plus `python -m tools.failover_smoke --dry-run`; CI/unit coverage lives in `tests/test_failover.py`.
