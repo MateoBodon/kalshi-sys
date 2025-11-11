@@ -1,0 +1,198 @@
+{
+  "date": "2025-11-10",
+  "generated_at": "2025-11-11T16:22:30.836050+00:00",
+  "epsilon": 0.15,
+  "runs": 3,
+  "rows": 10,
+  "windows": [
+    {
+      "series": "INXU",
+      "family": "SPX",
+      "window_type": "hourly",
+      "event_time": "2025-11-10T13:00:00-05:00",
+      "window_start": "2025-11-10T12:55:00-05:00",
+      "window_end": "2025-11-10T12:59:58-05:00",
+      "generated_at": "2025-11-10T12:56:13.847025-05:00",
+      "hour_et": 13,
+      "records": 2,
+      "max_abs_delta": 0.0,
+      "mean_abs_delta": 0.0,
+      "threshold_breach": false,
+      "window_label": "INXU 2025-11-10 13:00",
+      "worst_bins": [
+        {
+          "market_id": "MKT_INXU_H1300_A",
+          "market_ticker": "KXINXU-25NOV03H1300-T5000",
+          "strike": 5015.0,
+          "side": "NO",
+          "manifest": "data/raw/kalshi/2025-11-10/175613/INXU/manifest.json",
+          "maker_ev_per_contract_original": 0.26,
+          "maker_ev_per_contract_replay": 0.26,
+          "delta_per_contract": 0.0,
+          "abs_delta_per_contract": 0.0
+        },
+        {
+          "market_id": "MKT_INXU_H1300_A",
+          "market_ticker": "KXINXU-25NOV03H1300-T5000",
+          "strike": 5000.0,
+          "side": "YES",
+          "manifest": "data/raw/kalshi/2025-11-10/175613/INXU/manifest.json",
+          "maker_ev_per_contract_original": 0.6199932734745226,
+          "maker_ev_per_contract_replay": 0.6199932734745226,
+          "delta_per_contract": 0.0,
+          "abs_delta_per_contract": 0.0
+        }
+      ]
+    },
+    {
+      "series": "NASDAQ100U",
+      "family": "NDX",
+      "window_type": "hourly",
+      "event_time": "2025-11-10T13:00:00-05:00",
+      "window_start": "2025-11-10T12:55:00-05:00",
+      "window_end": "2025-11-10T12:59:58-05:00",
+      "generated_at": "2025-11-10T12:57:54.980305-05:00",
+      "hour_et": 13,
+      "records": 2,
+      "max_abs_delta": 0.0,
+      "mean_abs_delta": 0.0,
+      "threshold_breach": false,
+      "window_label": "NASDAQ100U 2025-11-10 13:00",
+      "worst_bins": [
+        {
+          "market_id": "MKT_NDQ100U_H1300_A",
+          "market_ticker": "KXNASDAQ100U-25NOV03H1300-T15000",
+          "strike": 15060.0,
+          "side": "NO",
+          "manifest": "data/raw/kalshi/2025-11-10/175754/NASDAQ100U/manifest.json",
+          "maker_ev_per_contract_original": 0.28,
+          "maker_ev_per_contract_replay": 0.28,
+          "delta_per_contract": 0.0,
+          "abs_delta_per_contract": 0.0
+        },
+        {
+          "market_id": "MKT_NDQ100U_H1300_A",
+          "market_ticker": "KXNASDAQ100U-25NOV03H1300-T15000",
+          "strike": 15000.0,
+          "side": "YES",
+          "manifest": "data/raw/kalshi/2025-11-10/175754/NASDAQ100U/manifest.json",
+          "maker_ev_per_contract_original": 0.6098652528130494,
+          "maker_ev_per_contract_replay": 0.6098652528130494,
+          "delta_per_contract": 0.0,
+          "abs_delta_per_contract": 0.0
+        }
+      ]
+    },
+    {
+      "series": "INX",
+      "family": "SPX",
+      "window_type": "close",
+      "event_time": "2025-11-10T16:00:00-05:00",
+      "window_start": "2025-11-10T15:55:00-05:00",
+      "window_end": "2025-11-10T15:59:58-05:00",
+      "generated_at": "2025-11-10T15:59:37.133689-05:00",
+      "hour_et": 16,
+      "records": 6,
+      "max_abs_delta": 0.0,
+      "mean_abs_delta": 0.0,
+      "threshold_breach": false,
+      "window_label": "INX 2025-11-10 16:00",
+      "worst_bins": [
+        {
+          "market_id": "MKT_INX_H1600_RANGE",
+          "market_ticker": "KXINX-25NOV03H1600-B5000",
+          "strike": 5200.0,
+          "side": "NO",
+          "manifest": "data/raw/kalshi/2025-11-10/205945/INX/manifest.json",
+          "maker_ev_per_contract_original": 0.15000000000000002,
+          "maker_ev_per_contract_replay": 0.15000000000000002,
+          "delta_per_contract": 0.0,
+          "abs_delta_per_contract": 0.0
+        },
+        {
+          "market_id": "MKT_INX_H1600_RANGE",
+          "market_ticker": "KXINX-25NOV03H1600-B5000",
+          "strike": 5100.0,
+          "side": "NO",
+          "manifest": "data/raw/kalshi/2025-11-10/205945/INX/manifest.json",
+          "maker_ev_per_contract_original": 0.35,
+          "maker_ev_per_contract_replay": 0.35,
+          "delta_per_contract": 0.0,
+          "abs_delta_per_contract": 0.0
+        },
+        {
+          "market_id": "MKT_INX_H1600_RANGE",
+          "market_ticker": "KXINX-25NOV03H1600-B5000",
+          "strike": 5000.0,
+          "side": "YES",
+          "manifest": "data/raw/kalshi/2025-11-10/205945/INX/manifest.json",
+          "maker_ev_per_contract_original": 0.5182285354853995,
+          "maker_ev_per_contract_replay": 0.5182285354853995,
+          "delta_per_contract": 0.0,
+          "abs_delta_per_contract": 0.0
+        }
+      ]
+    }
+  ],
+  "window_type_max": {
+    "hourly": 0.0,
+    "close": 0.0
+  },
+  "worst_bins": [
+    {
+      "market_id": "MKT_INXU_H1300_A",
+      "market_ticker": "KXINXU-25NOV03H1300-T5000",
+      "strike": 5015.0,
+      "side": "NO",
+      "manifest": "data/raw/kalshi/2025-11-10/175613/INXU/manifest.json",
+      "maker_ev_per_contract_original": 0.26,
+      "maker_ev_per_contract_replay": 0.26,
+      "delta_per_contract": 0.0,
+      "abs_delta_per_contract": 0.0
+    },
+    {
+      "market_id": "MKT_INXU_H1300_A",
+      "market_ticker": "KXINXU-25NOV03H1300-T5000",
+      "strike": 5000.0,
+      "side": "YES",
+      "manifest": "data/raw/kalshi/2025-11-10/175613/INXU/manifest.json",
+      "maker_ev_per_contract_original": 0.6199932734745226,
+      "maker_ev_per_contract_replay": 0.6199932734745226,
+      "delta_per_contract": 0.0,
+      "abs_delta_per_contract": 0.0
+    },
+    {
+      "market_id": "MKT_NDQ100U_H1300_A",
+      "market_ticker": "KXNASDAQ100U-25NOV03H1300-T15000",
+      "strike": 15060.0,
+      "side": "NO",
+      "manifest": "data/raw/kalshi/2025-11-10/175754/NASDAQ100U/manifest.json",
+      "maker_ev_per_contract_original": 0.28,
+      "maker_ev_per_contract_replay": 0.28,
+      "delta_per_contract": 0.0,
+      "abs_delta_per_contract": 0.0
+    },
+    {
+      "market_id": "MKT_NDQ100U_H1300_A",
+      "market_ticker": "KXNASDAQ100U-25NOV03H1300-T15000",
+      "strike": 15000.0,
+      "side": "YES",
+      "manifest": "data/raw/kalshi/2025-11-10/175754/NASDAQ100U/manifest.json",
+      "maker_ev_per_contract_original": 0.6098652528130494,
+      "maker_ev_per_contract_replay": 0.6098652528130494,
+      "delta_per_contract": 0.0,
+      "abs_delta_per_contract": 0.0
+    },
+    {
+      "market_id": "MKT_INX_H1600_RANGE",
+      "market_ticker": "KXINX-25NOV03H1600-B5000",
+      "strike": 5200.0,
+      "side": "NO",
+      "manifest": "data/raw/kalshi/2025-11-10/205945/INX/manifest.json",
+      "maker_ev_per_contract_original": 0.15000000000000002,
+      "maker_ev_per_contract_replay": 0.15000000000000002,
+      "delta_per_contract": 0.0,
+      "abs_delta_per_contract": 0.0
+    }
+  ]
+}

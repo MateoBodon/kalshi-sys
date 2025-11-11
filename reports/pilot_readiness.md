@@ -2,10 +2,7 @@
 
 GO series: 0/4
 
-Data Freshness: NO-GO
-- Freshness Reasons:
-  - data_freshness_alert
-  - stale_feed:polygon_index.websocket
+Data Freshness: OK
 
 ## INXU — NO-GO
 - Fills: 0
