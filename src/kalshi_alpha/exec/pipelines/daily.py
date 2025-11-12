@@ -35,6 +35,7 @@ from kalshi_alpha.exec.ledger import ExecutionMetrics, PaperLedger, simulate_fil
 from kalshi_alpha.exec.pipelines.calendar import RunWindow, resolve_run_window
 from kalshi_alpha.exec.reports import write_markdown_report
 from kalshi_alpha.exec.runners.scan_ladders import (
+    CENTS_PER_DOLLAR,
     CLOCK_SKEW_THRESHOLD_SECONDS,
     _apply_ev_honesty_gate,
     _archive_and_replay,
@@ -527,7 +528,7 @@ def run_quality_gate_step(
         apply_side_effects=True,
     )
     log["quality_gates"] = log_entry
-    write_go_no_go(combined)
+    write_go_no_go(combined, scope="index")
     return combined
 
 
@@ -580,7 +581,7 @@ def _apply_fill_realism_gate(
     quality["reasons"] = reasons
     quality["details"] = details
     result = QualityGateResult(go=go_flag, reasons=list(reasons), details=dict(details))
-    write_go_no_go(result)
+    write_go_no_go(result, scope="index")
     return metric, result
 
 
@@ -749,7 +750,8 @@ def run_scan(
                 go=False,
                 reasons=[reason_text],
                 details={"mode": mode},
-            )
+            ),
+            scope="index",
         )
         outstanding_summary = OutstandingOrdersState.load().summary()
         write_heartbeat(
@@ -918,10 +920,12 @@ def run_scan(
         ev_rows, ev_max_delta = _compute_ev_honesty_rows(proposals, replay_records)
         if ev_rows:
             monitors["ev_honesty_table"] = ev_rows
-            monitors["ev_honesty_max_delta"] = ev_max_delta
+            if ev_max_delta is not None:
+                delta_cents = ev_max_delta * CENTS_PER_DOLLAR
+                monitors["ev_honesty_max_delta_cents"] = delta_cents
+                monitors.setdefault("ev_per_contract_diff_max_cents", delta_cents)
             monitors["ev_honesty_count"] = len(ev_rows)
-            monitors.setdefault("ev_per_contract_diff_max", ev_max_delta)
-    _apply_ev_honesty_gate(monitors, threshold=0.10)
+    _apply_ev_honesty_gate(monitors, threshold_cents=10.0)
 
     outcome.monitors = monitors
 
@@ -994,14 +998,15 @@ def run_scan(
         pilot_metadata["fill_realism_median"] = fill_realism_metric
     quality_entry = log.get("quality_gates")
     if realism_result is not None:
-        write_go_no_go(realism_result)
+        write_go_no_go(realism_result, scope="index")
     elif isinstance(quality_entry, dict):
         write_go_no_go(
             QualityGateResult(
                 go=quality_entry.get("go", True),
                 reasons=list(quality_entry.get("reasons", [])),
                 details=dict(quality_entry.get("details", {})),
-            )
+            ),
+            scope="index",
         )
     report_go_status = getattr(realism_result, "go", None)
     if report_go_status is None and isinstance(quality_entry, dict):

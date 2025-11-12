@@ -4,21 +4,28 @@ from __future__ import annotations
 
 import argparse
 import base64
+import importlib
 import json
 import math
+import signal
+import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Literal, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
-import polars as pl
+try:
+    import pandas as pd
+except ModuleNotFoundError:  # pragma: no cover - optional at import time
+    pd = None
 
 from kalshi_alpha.exec import slo
 from kalshi_alpha.exec.monitors.summary import (
     MONITOR_ARTIFACTS_DIR,
     summarize_monitor_artifacts,
 )
+from kalshi_alpha.utils.series import normalize_index_series
 
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 REPORTS_DIR = Path("reports")
@@ -27,6 +34,15 @@ PNG_PLACEHOLDER = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII="
 )
 ET = ZoneInfo("America/New_York")
+ENGINE_CHOICES = ("polars", "pandas")
+DEFAULT_ENGINE: Literal["polars", "pandas"] = "polars"
+_POLARS_MODULE: Any | None = None
+
+
+@dataclass(slots=True)
+class LedgerFrame:
+    engine: Literal["polars", "pandas"]
+    data: Any
 
 
 @dataclass(slots=True)
@@ -69,6 +85,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--date", type=str, default="yesterday", help="Target date (YYYY-MM-DD|today|yesterday).")
     parser.add_argument("--ledger", type=Path, default=LEDGER_PATH, help="Ledger parquet path.")
     parser.add_argument("--reports", type=Path, default=REPORTS_DIR, help="Reports directory root.")
+    parser.add_argument("--raw", type=Path, default=Path("data/raw"), help="Raw data root for freshness metrics.")
     parser.add_argument("--output", type=Path, default=DIGEST_DIR, help="Digest output directory.")
     parser.add_argument(
         "--s3",
@@ -78,23 +95,36 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-write", action="store_true", help="Skip writing files; print markdown to stdout.")
     parser.add_argument("--lookback", type=int, default=7, help="Lookback days for SLO metrics (default: 7).")
+    parser.add_argument(
+        "--engine",
+        choices=ENGINE_CHOICES,
+        default=DEFAULT_ENGINE,
+        help="Ledger backend to use (default: polars, automatically falls back to pandas).",
+    )
+    parser.add_argument(
+        "--skip-slo",
+        action="store_true",
+        help="Skip expensive SLO aggregation (useful during tests or offline dry runs).",
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    engine = _resolve_engine(args.engine)
     target_date = _resolve_date(args.date)
-    ledger = _load_ledger(args.ledger)
+    ledger = _load_ledger(args.ledger, engine)
     day_frame = _subset_day(ledger, target_date)
-    if day_frame.is_empty():
+    if _frame_is_empty(day_frame):
         raise SystemExit(f"no ledger rows for {target_date} (ET)")
     series_rows = _series_summaries(day_frame, args.reports, target_date)
-    slo_metrics = slo.collect_metrics(
-        [row.as_dict() for row in series_rows],
+    slo_metrics = _collect_slo_metrics(
+        series_rows,
         reports_root=args.reports,
-        raw_root=Path("data/raw"),
+        raw_root=args.raw,
         lookback_days=max(int(args.lookback), 1),
-        now=datetime.combine(target_date, time(23, 59, tzinfo=ET)).astimezone(UTC),
+        target_date=target_date,
+        skip=args.skip_slo,
     )
     digest_md = _render_markdown(target_date, series_rows, slo_metrics)
     output_dir = args.output
@@ -131,38 +161,93 @@ def _resolve_date(value: str | None) -> date:
     return date.fromisoformat(value)
 
 
-def _load_ledger(path: Path) -> pl.DataFrame:
+def _resolve_engine(choice: str | None) -> Literal["polars", "pandas"]:
+    requested = (choice or DEFAULT_ENGINE).lower()
+    if requested not in ENGINE_CHOICES:
+        requested = DEFAULT_ENGINE
+    if requested == "polars":
+        try:
+            _require_polars()
+            return "polars"
+        except Exception as exc:  # pragma: no cover - import failure path
+            if pd is None:
+                raise RuntimeError("polars unavailable and pandas not installed") from exc
+            print(f"[digest] polars unavailable ({exc}); falling back to pandas")
+            return "pandas"
+    _ensure_pandas()
+    return "pandas"
+
+
+def _load_ledger(path: Path, engine: Literal["polars", "pandas"]) -> LedgerFrame:
     if not path.exists():
         raise FileNotFoundError(path)
-    frame = pl.read_parquet(path)
-    if "timestamp_et" in frame.columns and frame["timestamp_et"].dtype == pl.Utf8:
-        frame = frame.with_columns(pl.col("timestamp_et").str.strptime(pl.Datetime(time_zone="UTC"), strict=False))
-    return frame
+    if engine == "polars":
+        pl = _require_polars()
+        frame = pl.read_parquet(path)
+        if "timestamp_et" in frame.columns and frame["timestamp_et"].dtype == pl.Utf8:
+            frame = frame.with_columns(
+                pl.col("timestamp_et").str.strptime(pl.Datetime(time_zone="UTC"), strict=False)
+            )
+        return LedgerFrame(engine="polars", data=frame)
+
+    pd_mod = _ensure_pandas()
+    frame = pd_mod.read_parquet(path)
+    if "timestamp_et" in frame.columns:
+        frame["timestamp_et"] = pd_mod.to_datetime(frame["timestamp_et"], utc=True, errors="coerce")
+    return LedgerFrame(engine="pandas", data=frame)
 
 
-def _subset_day(frame: pl.DataFrame, target_date: date) -> pl.DataFrame:
-    if "timestamp_et" not in frame.columns:
-        raise ValueError("ledger missing timestamp_et column")
+def _subset_day(bundle: LedgerFrame, target_date: date) -> LedgerFrame:
     start = datetime.combine(target_date, time(0, 0, tzinfo=ET)).astimezone(UTC)
     end = start + timedelta(days=1)
-    return frame.filter((pl.col("timestamp_et") >= start) & (pl.col("timestamp_et") < end))
+    if bundle.engine == "polars":
+        pl = _require_polars()
+        frame = bundle.data
+        if "timestamp_et" not in frame.columns:
+            raise ValueError("ledger missing timestamp_et column")
+        filtered = frame.filter((pl.col("timestamp_et") >= start) & (pl.col("timestamp_et") < end))
+        return LedgerFrame(engine="polars", data=filtered)
+
+    pd_mod = _ensure_pandas()
+    frame = bundle.data
+    if "timestamp_et" not in frame.columns:
+        raise ValueError("ledger missing timestamp_et column")
+    mask = (frame["timestamp_et"] >= start) & (frame["timestamp_et"] < end)
+    return LedgerFrame(engine="pandas", data=frame.loc[mask].copy())
 
 
-def _series_summaries(frame: pl.DataFrame, reports_dir: Path, target_date: date) -> list[SeriesDigest]:
-    if frame.is_empty():
+def _frame_is_empty(bundle: LedgerFrame) -> bool:
+    if bundle.engine == "polars":
+        return bundle.data.is_empty()
+    return bool(getattr(bundle.data, "empty", True))
+
+
+def _series_summaries(bundle: LedgerFrame, reports_dir: Path, target_date: date) -> list[SeriesDigest]:
+    if _frame_is_empty(bundle):
         return []
-    aggregated = frame.group_by("series").agg(
-        pl.len().alias("trades"),
-        pl.sum("ev_after_fees").alias("ev_usd"),
-        pl.sum("pnl_simulated").alias("pnl_usd"),
-        (pl.col("ev_realized_bps") - pl.col("ev_expected_bps")).mean().alias("ev_delta_bps"),
-        pl.mean("fill_ratio_observed").alias("fill_ratio"),
-        (pl.col("fill_ratio_observed") - pl.col("alpha_target")).mean().alias("fill_minus_alpha"),
-        pl.mean("slippage_ticks").alias("slippage_ticks"),
-    )
+    row_iter: Iterable[Mapping[str, object]]
+    if bundle.engine == "polars":
+        pl = _require_polars()
+        frame = bundle.data
+        aggregated = frame.group_by("series").agg(
+            pl.len().alias("trades"),
+            pl.sum("ev_after_fees").alias("ev_usd"),
+            pl.sum("pnl_simulated").alias("pnl_usd"),
+            (pl.col("ev_realized_bps") - pl.col("ev_expected_bps")).mean().alias("ev_delta_bps"),
+            pl.mean("fill_ratio_observed").alias("fill_ratio"),
+            (pl.col("fill_ratio_observed") - pl.col("alpha_target")).mean().alias("fill_minus_alpha"),
+            pl.mean("slippage_ticks").alias("slippage_ticks"),
+        )
+        row_iter = aggregated.iter_rows(named=True)
+    else:
+        row_iter = _aggregate_series_pandas(bundle.data)
+
     summaries: list[SeriesDigest] = []
-    for row in aggregated.iter_rows(named=True):
-        series = str(row["series"]).upper()
+    for row in row_iter:
+        raw_series = str(row.get("series") or "").upper()
+        series = normalize_index_series(raw_series)
+        if not series:
+            continue
         report_path = _series_report_path(reports_dir, series, target_date)
         var_value = _extract_numeric(report_path, "Portfolio VaR") if report_path else None
         monitors: list[str] = []
@@ -184,6 +269,40 @@ def _series_summaries(frame: pl.DataFrame, reports_dir: Path, target_date: date)
         )
     summaries.sort(key=lambda entry: entry.series)
     return summaries
+
+
+def _aggregate_series_pandas(frame: Any) -> list[dict[str, object]]:
+    pd_mod = _ensure_pandas()
+    working = frame.copy()
+    required = [
+        "ev_after_fees",
+        "pnl_simulated",
+        "ev_realized_bps",
+        "ev_expected_bps",
+        "fill_ratio_observed",
+        "alpha_target",
+        "slippage_ticks",
+        "series",
+    ]
+    for column in required:
+        if column not in working.columns:
+            working[column] = pd_mod.Series(dtype="float64", index=working.index)
+    working["_ev_delta_bps"] = working["ev_realized_bps"] - working["ev_expected_bps"]
+    working["_fill_minus_alpha"] = working["fill_ratio_observed"] - working["alpha_target"]
+    grouped = (
+        working.groupby("series", dropna=False)
+        .agg(
+            trades=("series", "size"),
+            ev_usd=("ev_after_fees", "sum"),
+            pnl_usd=("pnl_simulated", "sum"),
+            ev_delta_bps=("_ev_delta_bps", "mean"),
+            fill_ratio=("fill_ratio_observed", "mean"),
+            fill_minus_alpha=("_fill_minus_alpha", "mean"),
+            slippage_ticks=("slippage_ticks", "mean"),
+        )
+        .reset_index()
+    )
+    return grouped.to_dict("records")
 
 
 def _series_report_path(reports_dir: Path, series: str, target_date: date) -> Path | None:
@@ -372,6 +491,60 @@ def _safe_float(value: object) -> float | None:
         return numeric
     except (TypeError, ValueError):
         return None
+
+
+def _require_polars(timeout_seconds: int = 30) -> Any:
+    global _POLARS_MODULE
+    if _POLARS_MODULE is not None:
+        return _POLARS_MODULE
+    if timeout_seconds <= 0 or not hasattr(signal, "SIGALRM"):
+        module = importlib.import_module("polars")
+        _POLARS_MODULE = module
+        return module
+
+    def _handle_timeout(signum, frame):  # pragma: no cover - signal handler
+        raise TimeoutError("import polars exceeded watchdog")
+
+    previous = signal.signal(signal.SIGALRM, _handle_timeout)
+    signal.alarm(timeout_seconds)
+    try:
+        module = importlib.import_module("polars")
+        _POLARS_MODULE = module
+        return module
+    except TimeoutError:
+        sys.modules.pop("polars", None)
+        raise
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def _ensure_pandas() -> Any:
+    if pd is None:  # pragma: no cover - import guard
+        raise RuntimeError("pandas is required for the digest fallback path")
+    return pd
+
+
+def _collect_slo_metrics(
+    series_rows: Sequence[SeriesDigest],
+    *,
+    reports_root: Path,
+    raw_root: Path,
+    lookback_days: int,
+    target_date: date,
+    skip: bool,
+) -> dict[str, slo.SLOSeriesMetrics]:
+    if skip:
+        return {row.series: slo.SLOSeriesMetrics(series=row.series) for row in series_rows}
+    summary_payload = [row.as_dict() for row in series_rows]
+    now_dt = datetime.combine(target_date, time(23, 59, tzinfo=ET)).astimezone(UTC)
+    return slo.collect_metrics(
+        summary_payload,
+        reports_root=reports_root,
+        raw_root=raw_root,
+        lookback_days=lookback_days,
+        now=now_dt,
+    )
 
 
 def _summarize_monitors(target_date: date) -> None:

@@ -16,6 +16,25 @@ import polars as pl
 from kalshi_alpha.exec.ledger import ExecutionMetrics, PaperLedger
 
 GO_ARTIFACT_PATH = Path("reports/_artifacts/go_no_go.json")
+CENTS_PER_DOLLAR = 100.0
+
+
+def _format_monitor_value(key: str, value: object) -> str:
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        numeric = float(value)
+        if key.endswith("_cents"):
+            return f"{numeric:.1f}¢"
+        if key.endswith("_bps"):
+            return f"{numeric:+.1f} bps"
+        return f"{numeric:.4f}" if abs(numeric) < 1 else f"{numeric:.2f}"
+    if isinstance(value, (list, dict)):
+        try:
+            return json.dumps(value, sort_keys=True)
+        except TypeError:  # pragma: no cover - fallback for non-serializable entries
+            return str(value)
+    return str(value)
 
 
 def _float_metric(metrics: ExecutionMetrics, key: str) -> float | None:
@@ -223,10 +242,15 @@ def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
         table_candidate = monitors.get("ev_honesty_table")
         if isinstance(table_candidate, list) and table_candidate:
             ev_table_data = table_candidate
-        max_delta_candidate = monitors.get("ev_honesty_max_delta")
+        max_delta_candidate = (
+            monitors.get("ev_honesty_max_delta_cents")
+            if monitors else None
+        )
+        if max_delta_candidate is None and monitors is not None:
+            max_delta_candidate = monitors.get("ev_honesty_max_delta")
         if max_delta_candidate is not None:
             try:
-                ev_max_delta = float(max_delta_candidate)
+                ev_max_delta = float(max_delta_candidate) / CENTS_PER_DOLLAR
             except (TypeError, ValueError):  # pragma: no cover - defensive
                 ev_max_delta = None
 
@@ -240,12 +264,12 @@ def write_markdown_report(  # noqa: PLR0913, PLR0912, PLR0915
             lines.extend(ev_lines)
             lines.append("")
             if monitors is not None and ev_diff is not None:
-                monitors.setdefault("ev_per_contract_diff_max", ev_diff)
+                monitors.setdefault("ev_per_contract_diff_max_cents", ev_diff)
 
     if monitors:
         lines.append("## Monitors")
         for key, value in monitors.items():
-            lines.append(f"- {key}: {value}")
+            lines.append(f"- {key}: {_format_monitor_value(key, value)}")
         lines.append("")
     if mispricings:
         lines.append("## Mispricing & Kinks")
@@ -484,11 +508,15 @@ def _ev_honesty_rows(  # noqa: PLR0911, PLR0912, PLR0915
         except (TypeError, ValueError):
             return default
 
+    def _format_cents(value: float) -> str:
+        return f"{value * CENTS_PER_DOLLAR:.1f}¢"
+
+    header_row = (
+        "| Market | Strike | EV_per_contract_original (¢) | EV_per_contract_replay (¢) | "
+        "EV_total_original | EV_total_replay | Delta (¢) |"
+    )
+
     if table_data:
-        header_row = (
-            "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | "
-            "EV_total_original | EV_total_replay | Delta |"
-        )
         header = [
             "### EV Honesty",
             header_row,
@@ -506,15 +534,15 @@ def _ev_honesty_rows(  # noqa: PLR0911, PLR0912, PLR0915
             delta = abs(ev_orig_pc - ev_replay_pc)
             local_max = max(local_max, delta)
             rows.append(
-                f"| {market} | {strike:.2f} | {ev_orig_pc:.2f} | {ev_replay_pc:.2f} | "
-                f"{ev_orig_total:.2f} | {ev_replay_total:.2f} | {delta:.2f} |"
+                f"| {market} | {strike:.2f} | {_format_cents(ev_orig_pc)} | {_format_cents(ev_replay_pc)} | "
+                f"{ev_orig_total:.2f} | {ev_replay_total:.2f} | {_format_cents(delta)} |"
             )
         summary: list[str] = []
         resolved_max = max_delta if max_delta is not None else local_max
         summary.append("")
-        summary.append(f"Max per-contract delta: {resolved_max:.2f}")
+        summary.append(f"Max per-contract delta: {_format_cents(resolved_max)}")
         summary.append("")
-        return header + rows + summary, resolved_max
+        return header + rows + summary, resolved_max * CENTS_PER_DOLLAR
 
     if ledger is None or not ledger.records:
         return [], None
@@ -523,7 +551,7 @@ def _ev_honesty_rows(  # noqa: PLR0911, PLR0912, PLR0915
         return [], None
     try:
         replay_df = pl.read_parquet(replay_path)
-    except Exception:
+    except Exception:  # pragma: no cover - parquet failure
         return [], None
     if replay_df.is_empty():
         return [], None
@@ -542,10 +570,7 @@ def _ev_honesty_rows(  # noqa: PLR0911, PLR0912, PLR0915
         lookup[key] = row
     header = [
         "### EV Honesty",
-        (
-            "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | "
-            "EV_total_original | EV_total_replay | Delta |"
-        ),
+        header_row,
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     rows = []
@@ -564,16 +589,16 @@ def _ev_honesty_rows(  # noqa: PLR0911, PLR0912, PLR0915
         delta = abs(per_contract_original - per_contract_replay)
         rows.append(
             f"| {record.proposal.market_ticker} | {record.proposal.strike:.2f} | "
-            f"{per_contract_original:.2f} | {per_contract_replay:.2f} | "
-            f"{total_original:.2f} | {total_replay:.2f} | {delta:.2f} |"
+            f"{_format_cents(per_contract_original)} | {_format_cents(per_contract_replay)} | "
+            f"{total_original:.2f} | {total_replay:.2f} | {_format_cents(delta)} |"
         )
         max_diff = max(max_diff, delta)
     if not rows:
         return [], None
     rows.append("")
-    rows.append(f"Max per-contract delta: {max_diff:.2f}")
+    rows.append(f"Max per-contract delta: {_format_cents(max_diff)}")
     rows.append("")
-    return header + rows, max_diff
+    return header + rows, max_diff * CENTS_PER_DOLLAR
 
 
 def _format_pilot_header(metadata: dict[str, object]) -> str:

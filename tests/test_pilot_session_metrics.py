@@ -97,8 +97,8 @@ def test_build_pilot_session_payload_with_metrics() -> None:
                 "maker_ev_per_contract_proposal": 0.4,
             }
         ],
-        "ev_honesty_threshold": 0.1,
-        "ev_honesty_max_delta": 0.2,
+        "ev_honesty_threshold_cents": 10.0,
+        "ev_honesty_max_delta_cents": 20.0,
         "ev_honesty_no_go": True,
     }
     broker_status = {"mode": "live", "orders_recorded": 1}
@@ -122,7 +122,7 @@ def test_build_pilot_session_payload_with_metrics() -> None:
     assert payload["fill_realism_gap"] == -4.2
     assert payload["alerts_summary"]["recent_alerts"] == ["kill_switch"]
     assert payload["broker_mode"] == "live"
-    assert payload["ev_honesty_threshold"] == 0.1
+    assert payload["ev_honesty_threshold_cents"] == 10.0
     assert payload["ev_honesty_no_go"] is True
     assert payload["ev_honesty_table"][0]["market_ticker"] == "CPI-TEST"
 

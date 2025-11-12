@@ -569,7 +569,7 @@ def test_ramp_policy_includes_ev_honesty_bins(tmp_path: Path, monkeypatch: pytes
             {
                 "session_id": "pilot-cpi-test",
                 "series": "CPI",
-                "ev_honesty_threshold": 0.1,
+                "ev_honesty_threshold_cents": 10.0,
                 "ev_honesty_table": [
                     {
                         "market_ticker": "CPI-TEST",

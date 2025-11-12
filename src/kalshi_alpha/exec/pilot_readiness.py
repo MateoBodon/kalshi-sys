@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
+import polars.datatypes as pldt
 
 from kalshi_alpha.exec.monitors.freshness import (
     FRESHNESS_ARTIFACT_PATH,
@@ -187,7 +188,15 @@ def evaluate_readiness(
     window_start = now - timedelta(days=max(window_days, 1))
     filtered = frame
     if "timestamp_et" in filtered.columns:
-        filtered = filtered.filter(pl.col("timestamp_et") >= window_start)
+        ts_dtype = filtered.schema.get("timestamp_et")
+        target_start = window_start
+        if (
+            isinstance(ts_dtype, pldt.Datetime)
+            and ts_dtype.time_zone is None
+            and window_start.tzinfo is not None
+        ):
+            target_start = window_start.replace(tzinfo=None)
+        filtered = filtered.filter(pl.col("timestamp_et") >= target_start)
 
     results: list[SeriesReadiness] = []
     for series in INDEX_SERIES:

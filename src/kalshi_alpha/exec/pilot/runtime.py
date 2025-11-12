@@ -227,12 +227,12 @@ def build_pilot_session_payload(  # noqa: PLR0913
         ev_table = monitors.get("ev_honesty_table")
         if isinstance(ev_table, list):
             payload["ev_honesty_table"] = ev_table
-        threshold_value = monitors.get("ev_honesty_threshold")
+        threshold_value = monitors.get("ev_honesty_threshold_cents") or monitors.get("ev_honesty_threshold")
         if isinstance(threshold_value, (int, float)):
-            payload["ev_honesty_threshold"] = float(threshold_value)
-        max_delta_value = monitors.get("ev_honesty_max_delta")
+            payload["ev_honesty_threshold_cents"] = float(threshold_value)
+        max_delta_value = monitors.get("ev_honesty_max_delta_cents") or monitors.get("ev_honesty_max_delta")
         if isinstance(max_delta_value, (int, float)):
-            payload["ev_honesty_max_delta"] = float(max_delta_value)
+            payload["ev_honesty_max_delta_cents"] = float(max_delta_value)
         if "ev_honesty_no_go" in monitors:
             payload["ev_honesty_no_go"] = bool(monitors.get("ev_honesty_no_go"))
     if orders_recorded is not None:

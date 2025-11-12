@@ -97,10 +97,10 @@ def test_report_ev_units(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert "- Fill Ratio:" in contents
     assert "- Fill - Alpha:" in contents
     expected_header = (
-        "| Market | Strike | EV_per_contract_original | EV_per_contract_replay | "
-        "EV_total_original | EV_total_replay | Delta |"
+        "| Market | Strike | EV_per_contract_original (¢) | EV_per_contract_replay (¢) | "
+        "EV_total_original | EV_total_replay | Delta (¢) |"
     )
     assert expected_header in contents
-    assert "| TENY-TEST | 4.10 | 0.19 | 0.09 | 1.80 | 0.18 | 0.10 |" in contents
-    assert "Max per-contract delta: 0.10" in contents
-    assert monitors.get("ev_per_contract_diff_max") == pytest.approx(0.10, abs=1e-9)
+    assert "| TENY-TEST | 4.10 | 19.0¢ | 9.0¢ | 1.80 | 0.18 | 10.0¢ |" in contents
+    assert "Max per-contract delta: 10.0¢" in contents
+    assert monitors.get("ev_per_contract_diff_max_cents") == pytest.approx(10.0, abs=1e-9)

@@ -12,7 +12,7 @@ from report import digest
 def _write_ledger(path: Path) -> None:
     frame = pl.DataFrame(
         {
-            "series": ["INX", "NASDAQ100"],
+            "series": ["SPX", "NDX"],
             "ev_after_fees": [12.5, 8.1],
             "pnl_simulated": [11.2, 6.4],
             "ev_realized_bps": [140.0, 95.0],
@@ -29,7 +29,12 @@ def _write_ledger(path: Path) -> None:
     frame.write_parquet(path)
 
 
-def test_digest_writes_markdown_and_plot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("engine", ["polars", "pandas"])
+def test_digest_writes_markdown_and_plot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    engine: str,
+) -> None:
     ledger_path = tmp_path / "ledger.parquet"
     _write_ledger(ledger_path)
     reports_dir = tmp_path / "reports"
@@ -59,6 +64,8 @@ def test_digest_writes_markdown_and_plot(tmp_path: Path, monkeypatch: pytest.Mon
         (reports_dir / series / "2025-11-10.md").write_text(report_body, encoding="utf-8")
 
     output_dir = tmp_path / "digests"
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
     args = [
         "--date",
         "2025-11-10",
@@ -66,8 +73,13 @@ def test_digest_writes_markdown_and_plot(tmp_path: Path, monkeypatch: pytest.Mon
         str(ledger_path),
         "--reports",
         str(reports_dir),
+        "--raw",
+        str(raw_dir),
         "--output",
         str(output_dir),
+        "--engine",
+        engine,
+        "--skip-slo",
     ]
     digest.main(args)
 

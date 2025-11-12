@@ -29,12 +29,12 @@ def test_ev_honesty_gate_flags_stale_snapshot(
         encoding="utf-8",
     )
     monitors: dict[str, object] = {
-        "ev_honesty_max_delta": 0.25,
+        "ev_honesty_max_delta_cents": 25.0,
         "book_latency_ms": 1250.0,
     }
-    scan_ladders._apply_ev_honesty_gate(monitors, threshold=0.10)
+    scan_ladders._apply_ev_honesty_gate(monitors, threshold_cents=10.0)
     assert monitors["ev_honesty_no_go"] is True
-    assert monitors["ev_honesty_threshold"] == 0.10
+    assert monitors["ev_honesty_threshold_cents"] == 10.0
 
     dummy_result = scan_ladders.QualityGateResult(go=True, reasons=[], details={})
 
@@ -63,5 +63,6 @@ def test_ev_honesty_gate_flags_stale_snapshot(
     assert "ev_honesty_stale" in result.reasons
     ev_details = result.details.get("ev_honesty")
     assert ev_details is not None
-    assert pytest.approx(ev_details.get("max_delta"), rel=0, abs=1e-9) == 0.25
+    assert pytest.approx(ev_details.get("max_delta_cents"), rel=0, abs=1e-9) == 25.0
+    assert pytest.approx(ev_details.get("threshold_cents"), rel=0, abs=1e-9) == 10.0
     assert ev_details.get("book_latency_ms") == monitors["book_latency_ms"]

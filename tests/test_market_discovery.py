@@ -31,3 +31,16 @@ def test_discover_markets_derives_windows_when_scheduler_empty(monkeypatch) -> N
     monkeypatch.setattr(discovery, "windows_for_day", lambda _day: [])
     windows = discovery.discover_markets_for_day(client, trading_day=trading_day)
     assert any(window.label.startswith("derived-") for window in windows)
+
+
+def test_discover_markets_accepts_aliases() -> None:
+    client = _client()
+    trading_day = date(2025, 11, 10)
+    windows = discovery.discover_markets_for_day(
+        client,
+        trading_day=trading_day,
+        series=("SPXU", "NDXU"),
+    )
+    hourly_window = next(window for window in windows if window.label == "hourly-1000")
+    assert not hourly_window.missing_series
+    assert {market.series for market in hourly_window.markets} == {"INXU", "NASDAQ100U"}

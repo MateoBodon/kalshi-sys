@@ -457,6 +457,9 @@ def _load_gate_metrics(window_days: int) -> dict[str, dict[str, int]]:
                 pass
         if mtime < threshold:
             continue
+        scope_value = str(data.get("scope") or "index").strip().lower()
+        if scope_value and scope_value not in {"index", "index_ops"}:
+            continue
         series = str(data.get("series") or data.get("mode") or "GLOBAL").upper()
         if data.get("go", True):
             metrics[series]["go"] += 1

@@ -102,6 +102,7 @@ from kalshi_alpha.strategies import weather as weather_strategy
 from kalshi_alpha.risk import CORRELATION_CONFIG_PATH, CorrelationAwareLimiter
 from kalshi_alpha.risk import var_index
 from kalshi_alpha.utils.env import load_env
+from kalshi_alpha.utils.series import normalize_index_series
 
 INDEX_OPS_CONFIG: IndexOpsConfig = load_index_ops_config()
 
@@ -119,6 +120,7 @@ _INDEX_WS_SERIES = frozenset({"INX", "INXU", "NASDAQ100", "NASDAQ100U"})
 _HOUR_PATTERN = re.compile(r"H(?P<hour>\d{2})(?P<minute>\d{2})")
 CLOCK_SKEW_THRESHOLD_SECONDS = 1.5
 HONESTY_CLAMP_PATH = Path("reports/_artifacts/honesty/honesty_clamp.json")
+CENTS_PER_DOLLAR = 100.0
 
 
 def _load_data_freshness_summary() -> dict[str, object]:
@@ -603,6 +605,8 @@ def _clear_dry_orders_start(
 def main(argv: Sequence[str] | None = None) -> None:
     load_env()
     args = parse_args(argv)
+    if args.series:
+        args.series = normalize_index_series(args.series)
     if args.online and args.offline:
         raise ValueError("Cannot specify both --online and --offline.")
     if args.today and not args.discover:
@@ -951,11 +955,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         ev_honesty_rows, ev_honesty_max_delta = _compute_ev_honesty_rows(proposals, replay_records)
         if ev_honesty_rows:
             outcome.monitors["ev_honesty_table"] = ev_honesty_rows
-            outcome.monitors["ev_honesty_max_delta"] = ev_honesty_max_delta
-            outcome.monitors["ev_honesty_count"] = len(ev_honesty_rows)
             if ev_honesty_max_delta is not None:
-                outcome.monitors.setdefault("ev_per_contract_diff_max", ev_honesty_max_delta)
-    _apply_ev_honesty_gate(outcome.monitors, threshold=0.10)
+                delta_cents = ev_honesty_max_delta * CENTS_PER_DOLLAR
+                outcome.monitors["ev_honesty_max_delta_cents"] = delta_cents
+                outcome.monitors.setdefault("ev_per_contract_diff_max_cents", delta_cents)
+            outcome.monitors["ev_honesty_count"] = len(ev_honesty_rows)
+    _apply_ev_honesty_gate(outcome.monitors, threshold_cents=10.0)
 
     if ledger and (args.paper_ledger or args.report):
         artifacts_dir = Path("reports/_artifacts")
@@ -1586,20 +1591,20 @@ def _quality_gate_for_broker(
         _append_reason("ev_honesty_stale")
         ev_payload: dict[str, object] = {}
         if monitors is not None:
-            max_delta = monitors.get("ev_honesty_max_delta")
-            threshold = monitors.get("ev_honesty_threshold")
+            max_delta = monitors.get("ev_honesty_max_delta_cents") or monitors.get("ev_honesty_max_delta")
+            threshold = monitors.get("ev_honesty_threshold_cents") or monitors.get("ev_honesty_threshold")
             latency_ms = monitors.get("book_latency_ms")
             if max_delta is not None:
-                ev_payload["max_delta"] = max_delta
+                ev_payload["max_delta_cents"] = max_delta
             if threshold is not None:
-                ev_payload["threshold"] = threshold
+                ev_payload["threshold_cents"] = threshold
             if latency_ms is not None:
                 ev_payload["book_latency_ms"] = latency_ms
         if ev_payload:
             details["ev_honesty"] = ev_payload
 
     combined = QualityGateResult(go=go_flag, reasons=reasons, details=details)
-    write_go_no_go(combined)
+    write_go_no_go(combined, scope="index")
     return combined
 
 
@@ -1747,9 +1752,15 @@ def _compute_ev_honesty_rows(
     return results, max_delta
 
 
-def _apply_ev_honesty_gate(monitors: dict[str, object], *, threshold: float) -> None:
-    monitors.setdefault("ev_honesty_threshold", threshold)
-    max_delta_raw = monitors.get("ev_honesty_max_delta")
+def _apply_ev_honesty_gate(monitors: dict[str, object], *, threshold_cents: float) -> None:
+    monitors.setdefault("ev_honesty_threshold_cents", threshold_cents)
+    max_delta_raw = (
+        monitors.get("ev_honesty_max_delta_cents")
+        if monitors is not None
+        else None
+    )
+    if max_delta_raw is None:
+        max_delta_raw = monitors.get("ev_honesty_max_delta") if monitors is not None else None
     try:
         max_delta = float(max_delta_raw) if max_delta_raw is not None else None
     except (TypeError, ValueError):  # pragma: no cover - contaminated monitor value
@@ -1757,9 +1768,9 @@ def _apply_ev_honesty_gate(monitors: dict[str, object], *, threshold: float) -> 
     if max_delta is None:
         monitors["ev_honesty_no_go"] = False
         return
-    monitors["ev_honesty_no_go"] = bool(max_delta > threshold)
-    if max_delta > threshold:
-        monitors["ev_honesty_delta_excess"] = round(max_delta - threshold, 6)
+    monitors["ev_honesty_no_go"] = bool(max_delta > threshold_cents)
+    if max_delta > threshold_cents:
+        monitors["ev_honesty_delta_excess_cents"] = round(max_delta - threshold_cents, 6)
 
 
 def _parse_date_arg(value: str) -> date:

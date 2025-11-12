@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Sequence
 
 import polars as pl
+import polars.datatypes as pldt
 
 from kalshi_alpha.core.backtest import reliability_table
 
@@ -86,7 +87,15 @@ def _window_summary(
     now = datetime.now(tz=UTC)
     cutoff = now - timedelta(days=window_days)
     if "timestamp_et" in ledger.columns:
-        subset = ledger.filter(pl.col("timestamp_et") >= cutoff)
+        ts_dtype = ledger.schema.get("timestamp_et")
+        target_cutoff = cutoff
+        if (
+            isinstance(ts_dtype, pldt.Datetime)
+            and ts_dtype.time_zone is None
+            and cutoff.tzinfo is not None
+        ):
+            target_cutoff = cutoff.replace(tzinfo=None)
+        subset = ledger.filter(pl.col("timestamp_et") >= target_cutoff)
     else:
         subset = ledger
     payload = {

@@ -1,6 +1,6 @@
 {
   "alerts_summary": {
-    "max_age_minutes": 11038.761555583333,
+    "max_age_minutes": 1884.0267368,
     "metrics": {
       "auth_error_streak": {
         "current_streak": 0,
@@ -10,20 +10,20 @@
       "data_freshness": {
         "feeds": [
           {
-            "age_minutes": 0.162,
+            "age_minutes": 0.006,
             "details": {
-              "age_seconds": 9.704,
-              "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/10/polygon_index/20251110T161022_NASDAQ100U_snapshot.json.json",
+              "age_seconds": 0.375,
+              "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/11/polygon_index/20251111T224350_NASDAQ100U_snapshot.json.json",
               "threshold_seconds": 10.0
             },
             "id": "polygon_index.websocket",
             "label": "Massive index websocket",
-            "last_ts": "2025-11-10T16:10:22+00:00",
+            "last_ts": "2025-11-11T22:43:50+00:00",
             "ok": true,
             "required": true
           }
         ],
-        "generated_at": "2025-11-10T16:10:31.703843+00:00",
+        "generated_at": "2025-11-11T22:43:50.374829+00:00",
         "required_feeds": [
           "polygon_index.websocket"
         ],
@@ -31,15 +31,15 @@
         "stale_feeds": [],
         "table": [
           {
-            "age_minutes": 0.162,
+            "age_minutes": 0.006,
             "details": {
-              "age_seconds": 9.704,
-              "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/10/polygon_index/20251110T161022_NASDAQ100U_snapshot.json.json",
+              "age_seconds": 0.375,
+              "snapshot_path": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/raw/2025/11/11/polygon_index/20251111T224350_NASDAQ100U_snapshot.json.json",
               "threshold_seconds": 10.0
             },
             "id": "polygon_index.websocket",
             "label": "Massive index websocket",
-            "last_ts": "2025-11-10T16:10:22+00:00",
+            "last_ts": "2025-11-11T22:43:50+00:00",
             "ok": true,
             "required": true
           }
@@ -47,24 +47,25 @@
       },
       "drawdown": {
         "daily_cap": 2000.0,
-        "daily_pnl": 24.0,
+        "daily_pnl": 17.459127550866928,
         "weekly_cap": 6000.0,
-        "weekly_pnl": 150.33244842668913
-      },
-      "ev_gap": {
-        "mean_delta_bps": -4718.3414682283865,
-        "sample_size": 8,
-        "t_stat": -44.321604771192
+        "weekly_pnl": 17.459127550866928
       },
       "ev_seq_guard": {
         "min_sample": 12,
         "reason": "insufficient_samples",
         "series_stats": {
-          "CPI": {
+          "INXU": {
             "insufficient": true,
-            "max_negative": -37738.73174582709,
-            "max_positive": 0.0,
-            "sample_size": 8
+            "max_negative": 0.0,
+            "max_positive": 12337.058893086258,
+            "sample_size": 2
+          },
+          "NASDAQ100U": {
+            "insufficient": true,
+            "max_negative": 0.0,
+            "max_positive": 10464.35212401379,
+            "sample_size": 2
           }
         }
       },
@@ -75,69 +76,51 @@
         "evaluations": [
           {
             "freeze_active": false,
-            "freeze_start": {
-              "et": "2025-11-05T18:00:00-05:00",
-              "utc": "2025-11-05T23:00:00+00:00"
-            },
-            "mode": "pre_claims",
-            "notes": [],
-            "reference": {
-              "et": "2025-11-06T08:30:00-05:00",
-              "utc": "2025-11-06T13:30:00+00:00"
-            },
-            "scan_close": {
-              "et": "2025-11-06T08:25:00-05:00",
-              "utc": "2025-11-06T13:25:00+00:00"
-            },
-            "scan_open": {
-              "et": "2025-11-06T06:00:00-05:00",
-              "utc": "2025-11-06T11:00:00+00:00"
-            },
-            "series": "CLAIMS"
+            "freeze_start": null,
+            "mode": null,
+            "notes": [
+              "no_mode"
+            ],
+            "reference": null,
+            "scan_close": null,
+            "scan_open": null,
+            "series": "INX"
           },
           {
             "freeze_active": false,
-            "freeze_start": {
-              "et": "2025-11-11T06:00:00-05:00",
-              "utc": "2025-11-11T11:00:00+00:00"
-            },
-            "mode": "pre_cpi",
-            "notes": [],
-            "reference": {
-              "et": "2025-11-12T08:30:00-05:00",
-              "utc": "2025-11-12T13:30:00+00:00"
-            },
-            "scan_close": {
-              "et": "2025-11-12T08:20:00-05:00",
-              "utc": "2025-11-12T13:20:00+00:00"
-            },
-            "scan_open": {
-              "et": "2025-11-12T06:00:00-05:00",
-              "utc": "2025-11-12T11:00:00+00:00"
-            },
-            "series": "CPI"
+            "freeze_start": null,
+            "mode": null,
+            "notes": [
+              "no_mode"
+            ],
+            "reference": null,
+            "scan_close": null,
+            "scan_open": null,
+            "series": "INXU"
           },
           {
             "freeze_active": false,
-            "freeze_start": {
-              "et": "2025-11-03T13:30:00-05:00",
-              "utc": "2025-11-03T18:30:00+00:00"
-            },
-            "mode": "teny_close",
-            "notes": [],
-            "reference": {
-              "et": "2025-11-03T15:30:00-05:00",
-              "utc": "2025-11-03T20:30:00+00:00"
-            },
-            "scan_close": {
-              "et": "2025-11-03T15:25:00-05:00",
-              "utc": "2025-11-03T20:25:00+00:00"
-            },
-            "scan_open": {
-              "et": "2025-11-03T14:30:00-05:00",
-              "utc": "2025-11-03T19:30:00+00:00"
-            },
-            "series": "TENY"
+            "freeze_start": null,
+            "mode": null,
+            "notes": [
+              "no_mode"
+            ],
+            "reference": null,
+            "scan_close": null,
+            "scan_open": null,
+            "series": "NASDAQ100"
+          },
+          {
+            "freeze_active": false,
+            "freeze_start": null,
+            "mode": null,
+            "notes": [
+              "no_mode"
+            ],
+            "reference": null,
+            "scan_close": null,
+            "scan_open": null,
+            "series": "NASDAQ100U"
           }
         ]
       },
@@ -147,7 +130,7 @@
       },
       "ws_disconnect_rate": {
         "count": 0,
-        "lookback_hours": 1,
+        "lookback_hours": 6,
         "rate_per_hour": 0.0
       }
     },
@@ -156,61 +139,32 @@
       "auth_error_streak": "OK",
       "data_freshness": "OK",
       "drawdown": "OK",
-      "ev_gap": "ALERT",
+      "ev_gap": "NO_DATA",
       "ev_seq_guard": "NO_DATA",
+      "fee_rules": "OK",
       "fill_vs_alpha": "NO_DATA",
       "freeze_window": "OK",
       "kill_switch": "OK",
+      "sigma_drift": "OK",
       "ws_disconnect_rate": "OK"
     }
   },
-  "broker_mode": "live",
   "cusum_state": "NO_DATA",
   "cusum_status": "NO_DATA",
-  "ev_honesty_max_delta": 0.0,
   "ev_honesty_no_go": false,
-  "ev_honesty_table": [
-    {
-      "delta": 0.0,
-      "fill_price": 0.44,
-      "maker_ev_original": 0.2894655960482466,
-      "maker_ev_per_contract_original": 0.2894655960482466,
-      "maker_ev_per_contract_proposal": 0.2894655960482466,
-      "maker_ev_per_contract_replay": 0.2894655960482466,
-      "maker_ev_replay": 0.2894655960482466,
-      "market_id": "MKT_NDQ100U_H1200_A",
-      "market_ticker": "KXNASDAQ100U-25NOV03H1200-T15000",
-      "side": "YES",
-      "strike": 15000.0
-    },
-    {
-      "delta": 0.0,
-      "fill_price": 0.57,
-      "maker_ev_original": 0.32000000000000006,
-      "maker_ev_per_contract_original": 0.57,
-      "maker_ev_per_contract_proposal": 0.32000000000000006,
-      "maker_ev_per_contract_replay": 0.57,
-      "maker_ev_replay": 0.57,
-      "market_id": "MKT_NDQ100U_H1200_A",
-      "market_ticker": "KXNASDAQ100U-25NOV03H1200-T15000",
-      "side": "NO",
-      "strike": 15050.0
-    }
-  ],
-  "ev_honesty_threshold": 0.1,
+  "ev_honesty_threshold_cents": 10.0,
   "family": "NASDAQ100U",
   "fill_realism_gap": null,
-  "generated_at": "2025-11-10T16:12:54.583125+00:00",
+  "generated_at": "2025-11-12T03:21:45.758181+00:00",
   "maker_only": true,
   "max_contracts_per_order": 1,
   "max_unique_bins": 2,
-  "mean_delta_bps_after_fees": 5233.176062006895,
-  "n_trades": 2,
-  "orders_recorded": 0,
+  "mean_delta_bps_after_fees": null,
+  "n_trades": 0,
   "require_live_broker": true,
-  "sample_size": 2,
+  "sample_size": 0,
   "series": "NASDAQ100U",
-  "session_id": "pilot-nasdaq100u-20251110T161254Z-a8c5b9",
-  "started_at": "2025-11-10T16:12:54.268397+00:00",
-  "t_stat": 3.339989857896801
+  "session_id": "pilot-nasdaq100u-20251112T032144Z-3c83fa",
+  "started_at": "2025-11-12T03:21:44.602624+00:00",
+  "t_stat": null
 }

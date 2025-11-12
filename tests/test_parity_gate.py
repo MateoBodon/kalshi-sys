@@ -23,8 +23,8 @@ def test_parity_gate_allows_small_delta(tmp_path: Path) -> None:
     output = tmp_path / "ev_gap.json"
     parity_gate.main(
         [
-            "--threshold",
-            "0.2",
+            "--threshold-cents",
+            "20",
             "--path",
             str(path),
             "--output-json",
@@ -47,4 +47,4 @@ def test_parity_gate_blocks_per_window(tmp_path: Path) -> None:
     path = tmp_path / "replay.parquet"
     frame.write_parquet(path)
     with pytest.raises(SystemExit):
-        parity_gate.main(["--threshold", "0.3", "--path", str(path)])
+        parity_gate.main(["--threshold-cents", "25", "--path", str(path)])

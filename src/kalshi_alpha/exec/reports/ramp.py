@@ -119,9 +119,16 @@ def compute_ramp_policy(
     session_threshold: float | None = None
     if pilot_session:
         default_series = str(pilot_session.get("series") or "").upper() or None
-        threshold_candidate = pilot_session.get("ev_honesty_threshold")
-        if isinstance(threshold_candidate, (int, float)):
-            session_threshold = float(threshold_candidate)
+        threshold_candidate: float | None = None
+        raw_threshold = pilot_session.get("ev_honesty_threshold_cents")
+        if isinstance(raw_threshold, (int, float)):
+            threshold_candidate = float(raw_threshold) / 100.0
+        else:
+            legacy_threshold = pilot_session.get("ev_honesty_threshold")
+            if isinstance(legacy_threshold, (int, float)):
+                threshold_candidate = float(legacy_threshold)
+        if threshold_candidate is not None:
+            session_threshold = threshold_candidate
     ev_threshold = session_threshold if session_threshold is not None else cfg.ev_honesty_threshold
     ev_honesty_map = _ev_honesty_by_series(pilot_session, default_series=default_series)
 
@@ -1023,6 +1030,9 @@ def _load_guardrail_events(artifacts_dir: Path, *, since: datetime) -> dict[str,
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
+            continue
+        scope_value = str(payload.get("scope") or "index").strip().lower()
+        if scope_value and scope_value not in {"index", "index_ops"}:
             continue
         series = str(payload.get("series", "")).upper()
         ts_text = payload.get("timestamp")

@@ -339,7 +339,12 @@ class PolygonIndicesClient:
             rows = records_by_day[key]
             if not rows:
                 continue
-            frame = pl.DataFrame(rows).unique(subset="timestamp").sort("timestamp")
+            frame = (
+                pl.DataFrame(rows)
+                .with_columns(pl.col("timestamp").dt.replace_time_zone("UTC"))
+                .unique(subset="timestamp")
+                .sort("timestamp")
+            )
             day_label = f"{key[0]:04d}-{key[1]:02d}-{key[2]:02d}"
             path = symbol_dir / f"{day_label}.parquet"
             frame.write_parquet(path)
