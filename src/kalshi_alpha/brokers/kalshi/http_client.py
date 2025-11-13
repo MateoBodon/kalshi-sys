@@ -24,7 +24,7 @@ from requests.exceptions import RequestException
 LOGGER = logging.getLogger(__name__)
 
 
-_DEFAULT_BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
+_DEFAULT_BASE_URL = os.getenv("KALSHI_TRADE_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
 _DEFAULT_TIMEOUT = 10.0
 _DEFAULT_RETRIES = 3
 _RETRYABLE_STATUS = {408, 409, 429, 500, 502, 503, 504}
@@ -79,6 +79,7 @@ class KalshiHttpClient:
         sleeper: Callable[[float], None] | None = None,
         access_key_id: str | None = None,
         private_key_path: str | None = None,
+        exchange: str | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._session = session or requests.Session()
@@ -102,6 +103,8 @@ class KalshiHttpClient:
                 "KALSHI_PRIVATE_KEY_PEM_PATH is required to authenticate with Kalshi."
             )
         self._private_key = self._load_private_key(Path(key_path))
+        exchange_value = exchange or os.getenv("KALSHI_EXCHANGE") or "kalshi-x"
+        self._exchange = exchange_value.strip().lower() or "kalshi-x"
 
     # Public API ---------------------------------------------------------------------------------
 
@@ -154,6 +157,7 @@ class KalshiHttpClient:
             signed_headers = self._auth_headers(method_upper, canonical_path)
             request_headers.update(signed_headers)
             request_headers["Content-Type"] = "application/json"
+            request_headers.setdefault("KALSHI-EXCHANGE", self._exchange)
 
             url = f"{self._base_url}{canonical_path}"
             try:
@@ -245,11 +249,13 @@ class KalshiHttpClient:
         if not absolute and self._base_path_prefix and not canonical_path.startswith(self._base_path_prefix):
             signing_path = f"{self._base_path_prefix}{canonical_path}"
         timestamp_ms, signature = self._sign(method_upper, signing_path)
-        return {
+        headers = {
             "KALSHI-ACCESS-KEY": self._access_key_id,
             "KALSHI-ACCESS-TIMESTAMP": str(timestamp_ms),
             "KALSHI-ACCESS-SIGNATURE": signature,
         }
+        headers["KALSHI-EXCHANGE"] = self._exchange
+        return headers
 
     @staticmethod
     def _load_private_key(path: Path) -> RSAPrivateKey:

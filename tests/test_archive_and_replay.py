@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -83,3 +84,22 @@ def test_archive_and_replay(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert replay_path.exists()
     frame = pl.read_parquet(replay_path)
     assert frame.height == 1
+
+
+def test_archive_scan_respects_timestamp(tmp_path: Path) -> None:
+    series = _series()
+    event = _event(series.id)
+    market = _market(event.id)
+    client_stub = SimpleNamespace(base_url="https://example", use_offline=True)
+    timestamp = datetime(2025, 1, 2, 3, 4, tzinfo=UTC)
+
+    manifest_path = archive_scan(
+        series,
+        client_stub,
+        [event],
+        [market],
+        {market.id: _orderbook(market.id)},
+        out_dir=tmp_path / "raw",
+        timestamp=timestamp,
+    )
+    assert manifest_path.parents[2].name == timestamp.strftime("%Y-%m-%d")

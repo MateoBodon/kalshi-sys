@@ -252,34 +252,48 @@ class KalshiPublicClient:
         limit: int | None = None,
         force_refresh: bool = False,
     ) -> list[Market]:
-        params: dict[str, Any] = {}
-        series_value = series_ticker.upper() if isinstance(series_ticker, str) else None
         status_value = status.lower() if isinstance(status, str) else None
-        if series_value:
-            params["series_ticker"] = series_value
-        if status_value:
-            params["status"] = status_value
-        if event_ticker:
-            params["event_ticker"] = str(event_ticker)
-        if limit is not None:
-            params["limit"] = int(limit)
+        event_value = str(event_ticker) if event_ticker else None
+        limit_value = int(limit) if limit is not None else None
+        series_candidates: tuple[str | None, ...]
+        if series_ticker:
+            series_candidates = _series_query_candidates(series_ticker)
+            if not series_candidates:
+                series_candidates = (_canonical_series_label(series_ticker),)
+        else:
+            series_candidates = (None,)
 
-        cache_key = (
-            "markets_search",
-            tuple(sorted((key, str(value)) for key, value in params.items())),
-        )
-        payload = self._get(
-            "/markets",
-            params=params or None,
-            cache_key=cache_key,
-            offline_stub=MARKETS_SEARCH_OFFLINE_STUB,
-            force_refresh=force_refresh,
-        )
-        data = payload.get("markets") if isinstance(payload, dict) else payload
+        raw_entries: list[Mapping[str, Any]] = []
+        for candidate in series_candidates:
+            params: dict[str, Any] = {}
+            if candidate:
+                params["series_ticker"] = candidate
+            if status_value:
+                params["status"] = status_value
+            if event_value:
+                params["event_ticker"] = event_value
+            if limit_value is not None:
+                params["limit"] = limit_value
+            cache_key = (
+                "markets_search",
+                candidate or "ALL",
+                tuple(sorted((key, str(value)) for key, value in params.items())),
+            )
+            payload = self._get(
+                "/markets",
+                params=params or None,
+                cache_key=cache_key,
+                offline_stub=MARKETS_SEARCH_OFFLINE_STUB,
+                force_refresh=force_refresh,
+            )
+            data = payload.get("markets") if isinstance(payload, dict) else payload
+            if data:
+                raw_entries.extend(data)
+
         markets: list[Market] = []
-        if data and isinstance(data, list) and data and "ladder_strikes" not in data[0]:
+        if raw_entries and isinstance(raw_entries, list) and raw_entries and "ladder_strikes" not in raw_entries[0]:
             grouped: dict[str, list[Mapping[str, Any]]] = {}
-            for entry in data:
+            for entry in raw_entries:
                 event_key = str(entry.get("event_ticker") or entry.get("event_id") or entry.get("ticker") or "")
                 grouped.setdefault(event_key, []).append(entry)
             for event_id, entries in grouped.items():
@@ -287,11 +301,11 @@ class KalshiPublicClient:
                 if aggregated:
                     markets.append(Market.from_payload(aggregated))
         else:
-            markets = [Market.from_payload(item) for item in data or []]
+            markets = [Market.from_payload(item) for item in raw_entries or []]
         return [
             market
             for market in markets
-            if _matches_filter(market, series_value, status_value, event_ticker)
+            if _matches_filter(market, series_ticker, status_value, event_ticker)
         ]
 
     # Internal helpers -------------------------------------------------------------------------
@@ -319,7 +333,7 @@ class KalshiPublicClient:
                 response.raise_for_status()
                 payload = cast(Payload, response.json())
             except (requests.RequestException, json.JSONDecodeError) as exc:
-                if offline_stub:
+                if offline_stub and self.use_offline:
                     payload = self._load_offline(offline_stub)
                 else:
                     raise KalshiPublicClientError(f"Kalshi request failed: {exc}") from exc
@@ -344,8 +358,9 @@ def _matches_filter(
     event_ticker: str | None,
 ) -> bool:
     if series_ticker:
-        market_series = (market.series_ticker or "").upper()
-        if market_series and market_series != series_ticker:
+        target_series = _canonical_series_label(series_ticker)
+        market_series = _canonical_series_label(market.series_ticker)
+        if target_series and market_series and market_series != target_series:
             return False
     if status:
         normalized = (market.status or "").lower()
@@ -420,6 +435,13 @@ def _aggregate_markets(event_id: str, entries: Sequence[Mapping[str, Any]]) -> d
     market_id = str(first.get("market_id") or first.get("event_ticker") or event_id)
     ticker = str(first.get("event_ticker") or first.get("ticker") or market_id)
     title = str(first.get("title") or first.get("event_ticker") or event_id)
+    status = first.get("status")
+    series_label = first.get("series_ticker") or first.get("series")
+    if not series_label:
+        event_label = first.get("event_ticker") or ticker
+        if isinstance(event_label, str) and "-" in event_label:
+            series_label = event_label.split("-", 1)[0]
+    close_time = first.get("close_time") or first.get("close_ts")
     return {
         "id": market_id,
         "event_id": str(first.get("event_ticker") or event_id),
@@ -428,6 +450,9 @@ def _aggregate_markets(event_id: str, entries: Sequence[Mapping[str, Any]]) -> d
         "ladder_strikes": rung_strikes,
         "ladder_yes_prices": rung_prices,
         "rung_tickers": rung_tickers,
+        "status": status,
+        "series_ticker": series_label,
+        "close_time": close_time,
     }
 
 

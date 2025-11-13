@@ -1,0 +1,1406 @@
+[
+  {
+    "contracts": 1,
+    "idempotency_key": "828c2dbe9eda95bcabbddbbb59fa59ddb48e99383f904579efcd7194e1e0ebff",
+    "market_id": "KXINXU-25NOV12H1200-T5824.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV12H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV12H1200-T5824.9999",
+      "market_ticker": "KXINXU-25NOV12H1200-T5824.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5825.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5825.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "1b9ebeb6eb6db86718a7d578db596acdcf1e8a6fb270764cfc2580e36505bd91",
+    "market_id": "KXINXU-25NOV12H1200-T5829.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV12H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV12H1200-T5829.9999",
+      "market_ticker": "KXINXU-25NOV12H1200-T5829.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5830.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5830.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "55b050839cc1da4e23c62177315ce75597001c76af876922f10e362cc88f1dd1",
+    "market_id": "KXINXU-25NOV11H1200-T5724.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV11H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV11H1200-T5724.9999",
+      "market_ticker": "KXINXU-25NOV11H1200-T5724.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5725.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5725.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "aad32ccf327e015d25a9c5dac07252eed719f2cc032d92cb31459c6fb336c257",
+    "market_id": "KXINXU-25NOV11H1200-T5729.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV11H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV11H1200-T5729.9999",
+      "market_ticker": "KXINXU-25NOV11H1200-T5729.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5730.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5730.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "e7382a67e39a6f0c8674bf3c93823138e9aca435f9258c26b97a482bc928275d",
+    "market_id": "KXINXU-25NOV10H1200-T5699.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV10H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV10H1200-T5699.9999",
+      "market_ticker": "KXINXU-25NOV10H1200-T5699.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5700.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5700.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "25559cfb3c9587a681a98386e613d30caa3f37b149e4c892c563134d04a9491c",
+    "market_id": "KXINXU-25NOV10H1200-T5704.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV10H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV10H1200-T5704.9999",
+      "market_ticker": "KXINXU-25NOV10H1200-T5704.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5705.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5705.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "9a9918e898935f92096b571633790c91faaf7a7f5e5a999513221d1a326a83df",
+    "market_id": "KXINXU-25NOV07H1200-T5774.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV07H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV07H1200-T5774.9999",
+      "market_ticker": "KXINXU-25NOV07H1200-T5774.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5775.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5775.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "bb9c7822c1d3847956d3f3d5d1288d155e9d5dfa94d06ab143faf7df725ad0bb",
+    "market_id": "KXINXU-25NOV07H1200-T5779.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV07H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV07H1200-T5779.9999",
+      "market_ticker": "KXINXU-25NOV07H1200-T5779.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5780.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5780.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "1bfd410b3612fac04db6d4966eee49f92b4e8b7170e174769d2bd6c2b7af6428",
+    "market_id": "KXINXU-25NOV06H1200-T5749.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV06H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV06H1200-T5749.9999",
+      "market_ticker": "KXINXU-25NOV06H1200-T5749.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5750.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5750.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "84fe5cf5c783ef22ccc877d9ed661bed8bad354c4db9bafef138a90052a27fac",
+    "market_id": "KXINXU-25NOV06H1200-T5754.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV06H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV06H1200-T5754.9999",
+      "market_ticker": "KXINXU-25NOV06H1200-T5754.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5755.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5755.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "5ff961e41b33de539bf95eafd5babf5a5f92c6ac3e00895df99589bca01aefce",
+    "market_id": "KXINXU-25NOV05H1200-T5824.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV05H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV05H1200-T5824.9999",
+      "market_ticker": "KXINXU-25NOV05H1200-T5824.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5825.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5825.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "5a78740b7cbc1233bed3c5e486487a7d9c79aa524fb4bd12067b0a6587592e02",
+    "market_id": "KXINXU-25NOV05H1200-T5829.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV05H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV05H1200-T5829.9999",
+      "market_ticker": "KXINXU-25NOV05H1200-T5829.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5830.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5830.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "e2ddc58d5dd5cc79438e5341a6678ddb1e3fecf44f27e2dc26a3d334fd564342",
+    "market_id": "KXINXU-25NOV04H1200-T5824.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV04H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV04H1200-T5824.9999",
+      "market_ticker": "KXINXU-25NOV04H1200-T5824.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5825.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5825.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "5eebd7d71106bc023bb9adf7ddb5fe3b4dc163d797802bb7a8b7d39ff59cd4e4",
+    "market_id": "KXINXU-25NOV04H1200-T5829.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV04H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV04H1200-T5829.9999",
+      "market_ticker": "KXINXU-25NOV04H1200-T5829.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5830.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5830.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "74d1f6482a2e73e56ce8bd670f7992ed2ee46aa4ddd9796a4819ee9c40168852",
+    "market_id": "KXINXU-25NOV03H1200-T5799.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV03H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV03H1200-T5799.9999",
+      "market_ticker": "KXINXU-25NOV03H1200-T5799.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5800.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5800.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "f88ade0c051ba381b1e4f126eab1bddb5d8777358f253bd7829a37bf4dd5511c",
+    "market_id": "KXINXU-25NOV03H1200-T5804.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25NOV03H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25NOV03H1200-T5804.9999",
+      "market_ticker": "KXINXU-25NOV03H1200-T5804.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5805.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5805.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "b5f5abe8f0732cf7dcaa54e9c68a5bc39895000852e71d2e8d610e631341960f",
+    "market_id": "KXINXU-25OCT31H1200-T5874.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT31H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT31H1200-T5874.9999",
+      "market_ticker": "KXINXU-25OCT31H1200-T5874.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5875.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5875.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "9e470cb90039b83fd050b45f0c521c16c069273d8aa8c2cae986ca5bb0d3a59a",
+    "market_id": "KXINXU-25OCT31H1200-T5879.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT31H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT31H1200-T5879.9999",
+      "market_ticker": "KXINXU-25OCT31H1200-T5879.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5880.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5880.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "058aa7f1501daa399d4734b89fffebec4a07b50635138bf43a74b85a1a7af9d6",
+    "market_id": "KXINXU-25OCT30H1200-T5874.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT30H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT30H1200-T5874.9999",
+      "market_ticker": "KXINXU-25OCT30H1200-T5874.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5875.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5875.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "7bf0fddc4d251e0ce6278f0b5dd98d082809dfe41fda56228f835ab471efa0cf",
+    "market_id": "KXINXU-25OCT30H1200-T5879.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT30H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT30H1200-T5879.9999",
+      "market_ticker": "KXINXU-25OCT30H1200-T5879.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5880.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5880.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "9c4b2e37e2bfa791b84fd201259c36b67b0a42bb467fac0405b03ed329bc2da7",
+    "market_id": "KXINXU-25OCT29H1200-T5874.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT29H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT29H1200-T5874.9999",
+      "market_ticker": "KXINXU-25OCT29H1200-T5874.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5875.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5875.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "23c6e00b7c682e94e227d463f79a6973e23cbe9f41074dfa5ccca3b90a948458",
+    "market_id": "KXINXU-25OCT29H1200-T5879.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT29H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT29H1200-T5879.9999",
+      "market_ticker": "KXINXU-25OCT29H1200-T5879.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5880.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5880.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "8b12a0d0146163efdc4f8ea402fda75535d9d573b85d057bea9d4098b359f8cc",
+    "market_id": "KXINXU-25OCT28H1200-T5774.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT28H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT28H1200-T5774.9999",
+      "market_ticker": "KXINXU-25OCT28H1200-T5774.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5775.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5775.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "b025f2b938daf1f3613b52619651d908b94400159cf5d703f1b47fe8fd4c6fa2",
+    "market_id": "KXINXU-25OCT28H1200-T5779.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT28H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT28H1200-T5779.9999",
+      "market_ticker": "KXINXU-25OCT28H1200-T5779.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5780.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5780.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "fdd9969e7d28c3ceed046e882b26ffb2ac0a79b4b9dd450b24fcf172da402ea9",
+    "market_id": "KXINXU-25OCT27H1200-T5724.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT27H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT27H1200-T5724.9999",
+      "market_ticker": "KXINXU-25OCT27H1200-T5724.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5725.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5725.0
+  },
+  {
+    "contracts": 1,
+    "idempotency_key": "3d8924fed60257fb0bd757ac3490a6f67e13d4cdbffc6497fc57296c9900f587",
+    "market_id": "KXINXU-25OCT27H1200-T5729.9999",
+    "metadata": {
+      "ev_components": {
+        "fee_price": 0.5,
+        "liquidity": "maker",
+        "per_contract": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        },
+        "side": "no",
+        "total": {
+          "fee": 0.0,
+          "gross": 0.5,
+          "net": 0.5
+        }
+      },
+      "event_ticker": "KXINXU-25OCT27H1200",
+      "liquidity": "maker",
+      "market_id": "KXINXU-25OCT27H1200-T5729.9999",
+      "market_ticker": "KXINXU-25OCT27H1200-T5729.9999",
+      "risk": {
+        "correlation": {
+          "family_limit": 2200.0,
+          "family_var": 0.0,
+          "portfolio_limit": 3200.0,
+          "portfolio_var": 0.0,
+          "tilt": 1.0
+        }
+      },
+      "series": "INXU",
+      "sizing": {
+        "daily_loss_after": null,
+        "daily_loss_before": null,
+        "kelly_raw": null,
+        "kelly_scaled": null,
+        "kelly_truncated": null,
+        "ob_imbalance_metric": 0.0,
+        "ob_imbalance_penalty": 0.0,
+        "uncertainty_metric": 0.0,
+        "uncertainty_penalty": 0.0,
+        "weekly_loss_after": null,
+        "weekly_loss_before": null
+      },
+      "strike": 5730.0
+    },
+    "price": 0.5,
+    "probability": 0.0,
+    "side": "NO",
+    "strike": 5730.0
+  }
+]

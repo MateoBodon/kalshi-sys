@@ -66,7 +66,7 @@ class LiveBroker(Broker):
         artifacts_dir: Path,
         audit_dir: Path,
         session: requests.Session | None = None,
-        base_url: str = "https://api.elections.kalshi.com/trade-api/v2",
+        base_url: str = os.getenv("KALSHI_TRADE_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2"),
         rate_limit_per_second: int = 5,
         queue_capacity: int = 64,
         max_retries: int = 3,
@@ -253,16 +253,20 @@ class LiveBroker(Broker):
         liquidity = str(metadata.get("liquidity") or "maker").lower()
         action = metadata.get("action") or ("sell" if liquidity == "maker" else "buy")
         side = order.side.lower()
-        yes_price = float(order.price)
+        price_dollars = float(order.price)
         payload: dict[str, Any] = {
             "ticker": ticker,
             "action": action.lower(),
             "side": side,
             "type": "limit",
             "count": int(order.contracts),
-            "yes_price": yes_price,
             "client_order_id": order.idempotency_key,
         }
+        price_str = f"{price_dollars:.2f}"
+        if side == "yes":
+            payload["yes_price_dollars"] = price_str
+        else:
+            payload["no_price_dollars"] = price_str
         return payload
 
     def _telemetry_payload(self, order: BrokerOrder, payload: dict[str, Any]) -> dict[str, Any]:

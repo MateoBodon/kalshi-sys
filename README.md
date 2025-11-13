@@ -217,6 +217,7 @@ Each pipeline writes:
 - **Series coverage:** intraday hourly (12:00 ET; `INXU`, `NASDAQ100U`) and daily close (`INX`, `NASDAQ100`). Maker-only by default with 1-lot sizing and a two-bin cap per market.
 - **Scheduler & freshness guards:** `kalshi_alpha.sched.windows` resolves US/Eastern windows (start, freeze, final-minute). Scanner metadata now includes `scheduler_window`, and `ws_final_minute_guard` enforces the ≤700 ms Massive WS latency in the final minute (auto-freeze + cancel-all if breached).
 - **Runbooks:** operational checklists live under `docs/runbooks/hourly.md` and `docs/runbooks/eod.md`.
+- **Live Ops:** the current Kalshi index trading pipeline (Polygon feed, hourly loop, monitoring) is documented in `docs/live_ops.md`.
 - **Secrets:** Polygon indices use macOS Keychain item `kalshi-sys:POLYGON_API_KEY` first and fall back to the `POLYGON_API_KEY` environment variable. Approving the Keychain prompt once keeps subsequent scans non-interactive.
 - **Calibrations:**
   ```bash

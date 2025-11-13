@@ -19,13 +19,15 @@ def archive_scan(  # noqa: PLR0913
     markets: Iterable[Market],
     orderbooks: Mapping[str, Orderbook],
     out_dir: Path | None = None,
+    *,
+    timestamp: datetime | None = None,
 ) -> Path:
     """Persist a snapshot of series/events/markets/orderbooks for later replay."""
 
     base_dir = Path(out_dir) if out_dir is not None else RAW_ROOT / "kalshi"
-    timestamp = datetime.now(tz=UTC)
-    date_dir = base_dir / timestamp.date().isoformat()
-    time_dir = date_dir / timestamp.strftime("%H%M%S")
+    generated_at = timestamp.astimezone(UTC) if timestamp is not None else datetime.now(tz=UTC)
+    date_dir = base_dir / generated_at.date().isoformat()
+    time_dir = date_dir / generated_at.strftime("%H%M%S")
 
     series_obj = series if isinstance(series, Series) else Series(id=str(series), ticker=str(series), name=str(series))
     series_slug = series_obj.ticker.upper()
@@ -53,7 +55,7 @@ def archive_scan(  # noqa: PLR0913
             "ticker": series_obj.ticker,
             "name": series_obj.name,
         },
-        "generated_at": timestamp.isoformat(),
+        "generated_at": generated_at.isoformat(),
         "client": {
             "base_url": getattr(client, "base_url", None),
             "offline": getattr(client, "use_offline", False),
@@ -76,8 +78,10 @@ def _dump_json(obj: object) -> str:
 
 
 def _to_jsonable(obj: object) -> object:
+    if isinstance(obj, datetime):
+        return obj.isoformat()
     if is_dataclass(obj):
-        return asdict(obj)
+        return _to_jsonable(asdict(obj))
     if isinstance(obj, (list, tuple, set)):
         return [_to_jsonable(item) for item in obj]
     if isinstance(obj, dict):

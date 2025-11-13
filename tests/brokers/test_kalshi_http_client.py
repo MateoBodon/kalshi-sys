@@ -88,6 +88,7 @@ def test_request_signs_headers_without_authorization(
         assert "Authorization" not in request.headers
         timestamp_ms = request.headers["KALSHI-ACCESS-TIMESTAMP"]
         assert len(timestamp_ms) == 13
+        assert request.headers["KALSHI-EXCHANGE"] == "kalshi-x"
         signature_b64 = request.headers["KALSHI-ACCESS-SIGNATURE"]
         expected_path = "/portfolio/orders"
         prefix = getattr(client, "_base_path_prefix", "")
@@ -148,6 +149,29 @@ def test_signature_excludes_query_string(tmp_path: Path, monkeypatch: pytest.Mon
                 padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
                 hashes.SHA256(),
             )
+
+
+def test_exchange_header_respects_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    key_path = _write_rsa_key(tmp_path)
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "ACCESS123")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
+    monkeypatch.setenv("KALSHI_EXCHANGE", "kalshi")
+
+    with requests_mock.Mocker() as mocker:
+        mocker.get(
+            "https://api.elections.kalshi.com/trade-api/v2/markets",
+            json={"markets": []},
+        )
+
+        client = KalshiHttpClient(
+            session=requests.Session(),
+            clock=_FixedClock(datetime.now(tz=UTC)),
+        )
+        response = client.get("/markets")
+        assert response.status_code == 200
+
+        request = mocker.request_history[0]
+        assert request.headers["KALSHI-EXCHANGE"] == "kalshi"
 
 
 def test_signature_uses_millisecond_timestamp(

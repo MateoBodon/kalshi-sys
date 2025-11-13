@@ -118,6 +118,24 @@ _ET_ZONE = ZoneInfo("America/New_York")
 _U_SERIES = {"INXU", "NASDAQ100U"}
 _INDEX_WS_SERIES = frozenset({"INX", "INXU", "NASDAQ100", "NASDAQ100U"})
 _HOUR_PATTERN = re.compile(r"H(?P<hour>\d{2})(?P<minute>\d{2})")
+_TICKER_PATTERN = re.compile(
+    r"-(?P<year>\d{2})(?P<month>[A-Z]{3})(?P<day>\d{2})H(?P<hour>\d{2})(?P<minute>\d{2})"
+)
+_ACTIVE_MARKET_STATUSES = frozenset({"active", "open", "initialized"})
+_MONTHS = {
+    "JAN": 1,
+    "FEB": 2,
+    "MAR": 3,
+    "APR": 4,
+    "MAY": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AUG": 8,
+    "SEP": 9,
+    "OCT": 10,
+    "NOV": 11,
+    "DEC": 12,
+}
 CLOCK_SKEW_THRESHOLD_SECONDS = 1.5
 HONESTY_CLAMP_PATH = Path("reports/_artifacts/honesty/honesty_clamp.json")
 CENTS_PER_DOLLAR = 100.0
@@ -693,6 +711,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         data_freshness_summary,
         require_polygon_ws=args.series.upper() in _INDEX_WS_SERIES,
     )
+    if fatal_freshness_reason and getattr(args, "force_gate_pass", False):
+        if not args.quiet:
+            print(
+                "[freshness] overriding fatal data freshness "
+                f"({fatal_freshness_reason}) due to --force-gate-pass"
+            )
+        fatal_freshness_reason = None
     ws_age_ms = _polygon_ws_age_ms(data_freshness_summary)
     ws_sentry = WSFreshnessSentry()
     now_for_freshness = datetime.now(tz=UTC)
@@ -708,6 +733,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             fatal_freshness_reason = fatal_freshness_reason or final_minute_reason
 
     target_time = None
+    if getattr(args, "target_hour", None) is not None:
+        try:
+            target_hour_value = int(args.target_hour) % 24
+            target_time = time(target_hour_value, 0)
+        except (TypeError, ValueError):
+            target_time = None
     outcome = scan_series(
         series=args.series,
         client=client,
@@ -1018,9 +1049,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                 go_status=go_status,
             )
         except RuntimeError as exc:
-            broker_status = {"mode": args.broker, "orders_recorded": 0, "error": str(exc)}
+            cause = exc.__cause__
+            detail = f"{exc} ({cause})" if cause else str(exc)
+            broker_status = {"mode": args.broker, "orders_recorded": 0, "error": detail}
             if not args.quiet:
-                print(f"[broker] {exc}")
+                print(f"[broker] {detail}")
         else:
             if broker_status and not args.quiet:
                 print(
@@ -1350,6 +1383,9 @@ def execute_broker(
     if not proposals:
         return {"mode": normalized, "orders_recorded": 0}
 
+    if getattr(args, "force_gate_pass", False) and not getattr(args, "i_understand_the_risks", False):
+        raise RuntimeError("--force-gate-pass requires acknowledging risks via --i-understand-the-risks.")
+
     state = OutstandingOrdersState.load()
     kill_switch_path = resolve_kill_switch_path(getattr(args, "kill_switch_file", None))
     if kill_switch_path.exists():
@@ -1358,14 +1394,18 @@ def execute_broker(
             f"Kill switch engaged at {kill_switch_path.as_posix()}; refusing broker submission"
         )
 
-    if go_status is None:
-        gate_result = _quality_gate_for_broker(args, monitors)
-        if not gate_result.go:
+    force_gate_pass = bool(getattr(args, "force_gate_pass", False))
+    if not force_gate_pass:
+        if go_status is None:
+            gate_result = _quality_gate_for_broker(args, monitors)
+            if not gate_result.go:
+                state.mark_cancel_all("quality_gate_no_go", modes=[normalized])
+                raise RuntimeError("Quality gates returned NO-GO; refusing broker submission")
+        elif not go_status:
             state.mark_cancel_all("quality_gate_no_go", modes=[normalized])
             raise RuntimeError("Quality gates returned NO-GO; refusing broker submission")
-    elif not go_status:
-        state.mark_cancel_all("quality_gate_no_go", modes=[normalized])
-        raise RuntimeError("Quality gates returned NO-GO; refusing broker submission")
+    else:
+        print("[broker] WARNING: forcing gate pass for index run; NO-GO reasons suppressed.")
 
     _enforce_broker_guards(proposals, args)
     orders = [_proposal_to_broker_order(p) for p in proposals]
@@ -1904,6 +1944,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Maximum aggregate weekly loss budget (USD).",
     )
     parser.add_argument(
+        "--target-hour",
+        type=int,
+        help="Override hourly target (ET hour 0-23) instead of auto-selecting based on current time.",
+    )
+    parser.add_argument(
         "--strategy",
         default="auto",
         choices=["auto", "cpi"],
@@ -2013,6 +2058,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Suppress stdout summary.",
     )
+    parser.add_argument(
+        "--force-gate-pass",
+        action="store_true",
+        help="Bypass GO/NO-GO quality gate enforcement (dangerous; requires --i-understand-the-risks).",
+    )
     parser.set_defaults(maker_only=True)
     return parser.parse_args(argv)
 
@@ -2029,6 +2079,28 @@ def _parse_hour_label(ticker: str | None) -> tuple[int, int] | None:
     except (KeyError, ValueError):
         return None
     return hour % 24, minute % 60
+
+
+def _parse_u_series_event_timestamp(ticker: str | None) -> tuple[date | None, int | None, int | None]:
+    if not ticker:
+        return None, None, None
+    match = _TICKER_PATTERN.search(ticker.upper())
+    if match is None:
+        return None, None, None
+    try:
+        year = 2000 + int(match.group("year"))
+        month_raw = match.group("month")
+        month = _MONTHS[month_raw]
+        day = int(match.group("day"))
+        hour = int(match.group("hour")) % 24
+        minute = int(match.group("minute")) % 60
+    except (KeyError, ValueError):
+        return None, None, None
+    try:
+        event_date = date(year, month, day)
+    except ValueError:
+        return None, None, None
+    return event_date, hour, minute
 
 
 def _format_hour_label(hour: int) -> str:
@@ -2167,25 +2239,39 @@ def _filter_u_series_events(
 ) -> list[Event]:
     if not events:
         return []
-    target_hour = int(decision.get("target_hour", 0)) % 24
-    parsed: list[tuple[int, int, Event]] = []
+    target_hour_raw = int(decision.get("target_hour", 0))
+    target_hour = target_hour_raw % 24
+    current_hour = int(decision.get("current_hour", target_hour)) % 24
+    now_et = decision.get("now_et")
+    target_date = None
+    if isinstance(now_et, datetime):
+        target_date = now_et.date()
+        rolled = bool(decision.get("rolled"))
+        if rolled and target_hour <= current_hour:
+            target_date = target_date + timedelta(days=1)
+    parsed: list[tuple[date | None, int, Event]] = []
+    fallback: list[Event] = []
     unmatched: list[Event] = []
     for event in events:
-        parsed_hour = _parse_hour_label(event.ticker)
-        if parsed_hour is None:
+        event_date, parsed_hour, parsed_minute = _parse_u_series_event_timestamp(event.ticker)
+        if parsed_hour is None or parsed_minute is None:
             unmatched.append(event)
             continue
-        parsed.append((parsed_hour[0], parsed_hour[1], event))
+        if parsed_hour == target_hour:
+            parsed.append((event_date, parsed_minute, event))
+        else:
+            fallback.append(event)
     if parsed:
-        matching = [entry for entry in parsed if entry[0] == target_hour]
-        if matching:
-            matching.sort(key=lambda item: (item[1], item[0]))
-            return [entry[2] for entry in matching]
-        parsed.sort(key=lambda item: ((item[0] - target_hour) % 24, item[1]))
+        if target_date is not None:
+            matching_date = [entry for entry in parsed if entry[0] == target_date]
+            if matching_date:
+                matching_date.sort(key=lambda item: item[1])
+                return [entry[2] for entry in matching_date]
+        parsed.sort(key=lambda item: ((item[0] or date.max), item[1]))
         return [parsed[0][2]]
     if unmatched:
         return list(unmatched)
-    return list(events)
+    return fallback if fallback else list(events)
 
 
 def _expected_rule_hour(series_code: str) -> int | None:
@@ -2371,6 +2457,9 @@ def scan_series(  # noqa: PLR0913
         markets = client.get_markets(event.id)
         all_markets.extend(markets)
         for market in markets:
+            market_status = (market.status or "").lower()
+            if not offline and market_status and market_status not in _ACTIVE_MARKET_STATUSES:
+                continue
             if market.id not in books_at_scan:
                 try:
                     books_at_scan[market.id] = client.get_orderbook(market.id)
@@ -2708,7 +2797,12 @@ def _strategy_pmf_for_series(
             pmf_values = teny_strategy.pmf(strikes, inputs=inputs)
     elif ticker in {"INXU", "NASDAQ100U"}:
         meta = resolve_index_series(ticker)
-        snapshot = _load_index_snapshot(meta.polygon_ticker, offline=offline, fixtures_dir=fixtures_dir)
+        snapshot = _load_index_snapshot(
+            meta.polygon_ticker,
+            offline=offline,
+            fixtures_dir=fixtures_dir,
+            preferred_aliases=(ticker,),
+        )
         now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
         hourly_target_time = target_time or _default_hourly_target(now)
         minutes_to_target = _minutes_to_target(now, hourly_target_time)
@@ -2734,7 +2828,12 @@ def _strategy_pmf_for_series(
         )
     elif ticker in {"INX", "NASDAQ100"}:
         meta = resolve_index_series(ticker)
-        snapshot = _load_index_snapshot(meta.polygon_ticker, offline=offline, fixtures_dir=fixtures_dir)
+        snapshot = _load_index_snapshot(
+            meta.polygon_ticker,
+            offline=offline,
+            fixtures_dir=fixtures_dir,
+            preferred_aliases=(ticker,),
+        )
         now = event_timestamp if event_timestamp is not None else datetime.now(tz=UTC)
         minutes_to_target = _minutes_to_target(now, _TARGET_CLOSE)
         event_tags = calendar_tags_for(now)
@@ -2801,6 +2900,7 @@ def _load_index_snapshot(
     *,
     offline: bool,
     fixtures_dir: Path,
+    preferred_aliases: Sequence[str] | None = None,
 ) -> IndexSnapshot:
     fixture_path = _polygon_fixture_path(symbol, fixtures_dir)
     if offline and fixture_path.exists():
@@ -2810,6 +2910,9 @@ def _load_index_snapshot(
         client = _polygon_client_cached()
         return client.fetch_snapshot(symbol)
     except PolygonAPIError:
+        snapshot = _load_snapshot_from_raw(preferred_aliases, symbol)
+        if snapshot is not None:
+            return snapshot
         if fixture_path.exists():
             payload = json.loads(fixture_path.read_text(encoding="utf-8"))
             return _snapshot_from_payload(symbol, payload)
@@ -2819,6 +2922,36 @@ def _load_index_snapshot(
 def _polygon_fixture_path(symbol: str, fixtures_dir: Path) -> Path:
     safe_symbol = symbol.replace(":", "_")
     return fixtures_dir / _POLYGON_FIXTURE_DIR / f"{safe_symbol}_snapshot.json"
+
+
+def _load_snapshot_from_raw(
+    preferred_aliases: Sequence[str] | None,
+    symbol: str,
+    *,
+    max_days: int = 2,
+) -> IndexSnapshot | None:
+    aliases = [alias.strip().upper() for alias in preferred_aliases or [] if alias]
+    polygon_slug = symbol.replace(":", "").upper()
+    if polygon_slug not in aliases:
+        aliases.append(polygon_slug)
+    now_utc = datetime.now(tz=UTC)
+    for offset in range(max(1, max_days)):
+        day = (now_utc - timedelta(days=offset)).date()
+        day_dir = RAW_ROOT / f"{day.year:04d}" / f"{day.month:02d}" / f"{day.day:02d}" / "polygon_index"
+        if not day_dir.exists():
+            continue
+        candidates = sorted(day_dir.glob("*.json*"), reverse=True)
+        for alias in aliases:
+            needle = f"_{alias}_SNAPSHOT".upper()
+            for path in candidates:
+                if needle not in path.name.upper():
+                    continue
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:  # pragma: no cover - best-effort fallback
+                    continue
+                return _snapshot_from_payload(symbol, payload)
+    return None
 
 
 def _snapshot_from_payload(symbol: str, payload: dict[str, object]) -> IndexSnapshot:

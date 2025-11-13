@@ -6,8 +6,9 @@
     "metrics.claims.crps_advantage:-1633.8545<0.0150",
     "metrics.teny.brier_missing",
     "metrics.weather.brier_missing",
-    "data_freshness.cleveland_nowcast.stale:290.36h>24.00h",
-    "data_freshness.treasury_yields.stale:294.36h>72.00h",
+    "data_freshness.cleveland_nowcast.stale:328.71h>24.00h",
+    "data_freshness.treasury_yields.stale:332.71h>72.00h",
+    "STALE_FEEDS",
     "monitors_stale"
   ],
   "scope": "index"

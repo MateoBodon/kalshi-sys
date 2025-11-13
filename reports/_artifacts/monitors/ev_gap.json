@@ -1,11 +1,10 @@
 {
-  "generated_at": "2025-11-12T03:19:51.779306+00:00",
-  "threshold_cents": 25.0,
-  "threshold_usd": 0.25,
-  "max_delta_cents": 40.0,
-  "max_delta_usd": 0.4,
+  "generated_at": "2025-11-12T20:17:11.432899+00:00",
+  "threshold_cents": 15.0,
+  "threshold_usd": 0.15,
+  "max_delta_cents": 0.0,
+  "max_delta_usd": 0.0,
   "by_window": {
-    "hourly": 40.0,
-    "close": 0.0
+    "all": 0.0
   }
 }
