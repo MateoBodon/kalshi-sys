@@ -1,0 +1,62 @@
+current_stage: A
+stages:
+  A:
+    description: "Micro pilot (1-lot, 1-bin)."
+    per_series:
+      INXU:
+        max_contracts: 1
+        max_bins: 1
+      NASDAQ100U:
+        max_contracts: 1
+        max_bins: 1
+      INX:
+        max_contracts: 1
+        max_bins: 1
+      NASDAQ100:
+        max_contracts: 1
+        max_bins: 1
+  B:
+    description: "Stabilize two bins intraday."
+    per_series:
+      INXU:
+        max_contracts: 1
+        max_bins: 2
+      NASDAQ100U:
+        max_contracts: 1
+        max_bins: 2
+      INX:
+        max_contracts: 1
+        max_bins: 1
+      NASDAQ100:
+        max_contracts: 1
+        max_bins: 1
+  C:
+    description: "Scale to two-lot hourly clips."
+    per_series:
+      INXU:
+        max_contracts: 2
+        max_bins: 2
+      NASDAQ100U:
+        max_contracts: 2
+        max_bins: 2
+      INX:
+        max_contracts: 1
+        max_bins: 2
+      NASDAQ100:
+        max_contracts: 1
+        max_bins: 2
+  D:
+    description: "Full pilot (2 lots, 4 bins hourly; 2 lots close)."
+    per_series:
+      INXU:
+        max_contracts: 2
+        max_bins: 4
+      NASDAQ100U:
+        max_contracts: 2
+        max_bins: 4
+      INX:
+        max_contracts: 2
+        max_bins: 2
+      NASDAQ100:
+        max_contracts: 2
+        max_bins: 2
