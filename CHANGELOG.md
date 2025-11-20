@@ -1,6 +1,10 @@
 # Changelog
 
-# Changelog
+## 2025-11-20
+- Added proof-of-fill CLI (`scripts/proof_of_fill.py`) to reconcile Kalshi order history with the ledger, print per-window fill/PnL tables, and persist `pnl_window_YYYY-MM-DD.parquet` artifacts.
+- Introduced staged sizing via `configs/size_ladder.yaml` plus loader helpers; the live loop now respects the current ladder stage and final-minute freshness freezes.
+- New promotion audit helper (`scripts/check_promotion_ladder.py`) scores recent PnL/SLO artifacts to recommend stage upgrades; unit tests cover ladder parsing and promotion paths.
+- Expanded tests for live close gating and freshness breaches, keeping the hourly loop aligned with discovery close targets and NO-GO rules.
 
 ## 2025-11-11
 - Rolled out `kalshi_alpha.exec.slo` + scoreboard SLO lines (freshness/time-at-risk/VaR headroom) with optional CloudWatch publishing via `python -m kalshi_alpha.exec.scoreboard --publish-slo-cloudwatch`.
