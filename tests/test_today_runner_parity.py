@@ -54,6 +54,8 @@ def test_today_runner_passes_flags_and_prints_manifest(
             "depth",
             "--impact-cap",
             "0.03",
+            "--family",
+            "macro",
         ]
     )
 
@@ -79,7 +81,7 @@ def test_today_runner_exits_on_no_go(
     monkeypatch.setattr(today, "_plan_runs", lambda *_, **__: [today.ScheduledRun("pre_cpi", date.today())])
 
     with pytest.raises(SystemExit) as excinfo:
-        today.main(["--offline", "--report", "--paper-ledger"])
+        today.main(["--offline", "--report", "--paper-ledger", "--family", "macro"])
 
     assert excinfo.value.code == 1
     out = capsys.readouterr().out

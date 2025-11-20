@@ -6,7 +6,7 @@ import argparse
 import asyncio
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -16,13 +16,12 @@ from kalshi_alpha.drivers.polygon_index.client import INDICES_WS_URL, PolygonInd
 from kalshi_alpha.exec.heartbeat import resolve_kill_switch_path, write_heartbeat
 from kalshi_alpha.exec.runners import scan_ladders
 from kalshi_alpha.exec.scanners import scan_index_close
+from kalshi_alpha.sched import windows_for_day
 from kalshi_alpha.utils.env import load_env
 
 ET = ZoneInfo("America/New_York")
 MARKET_OPEN = time(9, 30)
 MARKET_CLOSE = time(16, 0)
-HOURLY_TRIGGER_MINUTE = 55
-DAILY_CLOSE_TRIGGER = time(15, 50)
 DEFAULT_WS_SYMBOLS: tuple[str, ...] = ("I:SPX", "I:NDX")
 DEFAULT_HOURLY_SERIES: tuple[str, ...] = ("INXU", "NASDAQ100U")
 DEFAULT_CLOSE_SERIES: tuple[str, ...] = ("INX", "NASDAQ100")
@@ -57,17 +56,22 @@ class Supervisor:
         self._ws_sentry = WSFreshnessSentry(strict_threshold_ms=config.ws_latency_kill_ms)
         self._ws_task: asyncio.Task[None] | None = None
         self._scan_lock = asyncio.Lock()
-        self._last_hourly_trigger: tuple[datetime.date, int] | None = None
-        self._last_close_trigger: datetime.date | None = None
         self._kill_switch_triggered = False
         self._last_ws_latency_ms: float | None = None
         self._last_ws_tick: datetime | None = None
+        self._triggered_windows: set[tuple[str, date]] = set()
+        self._current_day: date | None = None
+        self._final_guard_triggered: set[tuple[str, date]] = set()
 
     async def run(self) -> None:
         load_env()
         while True:
             now_utc = datetime.now(tz=UTC)
             now_et = now_utc.astimezone(ET)
+            if self._current_day != now_et.date():
+                self._current_day = now_et.date()
+                self._triggered_windows.clear()
+                self._final_guard_triggered.clear()
             await self._ensure_ws_task()
             engaged = self._kill_switch_engaged()
             ws_age_ms = self._ws_sentry.age_ms()
@@ -75,8 +79,7 @@ class Supervisor:
                 self._engage_kill_switch("polygon_ws_stale")
             if self._market_open(now_et) and not engaged:
                 await self._ensure_broker()
-                await self._maybe_trigger_hourly(now_et)
-                await self._maybe_trigger_close(now_et)
+                await self._maybe_trigger_windows(now_et)
             await self._write_heartbeat(now_utc, now_et, ws_age_ms)
             await asyncio.sleep(max(1.0, self.config.poll_seconds))
 
@@ -133,31 +136,60 @@ class Supervisor:
         except Exception as exc:  # pragma: no cover - defensive
             self._log(f"[broker] failed to initialize broker ({normalized}): {exc}")
 
-    async def _maybe_trigger_hourly(self, now_et: datetime) -> None:
-        if now_et.minute < HOURLY_TRIGGER_MINUTE:
-            return
-        key = (now_et.date(), now_et.hour)
-        if self._last_hourly_trigger == key:
-            return
-        await self._run_scan_ladders(label="hourly")
-        self._last_hourly_trigger = key
+    async def _maybe_trigger_windows(self, now_et: datetime) -> None:
+        for window in windows_for_day(now_et.date()):
+            key = (window.label, window.target_et.date())
+            in_final_minute = window.in_final_minute(now_et)
+            if now_et < window.start_et:
+                continue
+            if now_et > window.target_et:
+                self._triggered_windows.add(key)
+                self._final_guard_triggered.add(key)
+                continue
+            if window.target_type == "hourly":
+                series_list = [
+                    series for series in self.config.hourly_series if series.upper() in window.series
+                ]
+                if not series_list:
+                    continue
+                if in_final_minute and key not in self._final_guard_triggered:
+                    await self._run_scan_ladders(label=f"{window.label}:final", series=series_list)
+                    self._final_guard_triggered.add(key)
+                    self._triggered_windows.add(key)
+                    continue
+                if key in self._triggered_windows:
+                    continue
+                await self._run_scan_ladders(label=window.label, series=series_list)
+            elif window.target_type == "close":
+                series_list = [
+                    series for series in self.config.close_series if series.upper() in window.series
+                ]
+                if not series_list:
+                    continue
+                if in_final_minute and key not in self._final_guard_triggered:
+                    await self._run_scan_close(series_list=series_list, label=f"{window.label}:final")
+                    self._final_guard_triggered.add(key)
+                    self._triggered_windows.add(key)
+                    continue
+                if key in self._triggered_windows:
+                    continue
+                await self._run_scan_close(series_list=series_list, label=window.label)
+            self._triggered_windows.add(key)
 
-    async def _maybe_trigger_close(self, now_et: datetime) -> None:
-        if now_et.time() < DAILY_CLOSE_TRIGGER:
-            return
-        if self._last_close_trigger == now_et.date():
-            return
-        await self._run_scan_close()
-        self._last_close_trigger = now_et.date()
-
-    async def _run_scan_ladders(self, *, label: str) -> None:
+    async def _run_scan_ladders(self, *, label: str, series: Sequence[str]) -> None:
         async with self._scan_lock:
             if self._kill_switch_engaged():
                 self._log("[scan] kill switch engaged; skipping scan_ladders")
                 return
-            series_list = self.config.hourly_series or ("INXU",)
-            for series in series_list:
-                args: list[str] = ["--series", series, "--online", "--broker", self.config.normalized_broker()]
+            series_list = tuple(series) or ("INXU",)
+            for series_symbol in series_list:
+                args: list[str] = [
+                    "--series",
+                    series_symbol,
+                    "--online",
+                    "--broker",
+                    self.config.normalized_broker(),
+                ]
                 args.append("--clear-dry-orders-start")
                 args.append("--quiet")
                 if self.config.sniper:
@@ -170,19 +202,18 @@ class Supervisor:
                     if "--online" in args:
                         args.remove("--online")
                 args.extend(["--kill-switch-file", self.config.kill_switch_path.as_posix()])
-                self._log(f"[scan] running scan_ladders ({label}) series={series} args={args}")
+                self._log(f"[scan] running scan_ladders ({label}) series={series_symbol} args={args}")
                 await asyncio.to_thread(scan_ladders.main, args)
 
-    async def _run_scan_close(self) -> None:
+    async def _run_scan_close(self, *, series_list: Sequence[str], label: str) -> None:
         async with self._scan_lock:
             if self._kill_switch_engaged():
                 self._log("[scan] kill switch engaged; skipping scan_index_close")
                 return
-            series_list = self.config.close_series or ("INX", "NASDAQ100")
             args: list[str] = ["--series", *series_list, "--quiet"]
             if self.config.offline:
                 args.append("--offline")
-            self._log(f"[scan] running scan_index_close args={args}")
+            self._log(f"[scan] running scan_index_close ({label}) args={args}")
             await asyncio.to_thread(scan_index_close.main, args)
 
     def _market_open(self, now_et: datetime) -> bool:

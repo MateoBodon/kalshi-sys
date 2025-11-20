@@ -35,6 +35,8 @@ def build_steps(python: str, *, ticker: str | None = None) -> list[list[str]]:
             "--paper-ledger",
             "--ev-honesty-shrink",
             "0.9",
+            "--family",
+            "macro",
         ],
         [
             python,

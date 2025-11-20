@@ -46,7 +46,7 @@ def test_micro_runner_invokes_scan_and_refits(monkeypatch: pytest.MonkeyPatch, t
         "1",
         "--regenerate-scoreboard",
         "--now",
-        "2025-11-04T15:20:00+00:00",
+        "2025-11-04T16:55:00+00:00",
     ]
     micro_index.main(args)
 
@@ -85,6 +85,8 @@ def test_micro_runner_passes_quality_gate_override(monkeypatch: pytest.MonkeyPat
         str(fixtures_root),
         "--quality-gates-config",
         str(quality_path),
+        "--now",
+        "2025-11-04T16:55:00+00:00",
     ]
     micro_index.main(args)
 

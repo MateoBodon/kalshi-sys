@@ -1,0 +1,45 @@
+{
+  "range_ab_structures": [
+    {
+      "market_id": "MKT_NDQ100_H1600_RANGE",
+      "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
+      "structures": [
+        {
+          "id": "MKT_NDQ100_H1600_RANGE:15000.00-15150.00",
+          "series": "NASDAQ100",
+          "market_id": "MKT_NDQ100_H1600_RANGE",
+          "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
+          "lower": 15000.0,
+          "upper": 15150.0,
+          "contracts": 1,
+          "probability": 0.9991299747197884,
+          "price": 0.12,
+          "maker_ev": 0.8791299747197885,
+          "max_loss": 1.1199999999999999,
+          "sigma": 0.029483356936132982
+        },
+        {
+          "id": "MKT_NDQ100_H1600_RANGE:15150.00-15300.00",
+          "series": "NASDAQ100",
+          "market_id": "MKT_NDQ100_H1600_RANGE",
+          "market_ticker": "KXNASDAQ100-25NOV03H1600-B15000",
+          "lower": 15150.0,
+          "upper": 15300.0,
+          "contracts": 1,
+          "probability": 0.0007317683223926341,
+          "price": 0.19,
+          "maker_ev": -0.18926823167760737,
+          "max_loss": 1.19,
+          "sigma": 0.027041317229657597
+        }
+      ]
+    }
+  ],
+  "range_ab_sigma": 0.056525,
+  "contracts_per_quote": 1,
+  "regime": "baseline",
+  "regime_size_multiplier": 1.0,
+  "regime_slo_multiplier": 1.0,
+  "series": "NASDAQ100",
+  "generated_at": "2025-11-20T21:07:57.712859+00:00"
+}

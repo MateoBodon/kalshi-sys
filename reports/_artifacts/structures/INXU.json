@@ -1,0 +1,51 @@
+{
+  "range_ab_structures": [
+    {
+      "market_id": "MKT_INXU_H1200_A",
+      "market_ticker": "KXINXU-25NOV03H1200-T5000",
+      "structures": [
+        {
+          "id": "MKT_INXU_H1200_A:5000.00-5010.00",
+          "series": "INXU",
+          "market_id": "MKT_INXU_H1200_A",
+          "market_ticker": "KXINXU-25NOV03H1200-T5000",
+          "lower": 5000.0,
+          "upper": 5010.0,
+          "contracts": 1,
+          "probability": 0.9813895748101137,
+          "price": 0.12,
+          "maker_ev": 0.8613895748101137,
+          "max_loss": 1.1199999999999999,
+          "sigma": 0.1351446531096882
+        }
+      ]
+    },
+    {
+      "market_id": "MKT_INXU_H1300_A",
+      "market_ticker": "KXINXU-25NOV03H1300-T5000",
+      "structures": [
+        {
+          "id": "MKT_INXU_H1300_A:5000.00-5015.00",
+          "series": "INXU",
+          "market_id": "MKT_INXU_H1300_A",
+          "market_ticker": "KXINXU-25NOV03H1300-T5000",
+          "lower": 5000.0,
+          "upper": 5015.0,
+          "contracts": 1,
+          "probability": 0.9813895748101137,
+          "price": 0.12,
+          "maker_ev": 0.8613895748101137,
+          "max_loss": 1.12,
+          "sigma": 0.1351446531096882
+        }
+      ]
+    }
+  ],
+  "range_ab_sigma": 0.270289,
+  "contracts_per_quote": 1,
+  "regime": "baseline",
+  "regime_size_multiplier": 1.0,
+  "regime_slo_multiplier": 1.0,
+  "series": "INXU",
+  "generated_at": "2025-11-20T21:07:57.694202+00:00"
+}

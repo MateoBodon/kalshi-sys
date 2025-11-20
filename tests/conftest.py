@@ -219,6 +219,10 @@ INDEX_ACTIVE_PATTERNS = (
     "/test_u_hourly_rotation.py",
     "/test_index_fee_rules.py",
     "/test_scoreboard.py",
+    "/test_pilot_runners.py",
+    "/test_micro_runner.py",
+    "/test_family_switch.py",
+    "/test_index_windows_guard.py",
 )
 SLOW_PATTERNS = (
     "live_smoke",

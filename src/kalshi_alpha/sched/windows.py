@@ -102,6 +102,16 @@ def current_window(series: str, moment: datetime | None = None) -> TradingWindow
     return None
 
 
+def next_window_for_series(series: str, moment: datetime | None = None) -> TradingWindow | None:
+    """Return the next upcoming window for *series* after *moment* (default: now)."""
+
+    target = str(series or "").upper()
+    for window in next_windows(moment, limit=8):
+        if target in window.series:
+            return window
+    return None
+
+
 def next_windows(now: datetime | None = None, *, limit: int = 4) -> list[TradingWindow]:
     """Return the next *limit* upcoming windows from *now*."""
 
@@ -157,4 +167,4 @@ def _ensure_et(moment: datetime) -> datetime:
     return moment.astimezone(ET)
 
 
-__all__ = ["TradingWindow", "current_window", "next_windows", "windows_for_day"]
+__all__ = ["TradingWindow", "current_window", "next_window_for_series", "next_windows", "windows_for_day"]

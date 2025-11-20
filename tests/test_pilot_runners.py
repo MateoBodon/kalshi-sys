@@ -24,6 +24,8 @@ def test_pilot_hourly_forwards_required_flags(monkeypatch: pytest.MonkeyPatch, t
             str(tmp_path),
             "--kill-switch-file",
             str(kill_switch),
+            "--now",
+            "2025-11-04T16:55:00+00:00",
         ]
     )
 
@@ -52,6 +54,8 @@ def test_pilot_hourly_requires_ack_for_live(tmp_path: Path) -> None:
                 str(tmp_path),
                 "--kill-switch-file",
                 str(kill_switch),
+                "--now",
+                "2025-11-04T16:55:00+00:00",
             ]
         )
 
@@ -77,6 +81,8 @@ def test_pilot_close_forwards_required_flags(monkeypatch: pytest.MonkeyPatch, tm
             "live",
             "--ack",
             "--report",
+            "--now",
+            "2025-11-04T20:55:00+00:00",
         ]
     )
 

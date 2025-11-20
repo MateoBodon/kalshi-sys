@@ -13,6 +13,7 @@ from kalshi_alpha.exec.heartbeat import write_heartbeat
 from kalshi_alpha.exec.pipelines import daily
 from kalshi_alpha.exec.pipelines.calendar import ET, resolve_run_window
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
+from kalshi_alpha.utils.family import resolve_family
 
 LOGGER = logging.getLogger(__name__)
 
@@ -101,6 +102,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--kill-switch-file",
         help="Path to kill-switch sentinel file forwarded to daily runs.",
     )
+    parser.add_argument(
+        "--family",
+        choices=["index", "macro", "all"],
+        default=None,
+        help="Family focus (default: FAMILY env or index). Index family skips macro pipelines.",
+    )
     return parser.parse_args(argv)
 
 
@@ -111,6 +118,10 @@ def _fmt_float(value: float) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    family = resolve_family(getattr(args, "family", None))
+    if family == "index":
+        print("[today] FAMILY=index -> skipping macro daily runs")
+        return
     now = _now()
     write_heartbeat(
         mode="today:start",
