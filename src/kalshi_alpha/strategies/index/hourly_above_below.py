@@ -7,12 +7,16 @@ import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
+from math import inf
 
+from scipy.stats import skewnorm
+
+from kalshi_alpha.strategies import base
 from kalshi_alpha.core.pricing import LadderBinProbability
 from kalshi_alpha.datastore.paths import PROC_ROOT
 from kalshi_alpha.drivers.polygon_index.symbols import IndexSymbol, resolve_series
 
-from .cdf import SigmaCalibration, gaussian_pmf, load_calibration
+from .cdf import SigmaCalibration, load_calibration
 
 INDEX_CALIBRATION_ROOT = PROC_ROOT / "calib" / "index"
 HOURLY_CALIBRATION_PATH = INDEX_CALIBRATION_ROOT
@@ -32,6 +36,7 @@ class HourlyInputs:
     residual_override: float | None = field(init=False, default=None)
     event_tags: tuple[str, ...] = field(init=False, default=())
     variance_multiplier_override: float | None = field(init=False, default=None)
+    skew: float = field(init=False, default=0.0)
     target_hour_et: int | None = field(init=False, default=None)
 
     def __init__(  # noqa: PLR0913
@@ -47,6 +52,7 @@ class HourlyInputs:
         residual_override: float | None = None,
         event_tags: Sequence[str] | None = None,
         variance_multiplier_override: float | None = None,
+        skew: float = 0.0,
         target_hour: int | None = None,
     ) -> None:
         if minutes_to_target is not None and minutes_to_noon is not None:
@@ -73,6 +79,7 @@ class HourlyInputs:
         tags = tuple(tag for tag in (event_tags or ()) if tag is not None)
         object.__setattr__(self, "event_tags", tags)
         object.__setattr__(self, "variance_multiplier_override", variance_multiplier_override)
+        object.__setattr__(self, "skew", float(skew))
         hour_value = None if target_hour is None else int(target_hour) % 24
         object.__setattr__(self, "target_hour_et", hour_value)
 
@@ -104,7 +111,7 @@ def pmf(
     variance *= _event_multiplier(inputs, calib)
     effective_sigma = max(math.sqrt(variance), 0.5)
     mean = float(inputs.current_price) + float(drift)
-    return gaussian_pmf(strikes, mean=mean, std=effective_sigma, min_std=0.5)
+    return _skewnorm_pmf(strikes, mean=mean, std=effective_sigma, skew=float(inputs.skew), min_std=0.5)
 
 
 def _resolve_series(series: str) -> IndexSymbol:
@@ -160,6 +167,30 @@ def _target_hour_variant(target_hour: int | None) -> str | None:
     if target_hour is None:
         return None
     return f"{int(target_hour) % 24:02d}00"
+
+
+def _skewnorm_pmf(
+    strikes: Sequence[float],
+    *,
+    mean: float,
+    std: float,
+    skew: float,
+    min_std: float,
+) -> list[LadderBinProbability]:
+    scale = max(float(std), float(min_std))
+    distribution = skewnorm(a=float(skew), loc=float(mean), scale=scale)
+    bins = base.ladder_bins(strikes)
+    weights = []
+    for lower, upper in bins:
+        lower_bound = -inf if lower is None else float(lower)
+        upper_bound = inf if upper is None else float(upper)
+        weight = float(distribution.cdf(upper_bound) - distribution.cdf(lower_bound))
+        weights.append(max(weight, 0.0))
+    normalized = base.normalize(weights)
+    return [
+        LadderBinProbability(lower=lower, upper=upper, probability=prob)
+        for (lower, upper), prob in zip(bins, normalized, strict=True)
+    ]
 
 
 __all__ = ["HourlyInputs", "pmf", "HOURLY_CALIBRATION_PATH"]
