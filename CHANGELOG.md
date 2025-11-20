@@ -1,6 +1,8 @@
 # Changelog
 
 ## 2025-11-20
+- Critical Fix: Polygon batch websocket payloads (`stream_aggregates`) now accept list or dict messages, preventing supervisor crashes on Massive bursts.
+- Feat: Skew-Normal Pricing for hourly index above/below; added `skew` input to bias downside tails and protect maker inventory.
 - New 24/7 `kalshi_alpha.exec.supervisor` daemon orchestrates hourly INXU/NASDAQ100U scans and the 15:50 EOD close run; it keeps Polygon indices websockets alive, trips the kill switch when latency/age exceeds 500 ms, and drops heartbeats so ops can see status at a glance.
 - `scan_ladders --sniper` now hits top-of-book mispricings (>5% probability gap) as taker orders, caps size to visible depth, tags liquidity in metadata, and records sniper counts/thresholds in monitors for dashboards.
 - Added proof-of-fill CLI (`scripts/proof_of_fill.py`) to reconcile Kalshi order history with the ledger, print per-window fill/PnL tables, and persist `pnl_window_YYYY-MM-DD.parquet` artifacts.

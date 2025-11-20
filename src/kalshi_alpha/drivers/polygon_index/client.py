@@ -485,13 +485,21 @@ class PolygonIndicesClient:
                     while True:
                         raw = await connection.recv()
                         try:
-                            message = json.loads(raw)
+                            parsed = json.loads(raw)
                         except json.JSONDecodeError:
                             continue
-                        event_type = str(message.get("ev") or "").upper()
-                        if event_type not in expected_events:
+                        messages: Iterable[Mapping[str, Any]]
+                        if isinstance(parsed, list):
+                            messages = (item for item in parsed if isinstance(item, Mapping))
+                        elif isinstance(parsed, Mapping):
+                            messages = (parsed,)
+                        else:
                             continue
-                        yield message
+                        for message in messages:
+                            event_type = str(message.get("ev") or "").upper()
+                            if event_type not in expected_events:
+                                continue
+                            yield message
             except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
                 raise
             except (
