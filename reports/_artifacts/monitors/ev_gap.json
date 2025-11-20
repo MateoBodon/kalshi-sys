@@ -1,14 +1,11 @@
 {
-  "generated_at": "2025-11-11T16:22:35.799586+00:00",
-  "threshold": 0.15,
-  "max_delta": 0.0,
-  "by_window_type": {
-    "hourly": 0.0,
-    "close": 0.0
-  },
+  "generated_at": "2025-11-13T18:45:55.855483+00:00",
+  "threshold_cents": 25.0,
+  "threshold_usd": 0.25,
+  "max_delta_cents": 40.0,
+  "max_delta_usd": 0.4,
   "by_window": {
-    "INX 2025-11-10 16:00": 0.0,
-    "INXU 2025-11-10 13:00": 0.0,
-    "NASDAQ100U 2025-11-10 13:00": 0.0
+    "close": 0.0,
+    "hourly": 40.0
   }
 }
