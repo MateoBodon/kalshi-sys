@@ -80,6 +80,9 @@ Kalshi Alpha is a Python 3.11+ monorepo that orchestrates research, backtests, a
 3. **Data directories**
    - `data/raw`, `data/proc`, and `reports/_artifacts` are created on demand. Tests patch these paths to temp locations through fixtures (see `tests/conftest.py`).
 
+4. **Family switch**
+   - Pipelines and scoreboard default to `FAMILY=index` (SPX/NDX only). Pass `--family macro` or set `FAMILY=macro` when you intentionally run CPI/claims/weather/teny workflows.
+
 ---
 
 ## Quick Start Workflow

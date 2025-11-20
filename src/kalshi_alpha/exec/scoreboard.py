@@ -13,6 +13,7 @@ from pathlib import Path
 
 import polars as pl
 
+from kalshi_alpha.utils.family import resolve_family
 from kalshi_alpha.exec import slo
 from kalshi_alpha.core.execution import defaults as execution_defaults
 from kalshi_alpha.core.execution.index_models import (
@@ -115,6 +116,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Generate 7-day and 30-day performance scoreboards."
     )
     parser.add_argument(
+        "--family",
+        choices=["index", "macro", "all"],
+        default=None,
+        help="Family focus (default: FAMILY env or index). Index family runs index scoreboard.",
+    )
+    parser.add_argument(
         "--window",
         type=int,
         action="append",
@@ -146,6 +153,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    family = resolve_family(getattr(args, "family", None))
+    if family != "index":
+        print(f"[scoreboard] FAMILY={family} not supported; skipping index scoreboard")
+        return
     now = datetime.now(tz=UTC)
     ledger = _load_ledger()
     calibrations = _load_calibrations()

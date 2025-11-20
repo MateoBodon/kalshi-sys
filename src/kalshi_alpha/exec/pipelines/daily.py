@@ -54,6 +54,7 @@ from kalshi_alpha.strategies.claims import calibrate as calibrate_claims
 from kalshi_alpha.strategies.cpi import calibrate as calibrate_cpi
 from kalshi_alpha.strategies.teny import calibrate as calibrate_teny
 from kalshi_alpha.strategies.weather import calibrate as calibrate_weather
+from kalshi_alpha.utils.family import resolve_family
 from kalshi_alpha.utils.secrets import ensure_safe_payload
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -203,6 +204,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         help="Weekly expected-loss drawdown cap (USD).",
     )
+    parser.add_argument(
+        "--family",
+        choices=["index", "macro", "all"],
+        default=None,
+        help="Family focus (default: FAMILY env or index). Index family skips macro pipelines.",
+    )
     return parser.parse_args(argv)
 
 
@@ -254,6 +261,10 @@ def _resolve_fill_alpha_value(fill_alpha_arg: object, series: str) -> tuple[floa
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    family = resolve_family(getattr(args, "family", None))
+    if family == "index":
+        print("[daily] FAMILY=index -> skipping non-index pipeline modes")
+        return
     modes = MODE_SEQUENCE if args.mode == "full" else [args.mode]
     for mode in modes:
         run_mode(mode, args)

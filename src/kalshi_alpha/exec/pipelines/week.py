@@ -11,6 +11,7 @@ from kalshi_alpha.exec.heartbeat import write_heartbeat
 from kalshi_alpha.exec.pipelines import daily
 from kalshi_alpha.exec.pipelines.calendar import ET, RunWindow, resolve_run_window
 from kalshi_alpha.exec.state.orders import OutstandingOrdersState
+from kalshi_alpha.utils.family import resolve_family
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -91,6 +92,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Forward --force-run to daily pipeline runs (DRY broker only).",
     )
+    parser.add_argument(
+        "--family",
+        choices=["index", "macro", "all"],
+        default=None,
+        help="Family focus (default: FAMILY env or index). Index family skips macro pipelines.",
+    )
     return parser.parse_args(argv)
 
 
@@ -116,6 +123,10 @@ def _default_modes(include_weather: bool) -> list[str]:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    family = resolve_family(getattr(args, "family", None))
+    if family == "index":
+        print("[week] FAMILY=index -> skipping macro weekly run")
+        return
     now = datetime.now(tz=UTC)
     write_heartbeat(
         mode="week:start",

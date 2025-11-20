@@ -118,7 +118,8 @@ PY
             --mode pre_cpi \
             --offline \
             --driver-fixtures tests/fixtures \
-            --scanner-fixtures tests/data_fixtures
+            --scanner-fixtures tests/data_fixtures \
+            --family macro
           status=$?
           if [ $status -eq 0 ]; then
             echo "Expected quality gates to block run" >&2
@@ -166,7 +167,8 @@ PY
             --include-weather \
             --fill-alpha 0.6 \
             --slippage-mode depth \
-            --impact-cap 0.25
+            --impact-cap 0.25 \
+            --family macro
       - name: Aggregate ledgers
         run: |
           python -m kalshi_alpha.exec.ledger.aggregate

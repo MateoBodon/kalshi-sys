@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from kalshi_alpha.exec.runners import scan_ladders
+from kalshi_alpha.exec.window_guard import guard_series_window, parse_now_override
 
 DEFAULT_SERIES = ("INXU", "NASDAQ100U")
 DEFAULT_MIN_EV = 0.05
@@ -74,6 +75,10 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=Path("configs/quality_gates.index.yaml"),
         help="Override quality gates configuration (default: configs/quality_gates.index.yaml).",
     )
+    parser.add_argument(
+        "--now",
+        help="Override current timestamp (ISO-8601) for window gating (default: now).",
+    )
     return parser.parse_args(argv)
 
 
@@ -115,12 +120,27 @@ def _forward_args(series: str, config: argparse.Namespace) -> list[str]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
+    now_override = parse_now_override(args.now)
     series_list = [value.strip().upper() for value in args.series if value.strip()]
     if not series_list:
         raise ValueError("No series specified for pilot_hourly.")
+    ran = False
     for series in series_list:
+        allowed, _, next_window = guard_series_window(series, now=now_override, quiet=args.quiet)
+        if not allowed:
+            if not args.quiet:
+                suffix = (
+                    f"; next={next_window.start_et.isoformat()}->{next_window.target_et.isoformat()}"
+                    if next_window
+                    else ""
+                )
+                print(f"[pilot_hourly] window closed for {series}{suffix}")
+            continue
         forwarded = _forward_args(series, args)
         scan_ladders.main(forwarded)
+        ran = True
+    if not ran:
+        raise SystemExit(1)
     return 0
 
 

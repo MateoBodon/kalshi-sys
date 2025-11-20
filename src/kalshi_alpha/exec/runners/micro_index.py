@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta, time
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 
 from kalshi_alpha.config import load_index_ops_config
@@ -14,6 +14,7 @@ from kalshi_alpha.core.execution.slippage import fit_slippage
 from kalshi_alpha.datastore.paths import RAW_ROOT
 from kalshi_alpha.exec import scoreboard
 from kalshi_alpha.exec.runners import scan_ladders
+from kalshi_alpha.exec.window_guard import guard_series_window, parse_now_override
 
 INDEX_OPS_CONFIG = load_index_ops_config()
 
@@ -124,20 +125,22 @@ def _refit_execution_curves(series: str) -> None:
 def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
     scan_args = _build_scan_args(args)
-    timestamp = None
-    if args.now:
-        try:
-            parsed = datetime.fromisoformat(args.now)
-            timestamp = parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-        except ValueError:
-            raise SystemExit("--now must be ISO-8601 format, e.g. 2025-11-04T15:20:00+00:00") from None
+    reference = parse_now_override(args.now)
+    allowed, _, next_window = guard_series_window(args.series.upper(), now=reference, quiet=args.quiet)
+    if not allowed:
+        suffix = (
+            f"; next={next_window.start_et.isoformat()}->{next_window.target_et.isoformat()}"
+            if next_window
+            else ""
+        )
+        raise SystemExit(f"[microlive] window closed for {args.series.upper()}{suffix}")
     print(f"[microlive] starting scan_ladders with args: {' '.join(scan_args)}")
-    _log_ops_window(args.series.upper(), reference=timestamp, quiet=args.quiet)
+    _log_ops_window(args.series.upper(), reference=reference, quiet=args.quiet)
     scan_ladders.main(scan_args)
     _refit_execution_curves(args.series)
     if args.regenerate_scoreboard:
         print("[microlive] regenerating scoreboard and pilot readiness reports")
-        scoreboard.main([])
+        scoreboard.main(["--family", "index"])
     print("[microlive] complete")
 
 
