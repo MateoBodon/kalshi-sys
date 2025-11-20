@@ -658,7 +658,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             print(f"[drawdown] Skipping scan due to {reasons}")
         return
 
-    fee_ready, fee_reason = fee_rules.is_ready()
+    skip_fee_rules = offline_mode or str(args.broker or "").lower() != "live"
+    fee_ready, fee_reason = (True, None) if skip_fee_rules else fee_rules.is_ready()
     if not fee_ready:
         raise RuntimeError(f"Fee/rule watcher pending: {fee_reason or 'unknown'}")
 
@@ -737,6 +738,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         correlation_guard=correlation_guard,
         quote_optimizer=quote_optimizer,
         freshness_ms=ws_age_ms,
+        sniper=getattr(args, "sniper", False),
+        sniper_threshold=float(getattr(args, "sniper_threshold", 0.05)),
     )
 
     if pilot_session:
@@ -1416,12 +1419,14 @@ def _enforce_broker_guards(proposals: Sequence[Proposal], args: argparse.Namespa
 
     for proposal in proposals:
         order_id = f"{proposal.market_ticker}:{proposal.strike}"
+        liquidity_meta = str((proposal.metadata or {}).get("liquidity") or "maker").lower()
+        liquidity_flag = Liquidity.TAKER if liquidity_meta == "taker" else Liquidity.MAKER
         order = OrderProposal(
             strike_id=order_id,
             yes_price=proposal.market_yes_price,
             contracts=proposal.contracts,
             side=OrderSide[proposal.side.upper()],
-            liquidity=Liquidity.MAKER,
+            liquidity=liquidity_flag,
             market_name=proposal.market_ticker,
             series=proposal.series,
         )
@@ -1913,6 +1918,17 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Permit taker-side proposals (unsafe; disables maker-only guard).",
     )
     parser.add_argument(
+        "--sniper",
+        action="store_true",
+        help="Take top-of-book liquidity when market prob deviates >5% from model.",
+    )
+    parser.add_argument(
+        "--sniper-threshold",
+        type=float,
+        default=0.05,
+        help="Absolute probability gap required to trigger sniper taker (default: 0.05).",
+    )
+    parser.add_argument(
         "--max-loss-per-strike",
         type=float,
         help="Override PAL default max loss per strike (USD).",
@@ -2257,6 +2273,8 @@ def scan_series(  # noqa: PLR0913
     correlation_guard: CorrelationAwareLimiter | None = None,
     quote_optimizer: QuoteOptimizer | None = None,
     freshness_ms: float | None = None,
+    sniper: bool = False,
+    sniper_threshold: float = 0.05,
 ) -> ScanOutcome:
     now_utc = now_override if now_override is not None else datetime.now(tz=UTC)
     regime_flags = regimes.regime_for(now_utc)
@@ -2264,6 +2282,7 @@ def scan_series(  # noqa: PLR0913
     contracts_per_quote = max(1, int(round(base_contracts * regime_flags.size_multiplier)))
     kelly_cap_regime = max(float(kelly_cap) * regime_flags.slo_multiplier, 0.05)
     sigma_artifact = sigma_drift.load_artifact()
+    sniper_threshold = max(0.0, float(sniper_threshold))
     sigma_shrink: float | None = None
     series_obj = _find_series(client, series)
     daily_budget = LossBudget(daily_loss_cap)
@@ -2511,6 +2530,8 @@ def scan_series(  # noqa: PLR0913
                 orderbook=books_at_scan.get(market.id),
                 freshness_ms=freshness_ms,
                 replacement_throttle=replacement_throttle,
+                sniper=sniper,
+                sniper_threshold=sniper_threshold,
                 now_ts=now_utc,
             )
             if pilot_config is not None:
@@ -2597,6 +2618,17 @@ def scan_series(  # noqa: PLR0913
         monitors["var_family_exposure"] = var_limiter.snapshot()
     if correlation_guard is not None:
         monitors["correlation_var"] = correlation_guard.snapshot()
+    if sniper:
+        taker_count = sum(
+            1
+            for proposal in proposals
+            if str((proposal.metadata or {}).get("liquidity") or "").lower() == "taker"
+        )
+        monitors["sniper_enabled"] = True
+        monitors["sniper_threshold"] = round(float(sniper_threshold), 4)
+        monitors["sniper_proposals"] = taker_count
+    else:
+        monitors.setdefault("sniper_enabled", False)
     roll_payload: dict[str, object] | None = None
     if roll_decision is not None:
         now_et_value = roll_decision.get("now_et")
@@ -3059,6 +3091,8 @@ def _evaluate_market(  # noqa: PLR0913
     orderbook: Orderbook | None = None,
     freshness_ms: float | None = None,
     replacement_throttle: quote_microprice.ReplacementThrottle | None = None,
+    sniper: bool = False,
+    sniper_threshold: float = 0.05,
     now_ts: datetime | None = None,
 ) -> list[Proposal]:
     proposals: list[Proposal] = []
@@ -3070,11 +3104,23 @@ def _evaluate_market(  # noqa: PLR0913
     microprice_value = microprice_signal.microprice
     best_bid_price = microprice_signal.best_bid
     best_ask_price = microprice_signal.best_ask
+    best_bid_size = None
+    best_ask_size = None
+    if orderbook is not None:
+        try:
+            if orderbook.bids:
+                best_bid_size = float(orderbook.bids[0].get("size", 0.0))
+            if orderbook.asks:
+                best_ask_size = float(orderbook.asks[0].get("size", 0.0))
+        except Exception:
+            best_bid_size = None
+            best_ask_size = None
 
     for index, rung in enumerate(rungs):
         if allowed_indices is not None and index not in allowed_indices:
             continue
         yes_price = rung.yes_price
+        liquidity = Liquidity.MAKER
         event_probability = strategy_survival[index]
         survival_market = market_survival[index]
         raw_fraction: float | None = None
@@ -3082,6 +3128,31 @@ def _evaluate_market(  # noqa: PLR0913
         scaled_fraction: float | None = None
         uncertainty_metric = max(0.0, min(1.0, 1.0 - abs(event_probability - 0.5) * 2.0))
         imbalance_metric = max(0.0, min(1.0, abs(survival_market - 0.5) * 2.0))
+        sniper_used = False
+        sniper_gap: float | None = None
+        sniper_source: str | None = None
+        top_size: float | None = None
+        if sniper and orderbook is not None:
+            ask_gap = None
+            bid_gap = None
+            if best_ask_price is not None:
+                ask_gap = event_probability - best_ask_price
+            if best_bid_price is not None:
+                bid_gap = best_bid_price - event_probability
+            if ask_gap is not None and ask_gap >= sniper_threshold and best_ask_price is not None:
+                yes_price = float(best_ask_price)
+                liquidity = Liquidity.TAKER
+                sniper_used = True
+                sniper_gap = float(ask_gap)
+                sniper_source = "ask"
+                top_size = best_ask_size
+            elif bid_gap is not None and bid_gap >= sniper_threshold and best_bid_price is not None:
+                yes_price = float(best_bid_price)
+                liquidity = Liquidity.TAKER
+                sniper_used = True
+                sniper_gap = float(bid_gap)
+                sniper_source = "bid"
+                top_size = best_bid_size
 
         per_contract_raw = expected_value_summary(
             contracts=1,
@@ -3095,32 +3166,41 @@ def _evaluate_market(  # noqa: PLR0913
         if apply_shrink:
             per_contract_eval["maker_yes"] *= ev_shrink
             per_contract_eval["maker_no"] *= ev_shrink
-        best_side, best_ev = _choose_side(per_contract_eval, maker_only=maker_only)
-        maker_key = "maker_yes" if best_side is OrderSide.YES else "maker_no"
-        taker_key = "taker_yes" if best_side is OrderSide.YES else "taker_no"
         throttle_key: str | None = None
         penalty = 0.0
-        if quote_optimizer is not None:
-            quote_context = QuoteContext(
-                market_id=market_id,
-                strike=rung.strike,
-                side=best_side,
-                pmf_probability=event_probability,
-                market_probability=survival_market,
-                microprice=microprice_value,
-                best_bid=best_bid_price,
-                best_ask=best_ask_price,
-                freshness_ms=freshness_ms,
-                maker_ev_per_contract=per_contract_eval[maker_key],
-            )
-            penalty = quote_optimizer.penalty(quote_context)
-            throttle_key = quote_optimizer.key_for_order(market_id, rung.strike, best_side)
-        effective_min_ev = min_ev + penalty
+        if sniper_used:
+            best_side = OrderSide.YES if sniper_source == "ask" else OrderSide.NO
+            maker_key = "maker_yes" if best_side is OrderSide.YES else "maker_no"
+            taker_key = "taker_yes" if best_side is OrderSide.YES else "taker_no"
+            best_ev = per_contract_eval[taker_key]
+            effective_min_ev = min_ev
+        else:
+            best_side, best_ev = _choose_side(per_contract_eval, maker_only=maker_only)
+            maker_key = "maker_yes" if best_side is OrderSide.YES else "maker_no"
+            taker_key = "taker_yes" if best_side is OrderSide.YES else "taker_no"
+            if quote_optimizer is not None:
+                quote_context = QuoteContext(
+                    market_id=market_id,
+                    strike=rung.strike,
+                    side=best_side,
+                    pmf_probability=event_probability,
+                    market_probability=survival_market,
+                    microprice=microprice_value,
+                    best_bid=best_bid_price,
+                    best_ask=best_ask_price,
+                    freshness_ms=freshness_ms,
+                    maker_ev_per_contract=per_contract_eval[maker_key],
+                )
+                penalty = quote_optimizer.penalty(quote_context)
+                throttle_key = quote_optimizer.key_for_order(market_id, rung.strike, best_side)
+            effective_min_ev = min_ev + penalty
         if best_ev < effective_min_ev:
             continue
-        if throttle_key and replacement_throttle is not None and replacement_throttle.should_block(
-            throttle_key,
-            now=now_ts,
+        if (
+            throttle_key
+            and replacement_throttle is not None
+            and liquidity is Liquidity.MAKER
+            and replacement_throttle.should_block(throttle_key, now=now_ts)
         ):
             continue
 
@@ -3131,7 +3211,7 @@ def _evaluate_market(  # noqa: PLR0913
                 yes_price=yes_price,
                 contracts=1,
                 side=best_side,
-                liquidity=Liquidity.MAKER,
+                liquidity=liquidity,
                 market_name=market_ticker,
                 series=series_ticker,
             )
@@ -3141,6 +3221,11 @@ def _evaluate_market(  # noqa: PLR0913
         if max_loss_single <= 0 or remaining_limit <= 0:
             continue
         max_contracts = min(int(remaining_limit // max_loss_single), contracts)
+        if top_size is not None and top_size > 0:
+            try:
+                max_contracts = min(max_contracts, int(top_size))
+            except (TypeError, ValueError):
+                pass
         if max_contracts <= 0:
             continue
 
@@ -3247,7 +3332,7 @@ def _evaluate_market(  # noqa: PLR0913
             total_ev_eval["maker_yes"] *= ev_shrink
             total_ev_eval["maker_no"] *= ev_shrink
 
-        if maker_only:
+        if maker_only and not sniper_used:
             total_ev_eval[taker_key] = 0.0
             per_contract_eval[taker_key] = 0.0
             total_ev_raw[taker_key] = 0.0
@@ -3268,7 +3353,7 @@ def _evaluate_market(  # noqa: PLR0913
             yes_price=yes_price,
             contracts=contract_count,
             side=best_side,
-            liquidity=Liquidity.MAKER,
+            liquidity=liquidity,
             market_name=market_ticker,
             series=series_ticker,
         )
@@ -3316,22 +3401,43 @@ def _evaluate_market(  # noqa: PLR0913
             optim_meta = risk_block.setdefault("quote_optim", {})
             optim_meta["ev_penalty"] = penalty
             optim_meta["min_ev"] = effective_min_ev
+        if sniper_used:
+            proposal_metadata["liquidity"] = "taker"
+            proposal_metadata["sniper"] = {
+                "gap": round(sniper_gap, 6) if sniper_gap is not None else None,
+                "source": sniper_source,
+                "top_size": top_size,
+            }
+            book_snapshot: dict[str, object] = {}
+            if best_bid_price is not None:
+                book_snapshot["bid"] = {"price": best_bid_price, "size": best_bid_size}
+            if best_ask_price is not None:
+                book_snapshot["ask"] = {"price": best_ask_price, "size": best_ask_size}
+            if book_snapshot:
+                proposal_metadata["book_snapshot"] = book_snapshot
+        else:
+            proposal_metadata["liquidity"] = "maker"
 
         if best_side is OrderSide.YES:
             fee_price = yes_price
         else:
             fee_price = 1.0 - yes_price
+        fee_liquidity = "taker" if liquidity is Liquidity.TAKER else "maker"
         if series_ticker.upper().startswith(tuple(fee_utils.INDEX_PREFIXES)):
             fee_details = exec_fees.fee_breakdown(
                 series=series_ticker,
                 price=fee_price,
                 contracts=contract_count,
-                liquidity="maker",
+                liquidity=fee_liquidity,
             )
             per_contract_fee = float(fee_details["per_contract_effective"])
             total_fee = float(fee_details["per_order"])
         else:
-            fee_fn = DEFAULT_FEE_SCHEDULE.maker_fee
+            fee_fn = (
+                DEFAULT_FEE_SCHEDULE.taker_fee
+                if liquidity is Liquidity.TAKER
+                else DEFAULT_FEE_SCHEDULE.maker_fee
+            )
             per_contract_fee = float(
                 fee_fn(
                     1,
@@ -3348,25 +3454,30 @@ def _evaluate_market(  # noqa: PLR0913
                     market_name=market_ticker,
                 )
             )
+        ev_key = taker_key if liquidity is Liquidity.TAKER else maker_key
         proposal_metadata["ev_components"] = {
             "per_contract": {
-                "gross": per_contract_raw[maker_key] + per_contract_fee,
-                "net": per_contract_raw[maker_key],
+                "gross": per_contract_raw[ev_key] + per_contract_fee,
+                "net": per_contract_raw[ev_key],
                 "fee": per_contract_fee,
             },
             "total": {
-                "gross": total_ev_raw[maker_key] + total_fee,
-                "net": total_ev_raw[maker_key],
+                "gross": total_ev_raw[ev_key] + total_fee,
+                "net": total_ev_raw[ev_key],
                 "fee": total_fee,
             },
             "fee_price": fee_price,
-            "liquidity": "maker",
+            "liquidity": fee_liquidity,
             "side": best_side.name.lower(),
         }
 
         if correlation_guard is not None and correlation_exposure is not None:
             correlation_guard.register(correlation_exposure)
-        if replacement_throttle is not None and throttle_key is not None:
+        if (
+            replacement_throttle is not None
+            and throttle_key is not None
+            and liquidity is Liquidity.MAKER
+        ):
             replacement_throttle.record(throttle_key, now=now_ts)
 
         proposal = Proposal(

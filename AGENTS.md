@@ -1,32 +1,39 @@
-# AGENTS.md — kalshi-sys (Hourly + Close, SPX/NDX)
+# AGENTS.md - Kalshi Alpha Automated Trading System
 
-## Mission
-Maker-only strategies for S&P 500 (INX*/I:SPX) and Nasdaq-100 (NASDAQ100*/I:NDX) **hourly** (INXU/NASDAQ100U) and **close** (INX/NASDAQ100) ladders on Kalshi. Quote small positive-EV bins; measure realized edge honestly; scale only on evidence.
+> **WARNING FOR AGENTS:** This system handles real capital. Safety, latency, and correctness are paramount. Do not hallucinate APIs.
 
-## Non-negotiables
-- Maker-only. Never cross. Cancel all quotes by T−2s.
-- Hourly targets: 10:00,11:00,12:00,13:00,14:00,15:00,16:00 ET. Close: 16:00 ET.
-- Fees: index taker = `round_up(0.035*C*P*(1−P))`; **maker = $0** for these series unless fee schedule changes. Unit tests guard this.
-- Quote only if `EV_after_fees ≥ $0.05` and `α·EV − slippage > 0` on paper. Max **1-lots**, **≤2 bins/series**, strict PAL/loss caps.
+## 1. Project Overview
+`kalshi-sys` is a Python 3.11 monorepo for algorithmic trading on Kalshi (prediction markets).
+- **Core Assets:** SPX (S&P 500) and NDX (Nasdaq-100).
+- **Markets:** Intraday Hourly (e.g., `KXINXU-25NOV03H1200`) and Daily Close (e.g., `KXINX-25NOV03H1600`).
+- **Data Source:** Polygon.io (Indices Advanced + Stocks Advanced).
+- **Execution:** `LiveBroker` (Real $) and `DryBroker` (Paper).
 
-## Data & secrets
-- Polygon Indices WS (minute/second) for I:SPX, I:NDX. Optional SPY/QQQ for health.
-- macOS Keychain item: `kalshi-sys:POLYGON_API_KEY`; env fallback; never log secrets.
+## 2. Command Protocol
+* **Install:** `pip install -e ".[dev]"`
+* **Test:** `pytest -q tests/` (Must pass before commit)
+* **Lint:** `ruff check .`
+* **Typecheck:** `mypy src/`
+* **Run Scan (Dry):** `python -m kalshi_alpha.exec.runners.scan_ladders --series INXU --offline --report`
+* **Start Supervisor:** `python -m kalshi_alpha.exec.supervisor --broker live --sniper --ack-risks` (adds 24/7 hourly/EOD scheduling + kill-switch guard)
+* **Cloud Job:** `python scripts/aws_job.py --job calibrate_hourly`
 
-## Modeling
-- Per-hour calibration (σ_now × m_TOD, micro-drift, event-day tails). PIT correction.
-- Close ranges integrate PDF over bin and smooth adjacency.
+## 3. Architecture Rules
+1.  **Monorepo Structure:** All source code is in `src/kalshi_alpha`.
+2.  **No Hardcoding:** Secrets must be loaded from `.env.local` or environment variables via `kalshi_alpha.utils.env`.
+3.  **Safety Gates:**
+    * **Kill Switch:** Check `data/proc/state/kill_switch` before *every* order.
+    * **Freshness:** Data older than 2 seconds is "stale". Do not trade on stale data. Supervisor auto-trips the kill switch if Polygon WS latency/age >500 ms.
+    * **Limits:** Respect `configs/pal_policy.yaml` (Position limits).
 
-## Execution
-- pilot_hourly: open at T−15m, reprice on drift, cancel T−2s.
-- Guardrails: kill switch, NO-GO gates, freshness, calibration age.
+## 4. Development Workflow
+1.  **Plan:** Before writing code, analyze the `reports/` to see how the strategy is currently performing.
+2.  **Implement:** Write code in small, testable chunks.
+3.  **Verify:** Use `tools.replay` to simulate your changes against yesterday's market data.
+4.  **Document:** Update `CHANGELOG.md` with specific metrics (e.g., "Improved latency by 50ms").
 
-## Tests & verification
-- Fees (goldens incl. 50c → 0.88c), range mass, noon/hourly CDF, PIT; WS reconnect & parquet chunking.
-- Smoke: scanners write CSV + Markdown; scoreboard & readiness generate without errors.
-
-## Observability
-- JSONL logs; monitors for data latency, α-gap, slippage drift; alert if ledger silent.
-
-## When in doubt
-- Small, reversible changes with clear commit messages. Add `TODO(OWNER=mateo)` and proceed with safe defaults.
+## 5. Key Files
+- `src/kalshi_alpha/strategies/index/hourly_above_below.py`: The math (Gaussian/Skew models).
+- `src/kalshi_alpha/exec/runners/scan_ladders.py`: The main execution loop.
+- `src/kalshi_alpha/exec/supervisor.py`: 24/7 daemon scheduling hourly scans, close scans, and websocket freshness guard.
+- `src/kalshi_alpha/exec/heartbeat.py`: System health monitoring.
