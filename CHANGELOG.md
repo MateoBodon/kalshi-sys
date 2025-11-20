@@ -1,6 +1,8 @@
 # Changelog
 
 ## 2025-11-20
+- New 24/7 `kalshi_alpha.exec.supervisor` daemon orchestrates hourly INXU/NASDAQ100U scans and the 15:50 EOD close run; it keeps Polygon indices websockets alive, trips the kill switch when latency/age exceeds 500 ms, and drops heartbeats so ops can see status at a glance.
+- `scan_ladders --sniper` now hits top-of-book mispricings (>5% probability gap) as taker orders, caps size to visible depth, tags liquidity in metadata, and records sniper counts/thresholds in monitors for dashboards.
 - Added proof-of-fill CLI (`scripts/proof_of_fill.py`) to reconcile Kalshi order history with the ledger, print per-window fill/PnL tables, and persist `pnl_window_YYYY-MM-DD.parquet` artifacts.
 - Introduced staged sizing via `configs/size_ladder.yaml` plus loader helpers; the live loop now respects the current ladder stage and final-minute freshness freezes.
 - New promotion audit helper (`scripts/check_promotion_ladder.py`) scores recent PnL/SLO artifacts to recommend stage upgrades; unit tests cover ladder parsing and promotion paths.
