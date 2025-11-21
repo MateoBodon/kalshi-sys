@@ -54,3 +54,53 @@ def test_backtest_cli_produces_trades(tmp_path):
     assert reports
     frame = pl.read_csv(csvs[0])
     assert frame.height > 0
+
+
+def test_backtest_cli_uses_kalshi_quotes(tmp_path):
+    panel_path = tmp_path / "panel.parquet"
+    panel = build_panel(
+        symbols=("I:SPX",),
+        input_root=FIXTURE_ROOT,
+        output_path=panel_path,
+    )
+    params_root = tmp_path / "calib"
+    close_panel = panel.filter(pl.col("symbol") == "I:SPX")
+    params = fit_from_panel(close_panel, horizon="close", symbols=["I:SPX"])
+    save_params(params, params_path("INX", "close", root=params_root))
+
+    trades_dir = tmp_path / "trades"
+    reports_dir = tmp_path / "reports"
+    cmd = [
+        "python",
+        "-m",
+        "kalshi_alpha.exec.backtest_index_polygon",
+        "--series",
+        "INX",
+        "--panel",
+        str(panel_path),
+        "--params-root",
+        str(params_root),
+        "--output-root",
+        str(trades_dir),
+        "--report-root",
+        str(reports_dir),
+        "--start-date",
+        "2025-11-04",
+        "--end-date",
+        "2025-11-04",
+        "--ev-threshold-cents",
+        "-200",
+        "--max-bins-per-market",
+        "10",
+        "--use-kalshi-quotes",
+        "--quotes-dir",
+        "tests/data_fixtures/kalshi_index_quotes",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    assert result.returncode == 0
+    csvs = list(trades_dir.glob("*.csv"))
+    assert csvs, f"stdout={result.stdout}\nstderr={result.stderr}"
+    frame = pl.read_csv(csvs[0])
+    assert set(frame["strike"].to_list()) == {4495.0, 4505.0, 4515.0}
+    assert frame["fill_prob"].max() < 1.0
+    assert frame["fill_prob"].min() > 0.0

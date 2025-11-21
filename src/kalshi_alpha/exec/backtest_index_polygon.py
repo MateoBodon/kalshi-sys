@@ -8,6 +8,7 @@ from pathlib import Path
 
 import polars as pl
 
+from kalshi_alpha.drivers.kalshi_index_history import DEFAULT_QUOTES_ROOT
 from kalshi_alpha.strategies.index.backtest_polygon import (
     BacktestConfig,
     run_backtest,
@@ -80,6 +81,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_REPORT_DIR,
         help="Directory to write Markdown summaries into.",
     )
+    parser.add_argument(
+        "--use-kalshi-quotes",
+        action="store_true",
+        help="Prefer recorded Kalshi ladder quotes for strike grids and spreads.",
+    )
+    parser.add_argument(
+        "--quotes-dir",
+        type=Path,
+        default=DEFAULT_QUOTES_ROOT,
+        help="Root directory containing historical Kalshi quotes (default: data/raw/kalshi/index_quotes).",
+    )
+    parser.add_argument(
+        "--disable-fill-model",
+        action="store_true",
+        help="Skip probabilistic fills (assume deterministic maker fills).",
+    )
     return parser.parse_args(argv)
 
 
@@ -100,6 +117,9 @@ def main(argv: list[str] | None = None) -> None:
         maker_edge=float(args.maker_edge_cents) / 100.0,
         params_root=args.params_root,
         panel_path=panel_path,
+        use_kalshi_quotes=bool(args.use_kalshi_quotes),
+        quotes_root=args.quotes_dir,
+        use_fill_model=not args.disable_fill_model,
     )
     trades = run_backtest(panel, config)
     summary = summarize(trades)

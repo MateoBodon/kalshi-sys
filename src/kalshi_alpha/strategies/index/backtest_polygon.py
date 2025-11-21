@@ -1,4 +1,4 @@
-"""Minimal Polygon-only backtest harness for index ladders."""
+"""Minimal Polygon-only backtest harness for index ladders with Kalshi quotes."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ import polars as pl
 
 from kalshi_alpha.core.pricing import Liquidity, OrderSide, expected_value_after_fees
 from kalshi_alpha.exec.scanners.utils import pmf_to_survival
+from kalshi_alpha.drivers import kalshi_index_history
+from kalshi_alpha.drivers.kalshi_index_history import QuoteSnapshot
+from kalshi_alpha.strategies.index.fill_model import estimate_maker_fill_prob
 from kalshi_alpha.strategies.index.model_polygon import load_params, params_path, predict_pmf
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series
 
@@ -36,6 +39,9 @@ class BacktestConfig:
     params_root: Path | None = None
     panel_path: Path | None = None
     horizons: Sequence[str] | None = None
+    use_kalshi_quotes: bool = False
+    quotes_root: Path | None = None
+    use_fill_model: bool = True
 
 
 @dataclass(frozen=True)
@@ -49,8 +55,11 @@ class TradeResult:
     yes_price: float
     model_prob: float
     market_prob: float
+    fill_prob: float
     maker_ev: float
+    ev_if_filled: float
     pnl: float
+    pnl_if_filled: float
     settlement_price: float
     minutes_to_target: float
 
@@ -99,7 +108,22 @@ def _simulate_day(
     if snapshot is None:
         return []
     now_ts, price_now = snapshot
-    minutes_to_target = _minutes_to_target(now_ts, target_dt)
+    quotes: QuoteSnapshot | None = None
+    if config.use_kalshi_quotes:
+        try:
+            quotes = kalshi_index_history.latest_snapshot(
+                series=series,
+                trading_day=frame_day.item(0, "trading_day"),
+                horizon=horizon,
+                as_of=now_ts,
+                root=config.quotes_root,
+            )
+        except FileNotFoundError:
+            quotes = None
+
+    # Use the quote timestamp when present so time-to-target aligns with Kalshi data.
+    reference_now = quotes.as_of if quotes is not None else now_ts
+    minutes_to_target = _minutes_to_target(reference_now, target_dt)
     if minutes_to_target <= 0:
         return []
 
@@ -107,7 +131,8 @@ def _simulate_day(
     if target_price is None:
         return []
 
-    strikes = _strike_grid(price_now, symbol)
+    strikes = quotes.strikes if quotes is not None else _strike_grid(price_now, symbol)
+    quote_map = {float(row["strike"]): row for row in quotes.quotes.to_dicts()} if quotes else {}
     pmf = predict_pmf(
         {"symbol": symbol, "price": price_now, "minutes_to_target": minutes_to_target},
         params,
@@ -118,7 +143,16 @@ def _simulate_day(
     candidates = []
     for strike, event_prob in zip(strikes, survival, strict=True):
         quoted_yes = max(min(event_prob - config.maker_edge, 0.99), 0.01)
-        ev = expected_value_after_fees(
+        quote_row = quote_map.get(float(strike))
+        market_mid = float(quote_row["mid"]) if quote_row else max(min(event_prob, 0.99), 0.01)
+        spread_cents = float(quote_row["spread_cents"]) if quote_row else 0.0
+        distance_to_mid_cents = abs(quoted_yes - market_mid) * 100.0
+        if quote_row and config.use_fill_model:
+            fill_prob = estimate_maker_fill_prob(distance_to_mid_cents, minutes_to_target, spread_cents)
+        else:
+            fill_prob = 1.0
+
+        ev_if_filled = expected_value_after_fees(
             contracts=config.contracts,
             yes_price=quoted_yes,
             event_probability=event_prob,
@@ -126,26 +160,53 @@ def _simulate_day(
             liquidity=Liquidity.MAKER,
             series=series,
         )
-        candidates.append((ev, strike, event_prob, quoted_yes))
+        maker_ev = fill_prob * ev_if_filled
+        event_occurs = target_price >= strike
+        pnl_if_filled = (1.0 - quoted_yes) if event_occurs else -quoted_yes
+        expected_pnl = fill_prob * pnl_if_filled
+        candidates.append(
+            (
+                maker_ev,
+                strike,
+                event_prob,
+                quoted_yes,
+                market_mid,
+                fill_prob,
+                ev_if_filled,
+                expected_pnl,
+                pnl_if_filled,
+            )
+        )
 
     candidates.sort(key=lambda row: row[0], reverse=True)
     selected = [entry for entry in candidates if entry[0] >= config.ev_threshold][: config.max_bins]
-    for ev, strike, event_prob, quoted_yes in selected:
-        event_occurs = target_price >= strike
-        pnl = (1.0 - quoted_yes) if event_occurs else -quoted_yes
+    for (
+        maker_ev,
+        strike,
+        event_prob,
+        quoted_yes,
+        market_mid,
+        fill_prob,
+        ev_if_filled,
+        expected_pnl,
+        pnl_if_filled,
+    ) in selected:
         trades.append(
             TradeResult(
                 series=series,
                 symbol=symbol,
                 trading_day=frame_day.item(0, "trading_day"),
                 horizon=horizon,
-                timestamp=now_ts,
+                timestamp=reference_now,
                 strike=float(strike),
                 yes_price=float(quoted_yes),
                 model_prob=float(event_prob),
-                market_prob=float(event_prob - config.maker_edge),
-                maker_ev=float(ev),
-                pnl=float(pnl),
+                market_prob=float(market_mid),
+                fill_prob=float(fill_prob),
+                maker_ev=float(maker_ev),
+                ev_if_filled=float(ev_if_filled),
+                pnl=float(expected_pnl),
+                pnl_if_filled=float(pnl_if_filled),
                 settlement_price=float(target_price),
                 minutes_to_target=float(minutes_to_target),
             )
@@ -225,8 +286,11 @@ def write_trades_csv(trades: Iterable[TradeResult], path: Path) -> None:
                 "yes_price",
                 "model_prob",
                 "market_prob",
+                "fill_prob",
                 "maker_ev",
+                "ev_if_filled",
                 "pnl",
+                "pnl_if_filled",
                 "settlement_price",
             ]
         )
@@ -243,8 +307,11 @@ def write_trades_csv(trades: Iterable[TradeResult], path: Path) -> None:
                     f"{trade.yes_price:.4f}",
                     f"{trade.model_prob:.6f}",
                     f"{trade.market_prob:.6f}",
+                    f"{trade.fill_prob:.4f}",
                     f"{trade.maker_ev:.6f}",
+                    f"{trade.ev_if_filled:.6f}",
                     f"{trade.pnl:.6f}",
+                    f"{trade.pnl_if_filled:.6f}",
                     f"{trade.settlement_price:.2f}",
                 ]
             )

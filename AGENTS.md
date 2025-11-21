@@ -166,6 +166,20 @@ For any significant code change, run at least:
   PYTHONPATH=src python -m kalshi_alpha.exec.backtest_index_polygon --panel data/proc/index_panel_polygon.parquet --params-root data/proc/calib/index_polygon --series INXU NASDAQ100U --start-date YYYY-MM-DD --end-date YYYY-MM-DD
   ```
 
+- Historical Kalshi index quotes live under `data/raw/kalshi/index_quotes/<SERIES>/<YYYY-MM-DD>.{csv,json,parquet}`. To reuse recorded strike grids/spreads and the maker fill model in the Polygon backtest, add:
+
+  ```bash
+  PYTHONPATH=src python -m kalshi_alpha.exec.backtest_index_polygon \
+    --panel data/proc/index_panel_polygon.parquet \
+    --params-root data/proc/calib/index_polygon \
+    --series INXU \
+    --start-date YYYY-MM-DD --end-date YYYY-MM-DD \
+    --use-kalshi-quotes \
+    --quotes-dir data/raw/kalshi/index_quotes
+  ```
+
+  The backtest will fall back to synthetic strikes when no quote file is found. Maker EVs are now scaled by a simple spread/latency-aware fill model (`strategies/index/fill_model.py`).
+
 - Fast tests for the new stack:
 
   ```bash
