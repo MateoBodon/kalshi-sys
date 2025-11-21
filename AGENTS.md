@@ -127,7 +127,20 @@ For any significant code change, run at least:
      python -m kalshi_alpha.exec.scanners.scan_index_close --offline --fixtures
      ```
 
-4. **Scoreboard / reporting smoke**:
+   - Quick loop (CI-friendly) using trimmed Polygon fixtures:
+
+     ```bash
+     python -m kalshi_alpha.exec.scanners.scan_index_hourly --offline --fast-fixtures
+     python -m kalshi_alpha.exec.scanners.scan_index_close --offline --fast-fixtures
+     ```
+
+4. **Time-awareness gate checks** (sched/window/final-minute changes):
+
+   ```bash
+   PYTHONPATH=src pytest tests/exec/test_time_awareness.py
+   ```
+
+5. **Scoreboard / reporting smoke**:
 
    ```bash
    python -m kalshi_alpha.exec.scoreboard --family index --offline
@@ -224,6 +237,9 @@ On starting a session in this repo:
 - Favor small, incremental changes with clear intent.
 - Use `apply_patch` (or equivalent) for file edits when available.
 - Prefer `rg` over `grep` to search code.
+- Index websockets: use `kalshi_alpha.drivers.polygon_index_ws` (`polygon_index_ws` context +
+  `close_shared_connection`) so each process maintains a single Massive index WS; metrics helpers
+  `active_connection_count`/`last_message_age_seconds` are available for monitoring.
 - When adding new modules or commands:
   - Wire them into tests and CI where appropriate.
   - Add short docstrings and comments only where the logic is non-obvious.
