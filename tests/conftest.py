@@ -225,6 +225,9 @@ INDEX_ACTIVE_PATTERNS = (
     "/test_index_windows_guard.py",
     "/test_fast_index_scans.py",
     "/test_time_awareness.py",
+    "/test_index_panel_polygon.py",
+    "/test_model_polygon.py",
+    "/test_backtest_index_polygon.py",
     "/test_ws_lifecycle.py",
     "/test_polygon_index_ws.py",
 )
