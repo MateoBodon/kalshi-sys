@@ -1,0 +1,3 @@
+{"timestamp_et":"2025-11-18T13:02:00-05:00","series":"INXU","window":"hourly-1300","kalshi_market_id":"mkt-1","market_ticker":"INXU-H13","strike":5450,"side":"buy","price":0.38,"size":1,"fill_prob":0.7,"ev_after_fees_cents":5.0,"mode":"dry"}
+{"timestamp_et":"2025-11-18T15:45:00-05:00","series":"INX","window":"close-1600","kalshi_market_id":"mkt-2","market_ticker":"INX-CLOSE","strike":5500,"side":"sell","price":0.62,"size":1,"fill_prob":null,"ev_after_fees_cents":8.5,"mode":"dry"}
+{"timestamp_et":"2025-11-19T11:10:00-05:00","series":"NASDAQ100U","window":"hourly-1100","kalshi_market_id":"mkt-3","market_ticker":"NDXU-H11","strike":18900,"side":"buy","price":0.44,"size":2,"fill_prob":0.55,"ev_after_fees_cents":6.2,"mode":"dry"}

@@ -232,6 +232,9 @@ INDEX_ACTIVE_PATTERNS = (
     "/test_fill_model.py",
     "/test_ws_lifecycle.py",
     "/test_polygon_index_ws.py",
+    "/test_index_paper_ledger.py",
+    "/test_scoreboard_index_paper.py",
+    "/test_freshness_gate_index.py",
 )
 SLOW_PATTERNS = (
     "live_smoke",
