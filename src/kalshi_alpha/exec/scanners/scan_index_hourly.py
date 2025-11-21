@@ -2,29 +2,23 @@
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
-from kalshi_alpha.config import IndexRule, lookup_index_rule
+from kalshi_alpha.config import IndexRule, load_index_ops_config, lookup_index_rule
 from kalshi_alpha.core.pricing import LadderBinProbability, OrderSide
-from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
-from kalshi_alpha.exec.scanners.index_scan_common import (
-    ScannerConfig,
-    build_parser,
-    parse_timestamp,
-    run_index_scan,
-)
-from kalshi_alpha.exec.scanners.utils import expected_value_summary
-from kalshi_alpha.strategies.index import (
-    HOURLY_CALIBRATION_PATH as _HOURLY_CALIBRATION_PATH,
-)
-from kalshi_alpha.strategies.index import HourlyInputs, hourly_pmf
-from kalshi_alpha.strategies.index import cdf as index_cdf
+from kalshi_alpha.datastore.paths import PROC_ROOT
 
-HOURLY_CALIBRATION_PATH = _HOURLY_CALIBRATION_PATH
+if TYPE_CHECKING:
+    from kalshi_alpha.strategies.index import HourlyInputs
+
+HOURLY_CALIBRATION_PATH = PROC_ROOT / "calib" / "index"
+INDEX_OPS_CONFIG = load_index_ops_config()
 DEFAULT_SERIES: tuple[str, ...] = ("INXU", "NASDAQ100U")
 ET = ZoneInfo("America/New_York")
 DEFAULT_TARGET_HOURS = (10, 11, 12, 13, 14, 15, 16)
@@ -51,6 +45,20 @@ class IndexScanResult:
     rule: IndexRule | None = None
 
 
+def _preparse_fast_flags(argv: Sequence[str] | None) -> tuple[argparse.Namespace, list[str]]:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--fast-fixtures", action="store_true", dest="fast_fixtures")
+    parser.add_argument("--fixtures-root", default="tests/data_fixtures")
+    parser.add_argument("--output-root", default="reports/index_ladders")
+    parser.add_argument("--series", nargs="+")
+    parser.add_argument("--target-hour", dest="target_hours", type=int, action="append")
+    parser.add_argument("--now")
+    parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--contracts", type=int, default=1)
+    parser.add_argument("--min-ev", type=float, default=float(INDEX_OPS_CONFIG.min_ev_usd))
+    return parser.parse_known_args(list(argv) if argv is not None else None)
+
+
 def evaluate_hourly(  # noqa: PLR0913
     strikes: Sequence[float],
     yes_prices: Sequence[float],
@@ -59,6 +67,11 @@ def evaluate_hourly(  # noqa: PLR0913
     contracts: int = 1,
     min_ev: float = 0.05,
 ) -> IndexScanResult:
+    from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
+    from kalshi_alpha.exec.scanners.utils import expected_value_summary
+    from kalshi_alpha.strategies.index import hourly_pmf
+    from kalshi_alpha.strategies.index import cdf as index_cdf
+
     if len(strikes) != len(yes_prices):
         raise ValueError("strikes and prices must have equal length")
     variant = None
@@ -139,6 +152,20 @@ def evaluate_hourly(  # noqa: PLR0913
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    fast_args, _remaining = _preparse_fast_flags(argv)
+    if fast_args.fast_fixtures:
+        from kalshi_alpha.exec.scanners.fast_index import run_fast_hourly
+
+        run_fast_hourly(fast_args)
+        return
+
+    from kalshi_alpha.exec.scanners.index_scan_common import (
+        ScannerConfig,
+        build_parser,
+        parse_timestamp,
+        run_index_scan,
+    )
+
     parser = build_parser(DEFAULT_SERIES)
     parser.add_argument(
         "--target-hour",
@@ -146,6 +173,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         type=int,
         action="append",
         help="Specific ET target hour to scan (repeat for multiple). Default scans 10:00-16:00 ET.",
+    )
+    parser.add_argument(
+        "--fast-fixtures",
+        action="store_true",
+        dest="fast_fixtures",
+        help="Use trimmed Polygon index fixtures for quick offline runs.",
     )
     args = parser.parse_args(argv)
     base_timestamp = parse_timestamp(args.now) or datetime.now(tz=UTC)

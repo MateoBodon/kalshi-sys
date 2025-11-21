@@ -2,24 +2,35 @@
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Sequence
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from kalshi_alpha.config import lookup_index_rule
-from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
-from kalshi_alpha.exec.scanners.utils import expected_value_summary
-from kalshi_alpha.strategies.index import CLOSE_CALIBRATION_PATH, CloseInputs, close_pmf
-from kalshi_alpha.strategies.index import cdf as index_cdf
+from kalshi_alpha.datastore.paths import PROC_ROOT
 
-from .index_scan_common import (
-    ScannerConfig,
-    build_parser,
-    parse_timestamp,
-    run_index_scan,
-)
 from .scan_index_hourly import IndexScanResult, QuoteOpportunity
+
+if TYPE_CHECKING:
+    from kalshi_alpha.strategies.index import CloseInputs
+
+CLOSE_CALIBRATION_PATH = PROC_ROOT / "calib" / "index"
+
+
+def _preparse_fast_flags(argv: Sequence[str] | None) -> tuple[argparse.Namespace, list[str]]:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--fast-fixtures", action="store_true", dest="fast_fixtures")
+    parser.add_argument("--fixtures-root", default="tests/data_fixtures")
+    parser.add_argument("--output-root", default="reports/index_ladders")
+    parser.add_argument("--series", nargs="+")
+    parser.add_argument("--now")
+    parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--contracts", type=int, default=1)
+    parser.add_argument("--min-ev", type=float, default=0.05)
+    return parser.parse_known_args(list(argv) if argv is not None else None)
 
 
 def evaluate_close(  # noqa: PLR0913
@@ -30,6 +41,11 @@ def evaluate_close(  # noqa: PLR0913
     contracts: int = 1,
     min_ev: float = 0.05,
 ) -> IndexScanResult:
+    from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
+    from kalshi_alpha.exec.scanners.utils import expected_value_summary
+    from kalshi_alpha.strategies.index import close_pmf
+    from kalshi_alpha.strategies.index import cdf as index_cdf
+
     if len(strikes) != len(yes_prices):
         raise ValueError("strikes and prices must have equal length")
     meta = resolve_index_series(inputs.series)
@@ -95,7 +111,22 @@ TARGET_CLOSE_TIME = time(16, 0)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    fast_args, _remaining = _preparse_fast_flags(argv)
+    if fast_args.fast_fixtures:
+        from kalshi_alpha.exec.scanners.fast_index import run_fast_close
+
+        run_fast_close(fast_args)
+        return
+
+    from .index_scan_common import ScannerConfig, build_parser, parse_timestamp, run_index_scan
+
     parser = build_parser(DEFAULT_SERIES)
+    parser.add_argument(
+        "--fast-fixtures",
+        action="store_true",
+        dest="fast_fixtures",
+        help="Use trimmed Polygon index fixtures for quick offline runs.",
+    )
     args = parser.parse_args(argv)
     base_timestamp = parse_timestamp(args.now) or datetime.now(tz=UTC)
     target_dt_et = datetime.combine(base_timestamp.astimezone(ET).date(), TARGET_CLOSE_TIME, tzinfo=ET)
