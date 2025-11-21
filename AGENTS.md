@@ -146,6 +146,32 @@ For any significant code change, run at least:
    python -m kalshi_alpha.exec.scoreboard --family index --offline
    ```
 
+### Polygon-only index modelling/backtest helpers
+
+- Build the Polygon minute panel (expects raw parquet under `data/raw/polygon/index/` or legacy `data/raw/polygon/I_SPX`):
+
+  ```bash
+  python scripts/build_index_panel_polygon.py --input-root data/raw/polygon/index --output data/proc/index_panel_polygon.parquet
+  ```
+
+- Fit the simple Polygon model params:
+
+  ```bash
+  python -m jobs.calibrate_index_polygon_model --panel data/proc/index_panel_polygon.parquet --series INX INXU NASDAQ100 NASDAQ100U --output-root data/proc/calib/index_polygon
+  ```
+
+- Run the offline backtest:
+
+  ```bash
+  PYTHONPATH=src python -m kalshi_alpha.exec.backtest_index_polygon --panel data/proc/index_panel_polygon.parquet --params-root data/proc/calib/index_polygon --series INXU NASDAQ100U --start-date YYYY-MM-DD --end-date YYYY-MM-DD
+  ```
+
+- Fast tests for the new stack:
+
+  ```bash
+  PYTHONPATH=src pytest tests/strategies/test_index_panel_polygon.py tests/strategies/test_model_polygon.py tests/exec/test_backtest_index_polygon.py
+  ```
+
 If these commands don’t exist or fail unexpectedly, **inspect the relevant modules and CI configs**, fix the issue, and update this AGENTS.md section accordingly.
 
 ---
