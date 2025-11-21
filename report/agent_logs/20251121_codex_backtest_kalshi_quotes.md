@@ -1,0 +1,4 @@
+- Added `kalshi_index_history` driver to load recorded INX/NDX ladder quotes (data/raw/kalshi/index_quotes/) with fixtures under `tests/data_fixtures/kalshi_index_quotes/`.
+- Polygon backtest now optionally pulls real strike grids/quotes via `--use-kalshi-quotes/--quotes-dir` and applies a spread/time-aware maker fill model (strategies/index/fill_model.py); CLI outputs capture fill_prob and per-fill EV.
+- Tests: `PYTHONPATH=src pytest -q tests/drivers/test_kalshi_index_history.py tests/strategies/test_fill_model.py tests/exec/test_backtest_index_polygon.py`, plus fast index smoke `tests/strategies/test_index_panel_polygon.py tests/strategies/test_model_polygon.py tests/exec/test_fast_index_scans.py tests/exec/test_time_awareness.py`.
+- TODO: calibrate fill model with real TOB fills and expand quote fixtures when more historical data is available.
