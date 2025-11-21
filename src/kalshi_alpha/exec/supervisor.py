@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
@@ -12,7 +13,14 @@ from zoneinfo import ZoneInfo
 
 from kalshi_alpha.brokers import create_broker
 from kalshi_alpha.data import WSFreshnessSentry
-from kalshi_alpha.drivers.polygon_index.client import INDICES_WS_URL, PolygonIndicesClient
+from kalshi_alpha.drivers.polygon_index.client import INDICES_WS_URL
+from kalshi_alpha.drivers.polygon_index_ws import (
+    PolygonIndexWSConfig,
+    active_connection_count,
+    close_shared_connection,
+    polygon_index_ws,
+    last_message_age_seconds,
+)
 from kalshi_alpha.exec.heartbeat import resolve_kill_switch_path, write_heartbeat
 from kalshi_alpha.exec.runners import scan_ladders
 from kalshi_alpha.exec.scanners import scan_index_close
@@ -55,6 +63,13 @@ class Supervisor:
         self.config = config
         self._ws_sentry = WSFreshnessSentry(strict_threshold_ms=config.ws_latency_kill_ms)
         self._ws_task: asyncio.Task[None] | None = None
+        self._ws_config = PolygonIndexWSConfig(
+            symbols=config.ws_symbols,
+            ws_url=config.ws_url,
+            timespan="second",
+            reconnect_attempts=None,
+        )
+        self._ws_backoff = 1.0
         self._scan_lock = asyncio.Lock()
         self._kill_switch_triggered = False
         self._last_ws_latency_ms: float | None = None
@@ -65,45 +80,61 @@ class Supervisor:
 
     async def run(self) -> None:
         load_env()
-        while True:
-            now_utc = datetime.now(tz=UTC)
-            now_et = now_utc.astimezone(ET)
-            if self._current_day != now_et.date():
-                self._current_day = now_et.date()
-                self._triggered_windows.clear()
-                self._final_guard_triggered.clear()
-            await self._ensure_ws_task()
-            engaged = self._kill_switch_engaged()
-            ws_age_ms = self._ws_sentry.age_ms()
-            if ws_age_ms is not None and ws_age_ms > self.config.ws_latency_kill_ms:
-                self._engage_kill_switch("polygon_ws_stale")
-            if self._market_open(now_et) and not engaged:
-                await self._ensure_broker()
-                await self._maybe_trigger_windows(now_et)
-            await self._write_heartbeat(now_utc, now_et, ws_age_ms)
-            await asyncio.sleep(max(1.0, self.config.poll_seconds))
+        try:
+            while True:
+                now_utc = datetime.now(tz=UTC)
+                now_et = now_utc.astimezone(ET)
+                if self._current_day != now_et.date():
+                    self._current_day = now_et.date()
+                    self._triggered_windows.clear()
+                    self._final_guard_triggered.clear()
+                await self._ensure_ws_task(now_et)
+                engaged = self._kill_switch_engaged()
+                ws_age_ms = self._ws_sentry.age_ms()
+                if ws_age_ms is not None and ws_age_ms > self.config.ws_latency_kill_ms:
+                    self._engage_kill_switch("polygon_ws_stale")
+                if self._market_open(now_et) and not engaged:
+                    await self._ensure_broker()
+                    await self._maybe_trigger_windows(now_et)
+                await self._write_heartbeat(now_utc, now_et, ws_age_ms)
+                await asyncio.sleep(max(1.0, self.config.poll_seconds))
+        finally:
+            await self._shutdown_ws_task()
 
-    async def _ensure_ws_task(self) -> None:
-        if self._ws_task is None or self._ws_task.done():
-            self._ws_task = asyncio.create_task(self._stream_polygon_ws(), name="polygon-ws")
+    async def _ensure_ws_task(self, now_et: datetime) -> None:
+        if self._market_open(now_et):
+            if self._ws_task is None or self._ws_task.done():
+                self._ws_task = asyncio.create_task(self._stream_polygon_ws(), name="polygon-ws")
+        else:
+            await self._shutdown_ws_task()
 
     async def _stream_polygon_ws(self) -> None:
-        client = PolygonIndicesClient(ws_url=self.config.ws_url)
-        symbols = list(self.config.ws_symbols)
-        backoff = 1.0
+        backoff = self._ws_backoff
         while True:
             try:
-                async for message in client.stream_aggregates(
-                    symbols,
-                    timespan="second",
-                    reconnect_attempts=None,
-                ):
-                    self._handle_ws_message(message)
-                    backoff = 1.0
+                async with polygon_index_ws(self._ws_config) as connection:
+                    async for message in connection:
+                        self._handle_ws_message(message)
+                        backoff = 1.0
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:  # pragma: no cover - resilience
                 self._log(f"[ws] stream error: {exc}; backoff {backoff:.1f}s")
+                await close_shared_connection()
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30.0)
+            self._ws_backoff = backoff
+
+    async def _shutdown_ws_task(self) -> None:
+        if self._ws_task is None:
+            await close_shared_connection()
+            return
+        if not self._ws_task.done():
+            self._ws_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._ws_task
+        await close_shared_connection()
+        self._ws_task = None
 
     def _handle_ws_message(self, message: object) -> None:
         if not isinstance(message, dict):
@@ -240,6 +271,8 @@ class Supervisor:
             "ws_latency_ms": self._last_ws_latency_ms,
             "ws_last_tick": self._last_ws_tick.isoformat() if self._last_ws_tick else None,
             "ws_age_ms": ws_age_ms,
+            "ws_active_connections": active_connection_count(),
+            "ws_last_message_age_seconds": last_message_age_seconds(now_utc),
             "sniper_enabled": self.config.sniper,
             "sniper_threshold": self.config.sniper_threshold if self.config.sniper else None,
             "kill_switch_path": self.config.kill_switch_path.as_posix(),
