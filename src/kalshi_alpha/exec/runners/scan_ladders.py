@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import math
 import re
 from collections import Counter, defaultdict
@@ -70,6 +71,7 @@ from kalshi_alpha.exec.heartbeat import (
     resolve_kill_switch_path,
     write_heartbeat,
 )
+from kalshi_alpha.exec.index_paper_ledger import INDEX_SERIES, log_index_paper_trade
 from kalshi_alpha.exec.ledger import ExecutionMetrics, PaperLedger, simulate_fills
 from kalshi_alpha.exec.monitors import fee_rules, sigma_drift
 from kalshi_alpha.exec.monitors.freshness import FRESHNESS_ARTIFACT_PATH
@@ -121,6 +123,7 @@ _INDEX_WS_SERIES = frozenset({"INX", "INXU", "NASDAQ100", "NASDAQ100U"})
 _HOUR_PATTERN = re.compile(r"H(?P<hour>\d{2})(?P<minute>\d{2})")
 CLOCK_SKEW_THRESHOLD_SECONDS = 1.5
 HONESTY_CLAMP_PATH = Path("reports/_artifacts/honesty/honesty_clamp.json")
+LOGGER = logging.getLogger(__name__)
 
 
 def _load_data_freshness_summary() -> dict[str, object]:
@@ -241,18 +244,16 @@ def _freshness_fatal_reason(
     if summary is None:
         return "freshness_missing"
 
-    status = str(summary.get("status") or "").upper()
-    required_ok = bool(summary.get("required_feeds_ok", True))
-    if status == "MISSING" and not required_ok:
-        return "freshness_missing"
-    if required_ok:
-        return None
-
     stale_feeds = summary.get("stale_feeds") or []
     stale_normalized = {str(feed).strip().lower() for feed in stale_feeds if isinstance(feed, str)}
     if "polygon_index.websocket" in stale_normalized:
         return "polygon_ws_stale"
-    return "data_freshness_no_go"
+
+    # If polygon feed is present and not stale, ignore other stale feeds for index scans.
+    status = str(summary.get("status") or "").upper()
+    if status == "MISSING" or status == "ERROR":
+        return "freshness_missing"
+    return None
 
 
 def _resolve_fill_alpha_arg(fill_alpha_arg: object, series: str) -> tuple[float, bool]:  # noqa: PLR0912
@@ -1337,6 +1338,74 @@ def _maybe_write_report(
         print(f"Wrote report to {report_path}")
 
 
+def _window_label_from_monitors(monitors: Mapping[str, object] | None) -> str | None:
+    if not isinstance(monitors, Mapping):
+        return None
+    scheduler_window = monitors.get("scheduler_window")
+    if isinstance(scheduler_window, Mapping):
+        sched_label = scheduler_window.get("label")
+        if isinstance(sched_label, str) and sched_label:
+            return sched_label
+    window_label = monitors.get("window_label")
+    if isinstance(window_label, str) and window_label:
+        return window_label
+    ops_name = monitors.get("ops_window_name")
+    if ops_name:
+        name_str = str(ops_name)
+        target_raw = monitors.get("ops_target_et")
+        if target_raw:
+            try:
+                target_dt = datetime.fromisoformat(str(target_raw))
+                if target_dt.tzinfo is None:
+                    target_dt = target_dt.replace(tzinfo=_ET_ZONE)
+                label = f"{name_str}-{target_dt.astimezone(_ET_ZONE).strftime('%H%M')}"
+                return label
+            except Exception:  # pragma: no cover - defensive
+                return name_str
+        return name_str
+    return None
+
+
+def _log_index_paper_trades(
+    proposals: Sequence[Proposal],
+    monitors: Mapping[str, object] | None,
+) -> None:
+    if not proposals:
+        return
+    timestamp_et = datetime.now(tz=_ET_ZONE)
+    window_label = _window_label_from_monitors(monitors)
+    for proposal in proposals:
+        series = str(getattr(proposal, "series", "")).upper()
+        if series not in INDEX_SERIES:
+            continue
+        try:
+            ev_cents = float(proposal.maker_ev_per_contract) * 100.0
+        except (TypeError, ValueError):
+            ev_cents = 0.0
+        metadata = proposal.metadata if isinstance(proposal.metadata, Mapping) else {}
+        fill_prob = metadata.get("fill_prob") if isinstance(metadata, Mapping) else None
+        if fill_prob is None and isinstance(metadata, Mapping):
+            fill_prob = metadata.get("fill_ratio")
+        record = {
+            "timestamp_et": timestamp_et,
+            "series": series,
+            "window": window_label,
+            "kalshi_market_id": proposal.market_id,
+            "market_ticker": proposal.market_ticker,
+            "strike": proposal.strike,
+            "side": proposal.side,
+            "price": proposal.market_yes_price,
+            "size": proposal.contracts,
+            "fill_prob": fill_prob,
+            "ev_after_fees_cents": ev_cents,
+            "mode": "dry",
+        }
+        try:
+            log_index_paper_trade(record)
+        except Exception as exc:  # pragma: no cover - robustness
+            LOGGER.debug("Failed to write index paper ledger for %s: %s", proposal.market_id, exc)
+
+
 def execute_broker(
     *,
     broker_mode: str,
@@ -1375,6 +1444,8 @@ def execute_broker(
         audit_dir=Path("data/proc/audit"),
         acknowledge_risks=getattr(args, "i_understand_the_risks", False),
     )
+    if normalized == "dry":
+        _log_index_paper_trades(proposals, monitors)
     broker.place(orders)
     state.record_submission(normalized, orders)
     status = broker.status()

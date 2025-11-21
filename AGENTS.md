@@ -146,6 +146,21 @@ For any significant code change, run at least:
    python -m kalshi_alpha.exec.scoreboard --family index --offline
    ```
 
+6. **Index paper ledger + scoreboard (dry runs)**:
+
+   - Ledger path: `data/proc/ledger/index_paper.jsonl` (override with `KALSHI_INDEX_PAPER_LEDGER_PATH` if you need a temp sandbox).
+   - Index dry broker writes here automatically; keep `--broker dry` and (optionally) `--paper-ledger` enabled.
+   - Summarize recent paper trades:
+
+     ```bash
+     python -m kalshi_alpha.exec.scoreboard_index_paper \
+       --start-date YYYY-MM-DD \
+       --end-date YYYY-MM-DD \
+       --output reports/index_paper/YYYYMMDD_scoreboard.md
+     ```
+
+   - After changing execution/model logic, run a DRY session then this scoreboard to inspect EV-per-trade and trade counts by window/series.
+
 ### Polygon-only index modelling/backtest helpers
 
 - Build the Polygon minute panel (expects raw parquet under `data/raw/polygon/index/` or legacy `data/raw/polygon/I_SPX`):
