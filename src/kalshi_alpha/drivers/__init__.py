@@ -9,4 +9,5 @@ __all__ = [
     "cleveland_nowcast",
     "macro_calendar",
     "polygon_index",
+    "polygon_index_ws",
 ]
