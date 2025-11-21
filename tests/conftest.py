@@ -228,6 +228,8 @@ INDEX_ACTIVE_PATTERNS = (
     "/test_index_panel_polygon.py",
     "/test_model_polygon.py",
     "/test_backtest_index_polygon.py",
+    "/test_kalshi_index_history.py",
+    "/test_fill_model.py",
     "/test_ws_lifecycle.py",
     "/test_polygon_index_ws.py",
 )
