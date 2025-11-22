@@ -1,0 +1,7 @@
+- Implemented `kalshi_alpha.exec.preflight_index.run_preflight` to gate index windows on env/kill-switch/calibration freshness and Polygon REST reachability.
+- Added `kalshi_alpha.exec.supervisor_index` entrypoint with sched.windows iteration, per-window preflight + Polygon WS gating, and maker-only DRY execution via micro_index; includes unit tests and offline stubs.
+- Documented AWS window timings and supervisor usage under `docs/index_ladders/`, and noted the new flow in AGENTS.md.
+- Tests: `PYTHONPATH=src pytest -q tests/exec/test_preflight_index.py tests/exec/test_supervisor_index.py tests/exec/test_index_paper_ledger.py tests/exec/test_scoreboard_index_paper.py tests/exec/test_fast_index_scans.py tests/exec/test_time_awareness.py` (skips expected fixtures).
+- TODO: wire supervisor_index into AWS cron/EventBridge job definitions and monitor Polygon WS freshness in staging.
+- Added transient preflight retry (Polygon reachability) with per-window logging of WS freshness; supervisor logs `fresh WS ok age=...` for CloudWatch verification.
+- Documented EventBridge/cron wiring and log verification in `docs/index_ladders/aws_supervisor_index.md`.
