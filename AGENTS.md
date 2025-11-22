@@ -295,6 +295,10 @@ On starting a session in this repo:
 - Index websockets: use `kalshi_alpha.drivers.polygon_index_ws` (`polygon_index_ws` context +
   `close_shared_connection`) so each process maintains a single Massive index WS; metrics helpers
   `active_connection_count`/`last_message_age_seconds` are available for monitoring.
+- Index preflight + supervisor: `kalshi_alpha.exec.preflight_index.run_preflight` gates env/kill-switch/calibration/
+  Polygon reachability; `kalshi_alpha.exec.supervisor_index` runs index windows (BROKER=dry, maker-only) with per-window
+  preflight + WS freshness. Use `--now` for single-window dry simulations, `--loop` for AWS cash-hour daemons. Do not
+  bypass WS gating or switch broker to live without explicit approval.
 - When adding new modules or commands:
   - Wire them into tests and CI where appropriate.
   - Add short docstrings and comments only where the logic is non-obvious.
