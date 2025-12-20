@@ -40,7 +40,6 @@ Decouple index GO/NO-GO evaluation from macro feed staleness by scoping quality 
 - `docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/diff.patch`
 - `docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/artifacts.json`
 - `reports/_artifacts/go_no_go.json` (updated during tests; not committed)
-- `docs/gpt_bundles/gpt_bundle_ticket-001_20251220_231551Z_TICKET-001_index_only_gates.zip`
 
 ## Notes / Issues
 - `python -m kalshi_alpha.exec.*` requires `PYTHONPATH=src` in this environment.

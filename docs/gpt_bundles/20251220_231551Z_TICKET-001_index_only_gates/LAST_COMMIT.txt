@@ -1,0 +1,1 @@
+56d596e docs: log editable install and passing tests
