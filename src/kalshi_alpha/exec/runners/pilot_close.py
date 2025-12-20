@@ -65,6 +65,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Suppress progress output from scan.ladders.",
     )
     parser.add_argument(
+        "--quality-gates-config",
+        type=Path,
+        default=Path("configs/quality_gates.index.yaml"),
+        help="Override quality gates configuration (default: configs/quality_gates.index.yaml).",
+    )
+    parser.add_argument(
+        "--quality-gates-scope",
+        choices=["index", "macro", "all"],
+        default="index",
+        help="Restrict quality gate evaluation scope (default: index).",
+    )
+    parser.add_argument(
         "--ack",
         action="store_true",
         help="Acknowledge live trading risks (required when --broker live).",
@@ -103,6 +115,10 @@ def _forward_args(series: str, config: argparse.Namespace) -> list[str]:
         forwarded.append("--report")
     if config.quiet:
         forwarded.append("--quiet")
+    if config.quality_gates_config:
+        forwarded.extend(["--quality-gates-config", str(config.quality_gates_config)])
+    if config.quality_gates_scope:
+        forwarded.extend(["--quality-gates-scope", str(config.quality_gates_scope)])
     if config.broker == "live":
         if not config.ack:
             raise ValueError("Live pilot mode requires --ack acknowledgement flag.")

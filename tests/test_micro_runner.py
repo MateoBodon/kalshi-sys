@@ -53,6 +53,9 @@ def test_micro_runner_invokes_scan_and_refits(monkeypatch: pytest.MonkeyPatch, t
     scan_args = captured["scan_args"]
     assert scan_args[:2] == ["--series", "INXU"]
     assert "--contracts" in scan_args
+    assert "--quality-gates-scope" in scan_args
+    scope_idx = scan_args.index("--quality-gates-scope")
+    assert scan_args[scope_idx + 1] == "index"
     assert captured["tune_series"] == "INXU"
     assert "kalshi" in str(captured["tune_archives"]).lower()
     assert captured["slippage_series"] == "INXU"

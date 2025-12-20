@@ -46,7 +46,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--quality-gates-config",
         type=Path,
+        default=Path("configs/quality_gates.index.yaml"),
         help="Override quality gates configuration file passed to scan_ladders.",
+    )
+    parser.add_argument(
+        "--quality-gates-scope",
+        choices=["index", "macro", "all"],
+        default="index",
+        help="Restrict quality gate evaluation scope (default: index).",
     )
     parser.add_argument("--now", type=str, help="Override timestamp for logging (ISO-8601)")
     return parser.parse_args(list(argv) if argv is not None else None)
@@ -77,6 +84,8 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
         scan_args.extend(["--kill-switch-file", args.kill_switch_file])
     if args.quality_gates_config:
         scan_args.extend(["--quality-gates-config", str(Path(args.quality_gates_config))])
+    if args.quality_gates_scope:
+        scan_args.extend(["--quality-gates-scope", str(args.quality_gates_scope)])
     if args.broker == "live":
         scan_args.append("--i-understand-the-risks")
     if args.quiet:

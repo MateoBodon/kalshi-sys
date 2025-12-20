@@ -255,7 +255,11 @@ def _load_alpha_state() -> dict[str, float]:
 
 def _load_freshness_summary() -> dict[str, object]:
     payload = load_freshness_artifact(FRESHNESS_ARTIFACT_PATH)
-    return summarize_freshness_artifact(payload, artifact_path=FRESHNESS_ARTIFACT_PATH)
+    return summarize_freshness_artifact(
+        payload,
+        artifact_path=FRESHNESS_ARTIFACT_PATH,
+        scope="index",
+    )
 
 
 def _format_freshness_metrics(summary: Mapping[str, object]) -> list[str]:
