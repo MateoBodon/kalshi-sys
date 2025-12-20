@@ -23,3 +23,7 @@
 ## Follow-up (env fix)
 - Ran: python -m pip install -e ".[dev]" --config-settings editable_mode=compat
 - Result: pytest -q now passes without PYTHONPATH override.
+
+## Follow-up (bundle)
+- Ran: make gpt-bundle TICKET=ticket-001 RUN_NAME=20251220_231551Z_TICKET-001_index_only_gates
+- Output: docs/gpt_bundles/gpt_bundle_ticket-001_20251220_231551Z_TICKET-001_index_only_gates.zip

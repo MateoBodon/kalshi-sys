@@ -88,6 +88,10 @@
     {
       "path": "docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/artifacts.json",
       "description": "List of artifacts produced/changed in this run."
+    },
+    {
+      "path": "docs/gpt_bundles/gpt_bundle_ticket-001_20251220_231551Z_TICKET-001_index_only_gates.zip",
+      "description": "Review bundle zip generated via make gpt-bundle."
     }
   ]
 }

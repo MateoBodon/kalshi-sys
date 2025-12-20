@@ -42,3 +42,6 @@ $ python -m pip install -e ".[dev]" --config-settings editable_mode=compat
 $ pytest -q
 ss.....sssssssssssssss.............sss..ssss...........sssssssssssssssss [  8%]
 ... (suite passed)
+
+$ make gpt-bundle TICKET=ticket-001 RUN_NAME=20251220_231551Z_TICKET-001_index_only_gates
+Wrote docs/gpt_bundles/gpt_bundle_ticket-001_20251220_231551Z_TICKET-001_index_only_gates.zip
