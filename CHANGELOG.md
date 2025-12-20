@@ -1,5 +1,8 @@
 # Changelog
 
+## 2025-12-20
+- Scoped index GO/NO-GO evaluation to index-only freshness + quality gates, added quality-gates scope plumbing for index runners, and updated index readiness/scoreboard outputs plus tests so macro staleness no longer blocks index runs.
+
 ## 2025-11-20
 - Critical Fix: Polygon batch websocket payloads (`stream_aggregates`) now accept list or dict messages, preventing supervisor crashes on Massive bursts.
 - Feat: Skew-Normal Pricing for hourly index above/below; added `skew` input to bias downside tails and protect maker inventory.
