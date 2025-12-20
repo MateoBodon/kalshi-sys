@@ -158,6 +158,8 @@ def test_stale_freshness_blocks_execution(
             "--report",
             "--quality-gates-config",
             str(gate_config_path),
+            "--quality-gates-scope",
+            "index",
             "--pal-policy",
             str(pal_policy_path),
         ]
@@ -213,11 +215,11 @@ def test_macro_stale_allows_execution_with_index_gates(
         "status": "ALERT",
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "metrics": {
-            "required_feeds_ok": True,
-            "required_feeds": ["polygon_index.websocket"],
+            "required_feeds_ok": False,
+            "required_feeds": ["polygon_index.websocket", "macro_calendar.latest"],
             "stale_feeds": ["macro_calendar.latest"],
             "feeds": [
-                    {
+                {
                         "id": "polygon_index.websocket",
                         "label": "Polygon index websocket",
                         "required": True,
@@ -229,7 +231,7 @@ def test_macro_stale_allows_execution_with_index_gates(
                 {
                     "id": "macro_calendar.latest",
                     "label": "Macro calendar",
-                    "required": False,
+                    "required": True,
                     "ok": False,
                     "age_minutes": 45.0,
                     "reason": "STALE>10m",
@@ -255,6 +257,8 @@ def test_macro_stale_allows_execution_with_index_gates(
             "--report",
             "--quality-gates-config",
             str(gate_config_path),
+            "--quality-gates-scope",
+            "index",
             "--pal-policy",
             str(pal_policy_path),
         ]

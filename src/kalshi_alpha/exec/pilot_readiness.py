@@ -163,7 +163,11 @@ def calibration_age_days(series: str, now: datetime) -> float | None:
 
 def freshness_status() -> tuple[bool, list[str]]:
     payload = load_freshness_artifact(FRESHNESS_ARTIFACT_PATH)
-    summary = summarize_freshness_artifact(payload, artifact_path=FRESHNESS_ARTIFACT_PATH)
+    summary = summarize_freshness_artifact(
+        payload,
+        artifact_path=FRESHNESS_ARTIFACT_PATH,
+        scope="index",
+    )
     status = summary.get("status", "MISSING")
     ok = bool(summary.get("required_feeds_ok", False)) and status != "MISSING"
     reasons: list[str] = []

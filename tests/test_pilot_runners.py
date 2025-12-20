@@ -39,6 +39,9 @@ def test_pilot_hourly_forwards_required_flags(monkeypatch: pytest.MonkeyPatch, t
     assert ["--kill-switch-file", str(kill_switch)] in [
         forwarded[i : i + 2] for i in range(len(forwarded) - 1)
     ]
+    assert ["--quality-gates-scope", "index"] in [
+        forwarded[i : i + 2] for i in range(len(forwarded) - 1)
+    ]
 
 
 def test_pilot_hourly_requires_ack_for_live(tmp_path: Path) -> None:
@@ -96,3 +99,6 @@ def test_pilot_close_forwards_required_flags(monkeypatch: pytest.MonkeyPatch, tm
         forwarded[i : i + 2] for i in range(len(forwarded) - 1)
     ]
     assert "--i-understand-the-risks" in forwarded
+    assert ["--quality-gates-scope", "index"] in [
+        forwarded[i : i + 2] for i in range(len(forwarded) - 1)
+    ]
