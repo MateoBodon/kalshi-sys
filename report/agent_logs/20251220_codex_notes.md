@@ -19,3 +19,7 @@
 - Changes: added scoped quality gate/freshness filtering; index runners now forward index scope; scoreboard/pilot readiness use scoped freshness; tests updated.
 - Tests: pytest -q (fails: ModuleNotFoundError: kalshi_alpha); PYTHONPATH=src pytest -q; python -m kalshi_alpha.exec.preflight_index (fails: ModuleNotFoundError); PYTHONPATH=src python -m kalshi_alpha.exec.preflight_index; python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run (fails: ModuleNotFoundError); PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run.
 - Follow-ups: none.
+
+## Follow-up (env fix)
+- Ran: python -m pip install -e ".[dev]" --config-settings editable_mode=compat
+- Result: pytest -q now passes without PYTHONPATH override.

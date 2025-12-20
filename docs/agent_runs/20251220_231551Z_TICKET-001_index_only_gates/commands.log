@@ -35,3 +35,10 @@ $ python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run
 
 $ PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run
 (no output)
+
+$ python -m pip install -e ".[dev]" --config-settings editable_mode=compat
+... (installed editable kalshi-alpha; updated polars to 1.36.1)
+
+$ pytest -q
+ss.....sssssssssssssss.............sss..ssss...........sssssssssssssssss [  8%]
+... (suite passed)

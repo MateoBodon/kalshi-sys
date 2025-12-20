@@ -27,10 +27,13 @@ Decouple index GO/NO-GO evaluation from macro feed staleness by scoping quality 
 - `PYTHONPATH=src python -m kalshi_alpha.exec.preflight_index` (no output, exit 0)
 - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run` (failed: ModuleNotFoundError)
 - `PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run` (no output, exit 0)
+- `python -m pip install -e ".[dev]" --config-settings editable_mode=compat`
+- `pytest -q` (pass)
 
 ## Tests
 - `pytest -q` (failed: ModuleNotFoundError for `kalshi_alpha`)
 - `PYTHONPATH=src pytest -q`
+- `pytest -q`
 
 ## Artifacts
 - `docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/commands.log`
