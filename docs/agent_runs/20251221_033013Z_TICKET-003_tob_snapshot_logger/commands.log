@@ -113,3 +113,8 @@ git diff HEAD~5..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot
 
 make gpt-bundle TICKET=TICKET-003_tob_snapshot_logger RUN_NAME=20251221_033013Z_TICKET-003_tob_snapshot_logger
 # output: updated docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip
+
+git diff HEAD~7..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
+
+make gpt-bundle TICKET=TICKET-003_tob_snapshot_logger RUN_NAME=20251221_033013Z_TICKET-003_tob_snapshot_logger
+# output: updated docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip
