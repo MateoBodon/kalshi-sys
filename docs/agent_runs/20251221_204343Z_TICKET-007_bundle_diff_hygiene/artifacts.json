@@ -1,0 +1,10 @@
+[
+  {
+    "path": "docs/agent_runs/20251221_204343Z_TICKET-007_bundle_diff_hygiene/diff.patch",
+    "description": "Full git diff for Ticket #7 changes (no placeholders)."
+  },
+  {
+    "path": "docs/gpt_bundles/gpt_bundle_TICKET-007_bundle_diff_hygiene_20251221_204343Z_TICKET-007_bundle_diff_hygiene.zip",
+    "description": "GPT review bundle zip (includes root DIFF.patch + run log artifacts)."
+  }
+]
