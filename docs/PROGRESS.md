@@ -9,3 +9,6 @@
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251221_011149Z_TICKET-002_settlement_basis_audit/README.md`
+- Ticket #3 — TOB snapshot logger + fill-calibration dataset skeleton: added bounded TOB + quote-intent logging for index ladders, dataset builder, and calibration README.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/README.md`
