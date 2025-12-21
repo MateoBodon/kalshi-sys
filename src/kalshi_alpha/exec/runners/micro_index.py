@@ -56,6 +56,25 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Restrict quality gate evaluation scope (default: index).",
     )
     parser.add_argument("--now", type=str, help="Override timestamp for logging (ISO-8601)")
+    parser.add_argument("--record-tob", action="store_true", help="Record TOB snapshots during scan.")
+    parser.add_argument("--tob-run-id", help="Run identifier for TOB snapshots.")
+    parser.add_argument(
+        "--tob-output-dir",
+        default="data/raw/kalshi/tob",
+        help="Directory for TOB snapshot logs (default: data/raw/kalshi/tob).",
+    )
+    parser.add_argument(
+        "--tob-depth",
+        type=int,
+        default=3,
+        help="Depth per side to record (max 5, default: %(default)s).",
+    )
+    parser.add_argument(
+        "--tob-max-bytes",
+        type=int,
+        default=10 * 1024,
+        help="Approx max bytes per snapshot record (default: %(default)s).",
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
@@ -68,7 +87,6 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
         "--contracts",
         str(max(int(args.contracts), 1)),
         "--maker-only",
-        "--pilot",
         "--paper-ledger",
         "--report",
         "--fixtures-root",
@@ -76,6 +94,8 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
         "--broker",
         args.broker,
     ]
+    if not args.offline:
+        scan_args.append("--pilot")
     if args.offline:
         scan_args.append("--offline")
     else:
@@ -86,6 +106,16 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
         scan_args.extend(["--quality-gates-config", str(Path(args.quality_gates_config))])
     if args.quality_gates_scope:
         scan_args.extend(["--quality-gates-scope", str(args.quality_gates_scope)])
+    if args.now:
+        scan_args.extend(["--now", str(args.now)])
+    if args.record_tob:
+        scan_args.append("--record-tob")
+        if args.tob_run_id:
+            scan_args.extend(["--tob-run-id", str(args.tob_run_id)])
+        if args.tob_output_dir:
+            scan_args.extend(["--tob-output-dir", str(Path(args.tob_output_dir))])
+        scan_args.extend(["--tob-depth", str(int(args.tob_depth))])
+        scan_args.extend(["--tob-max-bytes", str(int(args.tob_max_bytes))])
     if args.broker == "live":
         scan_args.append("--i-understand-the-risks")
     if args.quiet:

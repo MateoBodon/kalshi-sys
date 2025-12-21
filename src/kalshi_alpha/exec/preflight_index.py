@@ -132,6 +132,7 @@ def run_preflight(
     polygon_timeout: float = 2.0,
     polygon_ping: Callable[[float], bool] | None = None,
     require_kalshi: bool = True,
+    require_polygon: bool | None = None,
 ) -> PreflightResult:
     """Evaluate GO/NO-GO checks for index ladder windows."""
 
@@ -144,6 +145,8 @@ def run_preflight(
 
     # Environment + secrets -------------------------------------------------
     env_missing: list[str] = []
+    if require_polygon is None:
+        require_polygon = require_kalshi
     if require_kalshi:
         env_missing.extend(_missing_env_vars(["KALSHI_API_KEY_ID", "KALSHI_PRIVATE_KEY_PEM_PATH"]))
         key_path_raw = os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
@@ -152,9 +155,11 @@ def run_preflight(
             if not key_path.exists():
                 reasons.append("kalshi_private_key_missing")
                 details["kalshi_private_key_path"] = key_path.as_posix()
-    polygon_key_present = bool(load_polygon_api_key())
-    if not polygon_key_present:
-        env_missing.append("POLYGON_API_KEY")
+    polygon_key_present = False
+    if require_polygon:
+        polygon_key_present = bool(load_polygon_api_key())
+        if not polygon_key_present:
+            env_missing.append("POLYGON_API_KEY")
     if env_missing:
         reasons.append("missing_env:" + ",".join(sorted(env_missing)))
     details["env_missing"] = sorted(env_missing)
@@ -178,7 +183,7 @@ def run_preflight(
     details["calibration_age_days"] = calib_ages
 
     # Polygon connectivity --------------------------------------------------
-    if polygon_key_present:
+    if require_polygon and polygon_key_present:
         ping_fn = polygon_ping or _polygon_ping
         if not ping_fn(polygon_timeout):
             reasons.append("polygon_unreachable")
