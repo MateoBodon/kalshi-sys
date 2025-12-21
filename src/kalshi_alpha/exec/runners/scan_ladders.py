@@ -62,6 +62,12 @@ from kalshi_alpha.drivers.polygon_index.client import IndexSnapshot, PolygonAPIE
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series as resolve_index_series
 from kalshi_alpha.exec import fees as exec_fees
 from kalshi_alpha.exec import quote_microprice
+from kalshi_alpha.exec.collectors.tob_logger import (
+    DEFAULT_TOB_DEPTH,
+    DEFAULT_TOB_DIR,
+    DEFAULT_TOB_MAX_BYTES,
+    TobSnapshotLogger,
+)
 from kalshi_alpha.data import WSFreshnessSentry
 from kalshi_alpha.exec.limits import LossBudget, ProposalLimitChecker, LimitViolation
 from kalshi_alpha.exec.gate_utils import resolve_quality_gate_config_path, write_go_no_go
@@ -649,6 +655,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     quote_optimizer = QuoteOptimizer()
     offline_mode = args.offline or not args.online
     series_upper = args.series.upper()
+    tob_logger: TobSnapshotLogger | None = None
+    tob_run_id: str | None = None
+    if getattr(args, "record_tob", False):
+        if series_upper not in INDEX_SERIES:
+            raise ValueError("TOB recording is only supported for index ladder series.")
+        tob_run_id = str(args.tob_run_id or datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%SZ"))
+        output_dir = Path(args.tob_output_dir)
+        if output_dir.name != tob_run_id:
+            output_dir = output_dir / tob_run_id
+        tob_logger = TobSnapshotLogger(
+            run_id=tob_run_id,
+            output_dir=output_dir,
+            depth=int(getattr(args, "tob_depth", DEFAULT_TOB_DEPTH)),
+            max_bytes=int(getattr(args, "tob_max_bytes", DEFAULT_TOB_MAX_BYTES)),
+        )
     honesty_clamp = _load_honesty_clamp(series_upper)
     if honesty_clamp is not None:
         args.ev_honesty_shrink = min(float(args.ev_honesty_shrink), honesty_clamp)
@@ -674,7 +695,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not fee_ready:
         raise RuntimeError(f"Fee/rule watcher pending: {fee_reason or 'unknown'}")
 
-    now_override = datetime.now(tz=UTC)
+    now_override = args.now if getattr(args, "now", None) is not None else datetime.now(tz=UTC)
     clock_skew_seconds = _clock_skew_seconds(now_override)
     cancel_requested = False
     if args.series.upper() in _U_SERIES:
@@ -860,6 +881,26 @@ def main(argv: Sequence[str] | None = None) -> None:
         if missing_market_ids:
             outcome.monitors["orderbook_snapshot_missing"] = len(missing_market_ids)
 
+    if tob_logger is not None:
+        outcome.monitors.setdefault("tob_run_id", tob_run_id)
+        window_label = _window_label_from_monitors(outcome.monitors)
+        window_ts_utc, window_ts_et = _window_timestamps_from_monitors(outcome.monitors)
+        market_lookup = {market.id: market for market in outcome.markets} if outcome.markets else {}
+        snapshot_ts = book_snapshot_completed_at or datetime.now(tz=UTC)
+        for market_id, orderbook in books_at_scan.items():
+            market = market_lookup.get(market_id)
+            market_ticker = market.ticker if market is not None else market_id
+            tob_logger.log_snapshot(
+                ts_utc=snapshot_ts,
+                series=series_upper,
+                window_label=window_label,
+                window_ts_utc=window_ts_utc,
+                window_ts_et=window_ts_et,
+                market_ticker=market_ticker,
+                market_id=market_id,
+                orderbook=orderbook,
+            )
+
     ledger = None
     if proposals:
         ledger = _maybe_simulate_ledger(
@@ -1020,6 +1061,23 @@ def main(argv: Sequence[str] | None = None) -> None:
         outcome.monitors.setdefault("cancel_all_reason", cancel_reason)
 
     broker_status = None
+    if tob_logger is not None and proposals:
+        window_label = _window_label_from_monitors(outcome.monitors)
+        window_ts_utc, window_ts_et = _window_timestamps_from_monitors(outcome.monitors)
+        intent_ts = datetime.now(tz=UTC)
+        for proposal in proposals:
+            tob_logger.log_quote_intent(
+                ts_utc=intent_ts,
+                series=series_upper,
+                window_label=window_label,
+                window_ts_utc=window_ts_utc,
+                window_ts_et=window_ts_et,
+                market_ticker=proposal.market_ticker,
+                market_id=proposal.market_id,
+                side=proposal.side,
+                price=float(proposal.market_yes_price),
+                size=int(proposal.contracts),
+            )
     if proposals:
         try:
             broker_status = execute_broker(
@@ -1376,6 +1434,44 @@ def _window_label_from_monitors(monitors: Mapping[str, object] | None) -> str | 
                 return name_str
         return name_str
     return None
+
+
+def _window_timestamps_from_monitors(
+    monitors: Mapping[str, object] | None,
+) -> tuple[str | None, str | None]:
+    if not isinstance(monitors, Mapping):
+        return None, None
+    window_ts_et: str | None = None
+    window_ts_utc: str | None = None
+    scheduler_window = monitors.get("scheduler_window")
+    if isinstance(scheduler_window, Mapping):
+        target_et = scheduler_window.get("target_et")
+        if isinstance(target_et, str) and target_et:
+            window_ts_et = target_et
+    if window_ts_et is None:
+        ops_target = monitors.get("ops_target_et")
+        if isinstance(ops_target, str) and ops_target:
+            window_ts_et = ops_target
+    if window_ts_et:
+        try:
+            parsed = datetime.fromisoformat(window_ts_et)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=_ET_ZONE)
+            window_ts_et = parsed.isoformat()
+            window_ts_utc = parsed.astimezone(UTC).isoformat()
+        except ValueError:
+            window_ts_et = None
+            window_ts_utc = None
+    if window_ts_utc is None:
+        ops_unix = monitors.get("ops_target_unix")
+        try:
+            if ops_unix is not None:
+                parsed = datetime.fromtimestamp(float(ops_unix), tz=UTC)
+                window_ts_utc = parsed.isoformat()
+                window_ts_et = parsed.astimezone(_ET_ZONE).isoformat()
+        except (TypeError, ValueError, OSError):
+            window_ts_utc = window_ts_utc or None
+    return window_ts_utc, window_ts_et
 
 
 def _log_index_paper_trades(
@@ -1866,6 +1962,16 @@ def _parse_date_arg(value: str) -> date:
         raise argparse.ArgumentTypeError("Trading day must be YYYY-MM-DD") from exc
 
 
+def _parse_datetime_arg(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Timestamp must be ISO-8601") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Scan Kalshi ladders and output dry-run proposals."
@@ -1888,6 +1994,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--today",
         action="store_true",
         help="Shortcut for --discover-date=<today in ET> (only valid with --discover).",
+    )
+    parser.add_argument(
+        "--now",
+        type=_parse_datetime_arg,
+        help="Override current timestamp for windowing/logging (ISO-8601).",
     )
     parser.add_argument(
         "--dry-run",
@@ -2076,6 +2187,33 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         default="dry",
         choices=["dry", "live"],
         help="Broker adapter to use when executing orders.",
+    )
+    parser.add_argument(
+        "--record-tob",
+        action="store_true",
+        help="Record top-of-book snapshots for calibration (index series only).",
+    )
+    parser.add_argument(
+        "--tob-run-id",
+        help="Run identifier for TOB snapshots (default: autogenerated).",
+    )
+    parser.add_argument(
+        "--tob-output-dir",
+        type=Path,
+        default=DEFAULT_TOB_DIR,
+        help="Directory for TOB snapshot logs (default: data/raw/kalshi/tob).",
+    )
+    parser.add_argument(
+        "--tob-depth",
+        type=int,
+        default=DEFAULT_TOB_DEPTH,
+        help="Depth per side to record (max 5, default: %(default)s).",
+    )
+    parser.add_argument(
+        "--tob-max-bytes",
+        type=int,
+        default=DEFAULT_TOB_MAX_BYTES,
+        help="Approximate max bytes per snapshot record (default: %(default)s).",
     )
     parser.add_argument(
         "--clear-dry-orders-start",
