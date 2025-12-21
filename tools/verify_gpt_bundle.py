@@ -36,8 +36,10 @@ def _find_run_names(paths: list[str]) -> set[str]:
 def _placeholder_lines(content: str) -> list[str]:
     matches: list[str] = []
     for line in content.splitlines():
-        candidate = line[1:] if line[:1] in {"+", "-", " "} else line
-        candidate = candidate.strip().lower()
+        if line[:1] in {"+", "-", " "}:
+            # Ignore file content lines; placeholders there can be legitimate data.
+            continue
+        candidate = line.strip().lower()
         if candidate in PLACEHOLDER_LINES:
             matches.append(line)
     return matches
