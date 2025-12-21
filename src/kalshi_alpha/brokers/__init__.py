@@ -35,6 +35,7 @@ def create_broker(
         options = dict(live_kwargs or {})
         options.setdefault("artifacts_dir", artifacts_dir)
         options.setdefault("audit_dir", audit_dir)
+        options["acknowledge_risks"] = acknowledge_risks
         queue_capacity = int(options.get("queue_capacity", 64))
         queue_retries = int(options.get("max_retries", 3))
         order_queue = options.get("order_queue") or OrderQueue(

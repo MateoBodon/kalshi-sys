@@ -95,6 +95,7 @@ from kalshi_alpha.exec.pilot import (
     PilotConfig,
     PilotSession,
     apply_pilot_mode,
+    load_pilot_config,
     write_pilot_session_artifact,
 )
 from kalshi_alpha.exec.reports import write_markdown_report
@@ -1546,11 +1547,23 @@ def execute_broker(
 
     _enforce_broker_guards(proposals, args)
     orders = [_proposal_to_broker_order(p) for p in proposals]
+    live_kwargs: dict[str, object] | None = None
+    if normalized == "live":
+        live_kwargs = {
+            "kill_switch_path": kill_switch_path,
+            "pilot_mode": bool(getattr(args, "pilot", False)),
+        }
+        if getattr(args, "pilot", False):
+            live_kwargs["pilot_config"] = load_pilot_config(getattr(args, "pilot_config", None))
+        now_override = getattr(args, "now", None)
+        if isinstance(now_override, datetime):
+            live_kwargs["clock"] = (lambda moment=now_override: moment)
     broker = create_broker(
         normalized,
         artifacts_dir=Path("reports/_artifacts"),
         audit_dir=Path("data/proc/audit"),
         acknowledge_risks=getattr(args, "i_understand_the_risks", False),
+        live_kwargs=live_kwargs,
     )
     if normalized == "dry":
         _log_index_paper_trades(proposals, monitors)
