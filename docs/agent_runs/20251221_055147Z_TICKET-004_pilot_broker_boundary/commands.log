@@ -79,3 +79,10 @@ $ make gpt-bundle TICKET=TICKET-004_pilot_broker_boundary RUN_NAME=20251221_0551
 Wrote docs/gpt_bundles/gpt_bundle_TICKET-004_pilot_broker_boundary_20251221_055147Z_TICKET-004_pilot_broker_boundary.zip
 $ PYTHONPATH=src python -m kalshi_alpha.exec.preflight_index
 $ git diff --patch --no-color HEAD~3 > docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/diff.patch
+$ git branch --show-current
+codex/TICKET-004_pilot_broker_boundary
+$ git switch main
+error: Your local changes to the following files would be overwritten by checkout:
+	docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/commands.log
+Please commit your changes or stash them before you switch branches.
+Aborting
