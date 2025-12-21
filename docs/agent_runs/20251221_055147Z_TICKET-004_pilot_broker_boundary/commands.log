@@ -77,3 +77,4 @@ Results (7.21s):
      730 skipped
 $ make gpt-bundle TICKET=TICKET-004_pilot_broker_boundary RUN_NAME=20251221_055147Z_TICKET-004_pilot_broker_boundary
 Wrote docs/gpt_bundles/gpt_bundle_TICKET-004_pilot_broker_boundary_20251221_055147Z_TICKET-004_pilot_broker_boundary.zip
+$ git diff --patch --no-color HEAD~1 > docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/diff.patch
