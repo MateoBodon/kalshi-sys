@@ -8,7 +8,7 @@ import os
 import threading
 import time
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -23,10 +23,100 @@ from kalshi_alpha.brokers.kalshi.http_client import (
     KalshiHttpError,
 )
 from kalshi_alpha.core.execution.order_queue import OrderQueue
+from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Orderbook
+from kalshi_alpha.exec.heartbeat import kill_switch_engaged, resolve_kill_switch_path
+from kalshi_alpha.exec.index_paper_ledger import INDEX_SERIES
+from kalshi_alpha.exec.pilot.config import PilotConfig, load_pilot_config
+from kalshi_alpha.exec.state.orders import OutstandingOrdersState
 from kalshi_alpha.exec.telemetry import TelemetrySink, sanitize_book_snapshot
+from kalshi_alpha.sched import current_window as scheduler_current_window
 from kalshi_alpha.utils.env import load_env
 
 LOGGER = logging.getLogger(__name__)
+OrderbookFetcher = Callable[[str], Orderbook | None]
+_BID_KEYS = ("bid", "best_bid", "best_bid_price")
+_ASK_KEYS = ("ask", "best_ask", "best_ask_price")
+
+
+def _safe_float(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, (float, int)):
+            return float(value)
+        if isinstance(value, str):
+            return float(value)
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _price_from_entry(entry: object) -> float | None:
+    if isinstance(entry, Mapping):
+        return _safe_float(entry.get("price"))
+    if isinstance(entry, Sequence) and not isinstance(entry, (str, bytes, bytearray)) and entry:
+        return _safe_float(entry[0])
+    return _safe_float(entry)
+
+
+def _best_price(levels: object, *, side: str) -> float | None:
+    if not levels:
+        return None
+    best: float | None = None
+    entries = levels if isinstance(levels, Sequence) else [levels]
+    for entry in entries:
+        price = _price_from_entry(entry)
+        if price is None:
+            continue
+        if best is None:
+            best = price
+        elif side == "bid":
+            best = max(best, price)
+        else:
+            best = min(best, price)
+    return best
+
+
+def _extract_best_prices(snapshot: object) -> tuple[float | None, float | None]:
+    if snapshot is None:
+        return None, None
+    if isinstance(snapshot, Orderbook):
+        return _best_price(snapshot.bids, side="bid"), _best_price(snapshot.asks, side="ask")
+    if isinstance(snapshot, Mapping):
+        bid = None
+        ask = None
+        for key in _BID_KEYS:
+            if key in snapshot:
+                bid = _price_from_entry(snapshot.get(key))
+                if bid is not None:
+                    break
+        for key in _ASK_KEYS:
+            if key in snapshot:
+                ask = _price_from_entry(snapshot.get(key))
+                if ask is not None:
+                    break
+        if bid is None and "bid" in snapshot:
+            bid = _price_from_entry(snapshot.get("bid"))
+        if ask is None and "ask" in snapshot:
+            ask = _price_from_entry(snapshot.get("ask"))
+        if bid is not None or ask is not None:
+            return bid, ask
+        bids = snapshot.get("bids")
+        asks = snapshot.get("asks")
+        return _best_price(bids, side="bid"), _best_price(asks, side="ask")
+    return None, None
+
+
+def _validate_live_environment() -> None:
+    access_key = os.getenv("KALSHI_API_KEY_ID", "").strip()
+    key_path = os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
+    if not access_key:
+        raise RuntimeError("KALSHI_API_KEY_ID is required to authenticate live trading.")
+    if not key_path:
+        raise RuntimeError("KALSHI_PRIVATE_KEY_PEM_PATH is required to authenticate live trading.")
+    resolved = Path(key_path).expanduser()
+    if not resolved.exists():
+        raise RuntimeError(f"Kalshi private key path does not exist: {resolved}")
 
 
 class _RateLimiter:
@@ -75,11 +165,24 @@ class LiveBroker(Broker):
         http_client: KalshiHttpClient | None = None,
         order_queue: OrderQueue | None = None,
         telemetry_sink: TelemetrySink | None = None,
+        acknowledge_risks: bool = False,
+        pilot_mode: bool = False,
+        pilot_config: PilotConfig | None = None,
+        kill_switch_path: Path | str | None = None,
+        orderbook_client: KalshiPublicClient | None = None,
+        orderbook_fetcher: OrderbookFetcher | None = None,
+        clock: Callable[[], datetime] | None = None,
+        orders_state_path: Path | None = None,
     ) -> None:
+        if not acknowledge_risks:
+            raise RuntimeError(
+                "Live broker requires explicit acknowledgement via --i-understand-the-risks."
+            )
         if os.environ.get("CI"):
             raise RuntimeError("Live broker is disabled while running under CI.")
 
         load_env()
+        _validate_live_environment()
         self._artifacts_dir = ensure_directory(artifacts_dir)
         self._audit_dir = ensure_directory(audit_dir)
         self._http = http_client or KalshiHttpClient(
@@ -98,6 +201,16 @@ class LiveBroker(Broker):
             audit_callback=self._queue_audit,
         )
         self._telemetry = telemetry_sink
+        self._pilot_mode = bool(pilot_mode or pilot_config is not None)
+        if self._pilot_mode:
+            self._pilot_config = pilot_config or load_pilot_config(None)
+        else:
+            self._pilot_config = None
+        self._kill_switch_path = resolve_kill_switch_path(kill_switch_path)
+        self._orderbook_client = orderbook_client
+        self._orderbook_fetcher = orderbook_fetcher
+        self._clock = clock or (lambda: datetime.now(tz=UTC))
+        self._orders_state_path = orders_state_path
 
         LOGGER.info("Live broker initialized; submissions remain feature-gated.")
 
@@ -117,6 +230,11 @@ class LiveBroker(Broker):
             accepted.append(order)
         if not accepted:
             return
+        if self._kill_switch_blocked("submit"):
+            raise RuntimeError(
+                f"Kill switch engaged at {self._kill_switch_path.as_posix()}; refusing submit"
+            )
+        self._enforce_pilot_boundary(accepted)
 
         for order in accepted:
             payload = self._order_payload(order)
@@ -145,10 +263,15 @@ class LiveBroker(Broker):
             self._write_audit("place_intent", order)
 
     def cancel(self, order_ids: Sequence[str]) -> None:
+        if self._kill_switch_blocked("cancel"):
+            return
         for order_id in order_ids:
             self._order_queue.enqueue_cancel(order_id, self._submit_cancel)
 
     def replace(self, orders: Sequence[BrokerOrder]) -> None:
+        if self._kill_switch_blocked("replace"):
+            return
+        self._enforce_pilot_boundary(orders)
         for order in orders:
             existing_order_id = None
             if order.metadata:
@@ -187,7 +310,156 @@ class LiveBroker(Broker):
             }
             self._emit_telemetry("reject", telem_payload)
 
+    def _kill_switch_blocked(self, action: str) -> bool:
+        if not kill_switch_engaged(self._kill_switch_path):
+            return False
+        LOGGER.warning(
+            "Kill switch engaged at %s; blocking live %s",
+            self._kill_switch_path.as_posix(),
+            action,
+        )
+        self._emit_telemetry(
+            "reject",
+            {"action": action, "reason": "kill_switch_engaged", "path": self._kill_switch_path.as_posix()},
+        )
+        return True
+
+    def _now(self) -> datetime:
+        moment = self._clock()
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        return moment
+
+    def _fetch_orderbook(self, market_id: str) -> Orderbook | None:
+        if self._orderbook_fetcher is not None:
+            return self._orderbook_fetcher(market_id)
+        if self._orderbook_client is None:
+            self._orderbook_client = KalshiPublicClient()
+        return self._orderbook_client.get_orderbook(market_id)
+
+    def _resolve_best_bid_ask(
+        self,
+        order: BrokerOrder,
+        cache: dict[str, tuple[float | None, float | None]],
+    ) -> tuple[float | None, float | None]:
+        metadata = order.metadata or {}
+        snapshot = metadata.get("book_snapshot") or metadata.get("orderbook")
+        bid, ask = _extract_best_prices(snapshot)
+        if bid is not None or ask is not None:
+            return bid, ask
+        market_id = order.market_id or str(metadata.get("market_id") or "")
+        if not market_id:
+            return None, None
+        if market_id in cache:
+            return cache[market_id]
+        try:
+            orderbook = self._fetch_orderbook(market_id)
+        except Exception as exc:
+            LOGGER.warning("Pilot maker-only book fetch failed for %s: %s", market_id, exc)
+            cache[market_id] = (None, None)
+            return None, None
+        bid, ask = _extract_best_prices(orderbook)
+        cache[market_id] = (bid, ask)
+        return bid, ask
+
+    def _load_outstanding_bins(self) -> tuple[set[tuple[str, float, str]], set[str]]:
+        bins: set[tuple[str, float, str]] = set()
+        series_seen: set[str] = set()
+        outstanding = OutstandingOrdersState.load(self._orders_state_path).outstanding_for("live")
+        for record in outstanding.values():
+            metadata = record.get("metadata", {}) if isinstance(record, dict) else {}
+            series = str(metadata.get("series") or "").strip().upper()
+            if not series:
+                raise RuntimeError("pilot_outstanding_series_missing")
+            series_seen.add(series)
+            market_id = str(record.get("market_id") or "").strip()
+            side = str(record.get("side") or "").strip().upper()
+            strike = record.get("strike")
+            if not market_id or not side or strike is None:
+                raise RuntimeError("pilot_outstanding_missing_fields")
+            bins.add((market_id, float(strike), side))
+        return bins, series_seen
+
+    def _enforce_pilot_boundary(self, orders: Sequence[BrokerOrder]) -> None:
+        if not self._pilot_mode:
+            return
+        if not orders:
+            return
+        config = self._pilot_config
+        if config is None:
+            raise RuntimeError("pilot_config_missing")
+
+        max_contracts = int(config.max_contracts_per_order)
+        max_bins = int(config.max_unique_bins)
+        if max_contracts <= 0 or max_bins <= 0:
+            raise RuntimeError("pilot_config_invalid_caps")
+
+        series_values: set[str] = set()
+        for order in orders:
+            metadata = order.metadata or {}
+            series = str(metadata.get("series") or "").strip().upper()
+            if not series:
+                raise RuntimeError("pilot_series_missing")
+            series_values.add(series)
+            if series not in INDEX_SERIES:
+                raise RuntimeError(f"pilot_series_not_allowed:{series}")
+            if config.allowed_series and series not in config.allowed_series:
+                raise RuntimeError(f"pilot_series_not_allowed:{series}")
+            if int(order.contracts) <= 0:
+                raise RuntimeError("pilot_contracts_invalid")
+            if int(order.contracts) > max_contracts:
+                raise RuntimeError("pilot_max_contracts_exceeded")
+            if config.enforce_maker_only:
+                liquidity = str(metadata.get("liquidity") or "maker").lower()
+                if liquidity != "maker":
+                    raise RuntimeError("pilot_maker_only_required")
+
+        if len(series_values) > 1:
+            raise RuntimeError("pilot_multiple_series")
+        series = next(iter(series_values))
+
+        now = self._now()
+        window = scheduler_current_window(series, now)
+        if window is None:
+            raise RuntimeError(f"pilot_window_closed:{series}")
+        if window.seconds_to_freeze(now) <= 0:
+            raise RuntimeError(f"pilot_window_frozen:{series}")
+
+        new_bins = {
+            (order.market_id, float(order.strike), str(order.side).strip().upper()) for order in orders
+        }
+        if len(new_bins) > max_bins:
+            raise RuntimeError("pilot_max_unique_bins_exceeded")
+
+        outstanding_bins, outstanding_series = self._load_outstanding_bins()
+        if outstanding_series and (len(outstanding_series) > 1 or series not in outstanding_series):
+            raise RuntimeError("pilot_outstanding_series_mismatch")
+        if len(outstanding_bins | new_bins) > max_bins:
+            raise RuntimeError("pilot_max_unique_bins_exceeded")
+
+        if config.enforce_maker_only:
+            cache: dict[str, tuple[float | None, float | None]] = {}
+            for order in orders:
+                side = str(order.side).strip().upper()
+                bid, ask = self._resolve_best_bid_ask(order, cache)
+                if bid is not None and ask is not None and bid >= ask:
+                    raise RuntimeError("pilot_maker_only_invalid_book")
+                if side == "YES":
+                    if ask is None:
+                        raise RuntimeError("pilot_maker_only_missing_tob")
+                    if float(order.price) >= float(ask) - 1e-9:
+                        raise RuntimeError("pilot_maker_only_crossing")
+                elif side == "NO":
+                    if bid is None:
+                        raise RuntimeError("pilot_maker_only_missing_tob")
+                    if float(order.price) <= float(bid) + 1e-9:
+                        raise RuntimeError("pilot_maker_only_crossing")
+                else:
+                    raise RuntimeError(f"pilot_unknown_side:{order.side}")
+
     def _submit_cancel(self, order_id: str) -> None:
+        if self._kill_switch_blocked("cancel"):
+            return
         endpoint = f"/portfolio/orders/{order_id}"
         start_ns = time.perf_counter_ns()
         try:
@@ -215,6 +487,8 @@ class LiveBroker(Broker):
         self._write_audit("cancel_intent", extra={"order_id": order_id})
 
     def _submit_replace(self, order_id: str, order: BrokerOrder) -> None:
+        if self._kill_switch_blocked("replace"):
+            return
         payload = self._order_payload(order)
         endpoint = f"/portfolio/orders/{order_id}/replace"
         event_payload = self._telemetry_payload(order, payload)

@@ -273,6 +273,8 @@ def test_live_broker_order_lifecycle_with_mocked_http(
             queue_capacity=8,
             max_retries=2,
             timeout=1.0,
+            acknowledge_risks=True,
+            kill_switch_path=tmp_path / "kill_switch",
         )
 
         order = _sample_order()

@@ -11,6 +11,7 @@ from kalshi_alpha.brokers import create_broker
 from kalshi_alpha.brokers.kalshi.base import BrokerOrder
 from kalshi_alpha.brokers.kalshi.http_client import KalshiHttpClient
 from kalshi_alpha.brokers.kalshi.live import LiveBroker
+from kalshi_alpha.exec.pilot.config import PilotConfig
 from kalshi_alpha.exec.telemetry import TelemetrySink
 
 
@@ -41,6 +42,18 @@ class _RecordingHttpClient:
             }
         )
         return _StubResponse()
+
+
+def _write_dummy_key(tmp_path: Path) -> Path:
+    key_path = tmp_path / "dummy_kalshi_key.pem"
+    key_path.write_text("dummy-key", encoding="utf-8")
+    return key_path
+
+
+def _set_live_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    key_path = _write_dummy_key(tmp_path)
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "TESTKEY")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
 
 
 
@@ -76,6 +89,7 @@ def test_create_broker_live_with_acknowledgement(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CI", raising=False)
+    _set_live_env(monkeypatch, tmp_path)
 
     artifacts = tmp_path / "reports" / "_artifacts"
     audit_dir = tmp_path / "data" / "proc" / "audit"
@@ -93,6 +107,7 @@ def test_create_broker_live_with_acknowledgement(
             "queue_capacity": 8,
             "max_retries": 1,
             "timeout": 0.1,
+            "kill_switch_path": tmp_path / "kill_switch",
         },
     )
     assert isinstance(broker, LiveBroker)
@@ -105,6 +120,7 @@ def test_live_broker_does_not_log_secrets_and_writes_audit(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CI", raising=False)
+    _set_live_env(monkeypatch, tmp_path)
 
     client_stub = _RecordingHttpClient()
     http_client = cast(KalshiHttpClient, client_stub)
@@ -122,6 +138,8 @@ def test_live_broker_does_not_log_secrets_and_writes_audit(
         max_retries=1,
         timeout=0.1,
         telemetry_sink=telemetry,
+        acknowledge_risks=True,
+        kill_switch_path=tmp_path / "kill_switch",
     )
 
     caplog.clear()
@@ -164,6 +182,7 @@ def test_live_broker_cancel_serializes_intent(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CI", raising=False)
+    _set_live_env(monkeypatch, tmp_path)
 
     client_stub = _RecordingHttpClient()
     http_client = cast(KalshiHttpClient, client_stub)
@@ -181,6 +200,8 @@ def test_live_broker_cancel_serializes_intent(
         max_retries=1,
         timeout=0.1,
         telemetry_sink=telemetry,
+        acknowledge_risks=True,
+        kill_switch_path=tmp_path / "kill_switch",
     )
 
     broker.cancel(["ORD-1"])
@@ -195,3 +216,120 @@ def test_live_broker_cancel_serializes_intent(
     cancel_event = next(entry["data"] for entry in telemetry_data if entry["event_type"] == "cancel")
     assert cancel_event["order_id"] == "ORD-1"
     assert cancel_event["latency_ms"] >= 0.0
+
+
+def test_live_broker_requires_acknowledgement_direct(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CI", raising=False)
+    _set_live_env(monkeypatch, tmp_path)
+
+    client_stub = _RecordingHttpClient()
+    http_client = cast(KalshiHttpClient, client_stub)
+
+    with pytest.raises(RuntimeError):
+        LiveBroker(
+            artifacts_dir=tmp_path / "reports" / "_artifacts",
+            audit_dir=tmp_path / "data" / "proc" / "audit",
+            http_client=http_client,
+            rate_limit_per_second=10,
+            queue_capacity=8,
+            max_retries=1,
+            timeout=0.1,
+            kill_switch_path=tmp_path / "kill_switch",
+        )
+
+
+def test_pilot_boundary_rejects_crossing_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CI", raising=False)
+    _set_live_env(monkeypatch, tmp_path)
+
+    client_stub = _RecordingHttpClient()
+    http_client = cast(KalshiHttpClient, client_stub)
+    pilot_config = PilotConfig(
+        allowed_series=("INX",),
+        max_contracts_per_order=1,
+        max_unique_bins=2,
+        require_live_broker=True,
+        enforce_maker_only=True,
+        require_acknowledgement=True,
+        session_prefix="pilot",
+    )
+    broker = LiveBroker(
+        artifacts_dir=tmp_path / "reports" / "_artifacts",
+        audit_dir=tmp_path / "data" / "proc" / "audit",
+        http_client=http_client,
+        rate_limit_per_second=10,
+        queue_capacity=8,
+        max_retries=1,
+        timeout=0.1,
+        acknowledge_risks=True,
+        pilot_mode=True,
+        pilot_config=pilot_config,
+        clock=lambda: datetime(2025, 11, 4, 20, 55, tzinfo=UTC),
+        orders_state_path=tmp_path / "data" / "proc" / "state" / "orders.json",
+        kill_switch_path=tmp_path / "kill_switch",
+    )
+    order = BrokerOrder(
+        idempotency_key="crossing-1",
+        market_id="M-INX-1",
+        strike=5000.0,
+        side="YES",
+        price=0.45,
+        contracts=1,
+        probability=0.45,
+        metadata={
+            "market_ticker": "INX-TEST",
+            "series": "INX",
+            "liquidity": "maker",
+            "book_snapshot": {
+                "bid": {"price": 0.44, "size": 5},
+                "ask": {"price": 0.45, "size": 3},
+            },
+        },
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        broker.place([order])
+    assert "pilot_maker_only_crossing" in str(excinfo.value)
+    assert not client_stub.requests
+
+
+def test_kill_switch_blocks_submit_and_cancel_replace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CI", raising=False)
+    _set_live_env(monkeypatch, tmp_path)
+
+    client_stub = _RecordingHttpClient()
+    http_client = cast(KalshiHttpClient, client_stub)
+    kill_switch = tmp_path / "kill_switch"
+    kill_switch.write_text("1", encoding="utf-8")
+
+    broker = LiveBroker(
+        artifacts_dir=tmp_path / "reports" / "_artifacts",
+        audit_dir=tmp_path / "data" / "proc" / "audit",
+        http_client=http_client,
+        rate_limit_per_second=10,
+        queue_capacity=8,
+        max_retries=1,
+        timeout=0.1,
+        acknowledge_risks=True,
+        kill_switch_path=kill_switch,
+    )
+
+    with pytest.raises(RuntimeError):
+        broker.place([_sample_order()])
+
+    broker.cancel(["ORD-1"])
+    broker.replace([_sample_order()])
+    assert broker.status()["queue_depth"] == 0
+    assert not client_stub.requests

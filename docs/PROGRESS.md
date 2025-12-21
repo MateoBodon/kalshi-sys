@@ -12,3 +12,6 @@
 - Ticket #3 — TOB snapshot logger + fill-calibration dataset skeleton: added bounded TOB + quote-intent logging for index ladders, dataset builder, and calibration README.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/README.md`
+- Ticket #4 — Pilot safety enforced at broker boundary: added live broker boundary guards for pilot caps/window/maker-only, kill-switch submit blocking, and new pilot safety tests.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/README.md`
