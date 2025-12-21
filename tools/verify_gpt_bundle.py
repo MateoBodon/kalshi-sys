@@ -8,7 +8,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-PLACEHOLDER_MARKERS = ("content omitted", "(truncated)")
+PLACEHOLDER_LINES = {"...", "content omitted", "(truncated)"}
 
 
 class BundleVerificationError(Exception):
@@ -36,14 +36,10 @@ def _find_run_names(paths: list[str]) -> set[str]:
 def _placeholder_lines(content: str) -> list[str]:
     matches: list[str] = []
     for line in content.splitlines():
-        stripped = line.strip()
-        lowered = stripped.lower()
-        if stripped == "...":
+        candidate = line[1:] if line[:1] in {"+", "-", " "} else line
+        candidate = candidate.strip().lower()
+        if candidate in PLACEHOLDER_LINES:
             matches.append(line)
-            continue
-        if any(marker in lowered for marker in PLACEHOLDER_MARKERS):
-            matches.append(line)
-            continue
     return matches
 
 
