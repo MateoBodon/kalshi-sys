@@ -396,6 +396,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     if config.record_tob and config.tob_run_id and config.tob_output_dir:
         if config.tob_output_dir.name != config.tob_run_id:
             config.tob_output_dir = config.tob_output_dir / config.tob_run_id
+    if config.skip_preflight and not config.offline:
+        raise ValueError("--skip-preflight is only allowed with --offline")
 
     ws_factory = lambda: WSListener(
         soft_ms=config.ws_soft_ms,
