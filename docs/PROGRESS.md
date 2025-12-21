@@ -1,5 +1,7 @@
 # Progress
 
+Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
+
 ## 2025-12-20
 - Ticket #1 — Index-only GO/NO-GO gates: scoped quality gates and freshness summaries to index feeds, and index runners now forward the index scope so macro staleness no longer blocks index scans.
   - Gate status: PAPER

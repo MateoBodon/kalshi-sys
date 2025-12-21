@@ -38,6 +38,10 @@ Naming convention (REQUIRED):
 - `<RUN_NAME> = YYYYMMDD_HHMMSSZ_TICKET-###_<slug>`
 - Example: `20251220_231500Z_TICKET-001_index_only_gates`
 
+Run logs are local-only:
+- `docs/agent_runs/` and `docs/gpt_bundles/` are gitignored.
+- Do NOT commit run logs or bundle zips; keep them on disk and include them in review bundles.
+
 Required files in each run directory:
 1) `README.md`
    - goal
