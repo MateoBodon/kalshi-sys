@@ -1,0 +1,108 @@
+rg --files
+# output: list of repo files (961 lines, truncated in console)
+
+sed -n '1,260p' src/kalshi_alpha/exec/supervisor_index.py
+sed -n '260,560p' src/kalshi_alpha/exec/supervisor_index.py
+sed -n '1,240p' src/kalshi_alpha/exec/runners/micro_index.py
+sed -n '1,240p' src/kalshi_alpha/exec/collectors/kalshi_tob.py
+sed -n '1,260p' src/kalshi_alpha/brokers/kalshi/ws_client.py
+sed -n '260,620p' src/kalshi_alpha/brokers/kalshi/ws_client.py
+sed -n '1,240p' src/kalshi_alpha/exec/telemetry/sink.py
+sed -n '1,220p' src/kalshi_alpha/core/kalshi_api/__init__.py
+
+python -m kalshi_alpha.exec.supervisor_index --help
+# stderr: ModuleNotFoundError: No module named 'kalshi_alpha'
+
+rg -n "intent|quote" src/kalshi_alpha/exec -S
+rg -n "submit|place|order" src/kalshi_alpha/exec/runners/scan_ladders.py -S
+sed -n '1360,1560p' src/kalshi_alpha/exec/runners/scan_ladders.py
+sed -n '300,420p' src/kalshi_alpha/exec/runners/scan_ladders.py
+rg -n "window_label|window_ts" src/kalshi_alpha/exec/runners/scan_ladders.py -S
+sed -n '720,840p' src/kalshi_alpha/exec/runners/scan_ladders.py
+rg -n "books_at_scan|book_snapshot" -S src/kalshi_alpha/exec/runners/scan_ladders.py
+sed -n '2420,2705p' src/kalshi_alpha/exec/runners/scan_ladders.py
+sed -n '3140,3605p' src/kalshi_alpha/exec/runners/scan_ladders.py
+sed -n '560,780p' src/kalshi_alpha/exec/runners/scan_ladders.py
+sed -n '1800,2140p' src/kalshi_alpha/exec/runners/scan_ladders.py
+sed -n '2320,2465p' src/kalshi_alpha/exec/runners/scan_ladders.py
+
+rg -n "tob|top-of-book|top of book" src/kalshi_alpha -S
+sed -n '1,200p' src/kalshi_alpha/replay/fill_model.py
+
+date -u "+%Y%m%d_%H%M%SZ"
+# output: 20251221_033013Z
+
+git checkout -b codex/TICKET-003_tob_snapshot_logger
+# output: Switched to a new branch 'codex/TICKET-003_tob_snapshot_logger'
+
+python - <<'PY'
+import json
+from datetime import datetime, timezone
+path = "docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/META.json"
+with open(path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+data["start_utc"] = datetime.now(timezone.utc).isoformat()
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --help
+# output: help text includes --record-tob/--tob-run-id/--tob-output-dir/--tob-depth/--tob-max-bytes/--max-runtime-seconds
+
+pytest -q
+# output: 117 passed, 730 skipped
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
+# output: NO-GO hourly-1500: calibration_missing:INX:close, calibration_missing:NASDAQ100:close, calibration_missing:INXU:noon, calibration_missing:NASDAQ100U:noon
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --skip-preflight --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
+# output: ValueError: Pilot mode cannot run with --offline fixtures
+
+mkdir -p data/proc/state
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --skip-preflight --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
+# output: ran hourly-1500 for INXU,NASDAQ100U and completed
+
+ls -la data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger
+# output: tob.jsonl, quote_intents.jsonl
+
+PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
+# output: [fillcalib] wrote data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
+
+# Accidental re-run during logging attempt (captured for traceability):
+pytest -q
+# output: 117 passed, 727 skipped
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
+# output: NO-GO hourly-1500: calibration_missing:INX:close, calibration_missing:NASDAQ100:close, calibration_missing:INXU:noon, calibration_missing:NASDAQ100U:noon
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --skip-preflight --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
+# output: FileNotFoundError writing heartbeat.tmp -> heartbeat.json
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --skip-preflight --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
+# output: ran hourly-1500 for INXU,NASDAQ100U and completed
+
+ls -la data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger
+# output: tob.jsonl, quote_intents.jsonl (sizes updated after rerun)
+
+PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
+
+PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
+
+make gpt-bundle TICKET=TICKET-003_tob_snapshot_logger RUN_NAME=20251221_033013Z_TICKET-003_tob_snapshot_logger
+# output: wrote docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip
+
+python - <<'PY'
+import json
+from datetime import datetime, timezone
+path = "docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/META.json"
+with open(path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+data["end_utc"] = datetime.now(timezone.utc).isoformat()
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY
+
+git diff > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch

@@ -1,0 +1,20 @@
+{
+  "artifacts": [
+    {
+      "path": "data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger/tob.jsonl",
+      "description": "Dry-run TOB snapshot log (bounded depth/size)."
+    },
+    {
+      "path": "data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger/quote_intents.jsonl",
+      "description": "Dry-run quote intent log linked to TOB snapshots."
+    },
+    {
+      "path": "data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet",
+      "description": "Derived fill-calibration dataset built from TOB + quote intents."
+    },
+    {
+      "path": "reports/fillcalib/README.md",
+      "description": "Schema + usage notes for TOB logging and dataset builder."
+    }
+  ]
+}
