@@ -65,6 +65,10 @@ Every agent run must create:
 Where:
 - `RUN_NAME = YYYYMMDD_HHMMSSZ_TICKET-###_<slug>`
 
+Run logs are local-only:
+- `docs/agent_runs/` and `docs/gpt_bundles/` are gitignored.
+- Do NOT commit run logs or bundle zips; keep them on disk and include them in review bundles.
+
 Required files in that directory:
 - `README.md` (goal, summary, commands, tests, artifacts)
 - `RESULTS.md` (what changed + bundle path + verifier summary if applicable)
