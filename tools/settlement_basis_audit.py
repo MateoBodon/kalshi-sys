@@ -355,6 +355,9 @@ def _render_report(
     lines.append("")
 
     lines.append("## Flip-Risk Windows")
+    lines.append(
+        "- Flip-risk flag: abs(basis) >= nearest_strike_margin when a nearest strike is available."
+    )
     flips = frame.filter(pl.col("flip_risk") == True) if "flip_risk" in frame.columns else pl.DataFrame()
     if flips.is_empty():
         lines.append("_No flip-risk windows flagged._")
