@@ -17,6 +17,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #4 RETRY — Pilot safety enforced at broker boundary: tightened pilot config to index-only, enforced TOB staleness checks, added broker-boundary tests (crossing/stale/kill-switch queue), and refreshed run logs (supersedes 20251221_055147Z run).
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/README.md`; tests `tests/test_broker_live_safety.py`, `src/kalshi_alpha/brokers/kalshi/live.py`
+- Ticket #5 — AWS / 24-7 supervisor wiring: added AWS runbook + on-call checks, a systemd supervisor template, supervisor_index CLI aliases for `--dry-run` + `--series` with tests, and stabilized the macro-stale index scanner fixture test.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_223847Z_TICKET-005_aws_supervisor_wiring/README.md`
 - Ticket #7 — Bundle / diff hygiene stop-the-line: added GPT bundle verifier, hardened gpt-bundle diff generation, and tests for missing artifacts/placeholder diffs.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251221_204343Z_TICKET-007_bundle_diff_hygiene/README.md`; tests `tests/test_gpt_bundle_verifier.py`

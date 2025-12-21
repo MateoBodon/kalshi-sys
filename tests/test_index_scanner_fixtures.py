@@ -18,6 +18,7 @@ from kalshi_alpha.strategies.index import close_range, hourly_above_below
 
 ET = ZoneInfo("America/New_York")
 UTC = ZoneInfo("UTC")
+FIXED_NOW_ET = datetime(2025, 11, 3, 11, 55, tzinfo=ET)
 
 
 def _configure_index_calibration(proc_root: Path) -> None:
@@ -241,6 +242,7 @@ def test_macro_stale_allows_execution_with_index_gates(
     }
     (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
 
+    monkeypatch.setattr(scan_ladders, "_clock_skew_seconds", lambda *_: 0.0)
     monkeypatch.chdir(tmp_path)
     scan_ladders.main(
         [
@@ -261,6 +263,8 @@ def test_macro_stale_allows_execution_with_index_gates(
             "index",
             "--pal-policy",
             str(pal_policy_path),
+            "--now",
+            FIXED_NOW_ET.isoformat(),
         ]
     )
 

@@ -8,6 +8,7 @@ import pytest
 
 from kalshi_alpha.exec.index_paper_ledger import LEDGER_ENV_KEY, log_index_paper_trade
 from kalshi_alpha.exec.preflight_index import PreflightResult
+from kalshi_alpha.exec import supervisor_index
 from kalshi_alpha.exec.supervisor_index import SupervisorIndexConfig, _run_once, _run_window
 from kalshi_alpha.sched import next_windows
 
@@ -36,6 +37,41 @@ def _go_preflight(_: datetime) -> PreflightResult:
 
 def _no_go_preflight(_: datetime) -> PreflightResult:
     return PreflightResult(go=False, reasons=["env_missing"], details={})
+
+
+def test_supervisor_dry_run_alias() -> None:
+    args = supervisor_index._parse_args(["--dry-run", "--offline"])
+    config = supervisor_index._build_config(args)
+    assert config.broker == "dry"
+    assert config.offline
+
+
+def test_supervisor_dry_run_conflicts_with_live() -> None:
+    args = supervisor_index._parse_args(["--dry-run", "--broker", "live"])
+    with pytest.raises(ValueError, match="--dry-run cannot be combined"):
+        supervisor_index._build_config(args)
+
+
+@pytest.mark.asyncio
+async def test_supervisor_series_filter_runs_subset(tmp_path: Path) -> None:
+    now = datetime(2025, 11, 3, 9, 50, tzinfo=ET)
+    config = SupervisorIndexConfig(
+        now=now,
+        offline=True,
+        loop=False,
+        quiet=True,
+        series_filter=("INXU",),
+    )
+    calls: list[str] = []
+
+    await _run_once(
+        config,
+        preflight_fn=_go_preflight,
+        ws_factory=lambda: FakeWSListener(True),
+        runner=lambda series, window, cfg, moment: calls.append(series),
+    )
+
+    assert calls == ["INXU"]
 
 
 @pytest.mark.asyncio
