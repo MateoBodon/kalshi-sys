@@ -3,7 +3,7 @@
 - Key path (local): `~/.ssh/kalshi-key.pem` (permissions 600)
 - SSH config entry: `~/.ssh/config` host `kalshi-aws`
   - HostName: `98.93.78.177`
-  - User: `ec2-user` (switch to `ubuntu` if AMI is Ubuntu)
+  - User: `ubuntu` (switch to `ec2-user` if AMI is Amazon Linux)
   - IdentityFile: `~/.ssh/kalshi-key.pem`
   - StrictHostKeyChecking: `accept-new`
 - Quick connect: `ssh kalshi-aws`
