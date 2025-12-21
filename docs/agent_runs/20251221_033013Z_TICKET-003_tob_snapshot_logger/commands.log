@@ -106,3 +106,5 @@ with open(path, "w", encoding="utf-8") as f:
 PY
 
 git diff > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
+
+git diff HEAD~3..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
