@@ -5,6 +5,7 @@
 - Fixed backtest CLI subprocess tests to inject repo PYTHONPATH so `python -m kalshi_alpha...` resolves in pytest runs.
 - Added bounded TOB snapshot + quote-intent logging for index ladders, a fill-calibration dataset builder, and reporting notes for calibration inputs.
 - Enforced pilot broker-boundary safety checks (maker-only crossing, window freeze, caps, kill switch) with new live-broker tests and explicit ack/env gating.
+- Ticket #4 RETRY: tightened pilot config to index-only ladders, enforced TOB freshness at the live broker boundary, and added stale-TOB + kill-switch queue safety tests.
 
 ## 2025-12-20
 - Scoped index GO/NO-GO evaluation to index-only freshness + quality gates, added quality-gates scope plumbing for index runners, and updated index readiness/scoreboard outputs plus tests so macro staleness no longer blocks index runs.

@@ -12,6 +12,6 @@
 - Ticket #3 — TOB snapshot logger + fill-calibration dataset skeleton: added bounded TOB + quote-intent logging for index ladders, dataset builder, and calibration README.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/README.md`
-- Ticket #4 — Pilot safety enforced at broker boundary: added live broker boundary guards for pilot caps/window/maker-only, kill-switch submit blocking, and new pilot safety tests.
+- Ticket #4 RETRY — Pilot safety enforced at broker boundary: tightened pilot config to index-only, enforced TOB staleness checks, added broker-boundary tests (crossing/stale/kill-switch queue), and refreshed run logs (supersedes 20251221_055147Z run).
   - Gate status: PAPER
-  - Evidence: agent run log `docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/README.md`
+  - Evidence: agent run log `docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/README.md`; tests `tests/test_broker_live_safety.py`, `src/kalshi_alpha/brokers/kalshi/live.py`

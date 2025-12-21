@@ -3661,6 +3661,8 @@ def _evaluate_market(  # noqa: PLR0913
             if best_ask_price is not None:
                 book_snapshot["ask"] = {"price": best_ask_price, "size": best_ask_size}
             if book_snapshot:
+                if now_ts is not None:
+                    proposal_metadata["book_snapshot_ts"] = now_ts.isoformat()
                 proposal_metadata["book_snapshot"] = book_snapshot
         else:
             proposal_metadata["liquidity"] = "maker"

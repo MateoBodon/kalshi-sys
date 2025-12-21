@@ -1,7 +1,6 @@
 pilot:
   session_prefix: "pilot"
   allowed_series:
-    - "CPI"
     - "INXU"
     - "NASDAQ100U"
     - "INX"
