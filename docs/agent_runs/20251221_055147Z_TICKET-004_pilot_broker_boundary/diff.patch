@@ -562,10 +562,10 @@ index 0000000..b7fd48b
 +}
 diff --git a/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/commands.log b/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/commands.log
 new file mode 100644
-index 0000000..337504f
+index 0000000..ec0a072
 --- /dev/null
 +++ b/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/commands.log
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,81 @@
 +# commands.log
 +$ rg --files
 +(output truncated)
@@ -645,9 +645,11 @@ index 0000000..337504f
 +     730 skipped
 +$ make gpt-bundle TICKET=TICKET-004_pilot_broker_boundary RUN_NAME=20251221_055147Z_TICKET-004_pilot_broker_boundary
 +Wrote docs/gpt_bundles/gpt_bundle_TICKET-004_pilot_broker_boundary_20251221_055147Z_TICKET-004_pilot_broker_boundary.zip
++$ PYTHONPATH=src python -m kalshi_alpha.exec.preflight_index
++$ git diff --patch --no-color HEAD~2 > docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/diff.patch
 diff --git a/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/diff.patch b/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/diff.patch
 new file mode 100644
-index 0000000..81719b1
+index 0000000..0de2ea1
 --- /dev/null
 +++ b/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/diff.patch
 @@ -0,0 +1,599 @@
@@ -1215,10 +1217,10 @@ index 0000000..81719b1
 ++}
 +diff --git a/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/commands.log b/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/commands.log
 +new file mode 100644
-+index 0000000..337504f
++index 0000000..ec0a072
 +--- /dev/null
 ++++ b/docs/agent_runs/20251221_055147Z_TICKET-004_pilot_broker_boundary/commands.log
-+@@ -0,0 +1,79 @@
++@@ -0,0 +1,81 @@
 ++# commands.log
 ++$ rg --files
 ++(output truncated)
