@@ -35,18 +35,6 @@ date -u "+%Y%m%d_%H%M%SZ"
 git checkout -b codex/TICKET-003_tob_snapshot_logger
 # output: Switched to a new branch 'codex/TICKET-003_tob_snapshot_logger'
 
-python - <<'PY'
-import json
-from datetime import datetime, timezone
-path = "docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/META.json"
-with open(path, "r", encoding="utf-8") as f:
-    data = json.load(f)
-data["start_utc"] = datetime.now(timezone.utc).isoformat()
-with open(path, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2, sort_keys=True)
-    f.write("\n")
-PY
-
 PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --help
 # output: help text includes --record-tob/--tob-run-id/--tob-output-dir/--tob-depth/--tob-max-bytes/--max-runtime-seconds
 
@@ -70,51 +58,67 @@ ls -la data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger
 PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
 # output: [fillcalib] wrote data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
 
-# Accidental re-run during logging attempt (captured for traceability):
-pytest -q
-# output: 117 passed, 727 skipped
-
-PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
-# output: NO-GO hourly-1500: calibration_missing:INX:close, calibration_missing:NASDAQ100:close, calibration_missing:INXU:noon, calibration_missing:NASDAQ100U:noon
-
-PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --skip-preflight --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
-# output: FileNotFoundError writing heartbeat.tmp -> heartbeat.json
-
-PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --offline --skip-preflight --record-tob --tob-run-id 20251221_033013Z_TICKET-003_tob_snapshot_logger --now 2025-12-19T14:50:00-05:00
-# output: ran hourly-1500 for INXU,NASDAQ100U and completed
-
-ls -la data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger
-# output: tob.jsonl, quote_intents.jsonl (sizes updated after rerun)
-
-PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
-
-PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
-
 make gpt-bundle TICKET=TICKET-003_tob_snapshot_logger RUN_NAME=20251221_033013Z_TICKET-003_tob_snapshot_logger
 # output: wrote docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip
 
+# Restore fillcalib README content after accidental truncation
+cat > reports/fillcalib/README.md <<'EOF'
+# Fill-Calibration Dataset (TOB + Quote Intents)
+
+## Schema (parquet columns)
+- run_id
+- ts_utc
+- series
+- window_label
+- market_ticker
+- bid
+- ask
+- mid
+- spread
+- bid_size
+- ask_size
+- bid_depth (sum of top-level bid sizes, when available)
+- ask_depth (sum of top-level ask sizes, when available)
+- quote_price
+- quote_size
+- quote_side
+- time_to_expiry_seconds
+
+## Record TOB snapshots (dry-run)
+
+Example (offline fixtures, safe dry-run):
+
+```
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index \
+  --offline \
+  --skip-preflight \
+  --record-tob \
+  --tob-run-id <RUN_ID> \
+  --now <ISO-8601>
+```
+
+Outputs:
+- `data/raw/kalshi/tob/<RUN_ID>/tob.jsonl`
+- `data/raw/kalshi/tob/<RUN_ID>/quote_intents.jsonl`
+
+## Build dataset
+
+```
+PYTHONPATH=src python tools/build_fillcalib_dataset.py \
+  --in data/raw/kalshi/tob/<RUN_ID> \
+  --out data/proc/fillcalib/<RUN_ID>.parquet
+```
+
+## Note
+This dataset captures inputs for later fill calibration. It does **not** claim realized fills or profitability.
+EOF
+
 python - <<'PY'
-import json
-from datetime import datetime, timezone
-path = "docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/META.json"
-with open(path, "r", encoding="utf-8") as f:
-    data = json.load(f)
-data["end_utc"] = datetime.now(timezone.utc).isoformat()
-with open(path, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2, sort_keys=True)
-    f.write("\n")
+import polars as pl
+from pathlib import Path
+readme = Path('reports/fillcalib/README.md').read_text(encoding='utf-8')
+cols = [line.strip()[2:].strip() for line in readme.splitlines() if line.strip().startswith('- ') and 'RUN_ID' not in line]
+frame = pl.read_parquet('data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet')
+print('README cols:', cols)
+print('Parquet cols:', frame.columns)
 PY
-
-git diff > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
-
-git diff HEAD~3..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
-
-git diff HEAD~5..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
-
-make gpt-bundle TICKET=TICKET-003_tob_snapshot_logger RUN_NAME=20251221_033013Z_TICKET-003_tob_snapshot_logger
-# output: updated docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip
-
-git diff HEAD~7..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
-
-make gpt-bundle TICKET=TICKET-003_tob_snapshot_logger RUN_NAME=20251221_033013Z_TICKET-003_tob_snapshot_logger
-# output: updated docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip
