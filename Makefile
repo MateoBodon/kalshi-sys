@@ -97,10 +97,19 @@ gpt-bundle:
 	cp docs/PROGRESS.md "$$STAGING/PROGRESS.md"; \
 	cp project_state/CURRENT_RESULTS.md project_state/KNOWN_ISSUES.md project_state/CONFIG_REFERENCE.md "$$STAGING/project_state/"; \
 	cp -R "docs/agent_runs/$(RUN_NAME)" "$$STAGING/docs/agent_runs/"; \
-	git diff origin/main...HEAD > "$$STAGING/DIFF.patch" || git diff > "$$STAGING/DIFF.patch"; \
+	DIFF_PATH="$$STAGING/DIFF.patch"; \
+	git diff --patch --binary origin/main...HEAD > "$$DIFF_PATH" || true; \
+	if [ ! -s "$$DIFF_PATH" ]; then \
+		git diff --patch --binary HEAD~1..HEAD > "$$DIFF_PATH" || git show --patch --binary HEAD > "$$DIFF_PATH"; \
+	fi; \
+	if [ ! -s "$$DIFF_PATH" ]; then \
+		echo "ERROR: DIFF.patch is empty; ensure changes are committed or present in the working tree."; \
+		exit 1; \
+	fi; \
 	git log -1 --oneline > "$$STAGING/LAST_COMMIT.txt"; \
 	zip -r "$$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip" "$$STAGING" \
 		-x "**/__pycache__/**" -x "**/.pytest_cache/**"; \
+	$(PYTHON) tools/verify_gpt_bundle.py "$$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip"; \
 	echo "Wrote $$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip"
 
 freshness-smoke:
