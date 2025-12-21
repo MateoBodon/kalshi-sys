@@ -23,7 +23,7 @@ def _write_ok_freshness(monitors_dir: Path, now: datetime) -> Path:
         "generated_at": now.isoformat(),
         "metrics": {
             "required_feeds_ok": True,
-            "required_feeds": ["bls_cpi.latest_release"],
+            "required_feeds": ["bls_cpi.latest_release", "polygon_index.websocket"],
             "stale_feeds": [],
             "feeds": [
                 {
@@ -34,7 +34,17 @@ def _write_ok_freshness(monitors_dir: Path, now: datetime) -> Path:
                     "age_minutes": 10.0,
                     "last_ts": now.isoformat(),
                     "reason": None,
-                }
+                },
+                {
+                    "id": "polygon_index.websocket",
+                    "label": "Polygon index websocket",
+                    "required": True,
+                    "ok": True,
+                    "age_minutes": 0.01,
+                    "last_ts": now.isoformat(),
+                    "reason": None,
+                    "details": {"age_seconds": 0.5},
+                },
             ],
         },
     }

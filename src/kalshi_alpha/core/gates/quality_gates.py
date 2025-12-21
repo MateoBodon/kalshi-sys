@@ -16,6 +16,8 @@ import yaml
 from kalshi_alpha.datastore.paths import PROC_ROOT, RAW_ROOT
 
 ET = ZoneInfo("America/New_York")
+INDEX_SERIES = frozenset({"inx", "inxu", "nasdaq100", "nasdaq100u"})
+INDEX_NAMESPACE_PREFIXES = frozenset({"polygon_index"})
 
 
 @dataclass(frozen=True)
@@ -173,6 +175,7 @@ def run_quality_gates(
     config: QualityGateConfig | None = None,
     config_path: Path | None = None,
     monitors: dict[str, Any] | None = None,
+    scope: str | None = None,
     now: datetime | None = None,
     proc_root: Path | None = None,
     raw_root: Path | None = None,
@@ -180,6 +183,7 @@ def run_quality_gates(
     """Evaluate all gates and return go/no-go verdict."""
 
     cfg = config or load_quality_gate_config(config_path)
+    cfg = _filter_quality_gate_config(cfg, scope)
     evaluator = _QualityGateEvaluator(
         cfg,
         monitors or {},
@@ -197,6 +201,65 @@ def _maybe_float(value: object, *, default: float | None = None) -> float | None
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _filter_quality_gate_config(config: QualityGateConfig, scope: str | None) -> QualityGateConfig:
+    normalized = _normalize_scope(scope)
+    if normalized is None:
+        return config
+
+    if normalized == "index":
+        metrics = [item for item in config.metrics if item.series.lower() in INDEX_SERIES]
+        data_freshness = [
+            item
+            for item in config.data_freshness
+            if _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
+        ]
+        reconciliations = [
+            item
+            for item in config.reconciliations
+            if _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
+        ]
+    elif normalized == "macro":
+        metrics = [item for item in config.metrics if item.series.lower() not in INDEX_SERIES]
+        data_freshness = [
+            item
+            for item in config.data_freshness
+            if _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
+        ]
+        reconciliations = [
+            item
+            for item in config.reconciliations
+            if _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
+        ]
+    else:
+        return config
+
+    return QualityGateConfig(
+        metrics=metrics,
+        data_freshness=data_freshness,
+        reconciliations=reconciliations,
+        monitor_limits=config.monitor_limits,
+    )
+
+
+def _normalize_scope(scope: str | None) -> str | None:
+    if scope is None:
+        return None
+    normalized = str(scope).strip().lower()
+    if not normalized or normalized in {"all", "*", "any"}:
+        return None
+    if normalized in {"index", "indices", "index-only"}:
+        return "index"
+    if normalized in {"macro", "macros"}:
+        return "macro"
+    return None
+
+
+def _namespace_prefix(namespace: str) -> str:
+    if not namespace:
+        return ""
+    return namespace.split("/", 1)[0].strip().lower()
 
 
 class _QualityGateEvaluator:

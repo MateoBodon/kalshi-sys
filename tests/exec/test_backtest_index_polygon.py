@@ -1,4 +1,6 @@
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import polars as pl
@@ -8,6 +10,13 @@ from kalshi_alpha.strategies.index.model_polygon import fit_from_panel, params_p
 
 
 FIXTURE_ROOT = Path("tests/data_fixtures/index_panel_backtest/raw/polygon/index")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _env_with_repo_path() -> dict[str, str]:
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(PROJECT_ROOT)
+    return env
 
 
 def test_backtest_cli_produces_trades(tmp_path):
@@ -26,7 +35,7 @@ def test_backtest_cli_produces_trades(tmp_path):
     trades_dir = tmp_path / "trades"
     reports_dir = tmp_path / "reports"
     cmd = [
-        "python",
+        sys.executable,
         "-m",
         "kalshi_alpha.exec.backtest_index_polygon",
         "--series",
@@ -46,7 +55,7 @@ def test_backtest_cli_produces_trades(tmp_path):
         "--ev-threshold-cents",
         "0.5",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=_env_with_repo_path())
     assert result.returncode == 0
     csvs = list(trades_dir.glob("*.csv"))
     reports = list(reports_dir.glob("*.md"))
@@ -71,7 +80,7 @@ def test_backtest_cli_uses_kalshi_quotes(tmp_path):
     trades_dir = tmp_path / "trades"
     reports_dir = tmp_path / "reports"
     cmd = [
-        "python",
+        sys.executable,
         "-m",
         "kalshi_alpha.exec.backtest_index_polygon",
         "--series",
@@ -96,7 +105,7 @@ def test_backtest_cli_uses_kalshi_quotes(tmp_path):
         "--quotes-dir",
         "tests/data_fixtures/kalshi_index_quotes",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=_env_with_repo_path())
     assert result.returncode == 0
     csvs = list(trades_dir.glob("*.csv"))
     assert csvs, f"stdout={result.stdout}\nstderr={result.stderr}"

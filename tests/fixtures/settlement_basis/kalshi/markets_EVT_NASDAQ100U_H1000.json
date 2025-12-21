@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "id": "MKT_NDXU_H1000_A",
+      "event_id": "EVT_NASDAQ100U_H1000",
+      "ticker": "KXNASDAQ100U-25NOV10H1000-T16000",
+      "title": "NDX >= 16000 by 10:00",
+      "ladder_strikes": [15990.0, 16002.0, 16010.0],
+      "ladder_yes_prices": [0.52, 0.45, 0.35]
+    }
+  ]
+}

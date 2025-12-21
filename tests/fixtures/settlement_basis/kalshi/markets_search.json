@@ -1,0 +1,52 @@
+{
+  "markets": [
+    {
+      "id": "MKT_INXU_H1000_A",
+      "event_id": "EVT_INXU_H1000",
+      "ticker": "KXINXU-25NOV10H1000-T4500",
+      "title": "SPX >= 4500 by 10:00",
+      "series_ticker": "INXU",
+      "event_ticker": "KXINXU-25NOV10H1000",
+      "status": "settled",
+      "close_ts": "2025-11-10T15:00:00Z",
+      "ladder_strikes": [4500.0, 4510.0],
+      "ladder_yes_prices": [0.45, 0.35]
+    },
+    {
+      "id": "MKT_INXU_H1100_A",
+      "event_id": "EVT_INXU_H1100",
+      "ticker": "KXINXU-25NOV10H1100-T4510",
+      "title": "SPX >= 4510 by 11:00",
+      "series_ticker": "INXU",
+      "event_ticker": "KXINXU-25NOV10H1100",
+      "status": "settled",
+      "close_ts": "2025-11-10T16:00:00Z",
+      "ladder_strikes": [4510.0, 4520.0],
+      "ladder_yes_prices": [0.4, 0.3]
+    },
+    {
+      "id": "MKT_NDXU_H1000_A",
+      "event_id": "EVT_NASDAQ100U_H1000",
+      "ticker": "KXNASDAQ100U-25NOV10H1000-T16000",
+      "title": "NDX >= 16000 by 10:00",
+      "series_ticker": "NASDAQ100U",
+      "event_ticker": "KXNASDAQ100U-25NOV10H1000",
+      "status": "settled",
+      "close_ts": "2025-11-10T15:00:00Z",
+      "ladder_strikes": [16000.0, 16010.0],
+      "ladder_yes_prices": [0.5, 0.4]
+    },
+    {
+      "id": "MKT_NDXU_H1100_A",
+      "event_id": "EVT_NASDAQ100U_H1100",
+      "ticker": "KXNASDAQ100U-25NOV10H1100-T16010",
+      "title": "NDX >= 16010 by 11:00",
+      "series_ticker": "NASDAQ100U",
+      "event_ticker": "KXNASDAQ100U-25NOV10H1100",
+      "status": "settled",
+      "close_ts": "2025-11-10T16:00:00Z",
+      "ladder_strikes": [16010.0, 16020.0],
+      "ladder_yes_prices": [0.48, 0.38]
+    }
+  ]
+}
