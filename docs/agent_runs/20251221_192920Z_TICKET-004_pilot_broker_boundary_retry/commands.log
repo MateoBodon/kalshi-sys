@@ -1,0 +1,132 @@
+$ date -u "+%Y%m%d_%H%M%SZ"
+20251221_192920Z
+
+$ mkdir -p docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry
+
+$ rg --files | head -n 50
+README.md
+LICENSE
+.env.local.example
+.env.example
+Makefile
+REPORT.md
+CHANGELOG.md
+pyproject.toml
+docs/ACCESS.md
+docs/CHANGELOG_INDEX.md
+report/honesty.py
+report/__init__.py
+kalshi_alpha_long_term_plan.md
+scripts/polygon_dump.py
+scripts/run_indices_ws.sh
+scripts/parity_gate.py
+scripts/run_polygon_ws.sh
+scripts/run_indices_listener.py
+scripts/build_index_panel_polygon.py
+scripts/make_index_fixtures.sh
+scripts/check_promotion_ladder.py
+scripts/__init__.py
+scripts/massive_ws_probe.py
+scripts/pilot_teny.py
+scripts/proof_of_fill.py
+scripts/aws_job.py
+scripts/live_hourly_loop.py
+docker/aws-jobs/Dockerfile
+report/agent_logs/20251121_codex_ws_fast_tests.md
+report/agent_logs/20251120_codex_notes.md
+report/agent_logs/20251121_codex_notes.md
+report/agent_logs/20251121_codex_preflight_supervisor_index.md
+report/agent_logs/20251121_codex_model_backtest.md
+report/agent_logs/20251121_codex_index_paper_ledger_scoreboard.md
+report/agent_logs/20251220_codex_notes.md
+report/agent_logs/20251121_codex_backtest_kalshi_quotes.md
+report/digest.py
+report/__init__.py
+jobs/calib_hourly.py
+jobs/calibrate_hourly.py
+jobs/__init__.py
+jobs/calibrate_noon.py
+jobs/_index_calibration.py
+jobs/calibrate_close.py
+jobs/calibrate_index_polygon_model.py
+jobs/calib_eod.py
+jobs/fit_index_execution.py
+AGENTS.md
+docs/prompts/TICKET-002_settlement_basis_audit.md
+docs/prompts/TICKET-001_index_only_gates.md
+configs/series.yaml
+
+$ git checkout -b codex/TICKET-004_pilot_broker_boundary_retry
+Switched to a new branch 'codex/TICKET-004_pilot_broker_boundary_retry'
+
+$ rg "class .*Live|live broker|LiveBroker|kalshi.*live" -n src/kalshi_alpha | head -n 200
+src/kalshi_alpha/brokers/__init__.py:33:        from kalshi_alpha.brokers.kalshi.live import LiveBroker  # noqa: PLC0415
+src/kalshi_alpha/brokers/__init__.py:46:        return LiveBroker(**options)
+src/kalshi_alpha/brokers/kalshi/live.py:148:class LiveBroker(Broker):
+src/kalshi_alpha/exec/runners/scan_ladders.py:2239:        help="Required acknowledgement flag when arming the live broker adapter."
+
+$ cat configs/pilot.yaml
+pilot:
+  session_prefix: "pilot"
+  allowed_series:
+    - "CPI"
+    - "INXU"
+    - "NASDAQ100U"
+    - "INX"
+    - "NASDAQ100"
+  max_contracts_per_order: 1
+  max_unique_bins: 2
+  require_live_broker: true
+  enforce_maker_only: true
+  require_acknowledgement: true
+  max_daily_loss: null
+  max_weekly_loss: null
+
+$ pytest -q
+Results (6.67s):
+     117 passed
+     732 skipped
+
+$ git diff --patch --no-color > docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/diff.patch
+
+$ test -s docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/diff.patch
+
+$ git commit -m "Ticket #4 retry: tighten pilot broker boundary" -m "Tests: pytest -q"
+[codex/TICKET-004_pilot_broker_boundary_retry 05519d3] Ticket #4 retry: tighten pilot broker boundary
+ 11 files changed, 1212 insertions(+), 16 deletions(-)
+ create mode 100644 docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/META.json
+ create mode 100644 docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/README.md
+ create mode 100644 docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/TESTS.md
+ create mode 100644 docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/diff.patch
+ create mode 100644 docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/prompt.md
+
+$ make gpt-bundle TICKET=TICKET-004_pilot_broker_boundary RUN_NAME=20251221_192920Z_TICKET-004_pilot_broker_boundary_retry
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-004_pilot_broker_boundary_20251221_192920Z_TICKET-004_pilot_broker_boundary_retry.zip
+
+$ unzip -l docs/gpt_bundles/gpt_bundle_TICKET-004_pilot_broker_boundary_20251221_192920Z_TICKET-004_pilot_broker_boundary_retry.zip | sed -n '1,200p'
+Archive:  docs/gpt_bundles/gpt_bundle_TICKET-004_pilot_broker_boundary_20251221_192920Z_TICKET-004_pilot_broker_boundary_retry.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+        0  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/
+   281914  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/DIFF.patch
+     1435  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/PROGRESS.md
+        0  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/
+     8655  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/CODEX_SPRINT_TICKETS.md
+     5819  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/DOCS_AND_LOGGING_SYSTEM.md
+    14020  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/PLAN_OF_RECORD.md
+     1435  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/PROGRESS.md
+        0  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/agent_runs/
+        0  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/
+    33222  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/diff.patch
+     6739  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/prompt.md
+       67  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/TESTS.md
+     2797  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/README.md
+      299  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/META.json
+       55  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/LAST_COMMIT.txt
+     3286  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/AGENTS.md
+        0  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/project_state/
+    15785  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/project_state/CONFIG_REFERENCE.md
+     1655  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/project_state/CURRENT_RESULTS.md
+     1115  12-21-2025 14:37   docs/gpt_bundles/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/project_state/KNOWN_ISSUES.md
+---------                     -------
+   378298                     21 files
