@@ -87,3 +87,26 @@ ls -la data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger
 # output: tob.jsonl, quote_intents.jsonl (sizes updated after rerun)
 
 PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
+
+PYTHONPATH=src python tools/build_fillcalib_dataset.py --in data/raw/kalshi/tob/20251221_033013Z_TICKET-003_tob_snapshot_logger --out data/proc/fillcalib/20251221_033013Z_TICKET-003_tob_snapshot_logger.parquet
+
+make gpt-bundle TICKET=TICKET-003_tob_snapshot_logger RUN_NAME=20251221_033013Z_TICKET-003_tob_snapshot_logger
+# output: wrote docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip
+
+python - <<'PY'
+import json
+from datetime import datetime, timezone
+path = "docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/META.json"
+with open(path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+data["end_utc"] = datetime.now(timezone.utc).isoformat()
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY
+
+git diff > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
+
+git diff HEAD~3..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch
+
+git diff HEAD~5..HEAD > docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/diff.patch

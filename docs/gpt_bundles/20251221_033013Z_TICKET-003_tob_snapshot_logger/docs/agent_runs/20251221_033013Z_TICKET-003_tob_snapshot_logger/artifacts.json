@@ -15,6 +15,10 @@
     {
       "path": "reports/fillcalib/README.md",
       "description": "Schema + usage notes for TOB logging and dataset builder."
+    },
+    {
+      "path": "docs/gpt_bundles/gpt_bundle_TICKET-003_tob_snapshot_logger_20251221_033013Z_TICKET-003_tob_snapshot_logger.zip",
+      "description": "GPT review bundle for this run."
     }
   ]
 }
