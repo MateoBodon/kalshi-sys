@@ -1,5 +1,9 @@
 # Changelog
 
+## 2025-12-21
+- Added a settlement basis audit CLI for index ladders, offline fixtures + unit tests, and daily report outputs comparing Polygon window values to Kalshi expiration values.
+- Fixed backtest CLI subprocess tests to inject repo PYTHONPATH so `python -m kalshi_alpha...` resolves in pytest runs.
+
 ## 2025-12-20
 - Scoped index GO/NO-GO evaluation to index-only freshness + quality gates, added quality-gates scope plumbing for index runners, and updated index readiness/scoreboard outputs plus tests so macro staleness no longer blocks index runs.
 

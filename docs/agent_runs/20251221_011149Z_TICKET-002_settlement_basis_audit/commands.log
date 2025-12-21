@@ -1,0 +1,36 @@
+$ pytest -q
+ss.....sssssssssssssss.....FF......sss..ssss...........sssssssssssssssss [  8%]
+...
+FAILED tests/exec/test_backtest_index_polygon.py::test_backtest_cli_produces_trades
+FAILED tests/exec/test_backtest_index_polygon.py::test_backtest_cli_uses_kalshi_quotes
+stderr: ModuleNotFoundError: No module named 'kalshi_alpha'
+
+$ pytest -q
+ss.....sssssssssssssss.............sss..ssss...........sssssssssssssssss [  8%]
+...
+[100%]
+
+$ python tools/settlement_basis_audit.py --day 2025-11-10 --series INXU --offline-fixtures
+Traceback (most recent call last):
+  File "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/tools/settlement_basis_audit.py", line 19, in <module>
+    from kalshi_alpha.core.kalshi_api import KalshiPublicClient
+ModuleNotFoundError: No module named 'kalshi_alpha'
+
+$ python tools/settlement_basis_audit.py --day 2025-11-10 --series INXU --offline-fixtures
+[settlement_basis] dataset written to /Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/proc/settlement_basis/2025-11-10_INXU.parquet
+[settlement_basis] report written to /Users/mateobodon/Documents/Programming/Projects/kalshi-sys/reports/settlement_basis/2025-11-10_INXU.md
+
+$ python tools/settlement_basis_audit.py --day 2025-11-10 --series NASDAQ100U --offline-fixtures
+[settlement_basis] dataset written to /Users/mateobodon/Documents/Programming/Projects/kalshi-sys/data/proc/settlement_basis/2025-11-10_NASDAQ100U.parquet
+[settlement_basis] report written to /Users/mateobodon/Documents/Programming/Projects/kalshi-sys/reports/settlement_basis/2025-11-10_NASDAQ100U.md
+
+$ pytest -q
+ss.....sssssssssssssss.............sss..ssss...........sssssssssssssssss [  8%]
+...
+[100%]
+
+$ make gpt-bundle TICKET=TICKET-002_settlement_basis_audit RUN_NAME=20251221_011149Z_TICKET-002_settlement_basis_audit
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-002_settlement_basis_audit_20251221_011149Z_TICKET-002_settlement_basis_audit.zip
+
+$ make gpt-bundle TICKET=TICKET-002_settlement_basis_audit RUN_NAME=20251221_011149Z_TICKET-002_settlement_basis_audit
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-002_settlement_basis_audit_20251221_011149Z_TICKET-002_settlement_basis_audit.zip
