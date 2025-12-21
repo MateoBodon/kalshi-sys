@@ -53,6 +53,7 @@ class SupervisorIndexConfig:
     tob_max_bytes: int = DEFAULT_TOB_MAX_BYTES
     max_runtime_seconds: float | None = None
     skip_preflight: bool = False
+    series_filter: tuple[str, ...] | None = None
 
     def normalized_broker(self) -> str:
         return (self.broker or "dry").strip().lower()
@@ -134,8 +135,12 @@ def _pick_window(now_et: datetime) -> TradingWindow | None:
     return upcoming[0] if upcoming else None
 
 
-def _series_to_run(window: TradingWindow) -> tuple[str, ...]:
-    return tuple(series.upper() for series in window.series)
+def _series_to_run(window: TradingWindow, *, series_filter: Sequence[str] | None = None) -> tuple[str, ...]:
+    candidates = [series.upper() for series in window.series]
+    if series_filter:
+        allowed = {series.upper() for series in series_filter}
+        candidates = [series for series in candidates if series in allowed]
+    return tuple(candidates)
 
 
 def _default_runner(
@@ -211,11 +216,12 @@ async def _run_window(
             quiet=config.quiet,
         )
 
+    series_to_run = _series_to_run(window, series_filter=config.series_filter)
     tasks = [
-        asyncio.to_thread(runner, series, window, config, now_et) for series in _series_to_run(window)
+        asyncio.to_thread(runner, series, window, config, now_et) for series in series_to_run
     ]
     if tasks:
-        _log(f"running window {window.label} for series {','.join(_series_to_run(window))}", quiet=config.quiet)
+        _log(f"running window {window.label} for series {','.join(series_to_run)}", quiet=config.quiet)
         await asyncio.gather(*tasks)
     return True, True
 
@@ -320,11 +326,17 @@ def _is_transient_preflight(reasons: Sequence[str]) -> bool:
     return all(reason in transient_tags for reason in reasons)
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Index ladder supervisor (paper, maker-only).")
     parser.add_argument("--loop", action="store_true", help="Run continuously across windows until close.")
     parser.add_argument("--sleep-seconds", type=float, default=DEFAULT_SLEEP_SECONDS, help="Loop sleep interval.")
+    parser.add_argument(
+        "--series",
+        nargs="+",
+        help="Restrict supervisor to specific series (INX/INXU/NASDAQ100/NASDAQ100U).",
+    )
     parser.add_argument("--broker", default="dry", choices=["dry", "live"], help="Execution broker (default dry).")
+    parser.add_argument("--dry-run", action="store_true", help="Alias for --broker dry (safe default).")
     parser.add_argument("--offline", action="store_true", help="Use offline fixtures (skips WS gating).")
     parser.add_argument("--no-ws-listen", action="store_true", help="Disable local Polygon WS listener.")
     parser.add_argument("--ws-soft-ms", type=float, default=DEFAULT_WS_SOFT_MS, help="WS freshness soft threshold.")
@@ -369,12 +381,25 @@ def main(argv: Sequence[str] | None = None) -> None:
         default=60.0,
         help="Seconds before retrying a transient preflight failure inside the same window (0 to disable).",
     )
+    return parser
 
-    args = parser.parse_args(list(argv) if argv is not None else None)
+
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = _build_parser()
+    return parser.parse_args(list(argv) if argv is not None else None)
+
+
+def _build_config(args: argparse.Namespace) -> SupervisorIndexConfig:
+    broker = args.broker
+    if args.dry_run:
+        if args.broker != "dry":
+            raise ValueError("--dry-run cannot be combined with --broker live.")
+        broker = "dry"
+    series_filter = tuple(str(series).upper() for series in args.series) if args.series else None
     config = SupervisorIndexConfig(
         loop=bool(args.loop),
         sleep_seconds=max(1.0, float(args.sleep_seconds)),
-        broker=args.broker,
+        broker=broker,
         offline=bool(args.offline),
         listen_ws=not bool(args.no_ws_listen) and not bool(args.offline),
         ws_soft_ms=max(1.0, float(args.ws_soft_ms)),
@@ -390,6 +415,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         tob_max_bytes=max(256, int(args.tob_max_bytes)),
         max_runtime_seconds=float(args.max_runtime_seconds) if args.max_runtime_seconds else None,
         skip_preflight=bool(args.skip_preflight),
+        series_filter=series_filter,
     )
     if config.record_tob and not config.tob_run_id:
         config.tob_run_id = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%SZ")
@@ -398,6 +424,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             config.tob_output_dir = config.tob_output_dir / config.tob_run_id
     if config.skip_preflight and not config.offline:
         raise ValueError("--skip-preflight is only allowed with --offline")
+    return config
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = _parse_args(argv)
+    config = _build_config(args)
 
     ws_factory = lambda: WSListener(
         soft_ms=config.ws_soft_ms,

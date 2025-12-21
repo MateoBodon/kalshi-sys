@@ -6,6 +6,7 @@
 - Added bounded TOB snapshot + quote-intent logging for index ladders, a fill-calibration dataset builder, and reporting notes for calibration inputs.
 - Enforced pilot broker-boundary safety checks (maker-only crossing, window freeze, caps, kill switch) with new live-broker tests and explicit ack/env gating.
 - Ticket #4 RETRY: tightened pilot config to index-only ladders, enforced TOB freshness at the live broker boundary, and added stale-TOB + kill-switch queue safety tests.
+- Added AWS supervisor runbook + on-call checks, a systemd supervisor template, and supervisor_index CLI aliases for `--dry-run` and `--series` with tests; stabilized the macro-stale index scanner fixture test with a fixed `--now` and clock-skew override.
 - Added GPT bundle verification tooling, hardened `make gpt-bundle` diff generation, and added bundle hygiene tests for missing artifacts/placeholder diffs.
 - Gitignored local run logs and GPT bundle artifacts (keep on disk, include in bundles for review).
 
