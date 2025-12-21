@@ -126,10 +126,20 @@ HONESTY_CLAMP_PATH = Path("reports/_artifacts/honesty/honesty_clamp.json")
 LOGGER = logging.getLogger(__name__)
 
 
-def _load_data_freshness_summary() -> dict[str, object]:
+def _load_data_freshness_summary(scope: str | None) -> dict[str, object]:
     freshness_path = MONITOR_ARTIFACTS_DIR / FRESHNESS_ARTIFACT_PATH.name
     payload = load_freshness_artifact(freshness_path)
-    return summarize_freshness_artifact(payload, artifact_path=freshness_path)
+    return summarize_freshness_artifact(payload, artifact_path=freshness_path, scope=scope)
+
+
+def _resolve_quality_gate_scope(args: argparse.Namespace) -> str | None:
+    raw = getattr(args, "quality_gates_scope", None)
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip().lower()
+    series = getattr(args, "series", "")
+    if isinstance(series, str) and series.strip().upper() in _INDEX_WS_SERIES:
+        return "index"
+    return None
 
 
 def _safe_float(value: object) -> float | None:
@@ -688,7 +698,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 f"[scheduler] Cancel-all requested for {series_upper} ahead of {scheduler_window.label}"
             )
 
-    data_freshness_summary = _load_data_freshness_summary()
+    gate_scope = _resolve_quality_gate_scope(args)
+    data_freshness_summary = _load_data_freshness_summary(gate_scope)
     fatal_freshness_reason = _freshness_fatal_reason(
         data_freshness_summary,
         require_polygon_ws=args.series.upper() in _INDEX_WS_SERIES,
@@ -974,6 +985,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             args,
             outcome.monitors,
             data_freshness_summary=data_freshness_summary,
+            scope=gate_scope,
         )
         go_status = gate_result.go
         outcome.monitors.setdefault("quality_gate_go", gate_result.go)
@@ -1519,6 +1531,7 @@ def _quality_gate_for_broker(
     monitors: dict[str, object],
     *,
     data_freshness_summary: dict[str, object] | None = None,
+    scope: str | None = None,
 ) -> QualityGateResult:
     now_utc = datetime.now(tz=UTC)
     monitor_summary = summarize_monitor_artifacts(
@@ -1526,14 +1539,19 @@ def _quality_gate_for_broker(
         now=now_utc,
         window=timedelta(minutes=DEFAULT_PANIC_ALERT_WINDOW_MINUTES),
     )
+    scope = scope or _resolve_quality_gate_scope(args)
     config_override = getattr(args, "quality_gates_config", None)
     if config_override:
         config_path = Path(config_override)
+    elif scope == "index":
+        index_candidate = Path("configs/quality_gates.index.yaml")
+        config_path = index_candidate if index_candidate.exists() else resolve_quality_gate_config_path()
     else:
         config_path = resolve_quality_gate_config_path()
     config = load_quality_gate_config(config_path)
     result = run_quality_gates(
         config=config,
+        scope=scope,
         now=now_utc,
         proc_root=PROC_ROOT,
         raw_root=RAW_ROOT,
@@ -1550,6 +1568,7 @@ def _quality_gate_for_broker(
         data_freshness_summary = summarize_freshness_artifact(
             data_freshness_payload,
             artifact_path=freshness_path,
+            scope=scope,
         )
     else:
         # Create a shallow copy to avoid mutating caller state.
@@ -1895,6 +1914,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         type=Path,
         default=None,
         help="Override quality gates configuration file.",
+    )
+    parser.add_argument(
+        "--quality-gates-scope",
+        choices=["index", "macro", "all"],
+        default=None,
+        help="Restrict quality gate evaluation to a scope (index/macro/all).",
     )
     parser.add_argument(
         "--output-dir",

@@ -18,6 +18,7 @@ from kalshi_alpha.exec.monitors.summary import MONITOR_ARTIFACTS_DIR
 
 FRESHNESS_CONFIG_PATH = Path("configs/freshness.yaml")
 FRESHNESS_ARTIFACT_PATH = MONITOR_ARTIFACTS_DIR / "freshness.json"
+_INDEX_FEED_PREFIXES = ("polygon", "index")
 
 
 @dataclass(slots=True)
@@ -231,7 +232,12 @@ def load_artifact(path: Path | None = None) -> dict[str, Any] | None:
     return None
 
 
-def summarize_artifact(payload: dict[str, Any] | None, *, artifact_path: Path) -> dict[str, Any]:
+def summarize_artifact(
+    payload: dict[str, Any] | None,
+    *,
+    artifact_path: Path,
+    scope: str | None = None,
+) -> dict[str, Any]:
     """Normalize the freshness artifact into a ramp-friendly summary."""
 
     summary: dict[str, Any] = {
@@ -268,7 +274,68 @@ def summarize_artifact(payload: dict[str, Any] | None, *, artifact_path: Path) -
         feeds = metrics.get("feeds") or metrics.get("table") or []
         if isinstance(feeds, list):
             summary["feeds"] = [dict(entry) for entry in feeds if isinstance(entry, dict)]
-    return summary
+    return _apply_scope_to_summary(summary, scope)
+
+
+def _apply_scope_to_summary(summary: dict[str, Any], scope: str | None) -> dict[str, Any]:
+    normalized = _normalize_scope(scope)
+    if normalized is None:
+        return summary
+
+    scoped = dict(summary)
+    scoped["scope"] = normalized
+    scoped["artifact_status"] = scoped.get("status")
+
+    feeds = scoped.get("feeds")
+    if not isinstance(feeds, list):
+        feeds = []
+
+    scoped_feeds = [feed for feed in feeds if _feed_in_scope(feed, normalized)]
+    if not scoped_feeds:
+        scoped["status"] = "MISSING"
+        scoped["required_feeds_ok"] = False
+        scoped["required_feeds"] = []
+        scoped["stale_feeds"] = []
+        scoped["feeds"] = []
+        scoped["message"] = f"data freshness scope '{normalized}' missing"
+        return scoped
+
+    required = [feed for feed in scoped_feeds if bool(feed.get("required", True))]
+    stale_required = [feed for feed in required if not bool(feed.get("ok", True))]
+    scoped["required_feeds"] = [str(feed.get("id")) for feed in required]
+    scoped["stale_feeds"] = [str(feed.get("id")) for feed in stale_required]
+    scoped["required_feeds_ok"] = not stale_required
+    scoped["feeds"] = scoped_feeds
+    scoped["status"] = "OK" if scoped["required_feeds_ok"] else "ALERT"
+    if scoped["stale_feeds"]:
+        scoped["message"] = "Stale feeds: " + ", ".join(scoped["stale_feeds"])
+    else:
+        scoped["message"] = "All required feeds fresh"
+    return scoped
+
+
+def _normalize_scope(scope: str | None) -> str | None:
+    if scope is None:
+        return None
+    normalized = str(scope).strip().lower()
+    if not normalized or normalized in {"all", "*", "any"}:
+        return None
+    if normalized in {"index", "indices", "index-only"}:
+        return "index"
+    if normalized in {"macro", "macros"}:
+        return "macro"
+    return None
+
+
+def _feed_in_scope(feed: Mapping[str, Any], scope: str) -> bool:
+    feed_id = str(feed.get("id") or "").strip().lower()
+    if not feed_id:
+        return False
+    if scope == "index":
+        return feed_id.startswith(_INDEX_FEED_PREFIXES)
+    if scope == "macro":
+        return not feed_id.startswith(_INDEX_FEED_PREFIXES)
+    return True
 
 
 def main(argv: Iterable[str] | None = None) -> int:

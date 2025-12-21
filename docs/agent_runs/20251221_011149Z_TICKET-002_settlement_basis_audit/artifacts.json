@@ -1,0 +1,22 @@
+[
+  {
+    "path": "reports/settlement_basis/2025-11-10_INXU.md",
+    "description": "Settlement basis report for INXU on 2025-11-10 (offline fixtures)."
+  },
+  {
+    "path": "reports/settlement_basis/2025-11-10_NASDAQ100U.md",
+    "description": "Settlement basis report for NASDAQ100U on 2025-11-10 (offline fixtures)."
+  },
+  {
+    "path": "data/proc/settlement_basis/2025-11-10_INXU.parquet",
+    "description": "Settlement basis dataset for INXU on 2025-11-10."
+  },
+  {
+    "path": "data/proc/settlement_basis/2025-11-10_NASDAQ100U.parquet",
+    "description": "Settlement basis dataset for NASDAQ100U on 2025-11-10."
+  },
+  {
+    "path": "docs/gpt_bundles/gpt_bundle_TICKET-002_settlement_basis_audit_20251221_011149Z_TICKET-002_settlement_basis_audit.zip",
+    "description": "Review bundle for Ticket #2 run."
+  }
+]

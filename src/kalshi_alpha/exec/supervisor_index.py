@@ -140,6 +140,8 @@ def _default_runner(
         "--quiet",
         "--now",
         now_et.isoformat(),
+        "--quality-gates-scope",
+        "index",
     ]
     if config.offline:
         args.append("--offline")

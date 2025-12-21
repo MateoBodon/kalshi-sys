@@ -1,0 +1,97 @@
+{
+  "run_name": "20251220_231551Z_TICKET-001_index_only_gates",
+  "artifacts": [
+    {
+      "path": "src/kalshi_alpha/core/gates/quality_gates.py",
+      "description": "Adds scope filtering for quality gate evaluation (index vs macro)."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/monitors/freshness.py",
+      "description": "Adds scoped freshness summary filtering for index-only feeds."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/runners/scan_ladders.py",
+      "description": "Plumbs quality-gates scope into freshness summary + gate evaluation and defaults index scope for index series."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/runners/micro_index.py",
+      "description": "Defaults index quality gates config and forwards index scope to scan_ladders."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/runners/pilot_hourly.py",
+      "description": "Adds quality-gates scope flag (default index) and forwards it to scan_ladders."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/runners/pilot_close.py",
+      "description": "Adds quality-gates config/scope defaults for index close pilot runs."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/supervisor_index.py",
+      "description": "Forwards index quality-gates scope to micro_index runner."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/pilot_readiness.py",
+      "description": "Uses index-scoped freshness summary for readiness reporting."
+    },
+    {
+      "path": "src/kalshi_alpha/exec/scoreboard.py",
+      "description": "Uses index-scoped freshness summary for scoreboards."
+    },
+    {
+      "path": "tests/test_index_scanner_fixtures.py",
+      "description": "Updates index scanner tests to assert macro staleness no longer blocks index GO/NO-GO and to pass scope flag."
+    },
+    {
+      "path": "tests/test_micro_runner.py",
+      "description": "Asserts micro_index forwards index quality-gates scope."
+    },
+    {
+      "path": "tests/test_pilot_readiness.py",
+      "description": "Updates freshness fixture to include polygon_index.websocket for index-scoped readiness." 
+    },
+    {
+      "path": "tests/test_pilot_runners.py",
+      "description": "Asserts pilot runners forward index quality-gates scope."
+    },
+    {
+      "path": "docs/PROGRESS.md",
+      "description": "Adds Ticket #1 progress entry with run log link."
+    },
+    {
+      "path": "CHANGELOG.md",
+      "description": "Adds 2025-12-20 entry for index-only GO/NO-GO gating scope changes."
+    },
+    {
+      "path": "docs/prompts/TICKET-001_index_only_gates.md",
+      "description": "Stores Ticket #1 prompt for audit trail."
+    },
+    {
+      "path": "report/agent_logs/20251220_codex_notes.md",
+      "description": "Appends session notes for Ticket #1."
+    },
+    {
+      "path": "docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/README.md",
+      "description": "Run summary, commands, tests, and notes."
+    },
+    {
+      "path": "docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/prompt.md",
+      "description": "Prompt captured for the run."
+    },
+    {
+      "path": "docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/commands.log",
+      "description": "Commands and key outputs captured during the run."
+    },
+    {
+      "path": "docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/diff.patch",
+      "description": "Patch of changes from this run."
+    },
+    {
+      "path": "docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/artifacts.json",
+      "description": "List of artifacts produced/changed in this run."
+    },
+    {
+      "path": "docs/gpt_bundles/gpt_bundle_ticket-001_20251220_231551Z_TICKET-001_index_only_gates.zip",
+      "description": "Review bundle zip generated via make gpt-bundle."
+    }
+  ]
+}

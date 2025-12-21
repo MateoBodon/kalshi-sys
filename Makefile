@@ -8,7 +8,7 @@ define run_with_uv
 	fi
 endef
 
-.PHONY: fmt lint typecheck test scan telemetry-smoke report digest sigma-drift fee-rules-watch live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay aws-deploy-dashboards parity-ci
+.PHONY: fmt lint typecheck test scan telemetry-smoke report digest sigma-drift fee-rules-watch live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay aws-deploy-dashboards parity-ci gpt-bundle
 
 fmt:
 	@if command -v uv >/dev/null 2>&1; then \
@@ -81,6 +81,27 @@ pilot-bundle:
 	else \
 		$(PYTHON) -m kalshi_alpha.exec.pilot_bundle; \
 	fi
+
+gpt-bundle:
+	@set -e; \
+	if [ -z "$(RUN_NAME)" ] || [ -z "$(TICKET)" ]; then \
+		echo "Usage: make gpt-bundle TICKET=ticket-XX RUN_NAME=YYYYMMDD_HHMMSSZ_TICKET-XXX_slug"; \
+		exit 1; \
+	fi; \
+	BUNDLE_ROOT="docs/gpt_bundles"; \
+	STAGING="$$BUNDLE_ROOT/$(RUN_NAME)"; \
+	mkdir -p "$$STAGING/docs/agent_runs" "$$STAGING/project_state" "$$STAGING/docs"; \
+	cp AGENTS.md "$$STAGING/"; \
+	cp docs/PLAN_OF_RECORD.md docs/DOCS_AND_LOGGING_SYSTEM.md docs/CODEX_SPRINT_TICKETS.md "$$STAGING/docs/"; \
+	cp docs/PROGRESS.md "$$STAGING/docs/"; \
+	cp docs/PROGRESS.md "$$STAGING/PROGRESS.md"; \
+	cp project_state/CURRENT_RESULTS.md project_state/KNOWN_ISSUES.md project_state/CONFIG_REFERENCE.md "$$STAGING/project_state/"; \
+	cp -R "docs/agent_runs/$(RUN_NAME)" "$$STAGING/docs/agent_runs/"; \
+	git diff origin/main...HEAD > "$$STAGING/DIFF.patch" || git diff > "$$STAGING/DIFF.patch"; \
+	git log -1 --oneline > "$$STAGING/LAST_COMMIT.txt"; \
+	zip -r "$$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip" "$$STAGING" \
+		-x "**/__pycache__/**" -x "**/.pytest_cache/**"; \
+	echo "Wrote $$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip"
 
 freshness-smoke:
 	@if command -v uv >/dev/null 2>&1; then \
