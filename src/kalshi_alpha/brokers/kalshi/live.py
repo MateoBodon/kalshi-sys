@@ -36,6 +36,18 @@ LOGGER = logging.getLogger(__name__)
 OrderbookFetcher = Callable[[str], Orderbook | None]
 _BID_KEYS = ("bid", "best_bid", "best_bid_price")
 _ASK_KEYS = ("ask", "best_ask", "best_ask_price")
+_SNAPSHOT_TS_KEYS = (
+    "book_snapshot_ts",
+    "book_snapshot_time",
+    "book_snapshot_timestamp",
+    "orderbook_ts",
+    "orderbook_time",
+    "orderbook_timestamp",
+    "captured_at",
+    "timestamp",
+    "timestamp_utc",
+    "as_of",
+)
 
 
 def _safe_float(value: object) -> float | None:
@@ -107,6 +119,45 @@ def _extract_best_prices(snapshot: object) -> tuple[float | None, float | None]:
     return None, None
 
 
+def _parse_timestamp(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(float(value), tz=UTC)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = f"{text[:-1]}+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            try:
+                return datetime.fromtimestamp(float(text), tz=UTC)
+            except (TypeError, ValueError):
+                return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
+
+
+def _extract_snapshot_timestamp(metadata: Mapping[str, object], snapshot: object) -> datetime | None:
+    for key in _SNAPSHOT_TS_KEYS:
+        if key in metadata:
+            parsed = _parse_timestamp(metadata.get(key))
+            if parsed is not None:
+                return parsed
+    if isinstance(snapshot, Mapping):
+        for key in _SNAPSHOT_TS_KEYS:
+            if key in snapshot:
+                parsed = _parse_timestamp(snapshot.get(key))
+                if parsed is not None:
+                    return parsed
+    return None
+
+
 def _validate_live_environment() -> None:
     access_key = os.getenv("KALSHI_API_KEY_ID", "").strip()
     key_path = os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
@@ -168,6 +219,7 @@ class LiveBroker(Broker):
         acknowledge_risks: bool = False,
         pilot_mode: bool = False,
         pilot_config: PilotConfig | None = None,
+        pilot_tob_staleness_seconds: float = 5.0,
         kill_switch_path: Path | str | None = None,
         orderbook_client: KalshiPublicClient | None = None,
         orderbook_fetcher: OrderbookFetcher | None = None,
@@ -206,6 +258,7 @@ class LiveBroker(Broker):
             self._pilot_config = pilot_config or load_pilot_config(None)
         else:
             self._pilot_config = None
+        self._pilot_tob_staleness_seconds = max(0.0, float(pilot_tob_staleness_seconds))
         self._kill_switch_path = resolve_kill_switch_path(kill_switch_path)
         self._orderbook_client = orderbook_client
         self._orderbook_fetcher = orderbook_fetcher
@@ -335,32 +388,33 @@ class LiveBroker(Broker):
             return self._orderbook_fetcher(market_id)
         if self._orderbook_client is None:
             self._orderbook_client = KalshiPublicClient()
-        return self._orderbook_client.get_orderbook(market_id)
+        return self._orderbook_client.get_orderbook(market_id, force_refresh=True)
 
     def _resolve_best_bid_ask(
         self,
         order: BrokerOrder,
-        cache: dict[str, tuple[float | None, float | None]],
-    ) -> tuple[float | None, float | None]:
+        cache: dict[str, tuple[float | None, float | None, datetime | None]],
+    ) -> tuple[float | None, float | None, datetime | None]:
         metadata = order.metadata or {}
         snapshot = metadata.get("book_snapshot") or metadata.get("orderbook")
+        snapshot_ts = _extract_snapshot_timestamp(metadata, snapshot)
         bid, ask = _extract_best_prices(snapshot)
-        if bid is not None or ask is not None:
-            return bid, ask
+        if (bid is not None or ask is not None) and snapshot_ts is not None:
+            return bid, ask, snapshot_ts
         market_id = order.market_id or str(metadata.get("market_id") or "")
         if not market_id:
-            return None, None
+            return None, None, None
         if market_id in cache:
             return cache[market_id]
         try:
             orderbook = self._fetch_orderbook(market_id)
         except Exception as exc:
             LOGGER.warning("Pilot maker-only book fetch failed for %s: %s", market_id, exc)
-            cache[market_id] = (None, None)
-            return None, None
+            cache[market_id] = (None, None, None)
+            return None, None, None
         bid, ask = _extract_best_prices(orderbook)
-        cache[market_id] = (bid, ask)
-        return bid, ask
+        cache[market_id] = (bid, ask, self._now())
+        return cache[market_id]
 
     def _load_outstanding_bins(self) -> tuple[set[tuple[str, float, str]], set[str]]:
         bins: set[tuple[str, float, str]] = set()
@@ -438,10 +492,16 @@ class LiveBroker(Broker):
             raise RuntimeError("pilot_max_unique_bins_exceeded")
 
         if config.enforce_maker_only:
-            cache: dict[str, tuple[float | None, float | None]] = {}
+            cache: dict[str, tuple[float | None, float | None, datetime | None]] = {}
             for order in orders:
                 side = str(order.side).strip().upper()
-                bid, ask = self._resolve_best_bid_ask(order, cache)
+                bid, ask, snapshot_ts = self._resolve_best_bid_ask(order, cache)
+                if snapshot_ts is None:
+                    raise RuntimeError("pilot_maker_only_missing_tob")
+                if self._pilot_tob_staleness_seconds > 0:
+                    age_seconds = max(0.0, (now - snapshot_ts).total_seconds())
+                    if age_seconds > self._pilot_tob_staleness_seconds:
+                        raise RuntimeError("pilot_maker_only_stale_tob")
                 if bid is not None and ask is not None and bid >= ask:
                     raise RuntimeError("pilot_maker_only_invalid_book")
                 if side == "YES":

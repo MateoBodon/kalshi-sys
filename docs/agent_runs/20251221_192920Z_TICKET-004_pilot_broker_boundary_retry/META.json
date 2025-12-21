@@ -1,0 +1,9 @@
+{
+  "run_name": "20251221_192920Z_TICKET-004_pilot_broker_boundary_retry",
+  "ticket_id": "TICKET-004",
+  "branch": "codex/TICKET-004_pilot_broker_boundary_retry",
+  "start_utc": "2025-12-21T19:29:20Z",
+  "end_utc": "2025-12-21T19:34:01Z",
+  "network_access": "enabled",
+  "web_search_used": "no"
+}
