@@ -158,6 +158,20 @@ class KalshiPublicClient:
         data = payload.get("events") if isinstance(payload, dict) else payload
         return [Event.from_payload(item) for item in data or []]
 
+    def get_event_detail(self, event_id: str, *, force_refresh: bool = False) -> dict[str, Any]:
+        """Return the raw event payload for a single event."""
+        payload = self._get(
+            f"/events/{event_id}",
+            cache_key=("event", event_id),
+            offline_stub=f"event_{event_id}.json",
+            force_refresh=force_refresh,
+        )
+        if isinstance(payload, dict):
+            return payload
+        if isinstance(payload, list):
+            return {"events": payload}
+        return {"event": payload}
+
     def get_markets(self, event_id: str, *, force_refresh: bool = False) -> list[Market]:
         payload = self._get(
             f"/events/{event_id}/markets",

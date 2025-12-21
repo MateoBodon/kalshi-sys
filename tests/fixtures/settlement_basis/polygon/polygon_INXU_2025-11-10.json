@@ -1,0 +1,18 @@
+{
+  "series": "INXU",
+  "day": "2025-11-10",
+  "values": [
+    {
+      "window_label": "hourly-1000",
+      "timestamp_utc": "2025-11-10T15:00:00Z",
+      "value": 4507.0,
+      "source": "offline_fixture"
+    },
+    {
+      "window_label": "hourly-1100",
+      "timestamp_utc": "2025-11-10T16:00:00Z",
+      "value": 4511.5,
+      "source": "offline_fixture"
+    }
+  ]
+}
