@@ -4,9 +4,8 @@ Goal: loop over SPX/NDX windows during U.S. cash hours, enforce preflight + WS f
 
 ## Single-window invocation (cron/EventBridge)
 ```bash
-PYTHONPATH=src \
 FAMILY=index \
-python -m kalshi_alpha.exec.supervisor_index \
+.venv/bin/python -m kalshi_alpha.exec.supervisor_index \
   --now "2025-11-21T09:50:00-05:00"   # any time inside the window
 ```
 - Picks the active or next window and runs `micro_index` for its series.
@@ -15,8 +14,8 @@ python -m kalshi_alpha.exec.supervisor_index \
 
 ## Long-lived loop (cash hours on an EC2 box)
 ```bash
-PYTHONPATH=src FAMILY=index \
-python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 30
+FAMILY=index \
+.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 30
 ```
 - Starts a shared Polygon index websocket listener for freshness gating.
 - Re-checks preflight per window; skips if NO-GO or WS age exceeds thresholds (soft 1500ms / strict 800ms by default).

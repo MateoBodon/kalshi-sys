@@ -1,6 +1,8 @@
 [Unit]
 Description=Kalshi Index Supervisor (paper-only default)
 After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -8,13 +10,10 @@ WorkingDirectory=/opt/kalshi-sys
 User=kalshi
 Group=kalshi
 Environment=SUPERVISOR_BROKER=dry
-Environment=PYTHONPATH=/opt/kalshi-sys/src
 EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
-ExecStart=/usr/bin/env python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --series INXU --dry-run --broker ${SUPERVISOR_BROKER}
+ExecStart=/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --series INXU --dry-run --broker ${SUPERVISOR_BROKER}
 Restart=always
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

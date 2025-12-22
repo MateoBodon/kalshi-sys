@@ -16,16 +16,17 @@ Last updated: 2025-12-21
 
 ## Prerequisites
 - Repo installed or checked out on the host (example: `/opt/kalshi-sys`).
-- Python 3.11+ environment activated.
-- Either:
-  - `pip install -e .`, or
-  - set `PYTHONPATH=src` in the EnvironmentFile.
+- Python 3.11+ venv created (example: `/opt/kalshi-sys/.venv`).
+- Editable install: `python -m pip install -e .` (if imports fail with pip 25,
+  use `--config-settings editable_mode=compat` as noted in `README.md`).
 
-## EC2 setup (copy/paste)
+## EC2 bootstrap (copy/paste)
 > Use a dedicated non-root user (example: `kalshi`). Run commands as that user
-> unless `sudo` is required. Replace placeholders in <>.
+> unless `sudo` is required. Replace placeholders in <>. Reminder: do not echo
+> secrets into logs; render them into `/etc/kalshi/kalshi-supervisor.env`.
 
 ```bash
+# Reminder: never echo secrets into logs; render them into /etc/kalshi/kalshi-supervisor.env.
 sudo useradd --create-home --shell /bin/bash kalshi
 sudo mkdir -p /opt/kalshi-sys /etc/kalshi
 sudo chown -R kalshi:kalshi /opt/kalshi-sys
@@ -36,8 +37,8 @@ sudo -u kalshi bash -lc '\
   git clone <REPO_URL> .\
   python -m venv .venv\
   source .venv/bin/activate\
-  pip install -U pip wheel\
-  pip install -e .\
+  python -m pip install -U pip wheel\
+  python -m pip install -e .\
 '
 
 sudo tee /etc/kalshi/kalshi-supervisor.env >/dev/null <<'EOF'
@@ -47,11 +48,19 @@ KALSHI_API_KEY_ID=<SSM_OR_SECRETS_MANAGER>
 KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
 EOF
 sudo chmod 600 /etc/kalshi/kalshi-supervisor.env
+
+sudo cp /opt/kalshi-sys/deploy/systemd/supervisor_index.service \
+  /etc/systemd/system/kalshi-supervisor-index.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now kalshi-supervisor-index.service
+
+# Status + (optional) stop/start checks
+sudo systemctl status kalshi-supervisor-index.service
+sudo systemctl stop kalshi-supervisor-index.service
+sudo systemctl start kalshi-supervisor-index.service
 ```
 
 Notes:
-- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
-  `PYTHONPATH=/opt/kalshi-sys/src` to the EnvironmentFile.
 - Keep secrets in SSM/Secrets Manager and render locally; never commit them.
 
 ## Environment variables and secrets (SSM / Secrets Manager)
@@ -213,9 +222,9 @@ Disable live broker quickly:
 
 ## Local smoke commands
 - Dry-run (requires keys):
-  - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
+  - `/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
 - No-keys smoke:
-  - `python -m kalshi_alpha.exec.supervisor_index --help`
+  - `/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --help`
 
 ## Redaction policy (do not paste into logs/docs)
 - AWS account IDs, instance IDs, private IPs, or AMI IDs.
