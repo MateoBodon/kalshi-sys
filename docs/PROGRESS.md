@@ -6,7 +6,7 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #6 — Fix index CLI smoke entrypoints: added preflight/supervisor summary lines, ensured go/no-go artifact writes on NO-GO, and added stdout fixture coverage for both CLIs.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md`
-- Ticket #8 — AWS dry-run deployment verification: pinned the systemd unit to `--series INXU`, added CloudWatch agent + index monitor timer templates, expanded the AWS runbook with EC2/systemd/CloudWatch steps, and collected EC2 systemd proof for two windows (CloudWatch shipping still blocked without IAM role/credentials).
+- Ticket #8 — AWS dry-run deployment verification: pinned the systemd unit to `--series INXU`, added CloudWatch agent + index monitor timer templates, expanded the AWS runbook with EC2/systemd/CloudWatch steps, and collected EC2 systemd + CloudWatch proof for two windows.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
 
