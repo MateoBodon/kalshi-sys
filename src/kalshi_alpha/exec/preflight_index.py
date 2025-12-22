@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import json
 import os
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Sequence
 
 import requests
 from zoneinfo import ZoneInfo
@@ -28,6 +30,7 @@ SERIES_HORIZONS: tuple[tuple[str, str], ...] = (
 
 MAX_CALIBRATION_AGE_DAYS = 14.0
 POLYGON_PING_URL = "https://api.polygon.io/v1/marketstatus/now"
+GO_NO_GO_PATH = Path("reports/_artifacts/go_no_go.json")
 
 
 @dataclass(slots=True)
@@ -193,4 +196,94 @@ def run_preflight(
     return PreflightResult(go=go, reasons=reasons, details=details)
 
 
-__all__ = ["MAX_CALIBRATION_AGE_DAYS", "PreflightResult", "run_preflight"]
+def _parse_now(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _series_labels(series_horizons: Sequence[tuple[str, str]] = SERIES_HORIZONS) -> tuple[str, ...]:
+    return tuple(series for series, _ in series_horizons)
+
+
+def format_preflight_summary(
+    result: PreflightResult,
+    *,
+    label: str,
+    series: Sequence[str] | None = None,
+    broker: str | None = None,
+) -> str:
+    verdict = "GO" if result.go else "NO-GO"
+    reasons_count = len(result.reasons)
+    series_value = ",".join(series) if series else "ALL"
+    line = f"{label}: {verdict} reasons={reasons_count} series={series_value}"
+    if broker:
+        line = f"{line} (broker={broker})"
+    return line
+
+
+def write_go_no_go_artifact(
+    result: PreflightResult,
+    *,
+    output_path: Path | None = None,
+    source: str = "preflight_index",
+) -> Path:
+    target = Path(output_path) if output_path is not None else GO_NO_GO_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "go": bool(result.go),
+        "reasons": list(result.reasons),
+        "details": dict(result.details),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "source": source,
+    }
+    target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return target
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Index ladder preflight checks.")
+    parser.add_argument("--now", help="Override current time (ISO-8601, default: now).")
+    parser.add_argument("--offline", action="store_true", help="Skip env and Polygon checks.")
+    parser.add_argument("--params-root", type=Path, help="Override calibration params root.")
+    parser.add_argument("--kill-switch-file", type=Path, help="Override kill switch sentinel path.")
+    parser.add_argument(
+        "--polygon-timeout",
+        type=float,
+        default=2.0,
+        help="Polygon ping timeout (seconds).",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _build_parser().parse_args(list(argv) if argv is not None else None)
+    now = _parse_now(args.now) or datetime.now(tz=UTC)
+    result = run_preflight(
+        now,
+        params_root=args.params_root,
+        kill_switch_file=args.kill_switch_file,
+        polygon_timeout=float(args.polygon_timeout),
+        require_kalshi=not args.offline,
+        require_polygon=not args.offline,
+    )
+    write_go_no_go_artifact(result)
+    series = _series_labels()
+    print(format_preflight_summary(result, label="PRECHECK index", series=series), flush=True)
+    return 0 if result.go else 1
+
+
+__all__ = [
+    "GO_NO_GO_PATH",
+    "MAX_CALIBRATION_AGE_DAYS",
+    "PreflightResult",
+    "format_preflight_summary",
+    "main",
+    "run_preflight",
+    "write_go_no_go_artifact",
+]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
