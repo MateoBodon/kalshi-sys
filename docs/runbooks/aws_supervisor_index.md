@@ -10,6 +10,9 @@ Last updated: 2025-12-21
 - Default broker: dry (paper). Live must be explicitly armed and is out of scope
   for this runbook unless a separate approval ticket exists.
 - Optional: `--series` can restrict the supervisor to a subset for smoke checks.
+- Canonical systemd unit: `deploy/systemd/supervisor_index.service` (paper-only default).
+  - The template pins `--series INXU` for dry-run verification; adjust only with
+    explicit approval and updated verification evidence.
 
 ## Prerequisites
 - Repo installed or checked out on the host (example: `/opt/kalshi-sys`).
@@ -17,6 +20,39 @@ Last updated: 2025-12-21
 - Either:
   - `pip install -e .`, or
   - set `PYTHONPATH=src` in the EnvironmentFile.
+
+## EC2 setup (copy/paste)
+> Use a dedicated non-root user (example: `kalshi`). Run commands as that user
+> unless `sudo` is required. Replace placeholders in <>.
+
+```bash
+sudo useradd --create-home --shell /bin/bash kalshi
+sudo mkdir -p /opt/kalshi-sys /etc/kalshi
+sudo chown -R kalshi:kalshi /opt/kalshi-sys
+
+sudo -u kalshi bash -lc '\
+  set -euo pipefail\
+  cd /opt/kalshi-sys\
+  git clone <REPO_URL> .\
+  python -m venv .venv\
+  source .venv/bin/activate\
+  pip install -U pip wheel\
+  pip install -e .\
+'
+
+sudo tee /etc/kalshi/kalshi-supervisor.env >/dev/null <<'EOF'
+SUPERVISOR_BROKER=dry
+POLYGON_API_KEY=<SSM_OR_SECRETS_MANAGER>
+KALSHI_API_KEY_ID=<SSM_OR_SECRETS_MANAGER>
+KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
+EOF
+sudo chmod 600 /etc/kalshi/kalshi-supervisor.env
+```
+
+Notes:
+- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+  `PYTHONPATH=/opt/kalshi-sys/src` to the EnvironmentFile.
+- Keep secrets in SSM/Secrets Manager and render locally; never commit them.
 
 ## Environment variables and secrets (SSM / Secrets Manager)
 Store secrets in AWS SSM Parameter Store or Secrets Manager and render into a
@@ -59,13 +95,16 @@ Runtime artifacts:
 ## Deployment (systemd on EC2)
 1) Copy the systemd unit template:
    - `deploy/systemd/supervisor_index.service`
-2) Set WorkingDirectory + User/Group placeholders.
+2) Set WorkingDirectory + User/Group placeholders in the unit file.
 3) Create an EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
    - Include `SUPERVISOR_BROKER=dry` (default) and any required keys.
 4) Install and enable the service:
    - `sudo cp deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service`
    - `sudo systemctl daemon-reload`
    - `sudo systemctl enable --now kalshi-supervisor-index.service`
+5) Verify status + logs:
+   - `systemctl status kalshi-supervisor-index.service`
+   - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
 
 Watchdog behavior:
 - The service uses `Restart=always` and will self-heal after failures.
@@ -73,19 +112,45 @@ Watchdog behavior:
   24/7 posture.
 
 Monitoring jobs (recommended):
-- Reuse the existing templates under `configs/systemd/` for runtime monitors.
-  - `kalshi-alpha-monitors.service` runs `python -m kalshi_alpha.exec.monitors.cli`.
-  - `kalshi-alpha-monitors.timer` runs every 5 minutes.
-- Add an index-only freshness cron/timer:
-  - `python -m kalshi_alpha.exec.monitors.freshness --config configs/freshness.index.yaml`
+- Use the index-specific templates under `configs/systemd/`:
+  - `kalshi-index-monitors.service` + `kalshi-index-monitors.timer`
+  - `kalshi-index-freshness.service` + `kalshi-index-freshness.timer`
+- Install + enable:
+  - `sudo cp configs/systemd/kalshi-index-monitors.service /etc/systemd/system/`
+  - `sudo cp configs/systemd/kalshi-index-monitors.timer /etc/systemd/system/`
+  - `sudo cp configs/systemd/kalshi-index-freshness.service /etc/systemd/system/`
+  - `sudo cp configs/systemd/kalshi-index-freshness.timer /etc/systemd/system/`
+  - `sudo systemctl daemon-reload`
+  - `sudo systemctl enable --now kalshi-index-monitors.timer`
+  - `sudo systemctl enable --now kalshi-index-freshness.timer`
 
 ## Log routing (journald -> CloudWatch)
-- Configure the CloudWatch Agent to collect systemd/journald logs for
-  `kalshi-supervisor-index.service`.
-- Example signals to index in CloudWatch:
-  - `NO-GO` lines from supervisor logs.
-  - `skip ... polygon WS stale` lines.
-  - `fresh WS ok age=` lines for freshness trending.
+Use the CloudWatch Agent to ship journald logs for
+`kalshi-supervisor-index.service`. The repo includes a minimal config template
+you can copy to the host:
+
+```bash
+sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json \
+  /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+```
+
+CloudWatch destinations (default template):
+- Log group: `/kalshi/kalshi-supervisor-index`
+- Log stream: `{instance_id}`
+
+Example signals to index in CloudWatch:
+- `NO-GO` lines from supervisor logs.
+- `skip ... polygon WS stale` lines.
+- `fresh WS ok age=` lines for freshness trending.
+- `[heartbeat] updated` lines for heartbeat confirmation.
+
+If the agent is not installed, install it first (example for Ubuntu):
+```bash
+sudo apt-get update
+sudo apt-get install -y amazon-cloudwatch-agent
+```
 
 ## Health checks and staleness thresholds
 Heartbeat:
@@ -131,6 +196,10 @@ Kill switch (immediate halt):
 2) Confirm `kill_switch_engaged` appears in `reports/_artifacts/go_no_go.json`.
 3) Remove file to resume (after incident review).
 
+Stop/disable the service:
+- `sudo systemctl stop kalshi-supervisor-index.service`
+- `sudo systemctl disable kalshi-supervisor-index.service`
+
 Cancel-all (safe cleanup):
 - The kill switch triggers `cancel_all` intent in `data/proc/state/orders.json`.
 - For live orders, manually cancel via Kalshi UI/API (no built-in CLI yet).
@@ -147,6 +216,11 @@ Disable live broker quickly:
   - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
 - No-keys smoke:
   - `python -m kalshi_alpha.exec.supervisor_index --help`
+
+## Redaction policy (do not paste into logs/docs)
+- AWS account IDs, instance IDs, private IPs, or AMI IDs.
+- API keys, PEM contents, or signed request payloads.
+- Full CloudWatch log streams; use short sanitized excerpts only.
 
 ## Related docs
 - `docs/runbooks/oncall_checks.md`
