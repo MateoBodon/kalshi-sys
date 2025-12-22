@@ -1,10 +1,10 @@
 {
   "logs": {
     "logs_collected": {
-      "journald": {
+      "files": {
         "collect_list": [
           {
-            "unit": "kalshi-supervisor-index.service",
+            "file_path": "/var/log/syslog",
             "log_group_name": "/kalshi/kalshi-supervisor-index",
             "log_stream_name": "{instance_id}",
             "timezone": "UTC"
