@@ -1,7 +1,7 @@
 # Changelog
 
 ## 2025-12-22
-- Ticket #9 RETRY: EC2 verification blocked (no EC2 host/SSH access provided in this run); no code changes.
+- Ticket #9 RETRY: captured EC2 systemd proof (venv ExecStart, no PYTHONPATH, dry-run running) and updated run log.
 - Ticket #9: hardened packaging/systemd by switching supervisor unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap steps, and added scipy/pandas runtime deps for index models.
 - Ticket #6: `preflight_index` and `supervisor_index` now emit GO/NO-GO summary lines, always write `reports/_artifacts/go_no_go.json`, and have stdout fixture coverage for both CLIs.
 - Ticket #8: refreshed AWS supervisor dry-run wiring with `--series INXU` in the systemd unit, added CloudWatch journald config + index monitor timer templates, and expanded the AWS runbook with EC2/systemd/CloudWatch copy/paste steps.
