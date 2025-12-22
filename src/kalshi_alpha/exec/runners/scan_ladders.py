@@ -1138,11 +1138,12 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "pilot_mode": True,
             }
         )
-    write_heartbeat(
+    heartbeat_path = write_heartbeat(
         mode=f"scan_ladders:{args.series.upper()}",
         monitors=outcome.monitors,
         extra=heartbeat_extra,
     )
+    print(f"[heartbeat] updated {heartbeat_path}")
 
     monitor_snapshot = summarize_monitor_artifacts(
         MONITOR_ARTIFACTS_DIR,

@@ -1,0 +1,10 @@
+[Unit]
+Description=Kalshi Index freshness monitor
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kalshi-sys
+EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+ExecStart=/usr/bin/env python -m kalshi_alpha.exec.monitors.freshness --config configs/freshness.index.yaml
+Nice=10

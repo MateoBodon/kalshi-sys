@@ -1,0 +1,16 @@
+{
+  "logs": {
+    "logs_collected": {
+      "journald": {
+        "collect_list": [
+          {
+            "unit": "kalshi-supervisor-index.service",
+            "log_group_name": "/kalshi/kalshi-supervisor-index",
+            "log_stream_name": "{instance_id}",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    }
+  }
+}
