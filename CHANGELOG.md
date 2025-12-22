@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2025-12-22
+- Ticket #10: validated CloudWatch agent config on Ubuntu, switched log shipping config to syslog tailing, and captured aws logs proof for kalshi-supervisor-index.
 - Ticket #9 RETRY: captured EC2 systemd proof (venv ExecStart, no PYTHONPATH, dry-run running) and updated run log.
 - Ticket #9: hardened packaging/systemd by switching supervisor unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap steps, and added scipy/pandas runtime deps for index models.
 - Ticket #6: `preflight_index` and `supervisor_index` now emit GO/NO-GO summary lines, always write `reports/_artifacts/go_no_go.json`, and have stdout fixture coverage for both CLIs.
