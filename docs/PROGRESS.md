@@ -3,6 +3,9 @@
 Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
 
 ## 2025-12-22
+- Ticket #9 — Packaging/systemd import-path hardening: switched systemd unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap script, and captured fresh venv smoke for preflight/supervisor (offline, dry-run).
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/README.md`
 - Ticket #6 — Fix index CLI smoke entrypoints: added preflight/supervisor summary lines, ensured go/no-go artifact writes on NO-GO, and added stdout fixture coverage for both CLIs.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md`
