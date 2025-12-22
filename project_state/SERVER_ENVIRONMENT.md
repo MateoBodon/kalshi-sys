@@ -8,7 +8,7 @@
 
 ## Local environment (this snapshot)
 - OS: Darwin (macOS) `Darwin Kernel Version 25.0.0` on arm64.
-- Python: 3.11.14 (`python --version`).
+- Python: 3.11.14 (`python --version`); pytest reported 3.12.2 during `pytest -q` (likely a different interpreter/venv).
 
 ## Expected runtime environment
 - Python 3.11+ with dependencies from `pyproject.toml`.
