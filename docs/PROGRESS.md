@@ -6,6 +6,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #6 — Fix index CLI smoke entrypoints: added preflight/supervisor summary lines, ensured go/no-go artifact writes on NO-GO, and added stdout fixture coverage for both CLIs.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md`
+- Ticket #8 — AWS dry-run deployment verification: pinned the systemd unit to `--series INXU`, added CloudWatch agent + index monitor timer templates, and expanded the AWS runbook with copy/paste EC2/systemd/CloudWatch steps (AWS verification blocked without credentials).
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
 
 ## 2025-12-21
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.

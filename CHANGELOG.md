@@ -2,6 +2,7 @@
 
 ## 2025-12-22
 - Ticket #6: `preflight_index` and `supervisor_index` now emit GO/NO-GO summary lines, always write `reports/_artifacts/go_no_go.json`, and have stdout fixture coverage for both CLIs.
+- Ticket #8: refreshed AWS supervisor dry-run wiring with `--series INXU` in the systemd unit, added CloudWatch journald config + index monitor timer templates, and expanded the AWS runbook with EC2/systemd/CloudWatch copy/paste steps.
 
 ## 2025-12-21
 - Added a settlement basis audit CLI for index ladders, offline fixtures + unit tests, and daily report outputs comparing Polygon window values to Kalshi expiration values.
