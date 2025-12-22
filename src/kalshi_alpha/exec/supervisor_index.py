@@ -22,7 +22,12 @@ from kalshi_alpha.exec.collectors.tob_logger import (
     DEFAULT_TOB_DIR,
     DEFAULT_TOB_MAX_BYTES,
 )
-from kalshi_alpha.exec.preflight_index import PreflightResult, run_preflight
+from kalshi_alpha.exec.preflight_index import (
+    PreflightResult,
+    format_preflight_summary,
+    run_preflight,
+    write_go_no_go_artifact,
+)
 from kalshi_alpha.exec.runners import micro_index
 from kalshi_alpha.sched import TradingWindow, next_windows, windows_for_day
 
@@ -121,6 +126,17 @@ def _log(message: str, *, quiet: bool = False) -> None:
     print(f"[supervisor_index] {stamp} {message}", flush=True)
 
 
+def _emit_preflight_summary(result: PreflightResult, *, config: SupervisorIndexConfig) -> None:
+    write_go_no_go_artifact(result, source="supervisor_index")
+    summary = format_preflight_summary(
+        result,
+        label="SUPERVISOR preflight",
+        series=config.series_filter,
+        broker=config.normalized_broker(),
+    )
+    print(summary, flush=True)
+
+
 def _pick_window(now_et: datetime) -> TradingWindow | None:
     """Return the active window or the next upcoming window."""
 
@@ -185,6 +201,8 @@ async def _run_window(
     preflight_fn: Callable[[datetime], PreflightResult],
     ws_listener: WSListener,
     runner: Callable[[str, TradingWindow, SupervisorIndexConfig, datetime], None],
+    preflight_observer: Callable[[PreflightResult], None] | None = None,
+    preflight_override: PreflightResult | None = None,
 ) -> tuple[bool, bool]:
     """Return (ran, terminal). terminal=True marks window complete."""
 
@@ -194,10 +212,15 @@ async def _run_window(
         _log(f"skip {window.label}: past cancel buffer ({window.freeze_et.isoformat()})", quiet=config.quiet)
         return False, True
 
-    if config.skip_preflight:
-        preflight = PreflightResult(go=True, reasons=[], details={"skipped": True})
+    if preflight_override is not None:
+        preflight = preflight_override
     else:
-        preflight = preflight_fn(now_et)
+        if config.skip_preflight:
+            preflight = PreflightResult(go=True, reasons=[], details={"skipped": True})
+        else:
+            preflight = preflight_fn(now_et)
+        if preflight_observer is not None:
+            preflight_observer(preflight)
     if not preflight.go:
         _log(f"NO-GO {window.label}: {', '.join(preflight.reasons)}", quiet=config.quiet)
         if _is_transient_preflight(preflight.reasons) and config.preflight_retry_interval > 0:
@@ -232,9 +255,17 @@ async def _run_once(
     preflight_fn: Callable[[datetime], PreflightResult],
     ws_factory: Callable[[], WSListener],
     runner: Callable[[str, TradingWindow, SupervisorIndexConfig, datetime], None],
+    preflight_observer: Callable[[PreflightResult], None] | None = None,
 ) -> None:
     now_reference = config.now or datetime.now(tz=UTC)
     now_et = now_reference.astimezone(ET)
+    preflight_override: PreflightResult | None = None
+    if preflight_observer is not None:
+        if config.skip_preflight:
+            preflight_override = PreflightResult(go=True, reasons=[], details={"skipped": True})
+        else:
+            preflight_override = preflight_fn(now_et)
+        preflight_observer(preflight_override)
     window = _pick_window(now_et)
     if window is None:
         _log("no upcoming index window found", quiet=config.quiet)
@@ -250,6 +281,8 @@ async def _run_once(
             preflight_fn=preflight_fn,
             ws_listener=ws_listener,
             runner=runner,
+            preflight_observer=None if preflight_override else preflight_observer,
+            preflight_override=preflight_override,
         )
     finally:
         await ws_listener.stop()
@@ -261,6 +294,7 @@ async def _run_loop(
     preflight_fn: Callable[[datetime], PreflightResult],
     ws_factory: Callable[[], WSListener],
     runner: Callable[[str, TradingWindow, SupervisorIndexConfig, datetime], None],
+    preflight_observer: Callable[[PreflightResult], None] | None = None,
 ) -> None:
     ws_listener = ws_factory()
     await ws_listener.start()
@@ -300,6 +334,7 @@ async def _run_loop(
                     preflight_fn=preflight_fn,
                     ws_listener=ws_listener,
                     runner=runner,
+                    preflight_observer=preflight_observer,
                 )
                 if terminal or now_et > window.target_et or ran:
                     completed.add(key)
@@ -444,6 +479,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         require_kalshi=not config.offline,
         require_polygon=not config.offline,
     )
+    preflight_observer = lambda result: _emit_preflight_summary(result, config=config)
 
     try:
         if config.loop:
@@ -453,6 +489,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     preflight_fn=preflight_fn,
                     ws_factory=ws_factory,
                     runner=runner,
+                    preflight_observer=preflight_observer,
                 )
             )
         else:
@@ -462,6 +499,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     preflight_fn=preflight_fn,
                     ws_factory=ws_factory,
                     runner=runner,
+                    preflight_observer=preflight_observer,
                 )
             )
     except KeyboardInterrupt:  # pragma: no cover - operator convenience

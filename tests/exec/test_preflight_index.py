@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from kalshi_alpha.exec import preflight_index
 from kalshi_alpha.exec.preflight_index import MAX_CALIBRATION_AGE_DAYS, run_preflight
 
 ET = ZoneInfo("America/New_York")
@@ -85,3 +86,32 @@ def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert result.go
     assert not result.reasons
+
+
+def test_preflight_cli_emits_summary_and_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
+    params_root = tmp_path / "params"
+    _seed_all_params(params_root, now)
+    output_path = tmp_path / "go_no_go.json"
+    monkeypatch.setattr(preflight_index, "GO_NO_GO_PATH", output_path)
+
+    exit_code = preflight_index.main(
+        [
+            "--offline",
+            "--now",
+            now.isoformat(),
+            "--params-root",
+            str(params_root),
+        ]
+    )
+
+    stdout = capsys.readouterr().out.strip()
+    assert stdout
+    assert "PRECHECK index:" in stdout
+    assert "GO reasons=0" in stdout
+    assert output_path.exists()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload.get("go") is True
+    assert exit_code == 0

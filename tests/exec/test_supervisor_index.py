@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from kalshi_alpha.exec.index_paper_ledger import LEDGER_ENV_KEY, log_index_paper_trade
+from kalshi_alpha.exec import preflight_index
 from kalshi_alpha.exec.preflight_index import PreflightResult
 from kalshi_alpha.exec import supervisor_index
 from kalshi_alpha.exec.supervisor_index import SupervisorIndexConfig, _run_once, _run_window
@@ -39,6 +41,19 @@ def _no_go_preflight(_: datetime) -> PreflightResult:
     return PreflightResult(go=False, reasons=["env_missing"], details={})
 
 
+def _seed_params(root: Path, generated_at: datetime) -> None:
+    for series, horizon in (
+        ("INX", "close"),
+        ("NASDAQ100", "close"),
+        ("INXU", "noon"),
+        ("NASDAQ100U", "noon"),
+    ):
+        path = root / series / horizon / "params.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"generated_at": generated_at.astimezone(UTC).isoformat(), "symbols": {}}
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def test_supervisor_dry_run_alias() -> None:
     args = supervisor_index._parse_args(["--dry-run", "--offline"])
     config = supervisor_index._build_config(args)
@@ -50,6 +65,37 @@ def test_supervisor_dry_run_conflicts_with_live() -> None:
     args = supervisor_index._parse_args(["--dry-run", "--broker", "live"])
     with pytest.raises(ValueError, match="--dry-run cannot be combined"):
         supervisor_index._build_config(args)
+
+
+def test_supervisor_cli_emits_preflight_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    now = datetime(2025, 11, 3, 9, 50, tzinfo=ET)
+    params_root = tmp_path / "params"
+    _seed_params(params_root, now)
+    monkeypatch.setattr(preflight_index, "PARAM_ROOT", params_root)
+    output_path = tmp_path / "go_no_go.json"
+    monkeypatch.setattr(preflight_index, "GO_NO_GO_PATH", output_path)
+
+    supervisor_index.main(
+        [
+            "--series",
+            "INXU",
+            "--dry-run",
+            "--offline",
+            "--quiet",
+            "--now",
+            now.isoformat(),
+        ]
+    )
+
+    stdout = capsys.readouterr().out.strip()
+    assert stdout
+    assert "SUPERVISOR preflight:" in stdout
+    assert "reasons=" in stdout
+    assert "series=INXU" in stdout
+    assert "(broker=dry)" in stdout
+    assert output_path.exists()
 
 
 @pytest.mark.asyncio
