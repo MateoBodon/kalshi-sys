@@ -3,6 +3,9 @@
 Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
 
 ## 2025-12-22
+- Ticket #10 — CloudWatch agent config validation + deterministic log shipping: DONE (CloudWatch config validated on Ubuntu; aws logs filter-log-events proof captured).
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/README.md`
 - Ticket #9 RETRY — EC2 verification of venv-based systemd unit: DONE (systemd proof captured on EC2; venv ExecStart, no PYTHONPATH, dry-run running).
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/README.md`
