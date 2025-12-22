@@ -2,10 +2,10 @@
 
 Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
 
-## 2025-12-20
-- Ticket #1 — Index-only GO/NO-GO gates: scoped quality gates and freshness summaries to index feeds, and index runners now forward the index scope so macro staleness no longer blocks index scans.
+## 2025-12-22
+- Ticket #6 — Fix index CLI smoke entrypoints: added preflight/supervisor summary lines, ensured go/no-go artifact writes on NO-GO, and added stdout fixture coverage for both CLIs.
   - Gate status: PAPER
-  - Evidence: agent run log `docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/README.md`
+  - Evidence: agent run log `docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md`
 
 ## 2025-12-21
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
@@ -23,3 +23,8 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #7 — Bundle / diff hygiene stop-the-line: added GPT bundle verifier, hardened gpt-bundle diff generation, and tests for missing artifacts/placeholder diffs.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251221_204343Z_TICKET-007_bundle_diff_hygiene/README.md`; tests `tests/test_gpt_bundle_verifier.py`
+
+## 2025-12-20
+- Ticket #1 — Index-only GO/NO-GO gates: scoped quality gates and freshness summaries to index feeds, and index runners now forward the index scope so macro staleness no longer blocks index scans.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/README.md`
