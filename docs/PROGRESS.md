@@ -3,7 +3,7 @@
 Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
 
 ## 2025-12-22
-- Ticket #9 RETRY — EC2 verification of venv-based systemd unit: BLOCKED (no EC2 host/SSH access provided to capture proof in this run).
+- Ticket #9 RETRY — EC2 verification of venv-based systemd unit: DONE (systemd proof captured on EC2; venv ExecStart, no PYTHONPATH, dry-run running).
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/README.md`
 - Ticket #9 — Packaging/systemd import-path hardening: switched systemd unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap script, and captured fresh venv smoke for preflight/supervisor (offline, dry-run).
