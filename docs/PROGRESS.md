@@ -3,6 +3,9 @@
 Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
 
 ## 2025-12-22
+- Ticket #0 — Project_state rebuild: refreshed `project_state/` docs with generated inventories, symbol index, dependency graph, and navigation; bundled snapshot zip created.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251222_194751Z_TICKET-000_project_state_rebuild/README.md`; bundle `docs/gpt_bundles/project_state_20251222_194751Z_a907a2e.zip`
 - Ticket #10 — CloudWatch agent config validation + deterministic log shipping: DONE (CloudWatch config validated on Ubuntu; aws logs filter-log-events proof captured).
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/README.md`

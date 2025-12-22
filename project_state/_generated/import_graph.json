@@ -1,0 +1,2267 @@
+{
+  "generated_at": "2025-12-22T19:47:15+00:00",
+  "root": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys",
+  "adjacency": {
+    "src/kalshi_alpha/__init__.py": [],
+    "src/kalshi_alpha/backtest/__init__.py": [
+      "src/kalshi_alpha/backtest/index_calendar.py"
+    ],
+    "src/kalshi_alpha/backtest/generate_dataset.py": [
+      "src/kalshi_alpha/backtest/index_calendar.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py"
+    ],
+    "src/kalshi_alpha/backtest/index_calendar.py": [],
+    "src/kalshi_alpha/backtest/score_close.py": [
+      "src/kalshi_alpha/backtest/generate_dataset.py",
+      "src/kalshi_alpha/backtest/scoring.py"
+    ],
+    "src/kalshi_alpha/backtest/score_hourly.py": [
+      "src/kalshi_alpha/backtest/generate_dataset.py",
+      "src/kalshi_alpha/backtest/scoring.py"
+    ],
+    "src/kalshi_alpha/backtest/scoring.py": [
+      "src/kalshi_alpha/backtest/generate_dataset.py",
+      "src/kalshi_alpha/strategies/index/__init__.py",
+      "src/kalshi_alpha/strategies/index/cdf.py"
+    ],
+    "src/kalshi_alpha/brokers/__init__.py": [
+      "src/kalshi_alpha/brokers/kalshi/base.py",
+      "src/kalshi_alpha/brokers/kalshi/dry.py",
+      "src/kalshi_alpha/brokers/kalshi/live.py",
+      "src/kalshi_alpha/core/execution/order_queue.py"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/base.py": [],
+    "src/kalshi_alpha/brokers/kalshi/dry.py": [
+      "src/kalshi_alpha/brokers/kalshi/base.py",
+      "src/kalshi_alpha/core/execution/order_queue.py"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/endpoints.py": [],
+    "src/kalshi_alpha/brokers/kalshi/http_client.py": [],
+    "src/kalshi_alpha/brokers/kalshi/live.py": [
+      "src/kalshi_alpha/brokers/kalshi/base.py",
+      "src/kalshi_alpha/brokers/kalshi/http_client.py",
+      "src/kalshi_alpha/core/execution/order_queue.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/index_paper_ledger.py",
+      "src/kalshi_alpha/exec/pilot/config.py",
+      "src/kalshi_alpha/exec/state/orders.py",
+      "src/kalshi_alpha/exec/telemetry/__init__.py",
+      "src/kalshi_alpha/sched/__init__.py",
+      "src/kalshi_alpha/utils/env.py"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/ws_client.py": [
+      "src/kalshi_alpha/brokers/kalshi/http_client.py",
+      "src/kalshi_alpha/exec/telemetry/__init__.py"
+    ],
+    "src/kalshi_alpha/config/__init__.py": [
+      "src/kalshi_alpha/config/index_ops.py",
+      "src/kalshi_alpha/config/index_rules.py"
+    ],
+    "src/kalshi_alpha/config/index_ops.py": [],
+    "src/kalshi_alpha/config/index_rules.py": [],
+    "src/kalshi_alpha/config/size_ladder.py": [],
+    "src/kalshi_alpha/core/__init__.py": [],
+    "src/kalshi_alpha/core/archive/__init__.py": [
+      "src/kalshi_alpha/core/archive/archiver.py",
+      "src/kalshi_alpha/core/archive/replay.py"
+    ],
+    "src/kalshi_alpha/core/archive/archiver.py": [
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/core/archive/replay.py": [
+      "src/kalshi_alpha/core/__init__.py",
+      "src/kalshi_alpha/core/execution/slippage.py",
+      "src/kalshi_alpha/core/fees/__init__.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/core/kalshi_ws.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/macro_calendar/__init__.py",
+      "src/kalshi_alpha/exec/scanners/__init__.py",
+      "src/kalshi_alpha/exec/scanners/cpi.py",
+      "src/kalshi_alpha/exec/scanners/utils.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/claims/__init__.py",
+      "src/kalshi_alpha/strategies/teny/__init__.py",
+      "src/kalshi_alpha/strategies/weather/__init__.py"
+    ],
+    "src/kalshi_alpha/core/archive/scorecards.py": [
+      "src/kalshi_alpha/core/archive/replay.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/exec/scanners/utils.py"
+    ],
+    "src/kalshi_alpha/core/backtest/__init__.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/core/datastore/__init__.py": [],
+    "src/kalshi_alpha/core/execution/defaults.py": [],
+    "src/kalshi_alpha/core/execution/fillprob.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/core/execution/fillratio.py": [
+      "src/kalshi_alpha/core/execution/defaults.py",
+      "src/kalshi_alpha/core/execution/series_utils.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py"
+    ],
+    "src/kalshi_alpha/core/execution/index_models.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/core/execution/order_queue.py": [
+      "src/kalshi_alpha/brokers/kalshi/base.py"
+    ],
+    "src/kalshi_alpha/core/execution/series_utils.py": [],
+    "src/kalshi_alpha/core/execution/slippage.py": [
+      "src/kalshi_alpha/core/execution/defaults.py",
+      "src/kalshi_alpha/core/execution/series_utils.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py"
+    ],
+    "src/kalshi_alpha/core/fees/__init__.py": [
+      "src/kalshi_alpha/core/fees/index_series.py"
+    ],
+    "src/kalshi_alpha/core/fees/index_series.py": [],
+    "src/kalshi_alpha/core/gates/__init__.py": [
+      "src/kalshi_alpha/core/gates/quality_gates.py"
+    ],
+    "src/kalshi_alpha/core/gates/quality_gates.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/core/kalshi_api/__init__.py": [],
+    "src/kalshi_alpha/core/kalshi_ws.py": [
+      "src/kalshi_alpha/core/ws.py",
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/core/pricing/__init__.py": [
+      "src/kalshi_alpha/core/fees/__init__.py",
+      "src/kalshi_alpha/core/pricing/mispricing.py"
+    ],
+    "src/kalshi_alpha/core/pricing/align.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/core/pricing/mispricing.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/core/risk/__init__.py": [
+      "src/kalshi_alpha/core/fees/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/core/risk/drawdown.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/core/sizing/__init__.py": [
+      "src/kalshi_alpha/core/sizing/kelly.py"
+    ],
+    "src/kalshi_alpha/core/sizing/kelly.py": [],
+    "src/kalshi_alpha/core/ws.py": [
+      "src/kalshi_alpha/brokers/kalshi/http_client.py"
+    ],
+    "src/kalshi_alpha/data/__init__.py": [
+      "src/kalshi_alpha/data/ws_sentry.py"
+    ],
+    "src/kalshi_alpha/data/failover.py": [],
+    "src/kalshi_alpha/data/ws_sentry.py": [],
+    "src/kalshi_alpha/datastore/ingest.py": [
+      "src/kalshi_alpha/core/datastore/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/aaa_gas/__init__.py",
+      "src/kalshi_alpha/drivers/aaa_gas/fetch.py",
+      "src/kalshi_alpha/drivers/aaa_gas/ingest.py",
+      "src/kalshi_alpha/drivers/bls_cpi/__init__.py",
+      "src/kalshi_alpha/drivers/cleveland_nowcast/__init__.py",
+      "src/kalshi_alpha/drivers/dol_claims/__init__.py",
+      "src/kalshi_alpha/drivers/nws_cli/__init__.py",
+      "src/kalshi_alpha/drivers/treasury_yields/__init__.py"
+    ],
+    "src/kalshi_alpha/datastore/paths.py": [],
+    "src/kalshi_alpha/datastore/snapshots.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/dev/__init__.py": [],
+    "src/kalshi_alpha/dev/imbalance_snap.py": [
+      "src/kalshi_alpha/core/__init__.py",
+      "src/kalshi_alpha/core/kalshi_ws.py",
+      "src/kalshi_alpha/core/ws.py"
+    ],
+    "src/kalshi_alpha/dev/parse_fees.py": [
+      "src/kalshi_alpha/core/__init__.py",
+      "src/kalshi_alpha/core/fees/__init__.py"
+    ],
+    "src/kalshi_alpha/dev/sanity_check.py": [
+      "src/kalshi_alpha/brokers/kalshi/endpoints.py",
+      "src/kalshi_alpha/brokers/kalshi/http_client.py",
+      "src/kalshi_alpha/utils/env.py"
+    ],
+    "src/kalshi_alpha/dev/ws_smoke.py": [
+      "src/kalshi_alpha/core/__init__.py",
+      "src/kalshi_alpha/core/kalshi_ws.py"
+    ],
+    "src/kalshi_alpha/drivers/__init__.py": [],
+    "src/kalshi_alpha/drivers/aaa_gas/__init__.py": [],
+    "src/kalshi_alpha/drivers/aaa_gas/fetch.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/utils/http.py"
+    ],
+    "src/kalshi_alpha/drivers/aaa_gas/ingest.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/drivers/bls_cpi/__init__.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/utils/env.py",
+      "src/kalshi_alpha/utils/http.py"
+    ],
+    "src/kalshi_alpha/drivers/calendar/__init__.py": [
+      "src/kalshi_alpha/drivers/calendar/loader.py"
+    ],
+    "src/kalshi_alpha/drivers/calendar/loader.py": [],
+    "src/kalshi_alpha/drivers/cleveland_nowcast/__init__.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/utils/env.py",
+      "src/kalshi_alpha/utils/http.py"
+    ],
+    "src/kalshi_alpha/drivers/dol_claims/__init__.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/utils/env.py",
+      "src/kalshi_alpha/utils/http.py"
+    ],
+    "src/kalshi_alpha/drivers/index_polygon.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/drivers/kalshi_index_history.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/drivers/macro_calendar/__init__.py": [
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/bls_cpi/__init__.py"
+    ],
+    "src/kalshi_alpha/drivers/macro_calendar/cli.py": [
+      "src/kalshi_alpha/drivers/macro_calendar/__init__.py"
+    ],
+    "src/kalshi_alpha/drivers/nws_cli/__init__.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/utils/env.py",
+      "src/kalshi_alpha/utils/http.py"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/__init__.py": [
+      "src/kalshi_alpha/drivers/polygon_index/client.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/client.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/utils/keys.py"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/snapshots.py": [
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/symbols.py": [],
+    "src/kalshi_alpha/drivers/polygon_index/windowed.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index_ws.py": [
+      "src/kalshi_alpha/drivers/polygon_index/client.py"
+    ],
+    "src/kalshi_alpha/drivers/treasury_yields/__init__.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/utils/env.py",
+      "src/kalshi_alpha/utils/http.py"
+    ],
+    "src/kalshi_alpha/exec/__init__.py": [],
+    "src/kalshi_alpha/exec/backtest_index_polygon.py": [
+      "src/kalshi_alpha/drivers/kalshi_index_history.py",
+      "src/kalshi_alpha/strategies/index/backtest_polygon.py",
+      "src/kalshi_alpha/strategies/index/model_polygon.py"
+    ],
+    "src/kalshi_alpha/exec/brokers/__init__.py": [],
+    "src/kalshi_alpha/exec/brokers/kalshi/__init__.py": [],
+    "src/kalshi_alpha/exec/collectors/__init__.py": [
+      "src/kalshi_alpha/exec/collectors/polygon_ws.py"
+    ],
+    "src/kalshi_alpha/exec/collectors/kalshi_tob.py": [
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/exec/collectors/polygon_ws.py": [
+      "src/kalshi_alpha/drivers/polygon_index/client.py",
+      "src/kalshi_alpha/drivers/polygon_index/snapshots.py",
+      "src/kalshi_alpha/exec/monitors/__init__.py",
+      "src/kalshi_alpha/exec/monitors/freshness.py",
+      "src/kalshi_alpha/utils/keys.py"
+    ],
+    "src/kalshi_alpha/exec/collectors/tob_logger.py": [
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/exec/fees.py": [],
+    "src/kalshi_alpha/exec/gate_utils.py": [
+      "src/kalshi_alpha/core/gates/__init__.py"
+    ],
+    "src/kalshi_alpha/exec/heartbeat.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/exec/housekeep.py": [],
+    "src/kalshi_alpha/exec/index_paper_ledger.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/exec/ingest/polygon_index.py": [
+      "src/kalshi_alpha/drivers/polygon_index/client.py"
+    ],
+    "src/kalshi_alpha/exec/ledger/__init__.py": [
+      "src/kalshi_alpha/core/execution/fillratio.py",
+      "src/kalshi_alpha/core/execution/index_models.py",
+      "src/kalshi_alpha/core/execution/slippage.py",
+      "src/kalshi_alpha/core/fees/__init__.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/exec/ledger/schema.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py"
+    ],
+    "src/kalshi_alpha/exec/ledger/aggregate.py": [
+      "src/kalshi_alpha/exec/ledger/schema.py"
+    ],
+    "src/kalshi_alpha/exec/ledger/schema.py": [],
+    "src/kalshi_alpha/exec/limits.py": [
+      "src/kalshi_alpha/core/risk/__init__.py"
+    ],
+    "src/kalshi_alpha/exec/live_smoke.py": [
+      "src/kalshi_alpha/brokers/kalshi/http_client.py",
+      "src/kalshi_alpha/exec/state/orders.py"
+    ],
+    "src/kalshi_alpha/exec/monitors/__init__.py": [
+      "src/kalshi_alpha/exec/monitors/runtime.py"
+    ],
+    "src/kalshi_alpha/exec/monitors/cli.py": [
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/monitors/runtime.py"
+    ],
+    "src/kalshi_alpha/exec/monitors/fee_rules.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/exec/monitors/freshness.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/exec/monitors/summary.py"
+    ],
+    "src/kalshi_alpha/exec/monitors/runtime.py": [
+      "src/kalshi_alpha/core/risk/__init__.py",
+      "src/kalshi_alpha/core/risk/drawdown.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/monitors/sequential.py",
+      "src/kalshi_alpha/exec/monitors/summary.py",
+      "src/kalshi_alpha/exec/policy/freeze.py"
+    ],
+    "src/kalshi_alpha/exec/monitors/sequential.py": [],
+    "src/kalshi_alpha/exec/monitors/sigma_drift.py": [],
+    "src/kalshi_alpha/exec/monitors/summary.py": [],
+    "src/kalshi_alpha/exec/pilot/__init__.py": [
+      "src/kalshi_alpha/exec/pilot/config.py",
+      "src/kalshi_alpha/exec/pilot/runtime.py"
+    ],
+    "src/kalshi_alpha/exec/pilot/config.py": [],
+    "src/kalshi_alpha/exec/pilot/runtime.py": [
+      "src/kalshi_alpha/exec/ledger/__init__.py",
+      "src/kalshi_alpha/exec/monitors/summary.py",
+      "src/kalshi_alpha/exec/pilot/config.py"
+    ],
+    "src/kalshi_alpha/exec/pilot_bundle.py": [],
+    "src/kalshi_alpha/exec/pilot_readiness.py": [
+      "src/kalshi_alpha/exec/monitors/freshness.py"
+    ],
+    "src/kalshi_alpha/exec/pipelines/calendar.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/exec/pipelines/daily.py": [
+      "src/kalshi_alpha/core/archive/scorecards.py",
+      "src/kalshi_alpha/core/execution/fillratio.py",
+      "src/kalshi_alpha/core/execution/slippage.py",
+      "src/kalshi_alpha/core/gates/__init__.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/core/pricing/align.py",
+      "src/kalshi_alpha/core/risk/__init__.py",
+      "src/kalshi_alpha/core/risk/drawdown.py",
+      "src/kalshi_alpha/datastore/ingest.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/macro_calendar/__init__.py",
+      "src/kalshi_alpha/exec/gate_utils.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/ledger/__init__.py",
+      "src/kalshi_alpha/exec/pipelines/calendar.py",
+      "src/kalshi_alpha/exec/pipelines/today.py",
+      "src/kalshi_alpha/exec/reports/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py",
+      "src/kalshi_alpha/exec/state/orders.py",
+      "src/kalshi_alpha/strategies/claims/__init__.py",
+      "src/kalshi_alpha/strategies/cpi/__init__.py",
+      "src/kalshi_alpha/strategies/teny/__init__.py",
+      "src/kalshi_alpha/strategies/weather/__init__.py",
+      "src/kalshi_alpha/utils/family.py",
+      "src/kalshi_alpha/utils/secrets.py"
+    ],
+    "src/kalshi_alpha/exec/pipelines/preflight.py": [
+      "src/kalshi_alpha/exec/pipelines/calendar.py",
+      "src/kalshi_alpha/exec/pipelines/daily.py"
+    ],
+    "src/kalshi_alpha/exec/pipelines/today.py": [
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/pipelines/calendar.py",
+      "src/kalshi_alpha/exec/pipelines/daily.py",
+      "src/kalshi_alpha/exec/state/orders.py",
+      "src/kalshi_alpha/utils/family.py"
+    ],
+    "src/kalshi_alpha/exec/pipelines/week.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/pipelines/calendar.py",
+      "src/kalshi_alpha/exec/pipelines/daily.py",
+      "src/kalshi_alpha/exec/state/orders.py",
+      "src/kalshi_alpha/utils/family.py"
+    ],
+    "src/kalshi_alpha/exec/policy/freeze.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/exec/pipelines/calendar.py"
+    ],
+    "src/kalshi_alpha/exec/preflight_index.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/strategies/index/model_polygon.py",
+      "src/kalshi_alpha/utils/env.py",
+      "src/kalshi_alpha/utils/keys.py"
+    ],
+    "src/kalshi_alpha/exec/quote_microprice.py": [
+      "src/kalshi_alpha/core/kalshi_api/__init__.py"
+    ],
+    "src/kalshi_alpha/exec/quote_optim.py": [
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/exec/reports/__init__.py": [
+      "src/kalshi_alpha/exec/ledger/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py"
+    ],
+    "src/kalshi_alpha/exec/reports/ramp.py": [
+      "src/kalshi_alpha/core/risk/__init__.py",
+      "src/kalshi_alpha/core/risk/drawdown.py",
+      "src/kalshi_alpha/exec/monitors/freshness.py",
+      "src/kalshi_alpha/exec/monitors/sequential.py",
+      "src/kalshi_alpha/exec/monitors/summary.py",
+      "src/kalshi_alpha/exec/policy/freeze.py"
+    ],
+    "src/kalshi_alpha/exec/runners/__init__.py": [],
+    "src/kalshi_alpha/exec/runners/micro_index.py": [
+      "src/kalshi_alpha/config/__init__.py",
+      "src/kalshi_alpha/core/execution/fillratio.py",
+      "src/kalshi_alpha/core/execution/series_utils.py",
+      "src/kalshi_alpha/core/execution/slippage.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/exec/__init__.py",
+      "src/kalshi_alpha/exec/runners/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py",
+      "src/kalshi_alpha/exec/scoreboard.py",
+      "src/kalshi_alpha/exec/window_guard.py"
+    ],
+    "src/kalshi_alpha/exec/runners/orders_doctor.py": [
+      "src/kalshi_alpha/exec/state/orders.py"
+    ],
+    "src/kalshi_alpha/exec/runners/pilot.py": [
+      "src/kalshi_alpha/exec/runners/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py"
+    ],
+    "src/kalshi_alpha/exec/runners/pilot_close.py": [
+      "src/kalshi_alpha/exec/runners/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py",
+      "src/kalshi_alpha/exec/window_guard.py"
+    ],
+    "src/kalshi_alpha/exec/runners/pilot_hourly.py": [
+      "src/kalshi_alpha/exec/runners/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py",
+      "src/kalshi_alpha/exec/window_guard.py"
+    ],
+    "src/kalshi_alpha/exec/runners/risk_preview.py": [
+      "src/kalshi_alpha/core/gates/__init__.py",
+      "src/kalshi_alpha/core/risk/__init__.py",
+      "src/kalshi_alpha/exec/pipelines/daily.py"
+    ],
+    "src/kalshi_alpha/exec/runners/scan_ladders.py": [
+      "src/kalshi_alpha/brokers/__init__.py",
+      "src/kalshi_alpha/brokers/kalshi/base.py",
+      "src/kalshi_alpha/config/__init__.py",
+      "src/kalshi_alpha/core/__init__.py",
+      "src/kalshi_alpha/core/archive/__init__.py",
+      "src/kalshi_alpha/core/execution/fillprob.py",
+      "src/kalshi_alpha/core/execution/fillratio.py",
+      "src/kalshi_alpha/core/execution/index_models.py",
+      "src/kalshi_alpha/core/execution/slippage.py",
+      "src/kalshi_alpha/core/fees/__init__.py",
+      "src/kalshi_alpha/core/fees/index_series.py",
+      "src/kalshi_alpha/core/gates/__init__.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/core/kalshi_ws.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/core/pricing/align.py",
+      "src/kalshi_alpha/core/risk/__init__.py",
+      "src/kalshi_alpha/core/risk/drawdown.py",
+      "src/kalshi_alpha/core/sizing/__init__.py",
+      "src/kalshi_alpha/data/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/aaa_gas/__init__.py",
+      "src/kalshi_alpha/drivers/aaa_gas/fetch.py",
+      "src/kalshi_alpha/drivers/aaa_gas/ingest.py",
+      "src/kalshi_alpha/drivers/calendar/loader.py",
+      "src/kalshi_alpha/drivers/macro_calendar/__init__.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/exec/__init__.py",
+      "src/kalshi_alpha/exec/collectors/tob_logger.py",
+      "src/kalshi_alpha/exec/fees.py",
+      "src/kalshi_alpha/exec/gate_utils.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/index_paper_ledger.py",
+      "src/kalshi_alpha/exec/ledger/__init__.py",
+      "src/kalshi_alpha/exec/limits.py",
+      "src/kalshi_alpha/exec/monitors/__init__.py",
+      "src/kalshi_alpha/exec/monitors/fee_rules.py",
+      "src/kalshi_alpha/exec/monitors/freshness.py",
+      "src/kalshi_alpha/exec/monitors/sigma_drift.py",
+      "src/kalshi_alpha/exec/monitors/summary.py",
+      "src/kalshi_alpha/exec/pilot/__init__.py",
+      "src/kalshi_alpha/exec/quote_microprice.py",
+      "src/kalshi_alpha/exec/quote_optim.py",
+      "src/kalshi_alpha/exec/reports/__init__.py",
+      "src/kalshi_alpha/exec/scanners/__init__.py",
+      "src/kalshi_alpha/exec/scanners/cpi.py",
+      "src/kalshi_alpha/exec/scanners/utils.py",
+      "src/kalshi_alpha/exec/state/orders.py",
+      "src/kalshi_alpha/markets/discovery.py",
+      "src/kalshi_alpha/risk/__init__.py",
+      "src/kalshi_alpha/risk/var_index.py",
+      "src/kalshi_alpha/sched/__init__.py",
+      "src/kalshi_alpha/sched/regimes.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/claims/__init__.py",
+      "src/kalshi_alpha/strategies/cpi/__init__.py",
+      "src/kalshi_alpha/strategies/index/__init__.py",
+      "src/kalshi_alpha/strategies/teny/__init__.py",
+      "src/kalshi_alpha/strategies/weather/__init__.py",
+      "src/kalshi_alpha/structures/__init__.py",
+      "src/kalshi_alpha/utils/env.py"
+    ],
+    "src/kalshi_alpha/exec/scanners/__init__.py": [],
+    "src/kalshi_alpha/exec/scanners/cpi.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/drivers/bls_cpi/__init__.py",
+      "src/kalshi_alpha/drivers/cleveland_nowcast/__init__.py",
+      "src/kalshi_alpha/strategies/cpi/__init__.py"
+    ],
+    "src/kalshi_alpha/exec/scanners/fast_index.py": [],
+    "src/kalshi_alpha/exec/scanners/index_scan_common.py": [
+      "src/kalshi_alpha/config/__init__.py",
+      "src/kalshi_alpha/core/execution/fillratio.py",
+      "src/kalshi_alpha/core/execution/index_models.py",
+      "src/kalshi_alpha/core/execution/slippage.py",
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/core/risk/__init__.py",
+      "src/kalshi_alpha/exec/ledger/__init__.py",
+      "src/kalshi_alpha/exec/reports/__init__.py",
+      "src/kalshi_alpha/exec/runners/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py"
+    ],
+    "src/kalshi_alpha/exec/scanners/scan_index_close.py": [
+      "src/kalshi_alpha/config/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/exec/scanners/fast_index.py",
+      "src/kalshi_alpha/exec/scanners/index_scan_common.py",
+      "src/kalshi_alpha/exec/scanners/scan_index_hourly.py",
+      "src/kalshi_alpha/exec/scanners/utils.py",
+      "src/kalshi_alpha/strategies/index/__init__.py",
+      "src/kalshi_alpha/strategies/index/cdf.py"
+    ],
+    "src/kalshi_alpha/exec/scanners/scan_index_hourly.py": [
+      "src/kalshi_alpha/config/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/exec/scanners/fast_index.py",
+      "src/kalshi_alpha/exec/scanners/index_scan_common.py",
+      "src/kalshi_alpha/exec/scanners/utils.py",
+      "src/kalshi_alpha/strategies/index/__init__.py",
+      "src/kalshi_alpha/strategies/index/cdf.py"
+    ],
+    "src/kalshi_alpha/exec/scanners/scan_index_noon.py": [
+      "src/kalshi_alpha/exec/scanners/scan_index_hourly.py"
+    ],
+    "src/kalshi_alpha/exec/scanners/utils.py": [
+      "src/kalshi_alpha/core/fees/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/exec/scoreboard.py": [
+      "src/kalshi_alpha/core/execution/defaults.py",
+      "src/kalshi_alpha/core/execution/index_models.py",
+      "src/kalshi_alpha/exec/__init__.py",
+      "src/kalshi_alpha/exec/monitors/freshness.py",
+      "src/kalshi_alpha/exec/pilot_readiness.py",
+      "src/kalshi_alpha/exec/slo.py",
+      "src/kalshi_alpha/utils/family.py"
+    ],
+    "src/kalshi_alpha/exec/scoreboard_index_paper.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/exec/index_paper_ledger.py"
+    ],
+    "src/kalshi_alpha/exec/slo.py": [
+      "src/kalshi_alpha/risk/__init__.py",
+      "src/kalshi_alpha/risk/var_index.py"
+    ],
+    "src/kalshi_alpha/exec/state/orders.py": [
+      "src/kalshi_alpha/brokers/kalshi/base.py",
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/exec/supervisor.py": [
+      "src/kalshi_alpha/brokers/__init__.py",
+      "src/kalshi_alpha/data/__init__.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py",
+      "src/kalshi_alpha/drivers/polygon_index_ws.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/runners/__init__.py",
+      "src/kalshi_alpha/exec/runners/scan_ladders.py",
+      "src/kalshi_alpha/exec/scanners/__init__.py",
+      "src/kalshi_alpha/exec/scanners/scan_index_close.py",
+      "src/kalshi_alpha/sched/__init__.py",
+      "src/kalshi_alpha/utils/env.py"
+    ],
+    "src/kalshi_alpha/exec/supervisor_index.py": [
+      "src/kalshi_alpha/data/__init__.py",
+      "src/kalshi_alpha/drivers/polygon_index_ws.py",
+      "src/kalshi_alpha/exec/collectors/tob_logger.py",
+      "src/kalshi_alpha/exec/preflight_index.py",
+      "src/kalshi_alpha/exec/runners/__init__.py",
+      "src/kalshi_alpha/exec/runners/micro_index.py",
+      "src/kalshi_alpha/sched/__init__.py"
+    ],
+    "src/kalshi_alpha/exec/telemetry/__init__.py": [
+      "src/kalshi_alpha/exec/telemetry/sink.py"
+    ],
+    "src/kalshi_alpha/exec/telemetry/shipper.py": [],
+    "src/kalshi_alpha/exec/telemetry/sink.py": [],
+    "src/kalshi_alpha/exec/window_guard.py": [
+      "src/kalshi_alpha/sched/__init__.py"
+    ],
+    "src/kalshi_alpha/markets/__init__.py": [
+      "src/kalshi_alpha/markets/discovery.py"
+    ],
+    "src/kalshi_alpha/markets/discovery.py": [
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/sched/__init__.py"
+    ],
+    "src/kalshi_alpha/models/__init__.py": [
+      "src/kalshi_alpha/models/__init__.py",
+      "src/kalshi_alpha/models/pmf_index.py"
+    ],
+    "src/kalshi_alpha/models/pmf_index.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/strategies/index/cdf.py"
+    ],
+    "src/kalshi_alpha/replay/fill_model.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/replay/polygon_index_replay.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/datastore/snapshots.py",
+      "src/kalshi_alpha/drivers/polygon_index/__init__.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py",
+      "src/kalshi_alpha/exec/collectors/__init__.py",
+      "src/kalshi_alpha/exec/collectors/polygon_ws.py",
+      "src/kalshi_alpha/exec/monitors/__init__.py",
+      "src/kalshi_alpha/exec/monitors/freshness.py"
+    ],
+    "src/kalshi_alpha/risk/__init__.py": [
+      "src/kalshi_alpha/risk/correlation.py",
+      "src/kalshi_alpha/risk/var_index.py"
+    ],
+    "src/kalshi_alpha/risk/correlation.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/risk/var_index.py"
+    ],
+    "src/kalshi_alpha/risk/var_index.py": [],
+    "src/kalshi_alpha/sched/__init__.py": [
+      "src/kalshi_alpha/sched/regimes.py",
+      "src/kalshi_alpha/sched/windows.py"
+    ],
+    "src/kalshi_alpha/sched/hotrestart.py": [
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/sched/windows.py"
+    ],
+    "src/kalshi_alpha/sched/regimes.py": [
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/macro_calendar/__init__.py"
+    ],
+    "src/kalshi_alpha/sched/windows.py": [
+      "src/kalshi_alpha/backtest/__init__.py",
+      "src/kalshi_alpha/backtest/index_calendar.py",
+      "src/kalshi_alpha/config/__init__.py"
+    ],
+    "src/kalshi_alpha/strategies/__init__.py": [],
+    "src/kalshi_alpha/strategies/base.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/strategies/claims/__init__.py": [
+      "src/kalshi_alpha/core/backtest/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/base.py"
+    ],
+    "src/kalshi_alpha/strategies/cpi/__init__.py": [
+      "src/kalshi_alpha/core/backtest/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/base.py",
+      "src/kalshi_alpha/strategies/cpi/__init__.py",
+      "src/kalshi_alpha/strategies/cpi/components.py"
+    ],
+    "src/kalshi_alpha/strategies/cpi/components.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
+    "src/kalshi_alpha/strategies/gas/__init__.py": [],
+    "src/kalshi_alpha/strategies/index/__init__.py": [
+      "src/kalshi_alpha/strategies/index/close_range.py",
+      "src/kalshi_alpha/strategies/index/hourly_above_below.py",
+      "src/kalshi_alpha/strategies/index/noon_above_below.py"
+    ],
+    "src/kalshi_alpha/strategies/index/backtest_polygon.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/kalshi_index_history.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/exec/scanners/utils.py",
+      "src/kalshi_alpha/strategies/index/fill_model.py",
+      "src/kalshi_alpha/strategies/index/model_polygon.py"
+    ],
+    "src/kalshi_alpha/strategies/index/cdf.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/base.py"
+    ],
+    "src/kalshi_alpha/strategies/index/close_range.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/strategies/index/cdf.py"
+    ],
+    "src/kalshi_alpha/strategies/index/fill_model.py": [],
+    "src/kalshi_alpha/strategies/index/hourly_above_below.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/base.py",
+      "src/kalshi_alpha/strategies/index/cdf.py"
+    ],
+    "src/kalshi_alpha/strategies/index/model_polygon.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/base.py"
+    ],
+    "src/kalshi_alpha/strategies/index/noon_above_below.py": [
+      "src/kalshi_alpha/strategies/index/hourly_above_below.py"
+    ],
+    "src/kalshi_alpha/strategies/teny/__init__.py": [
+      "src/kalshi_alpha/core/backtest/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/__init__.py",
+      "src/kalshi_alpha/drivers/macro_calendar/__init__.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/base.py"
+    ],
+    "src/kalshi_alpha/strategies/weather/__init__.py": [
+      "src/kalshi_alpha/core/backtest/__init__.py",
+      "src/kalshi_alpha/core/pricing/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/strategies/__init__.py",
+      "src/kalshi_alpha/strategies/base.py"
+    ],
+    "src/kalshi_alpha/structures/__init__.py": [
+      "src/kalshi_alpha/structures/allocator.py",
+      "src/kalshi_alpha/structures/range_ab.py"
+    ],
+    "src/kalshi_alpha/structures/allocator.py": [
+      "src/kalshi_alpha/risk/__init__.py",
+      "src/kalshi_alpha/risk/var_index.py"
+    ],
+    "src/kalshi_alpha/structures/range_ab.py": [
+      "src/kalshi_alpha/core/pricing/__init__.py"
+    ],
+    "src/kalshi_alpha/utils/env.py": [],
+    "src/kalshi_alpha/utils/family.py": [],
+    "src/kalshi_alpha/utils/http.py": [],
+    "src/kalshi_alpha/utils/keys.py": [
+      "src/kalshi_alpha/utils/env.py"
+    ],
+    "src/kalshi_alpha/utils/secrets.py": [],
+    "tools/__init__.py": [],
+    "tools/build_fillcalib_dataset.py": [],
+    "tools/failover_smoke.py": [
+      "src/kalshi_alpha/data/failover.py"
+    ],
+    "tools/project_state_build.py": [],
+    "tools/replay.py": [
+      "src/kalshi_alpha/core/archive/replay.py",
+      "src/kalshi_alpha/risk/var_index.py"
+    ],
+    "tools/settlement_basis_audit.py": [
+      "src/kalshi_alpha/core/kalshi_api/__init__.py",
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py",
+      "src/kalshi_alpha/drivers/polygon_index/symbols.py",
+      "src/kalshi_alpha/markets/discovery.py",
+      "src/kalshi_alpha/sched/windows.py"
+    ],
+    "tools/verify_gpt_bundle.py": []
+  },
+  "unresolved_imports": {
+    "src/kalshi_alpha/__init__.py": [],
+    "src/kalshi_alpha/backtest/__init__.py": [],
+    "src/kalshi_alpha/backtest/generate_dataset.py": [
+      "argparse",
+      "from __future__",
+      "from bisect",
+      "from collections",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "math",
+      "polars"
+    ],
+    "src/kalshi_alpha/backtest/index_calendar.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from enum",
+      "from functools",
+      "from typing",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/backtest/score_close.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/backtest/score_hourly.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/backtest/scoring.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "math",
+      "polars"
+    ],
+    "src/kalshi_alpha/brokers/__init__.py": [
+      "from __future__",
+      "from pathlib",
+      "from typing"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/base.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from pathlib",
+      "from typing"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/dry.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/endpoints.py": [
+      "from __future__",
+      "from dataclasses"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/http_client.py": [
+      "base64",
+      "from __future__",
+      "from collections.abc",
+      "from cryptography.hazmat.backends",
+      "from cryptography.hazmat.primitives",
+      "from cryptography.hazmat.primitives.asymmetric",
+      "from cryptography.hazmat.primitives.asymmetric.rsa",
+      "from cryptography.hazmat.primitives.serialization",
+      "from datetime",
+      "from pathlib",
+      "from requests",
+      "from requests.exceptions",
+      "from typing",
+      "from urllib.parse",
+      "logging",
+      "os",
+      "requests",
+      "time"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/live.py": [
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "from requests",
+      "from typing",
+      "json",
+      "logging",
+      "os",
+      "requests",
+      "threading",
+      "time"
+    ],
+    "src/kalshi_alpha/brokers/kalshi/ws_client.py": [
+      "asyncio",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from typing",
+      "from urllib.parse",
+      "from websockets.asyncio.client",
+      "from websockets.asyncio.connection",
+      "from websockets.exceptions",
+      "inspect",
+      "json",
+      "logging",
+      "websockets"
+    ],
+    "src/kalshi_alpha/config/__init__.py": [],
+    "src/kalshi_alpha/config/index_ops.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from functools",
+      "from pathlib",
+      "from types",
+      "from zoneinfo",
+      "warnings",
+      "yaml"
+    ],
+    "src/kalshi_alpha/config/index_rules.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from functools",
+      "from pathlib",
+      "from typing",
+      "yaml"
+    ],
+    "src/kalshi_alpha/config/size_ladder.py": [
+      "from __future__",
+      "from dataclasses",
+      "from pathlib",
+      "from typing",
+      "yaml"
+    ],
+    "src/kalshi_alpha/core/__init__.py": [],
+    "src/kalshi_alpha/core/archive/__init__.py": [
+      "from __future__"
+    ],
+    "src/kalshi_alpha/core/archive/archiver.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json"
+    ],
+    "src/kalshi_alpha/core/archive/replay.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "polars"
+    ],
+    "src/kalshi_alpha/core/archive/scorecards.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from pathlib",
+      "polars"
+    ],
+    "src/kalshi_alpha/core/backtest/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from math"
+    ],
+    "src/kalshi_alpha/core/datastore/__init__.py": [
+      "duckdb",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "polars"
+    ],
+    "src/kalshi_alpha/core/execution/defaults.py": [
+      "from __future__",
+      "from functools",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/core/execution/fillprob.py": [
+      "from __future__",
+      "from functools",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/core/execution/fillratio.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "math",
+      "polars"
+    ],
+    "src/kalshi_alpha/core/execution/index_models.py": [
+      "from __future__",
+      "from dataclasses",
+      "from functools",
+      "from pathlib",
+      "json",
+      "math"
+    ],
+    "src/kalshi_alpha/core/execution/order_queue.py": [
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from dataclasses",
+      "from typing",
+      "time"
+    ],
+    "src/kalshi_alpha/core/execution/series_utils.py": [
+      "from __future__"
+    ],
+    "src/kalshi_alpha/core/execution/slippage.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "polars"
+    ],
+    "src/kalshi_alpha/core/fees/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from decimal",
+      "from functools",
+      "from pathlib",
+      "from typing",
+      "json",
+      "os"
+    ],
+    "src/kalshi_alpha/core/fees/index_series.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from decimal",
+      "from functools",
+      "from pathlib",
+      "json"
+    ],
+    "src/kalshi_alpha/core/gates/__init__.py": [
+      "from __future__"
+    ],
+    "src/kalshi_alpha/core/gates/quality_gates.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "math",
+      "polars",
+      "yaml"
+    ],
+    "src/kalshi_alpha/core/kalshi_api/__init__.py": [
+      "from __future__",
+      "from cachetools",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "requests"
+    ],
+    "src/kalshi_alpha/core/kalshi_ws.py": [
+      "asyncio",
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "websockets"
+    ],
+    "src/kalshi_alpha/core/pricing/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from decimal",
+      "from enum"
+    ],
+    "src/kalshi_alpha/core/pricing/align.py": [
+      "from __future__",
+      "from bisect",
+      "from collections.abc",
+      "from dataclasses",
+      "math"
+    ],
+    "src/kalshi_alpha/core/pricing/mispricing.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from typing",
+      "statistics"
+    ],
+    "src/kalshi_alpha/core/risk/__init__.py": [
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from dataclasses",
+      "from fnmatch",
+      "from pathlib",
+      "math",
+      "yaml"
+    ],
+    "src/kalshi_alpha/core/risk/drawdown.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json"
+    ],
+    "src/kalshi_alpha/core/sizing/__init__.py": [
+      "from __future__"
+    ],
+    "src/kalshi_alpha/core/sizing/kelly.py": [
+      "from __future__"
+    ],
+    "src/kalshi_alpha/core/ws.py": [
+      "from __future__",
+      "from collections.abc",
+      "from contextlib",
+      "from urllib.parse",
+      "from websockets.asyncio.client",
+      "websockets"
+    ],
+    "src/kalshi_alpha/data/__init__.py": [],
+    "src/kalshi_alpha/data/failover.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from typing"
+    ],
+    "src/kalshi_alpha/data/ws_sentry.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime"
+    ],
+    "src/kalshi_alpha/datastore/ingest.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "polars",
+      "requests"
+    ],
+    "src/kalshi_alpha/datastore/paths.py": [
+      "from __future__",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/datastore/snapshots.py": [
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "json"
+    ],
+    "src/kalshi_alpha/dev/__init__.py": [],
+    "src/kalshi_alpha/dev/imbalance_snap.py": [
+      "argparse",
+      "asyncio",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/dev/parse_fees.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib",
+      "from typing",
+      "json",
+      "re"
+    ],
+    "src/kalshi_alpha/dev/sanity_check.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from pathlib",
+      "os",
+      "sys"
+    ],
+    "src/kalshi_alpha/dev/ws_smoke.py": [
+      "argparse",
+      "asyncio",
+      "from __future__",
+      "from collections.abc",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/drivers/__init__.py": [],
+    "src/kalshi_alpha/drivers/aaa_gas/__init__.py": [
+      "from __future__",
+      "from dataclasses",
+      "from pathlib",
+      "json"
+    ],
+    "src/kalshi_alpha/drivers/aaa_gas/fetch.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "polars",
+      "re",
+      "requests"
+    ],
+    "src/kalshi_alpha/drivers/aaa_gas/ingest.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib",
+      "polars"
+    ],
+    "src/kalshi_alpha/drivers/bls_cpi/__init__.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from zoneinfo",
+      "json",
+      "re",
+      "requests"
+    ],
+    "src/kalshi_alpha/drivers/calendar/__init__.py": [],
+    "src/kalshi_alpha/drivers/calendar/loader.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from functools",
+      "from pathlib",
+      "from zoneinfo",
+      "json"
+    ],
+    "src/kalshi_alpha/drivers/cleveland_nowcast/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "re",
+      "requests"
+    ],
+    "src/kalshi_alpha/drivers/dol_claims/__init__.py": [
+      "csv",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "io",
+      "polars",
+      "requests"
+    ],
+    "src/kalshi_alpha/drivers/index_polygon.py": [
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "polars"
+    ],
+    "src/kalshi_alpha/drivers/kalshi_index_history.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "polars"
+    ],
+    "src/kalshi_alpha/drivers/macro_calendar/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "polars"
+    ],
+    "src/kalshi_alpha/drivers/macro_calendar/cli.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "polars"
+    ],
+    "src/kalshi_alpha/drivers/nws_cli/__init__.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from dateutil",
+      "from pathlib",
+      "json",
+      "re",
+      "requests"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/__init__.py": [],
+    "src/kalshi_alpha/drivers/polygon_index/client.py": [
+      "asyncio",
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from contextlib",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from requests",
+      "from typing",
+      "from urllib.parse",
+      "from websockets.asyncio.client",
+      "from websockets.exceptions",
+      "from zoneinfo",
+      "json",
+      "polars",
+      "requests",
+      "websockets"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/snapshots.py": [
+      "from __future__",
+      "from collections.abc",
+      "math"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/symbols.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index/windowed.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from statistics",
+      "from typing",
+      "from zoneinfo",
+      "math",
+      "polars"
+    ],
+    "src/kalshi_alpha/drivers/polygon_index_ws.py": [
+      "asyncio",
+      "from __future__",
+      "from collections.abc",
+      "from contextlib",
+      "from dataclasses",
+      "from datetime",
+      "from typing"
+    ],
+    "src/kalshi_alpha/drivers/treasury_yields/__init__.py": [
+      "csv",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from zoneinfo",
+      "io",
+      "polars",
+      "requests"
+    ],
+    "src/kalshi_alpha/exec/__init__.py": [],
+    "src/kalshi_alpha/exec/backtest_index_polygon.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/brokers/__init__.py": [],
+    "src/kalshi_alpha/exec/brokers/kalshi/__init__.py": [],
+    "src/kalshi_alpha/exec/collectors/__init__.py": [],
+    "src/kalshi_alpha/exec/collectors/kalshi_tob.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "time"
+    ],
+    "src/kalshi_alpha/exec/collectors/polygon_ws.py": [
+      "argparse",
+      "asyncio",
+      "certifi",
+      "contextlib",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from websockets.asyncio.client",
+      "json",
+      "polars",
+      "ssl",
+      "websockets"
+    ],
+    "src/kalshi_alpha/exec/collectors/tob_logger.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "threading"
+    ],
+    "src/kalshi_alpha/exec/fees.py": [
+      "from __future__",
+      "from dataclasses",
+      "from decimal",
+      "from functools",
+      "from pathlib",
+      "json"
+    ],
+    "src/kalshi_alpha/exec/gate_utils.py": [
+      "from __future__",
+      "from pathlib",
+      "json"
+    ],
+    "src/kalshi_alpha/exec/heartbeat.py": [
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json"
+    ],
+    "src/kalshi_alpha/exec/housekeep.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "shutil"
+    ],
+    "src/kalshi_alpha/exec/index_paper_ledger.py": [
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "os"
+    ],
+    "src/kalshi_alpha/exec/ingest/polygon_index.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/exec/ledger/__init__.py": [
+      "csv",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from decimal",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "math"
+    ],
+    "src/kalshi_alpha/exec/ledger/aggregate.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/ledger/schema.py": [
+      "from __future__",
+      "from datetime",
+      "from pydantic",
+      "from typing",
+      "math"
+    ],
+    "src/kalshi_alpha/exec/limits.py": [
+      "from __future__",
+      "from dataclasses"
+    ],
+    "src/kalshi_alpha/exec/live_smoke.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "sys"
+    ],
+    "src/kalshi_alpha/exec/monitors/__init__.py": [],
+    "src/kalshi_alpha/exec/monitors/cli.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "os",
+      "sys",
+      "urllib.request"
+    ],
+    "src/kalshi_alpha/exec/monitors/fee_rules.py": [
+      "from __future__",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/exec/monitors/freshness.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "polars",
+      "yaml"
+    ],
+    "src/kalshi_alpha/exec/monitors/runtime.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "math",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/monitors/sequential.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from typing",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/monitors/sigma_drift.py": [
+      "from __future__",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/exec/monitors/summary.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/exec/pilot/__init__.py": [],
+    "src/kalshi_alpha/exec/pilot/config.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from pathlib",
+      "from typing",
+      "yaml"
+    ],
+    "src/kalshi_alpha/exec/pilot/runtime.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "math",
+      "secrets"
+    ],
+    "src/kalshi_alpha/exec/pilot_bundle.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "io",
+      "json",
+      "tarfile",
+      "time"
+    ],
+    "src/kalshi_alpha/exec/pilot_readiness.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "math",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/pipelines/calendar.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/pipelines/daily.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "polars",
+      "statistics",
+      "time"
+    ],
+    "src/kalshi_alpha/exec/pipelines/preflight.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from types"
+    ],
+    "src/kalshi_alpha/exec/pipelines/today.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "logging"
+    ],
+    "src/kalshi_alpha/exec/pipelines/week.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime"
+    ],
+    "src/kalshi_alpha/exec/policy/freeze.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from typing",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/exec/preflight_index.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "os",
+      "requests"
+    ],
+    "src/kalshi_alpha/exec/quote_microprice.py": [
+      "from __future__",
+      "from collections",
+      "from dataclasses",
+      "from datetime",
+      "from typing"
+    ],
+    "src/kalshi_alpha/exec/quote_optim.py": [
+      "from __future__",
+      "from dataclasses"
+    ],
+    "src/kalshi_alpha/exec/reports/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "math",
+      "polars",
+      "statistics"
+    ],
+    "src/kalshi_alpha/exec/reports/ramp.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "math",
+      "polars",
+      "yaml"
+    ],
+    "src/kalshi_alpha/exec/runners/__init__.py": [],
+    "src/kalshi_alpha/exec/runners/micro_index.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/exec/runners/orders_doctor.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/exec/runners/pilot.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/exec/runners/pilot_close.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/exec/runners/pilot_hourly.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/exec/runners/risk_preview.py": [
+      "argparse",
+      "from __future__",
+      "from collections",
+      "from datetime",
+      "from pathlib",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/runners/scan_ladders.py": [
+      "argparse",
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from functools",
+      "from pathlib",
+      "from zoneinfo",
+      "hashlib",
+      "json",
+      "logging",
+      "math",
+      "polars",
+      "re"
+    ],
+    "src/kalshi_alpha/exec/scanners/__init__.py": [],
+    "src/kalshi_alpha/exec/scanners/cpi.py": [
+      "from __future__",
+      "from collections.abc",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/exec/scanners/fast_index.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/scanners/index_scan_common.py": [
+      "argparse",
+      "csv",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from functools",
+      "from pathlib",
+      "json",
+      "logging",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/scanners/scan_index_close.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/exec/scanners/scan_index_hourly.py": [
+      "argparse",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/exec/scanners/scan_index_noon.py": [
+      "from __future__",
+      "from collections.abc",
+      "warnings"
+    ],
+    "src/kalshi_alpha/exec/scanners/utils.py": [
+      "from __future__",
+      "from collections.abc"
+    ],
+    "src/kalshi_alpha/exec/scoreboard.py": [
+      "argparse",
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from datetime",
+      "from pathlib",
+      "json",
+      "logging",
+      "math",
+      "polars"
+    ],
+    "src/kalshi_alpha/exec/scoreboard_index_paper.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "os"
+    ],
+    "src/kalshi_alpha/exec/slo.py": [
+      "argparse",
+      "boto3",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "logging"
+    ],
+    "src/kalshi_alpha/exec/state/orders.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/exec/supervisor.py": [
+      "argparse",
+      "asyncio",
+      "contextlib",
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/exec/supervisor_index.py": [
+      "argparse",
+      "asyncio",
+      "from __future__",
+      "from contextlib",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/exec/telemetry/__init__.py": [],
+    "src/kalshi_alpha/exec/telemetry/shipper.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "gzip",
+      "shutil"
+    ],
+    "src/kalshi_alpha/exec/telemetry/sink.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "threading"
+    ],
+    "src/kalshi_alpha/exec/window_guard.py": [
+      "from __future__",
+      "from datetime"
+    ],
+    "src/kalshi_alpha/markets/__init__.py": [],
+    "src/kalshi_alpha/markets/discovery.py": [
+      "from __future__",
+      "from collections",
+      "from dataclasses",
+      "from datetime",
+      "from typing",
+      "from zoneinfo",
+      "re"
+    ],
+    "src/kalshi_alpha/models/__init__.py": [],
+    "src/kalshi_alpha/models/pmf_index.py": [
+      "from __future__",
+      "from dataclasses",
+      "from functools",
+      "from pathlib",
+      "from typing",
+      "json",
+      "math"
+    ],
+    "src/kalshi_alpha/replay/fill_model.py": [
+      "argparse",
+      "from __future__",
+      "from collections",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/replay/polygon_index_replay.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "time"
+    ],
+    "src/kalshi_alpha/risk/__init__.py": [],
+    "src/kalshi_alpha/risk/correlation.py": [
+      "bisect",
+      "from __future__",
+      "from collections",
+      "from dataclasses",
+      "from pathlib",
+      "from typing",
+      "math",
+      "yaml"
+    ],
+    "src/kalshi_alpha/risk/var_index.py": [
+      "from __future__",
+      "from collections",
+      "from pathlib",
+      "from typing",
+      "yaml"
+    ],
+    "src/kalshi_alpha/sched/__init__.py": [],
+    "src/kalshi_alpha/sched/hotrestart.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
+    "src/kalshi_alpha/sched/regimes.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "polars"
+    ],
+    "src/kalshi_alpha/sched/windows.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from functools",
+      "from zoneinfo"
+    ],
+    "src/kalshi_alpha/strategies/__init__.py": [],
+    "src/kalshi_alpha/strategies/base.py": [
+      "from __future__",
+      "from collections.abc",
+      "from math"
+    ],
+    "src/kalshi_alpha/strategies/claims/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from math",
+      "from statistics",
+      "from typing",
+      "polars"
+    ],
+    "src/kalshi_alpha/strategies/cpi/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from pathlib",
+      "from statistics",
+      "from typing",
+      "math",
+      "polars",
+      "yaml"
+    ],
+    "src/kalshi_alpha/strategies/cpi/components.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from pathlib",
+      "polars"
+    ],
+    "src/kalshi_alpha/strategies/gas/__init__.py": [],
+    "src/kalshi_alpha/strategies/index/__init__.py": [],
+    "src/kalshi_alpha/strategies/index/backtest_polygon.py": [
+      "csv",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "polars"
+    ],
+    "src/kalshi_alpha/strategies/index/cdf.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from functools",
+      "from pathlib",
+      "from typing",
+      "json",
+      "math"
+    ],
+    "src/kalshi_alpha/strategies/index/close_range.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from functools",
+      "math"
+    ],
+    "src/kalshi_alpha/strategies/index/fill_model.py": [
+      "from __future__",
+      "math"
+    ],
+    "src/kalshi_alpha/strategies/index/hourly_above_below.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from functools",
+      "from math",
+      "from scipy.stats",
+      "math",
+      "warnings"
+    ],
+    "src/kalshi_alpha/strategies/index/model_polygon.py": [
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from math",
+      "from pandas.api",
+      "from pathlib",
+      "from scipy",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "numpy",
+      "pandas",
+      "polars"
+    ],
+    "src/kalshi_alpha/strategies/index/noon_above_below.py": [
+      "from __future__"
+    ],
+    "src/kalshi_alpha/strategies/teny/__init__.py": [
+      "from __future__",
+      "from collections.abc",
+      "from dataclasses",
+      "from datetime",
+      "from math",
+      "from typing",
+      "from zoneinfo",
+      "polars"
+    ],
+    "src/kalshi_alpha/strategies/weather/__init__.py": [
+      "from __future__",
+      "from collections",
+      "from collections.abc",
+      "from dataclasses",
+      "from statistics",
+      "from typing",
+      "polars"
+    ],
+    "src/kalshi_alpha/structures/__init__.py": [],
+    "src/kalshi_alpha/structures/allocator.py": [
+      "from __future__",
+      "from collections",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "math"
+    ],
+    "src/kalshi_alpha/structures/range_ab.py": [
+      "from __future__",
+      "from dataclasses",
+      "from typing",
+      "math"
+    ],
+    "src/kalshi_alpha/utils/env.py": [
+      "from __future__",
+      "from dotenv",
+      "from functools",
+      "from pathlib"
+    ],
+    "src/kalshi_alpha/utils/family.py": [
+      "from __future__",
+      "from collections.abc",
+      "os"
+    ],
+    "src/kalshi_alpha/utils/http.py": [
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "requests"
+    ],
+    "src/kalshi_alpha/utils/keys.py": [
+      "from __future__",
+      "from functools",
+      "os",
+      "platform",
+      "shutil",
+      "subprocess"
+    ],
+    "src/kalshi_alpha/utils/secrets.py": [
+      "from __future__",
+      "from collections.abc",
+      "re"
+    ],
+    "tools/__init__.py": [],
+    "tools/build_fillcalib_dataset.py": [],
+    "tools/failover_smoke.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from typing"
+    ],
+    "tools/project_state_build.py": [
+      "argparse",
+      "ast",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json",
+      "os",
+      "re",
+      "sys"
+    ],
+    "tools/replay.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "matplotlib.pyplot",
+      "polars",
+      "re"
+    ],
+    "tools/settlement_basis_audit.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo",
+      "json",
+      "math",
+      "polars",
+      "shlex",
+      "subprocess",
+      "sys"
+    ],
+    "tools/verify_gpt_bundle.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib",
+      "json",
+      "sys",
+      "zipfile"
+    ]
+  }
+}
