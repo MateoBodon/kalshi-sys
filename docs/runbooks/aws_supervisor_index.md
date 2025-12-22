@@ -5,6 +5,10 @@ This runbook describes an AWS-ready, fail-closed deployment for the 24/7
 
 Last updated: 2025-12-21
 
+## AWS access (SSH)
+- Quick connect: `ssh kalshi-aws`
+- Access details (key path + SSH config host alias) live in `docs/ACCESS.md`.
+
 ## Scope and defaults
 - Scope: index ladder windows only (INX/INXU/NASDAQ100/NASDAQ100U).
 - Default broker: dry (paper). Live must be explicitly armed and is out of scope
@@ -133,10 +137,10 @@ Monitoring jobs (recommended):
   - `sudo systemctl enable --now kalshi-index-monitors.timer`
   - `sudo systemctl enable --now kalshi-index-freshness.timer`
 
-## Log routing (journald -> CloudWatch)
-Use the CloudWatch Agent to ship journald logs for
-`kalshi-supervisor-index.service`. The repo includes a minimal config template
-you can copy to the host:
+## Log routing (syslog -> CloudWatch)
+On Ubuntu, systemd unit logs are forwarded to `/var/log/syslog` by default.
+The CloudWatch Agent config in this repo tails that file and ships entries
+to the `kalshi-supervisor-index` log group/stream.
 
 ```bash
 sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json \
