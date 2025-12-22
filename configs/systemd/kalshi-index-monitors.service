@@ -1,0 +1,10 @@
+[Unit]
+Description=Kalshi Index monitors sweep
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kalshi-sys
+EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+ExecStart=/usr/bin/env python -m kalshi_alpha.exec.monitors.cli --no-report
+Nice=10
