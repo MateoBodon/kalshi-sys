@@ -33,7 +33,7 @@ def should_skip_dir(rel: Path) -> bool:
         return False
     if rel.parts[0] in EXCLUDED_TOP_LEVEL:
         return True
-    if rel.parts[0] == "docs" and len(rel.parts) > 1 and rel.parts[1] == "agent_runs":
+    if rel.parts[0] == "docs" and len(rel.parts) > 1 and rel.parts[1] in {"agent_runs", "gpt_bundles", "gpt_outputs"}:
         return True
     if any(part in EXCLUDED_DIR_NAMES for part in rel.parts):
         return True
