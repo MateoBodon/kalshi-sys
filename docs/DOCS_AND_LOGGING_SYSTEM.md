@@ -129,6 +129,7 @@ Suggested subdirs:
 - `data/proc/runs/<RUN_ID>/` (go/no-go, proposals, monitor events)
 - `data/proc/telemetry/` (tob snapshots, quote intents, ws status)
 - `data/proc/basis/` (basis audits)
+- `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json` (daily basis summary: quantiles, per-window deltas, flip-risk flag)
 - `data/proc/calibration/` (calibration outputs)
 - `data/proc/fillcalib/` (fill curves)
 

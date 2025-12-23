@@ -4,6 +4,7 @@
 - Gitignored `reports/` and removed tracked report outputs so report artifacts stay local-only.
 - Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
 - Ticket #101: decoupled index GO/NO-GO from macro freshness with explicit scope metadata, index-specific freshness/quality gate configs, and scoped go/no-go artifacts.
+- Ticket #102: promoted settlement basis audit to a preflight gate with daily JSON/MD artifacts, flip-risk summaries, and fixture-based tests.
 
 ## 2025-12-22
 - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.
