@@ -478,6 +478,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         kill_switch_file=config.kill_switch_file,
         require_kalshi=not config.offline,
         require_polygon=not config.offline,
+        series=config.series_filter,
     )
     preflight_observer = lambda result: _emit_preflight_summary(result, config=config)
 

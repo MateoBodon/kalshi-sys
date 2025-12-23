@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 import json
 import os
 from pathlib import Path
@@ -32,6 +32,7 @@ MAX_CALIBRATION_AGE_DAYS = 14.0
 POLYGON_PING_URL = "https://api.polygon.io/v1/marketstatus/now"
 GO_NO_GO_PATH = Path("reports/_artifacts/go_no_go.json")
 FRESHNESS_SCOPE = "index"
+BASIS_AUDIT_ROOT = PROC_ROOT / "basis"
 
 
 @dataclass(slots=True)
@@ -87,6 +88,82 @@ def _file_age_days(path: Path, now: datetime) -> float | None:
     return max(age_seconds, 0.0) / 86400.0
 
 
+def _parse_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    normalized = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _basis_audit_path(root: Path, series: str, asof: date) -> Path:
+    return root / series.upper() / f"{asof.isoformat()}.json"
+
+
+def _check_basis_audit(
+    *,
+    series: str,
+    asof: date,
+    now_utc: datetime,
+    root: Path,
+) -> tuple[bool, list[str], dict[str, object]]:
+    reasons: list[str] = []
+    details: dict[str, object] = {}
+    path = _basis_audit_path(root, series, asof)
+    details["path"] = path.as_posix()
+    if not path.exists():
+        reasons.append(f"basis_audit_missing:{series}")
+        details["status"] = "MISSING"
+        return False, reasons, details
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        reasons.append(f"basis_audit_stale:{series}:unreadable")
+        details["status"] = "STALE"
+        details["error"] = str(exc)
+        return False, reasons, details
+
+    asof_payload = payload.get("asof_date")
+    details["asof_date"] = asof_payload
+    if asof_payload != asof.isoformat():
+        reasons.append(f"basis_audit_stale:{series}:asof_mismatch")
+
+    generated_at_raw = payload.get("generated_at")
+    generated_at = _parse_timestamp(str(generated_at_raw) if generated_at_raw else None)
+    details["generated_at"] = generated_at_raw
+    if generated_at is None:
+        reasons.append(f"basis_audit_stale:{series}:missing_generated_at")
+    else:
+        start_of_day = datetime.combine(asof, time(0, 0), tzinfo=ET).astimezone(UTC)
+        if generated_at < start_of_day:
+            reasons.append(f"basis_audit_stale:{series}:generated_before_day")
+        if generated_at > now_utc + timedelta(minutes=5):
+            reasons.append(f"basis_audit_stale:{series}:generated_in_future")
+
+    details["sample_count"] = payload.get("sample_count")
+    details["basis_quantiles"] = payload.get("basis_quantiles")
+    details["flip_risk"] = payload.get("flip_risk")
+
+    flip_payload = payload.get("flip_risk") or {}
+    flip_flag = flip_payload.get("flag")
+    if isinstance(flip_flag, bool):
+        if flip_flag:
+            reasons.append(f"basis_flip_risk:{series}")
+    else:
+        reasons.append(f"basis_flip_risk:{series}:flag_missing")
+
+    details["status"] = "OK" if not reasons else "ALERT"
+    return not reasons, reasons, details
+
+
 def _calibration_check(
     *,
     now: datetime,
@@ -137,6 +214,9 @@ def run_preflight(
     polygon_ping: Callable[[float], bool] | None = None,
     require_kalshi: bool = True,
     require_polygon: bool | None = None,
+    require_basis_audit: bool | None = None,
+    basis_root: Path | None = None,
+    series: Sequence[str] | None = None,
     freshness_artifact_path: Path | None = None,
     require_freshness: bool | None = None,
     freshness_scope: str | None = FRESHNESS_SCOPE,
@@ -156,6 +236,8 @@ def run_preflight(
         require_polygon = require_kalshi
     if require_freshness is None:
         require_freshness = require_kalshi
+    if require_basis_audit is None:
+        require_basis_audit = require_kalshi
     if require_kalshi:
         env_missing.extend(_missing_env_vars(["KALSHI_API_KEY_ID", "KALSHI_PRIVATE_KEY_PEM_PATH"]))
         key_path_raw = os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
@@ -221,6 +303,28 @@ def run_preflight(
         ping_fn = polygon_ping or _polygon_ping
         if not ping_fn(polygon_timeout):
             reasons.append("polygon_unreachable")
+
+    # Basis audit gate ------------------------------------------------------
+    if require_basis_audit:
+        asof = reference_et.date()
+        series_list = [entry.upper() for entry in (series or _series_labels())]
+        root = Path(basis_root) if basis_root else BASIS_AUDIT_ROOT
+        audit_details: dict[str, object] = {
+            "asof_date": asof.isoformat(),
+            "root": root.as_posix(),
+            "series": {},
+        }
+        for series_code in series_list:
+            ok, basis_reasons, basis_detail = _check_basis_audit(
+                series=series_code,
+                asof=asof,
+                now_utc=now_utc,
+                root=root,
+            )
+            audit_details["series"][series_code] = basis_detail
+            if not ok:
+                reasons.extend(basis_reasons)
+        details["basis_audit"] = audit_details
 
     go = not reasons
     details["evaluated_at_et"] = reference_et.isoformat()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -78,6 +78,39 @@ def _write_freshness_artifact(
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _write_basis_audit(
+    path: Path,
+    *,
+    series: str,
+    asof_date: date,
+    flip_flag: bool = False,
+    generated_at: datetime | None = None,
+) -> None:
+    payload = {
+        "series": series,
+        "asof_date": asof_date.isoformat(),
+        "generated_at": (generated_at or datetime.now(tz=UTC)).isoformat(),
+        "sample_count": 2,
+        "basis_quantiles": {"p01": -0.2, "p05": -0.1, "p50": 0.0, "p95": 0.2, "p99": 0.3},
+        "per_window_deltas": [
+            {"window_id": "hourly-1000", "n": 2, "mean": 0.05, "p05": -0.1, "p50": 0.0, "p95": 0.2}
+        ],
+        "flip_risk": {
+            "flag": flip_flag,
+            "rationale": "fixture",
+            "thresholds": {"basis_abs_p95": 0.2, "quote_distance": 0.5, "threshold": 0.5},
+        },
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _seed_basis_audits(root: Path, *, asof_date: date, series: tuple[str, ...]) -> None:
+    for series_code in series:
+        path = root / series_code / f"{asof_date.isoformat()}.json"
+        _write_basis_audit(path, series=series_code, asof_date=asof_date)
+
+
 def test_missing_env_triggers_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime(2025, 11, 3, 10, 5, tzinfo=ET)
     _seed_all_params(tmp_path, now)
@@ -92,6 +125,7 @@ def test_missing_env_triggers_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         kill_switch_file=tmp_path / "kill_switch",
         polygon_ping=lambda _: True,
         freshness_artifact_path=freshness_path,
+        basis_root=tmp_path / "basis",
     )
 
     assert not result.go
@@ -104,6 +138,8 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
     _seed_all_params(tmp_path, stale_ts)
     freshness_path = tmp_path / "freshness.json"
     _write_freshness_artifact(freshness_path)
+    basis_root = tmp_path / "basis"
+    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
 
     key_path = tmp_path / "kalshi.pem"
     key_path.write_text("dummy", encoding="utf-8")
@@ -117,6 +153,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
         kill_switch_file=tmp_path / "kill_switch",
         polygon_ping=lambda _: True,
         freshness_artifact_path=freshness_path,
+        basis_root=basis_root,
     )
 
     assert not result.go
@@ -128,6 +165,8 @@ def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     _seed_all_params(tmp_path, now)
     freshness_path = tmp_path / "freshness.json"
     _write_freshness_artifact(freshness_path)
+    basis_root = tmp_path / "basis"
+    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
 
     key_path = tmp_path / "kalshi.pem"
     key_path.write_text("dummy", encoding="utf-8")
@@ -141,6 +180,7 @@ def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         kill_switch_file=tmp_path / "kill_switch",
         polygon_ping=lambda _: True,
         freshness_artifact_path=freshness_path,
+        basis_root=basis_root,
     )
 
     assert result.go
@@ -184,6 +224,8 @@ def test_macro_stale_does_not_block_index_preflight(tmp_path: Path, monkeypatch:
     _seed_all_params(tmp_path, now)
     freshness_path = tmp_path / "freshness.json"
     _write_freshness_artifact(freshness_path, polygon_ok=True, macro_ok=False, macro_required=True)
+    basis_root = tmp_path / "basis"
+    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
 
     key_path = tmp_path / "kalshi.pem"
     key_path.write_text("dummy", encoding="utf-8")
@@ -197,7 +239,34 @@ def test_macro_stale_does_not_block_index_preflight(tmp_path: Path, monkeypatch:
         kill_switch_file=tmp_path / "kill_switch",
         polygon_ping=lambda _: True,
         freshness_artifact_path=freshness_path,
+        basis_root=basis_root,
     )
+
+
+def test_missing_basis_audit_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
+    _seed_all_params(tmp_path, now)
+    freshness_path = tmp_path / "freshness.json"
+    _write_freshness_artifact(freshness_path)
+
+    key_path = tmp_path / "kalshi.pem"
+    key_path.write_text("dummy", encoding="utf-8")
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "demo-id")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
+    monkeypatch.setenv("POLYGON_API_KEY", "demo-polygon")
+
+    result = run_preflight(
+        now,
+        params_root=tmp_path,
+        kill_switch_file=tmp_path / "kill_switch",
+        polygon_ping=lambda _: True,
+        freshness_artifact_path=freshness_path,
+        basis_root=tmp_path / "basis",
+        series=("INXU",),
+    )
+
+    assert not result.go
+    assert any(reason.startswith("basis_audit_missing") for reason in result.reasons)
 
     assert result.go
     assert "STALE_FEEDS" not in result.reasons
