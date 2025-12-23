@@ -24,7 +24,7 @@ from kalshi_alpha.exec.collectors.polygon_ws import (
 from kalshi_alpha.exec.monitors import freshness
 
 ET = ZoneInfo("America/New_York")
-DEFAULT_FRESHNESS_CONFIG = Path("configs/freshness.yaml")
+DEFAULT_FRESHNESS_CONFIG = Path("configs/freshness.index.yaml")
 DEFAULT_SUMMARY_PATH = Path("reports/_artifacts/replay/polygon_index_replay.json")
 
 
@@ -59,7 +59,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--freshness-config",
         type=Path,
         default=DEFAULT_FRESHNESS_CONFIG,
-        help="Freshness config path (default: configs/freshness.yaml)",
+        help="Freshness config path (default: configs/freshness.index.yaml)",
     )
     parser.add_argument(
         "--freshness-output",
