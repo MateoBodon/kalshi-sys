@@ -6,6 +6,7 @@
 - Ticket #101: decoupled index GO/NO-GO from macro freshness with explicit scope metadata, index-specific freshness/quality gate configs, and scoped go/no-go artifacts.
 - Ticket #102: promoted settlement basis audit to a preflight gate with daily JSON/MD artifacts, flip-risk summaries, and fixture-based tests.
 - Ticket #103: added bounded TOB + quote-intent telemetry capture to `data/proc/telemetry` (gzipped), per-window caps, and housekeeping retention.
+- Fix: settlement basis audit now uses authenticated trade-api/v2 with KX series mapping for index ladders.
 
 ## 2025-12-22
 - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.

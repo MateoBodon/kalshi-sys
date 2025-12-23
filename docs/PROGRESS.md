@@ -35,7 +35,7 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #102 — Promoted settlement basis audit to a preflight gate with daily JSON/MD artifacts, flip-risk summary, and fixture-based tests.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/README.md`
-- Ticket #103 — Added bounded TOB + quote-intent telemetry capture (gzipped) with per-window caps + retention in housekeeping for index ladders.
+- Ticket #103 — Added bounded TOB + quote-intent telemetry capture (gzipped) with per-window caps + retention in housekeeping for index ladders; updated settlement basis audit to use authenticated trade-api/v2 with KX series mapping.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251223T195343Z_TICKET-103_telemetry_capture/RUN.md`
 

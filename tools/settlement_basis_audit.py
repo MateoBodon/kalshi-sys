@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import shlex
 import statistics
 import subprocess
@@ -22,18 +23,44 @@ if str(SRC_ROOT) not in sys.path:
 
 import polars as pl
 
-from kalshi_alpha.core.kalshi_api import KalshiPublicClient
+from kalshi_alpha.brokers.kalshi.http_client import KalshiHttpClient, KalshiHttpError
+from kalshi_alpha.core.kalshi_api import KalshiPublicClient, Market
 from kalshi_alpha.datastore.paths import PROC_ROOT, REPORTS_ROOT
 from kalshi_alpha.drivers.polygon_index.client import MinuteBar, PolygonIndicesClient
 from kalshi_alpha.drivers.polygon_index.symbols import resolve_series
 from kalshi_alpha.markets.discovery import DiscoveredMarket, WindowDiscovery, discover_markets_for_day
 from kalshi_alpha.sched.windows import TradingWindow, windows_for_day
+from kalshi_alpha.utils.env import load_env
 
 ET = ZoneInfo("America/New_York")
 SUPPORTED_SERIES = {"INX", "INXU", "NASDAQ100", "NASDAQ100U"}
 DEFAULT_FIXTURES_ROOT = Path("tests/fixtures/settlement_basis")
 DEFAULT_QUOTE_DISTANCE = 0.5
 EXEC_DEFAULTS_PATH = PROJECT_ROOT / "data" / "reference" / "index_execution_defaults.json"
+KALSHI_SERIES_TICKERS = {
+    "INX": "KXINX",
+    "INXU": "KXINXU",
+    "NASDAQ100": "KXNASDAQ100",
+    "NASDAQ100U": "KXNASDAQ100U",
+}
+EVENT_TICKER_PATTERN = re.compile(
+    r"-(?P<year>\d{2})(?P<month>[A-Z]{3})(?P<day>\d{2})H(?P<hour>\d{2})(?P<minute>\d{2})"
+)
+EVENT_TICKER_MONTHS = {
+    "JAN": 1,
+    "FEB": 2,
+    "MAR": 3,
+    "APR": 4,
+    "MAY": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AUG": 8,
+    "SEP": 9,
+    "OCT": 10,
+    "NOV": 11,
+    "DEC": 12,
+}
+EVENT_MATCH_TOLERANCE_SECONDS = 90
 KALSHI_VALUE_FIELDS = (
     "settlement_value",
     "settlement_price",
@@ -55,6 +82,167 @@ class PolygonWindowValue:
 class KalshiSettlementValue:
     value: float
     source_field: str
+
+
+def _kalshi_series_ticker(series: str | None) -> str | None:
+    if series is None:
+        return None
+    normalized = series.upper().strip()
+    if normalized.startswith("KX"):
+        return normalized
+    return KALSHI_SERIES_TICKERS.get(normalized, normalized)
+
+
+def _close_time_from_ticker(ticker: str) -> datetime | None:
+    match = EVENT_TICKER_PATTERN.search(ticker or "")
+    if not match:
+        return None
+    month = EVENT_TICKER_MONTHS.get(match.group("month"))
+    if month is None:
+        return None
+    year = 2000 + int(match.group("year"))
+    day = int(match.group("day"))
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
+    return datetime(year, month, day, hour, minute, tzinfo=ET).astimezone(UTC)
+
+
+class _KalshiAuthenticatedClient:
+    """Adapter for Kalshi trade-api/v2 using the KalshiHttpClient interface."""
+
+    def __init__(self, *, base_url: str | None = None) -> None:
+        load_env()
+        self._http = KalshiHttpClient(base_url=base_url or "https://api.elections.kalshi.com/trade-api/v2")
+
+    def get_event_detail(self, event_id: str, *, force_refresh: bool = False) -> dict[str, Any]:
+        try:
+            response = self._http.get(f"/events/{event_id}")
+        except KalshiHttpError as exc:
+            raise RuntimeError(f"Kalshi event fetch failed for {event_id}: {exc}") from exc
+        payload = response.json()
+        if isinstance(payload, dict):
+            return payload
+        return {"event": payload}
+
+    def get_markets(self, event_id: str, *, force_refresh: bool = False) -> list[Market]:
+        raw_markets = self._fetch_markets(event_ticker=event_id, series_ticker=None, status=None, limit=None)
+        return [Market.from_payload(_normalize_market_payload(item, series_ticker=None)) for item in raw_markets]
+
+    def search_markets(  # noqa: PLR0913
+        self,
+        *,
+        series_ticker: str | None = None,
+        status: str | None = None,
+        event_ticker: str | None = None,
+        limit: int | None = None,
+        force_refresh: bool = False,
+    ) -> list[Market]:
+        raw_markets = self._fetch_markets(
+            series_ticker=series_ticker,
+            status=status,
+            event_ticker=event_ticker,
+            limit=limit,
+        )
+        return [
+            Market.from_payload(_normalize_market_payload(item, series_ticker=series_ticker))
+            for item in raw_markets
+        ]
+
+    def _fetch_markets(
+        self,
+        *,
+        series_ticker: str | None,
+        status: str | None,
+        event_ticker: str | None,
+        limit: int | None,
+    ) -> list[dict[str, Any]]:
+        base_params: dict[str, Any] = {}
+        if series_ticker:
+            base_params["series_ticker"] = _kalshi_series_ticker(series_ticker)
+        if event_ticker:
+            base_params["event_ticker"] = event_ticker
+        if limit is not None:
+            base_params["limit"] = int(limit)
+
+        status_candidates = [status] if status is not None else [None, "closed", "settled", "open"]
+        if event_ticker and status is None:
+            status_candidates = [None]
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        for status_value in status_candidates:
+            params = dict(base_params)
+            if status_value is not None:
+                params["status"] = status_value
+            try:
+                markets = self._fetch_pages(params, paginate=limit is None)
+            except KalshiHttpError:
+                if status_value is not None:
+                    continue
+                raise
+            for payload in markets:
+                ticker = str(payload.get("ticker") or "")
+                if ticker and ticker in seen:
+                    continue
+                if ticker:
+                    seen.add(ticker)
+                results.append(payload)
+
+        return results
+
+    def _fetch_pages(self, params: dict[str, Any], *, paginate: bool) -> list[dict[str, Any]]:
+        cursor: str | None = None
+        results: list[dict[str, Any]] = []
+        while True:
+            page_params = dict(params)
+            if cursor:
+                page_params["cursor"] = cursor
+            response = self._http.get("/markets", params=page_params)
+            payload = response.json()
+            if not isinstance(payload, dict):
+                break
+            results.extend(payload.get("markets") or [])
+            cursor = payload.get("cursor")
+            if not paginate or not cursor:
+                break
+        return results
+
+    def list_events(self, *, series_ticker: str, status: str | None = None) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"series_ticker": _kalshi_series_ticker(series_ticker)}
+        if status:
+            params["status"] = status
+        cursor: str | None = None
+        results: list[dict[str, Any]] = []
+        while True:
+            page_params = dict(params)
+            if cursor:
+                page_params["cursor"] = cursor
+            response = self._http.get("/events", params=page_params)
+            payload = response.json()
+            if not isinstance(payload, dict):
+                break
+            results.extend(payload.get("events") or [])
+            cursor = payload.get("cursor")
+            if not cursor:
+                break
+        return results
+
+
+def _normalize_market_payload(payload: dict[str, Any], *, series_ticker: str | None) -> dict[str, Any]:
+    normalized = dict(payload)
+    event_ticker = normalized.get("event_ticker")
+    if event_ticker and "event_id" not in normalized:
+        normalized["event_id"] = event_ticker
+    if series_ticker and not normalized.get("series_ticker"):
+        normalized["series_ticker"] = series_ticker.upper()
+    if "close_time" in normalized and "close_ts" not in normalized:
+        normalized["close_ts"] = normalized["close_time"]
+    if "ladder_strikes" not in normalized:
+        strike = _safe_float(normalized.get("floor_strike"))
+        normalized["ladder_strikes"] = [strike] if strike is not None else []
+    if "ladder_yes_prices" not in normalized:
+        normalized["ladder_yes_prices"] = []
+    return normalized
 
 
 def _parse_day(value: str) -> date:
@@ -659,6 +847,8 @@ def _discover_markets(
     day: date,
     series: str,
 ) -> tuple[dict[str, DiscoveredMarket], dict[str, WindowDiscovery]]:
+    if isinstance(client, _KalshiAuthenticatedClient):
+        return _discover_markets_authenticated(client, day=day, series=series)
     discoveries = discover_markets_for_day(client, trading_day=day, series=[series], status=None)
     market_by_label: dict[str, DiscoveredMarket] = {}
     discovery_by_label: dict[str, WindowDiscovery] = {}
@@ -668,6 +858,77 @@ def _discover_markets(
             if market.series.upper() == series.upper():
                 market_by_label[discovery.label] = market
     return market_by_label, discovery_by_label
+
+
+def _discover_markets_authenticated(
+    client: _KalshiAuthenticatedClient,
+    *,
+    day: date,
+    series: str,
+) -> tuple[dict[str, DiscoveredMarket], dict[str, WindowDiscovery]]:
+    windows = _windows_for_series(day, series)
+    if not windows:
+        return {}, {}
+
+    events: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for status in ("settled", "closed", "open"):
+        try:
+            payloads = client.list_events(series_ticker=series, status=status)
+        except KalshiHttpError:
+            continue
+        for payload in payloads:
+            event_ticker = str(payload.get("event_ticker") or "").strip()
+            if not event_ticker or event_ticker in seen:
+                continue
+            seen.add(event_ticker)
+            events.append(payload)
+
+    discovered: list[DiscoveredMarket] = []
+    for payload in events:
+        event_ticker = str(payload.get("event_ticker") or "").strip()
+        if not event_ticker:
+            continue
+        close_utc = _parse_iso(
+            payload.get("strike_date")
+            or payload.get("expiration_time")
+            or payload.get("close_time")
+        )
+        if close_utc is None:
+            close_utc = _close_time_from_ticker(event_ticker)
+        if close_utc is None:
+            continue
+        if close_utc.astimezone(ET).date() != day:
+            continue
+        status = payload.get("status")
+        discovered.append(
+            DiscoveredMarket(
+                series=series.upper(),
+                event_id=event_ticker,
+                event_ticker=event_ticker,
+                close_time=close_utc,
+                market_ids=(),
+                market_tickers=(),
+                market_count=0,
+                status=str(status).lower() if isinstance(status, str) else None,
+            )
+        )
+
+    market_by_label: dict[str, DiscoveredMarket] = {}
+    for window in windows:
+        best: DiscoveredMarket | None = None
+        best_delta: float | None = None
+        for market in discovered:
+            delta = abs((market.close_time_et - window.target_et).total_seconds())
+            if delta > EVENT_MATCH_TOLERANCE_SECONDS:
+                continue
+            if best_delta is None or delta < best_delta:
+                best = market
+                best_delta = delta
+        if best is not None:
+            market_by_label[window.label] = best
+
+    return market_by_label, {}
 
 
 def _build_dataset(
@@ -684,7 +945,7 @@ def _build_dataset(
         kalshi_client = KalshiPublicClient(offline_dir=offline_fixtures / "kalshi", use_offline=True)
         polygon_values = _load_polygon_offline_values(offline_fixtures, day=day, series=series)
     else:
-        kalshi_client = KalshiPublicClient()
+        kalshi_client = _KalshiAuthenticatedClient()
         polygon_values = _polygon_values_online(series, windows)
 
     market_by_label, _ = _discover_markets(kalshi_client, day=day, series=series)
