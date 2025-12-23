@@ -15,6 +15,13 @@ def _touch(path: Path, *, days_old: int) -> None:
     os.utime(path, times=(ts, ts))
 
 
+def _touch_file(path: Path, *, days_old: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x", encoding="utf-8")
+    ts = (datetime.now(tz=UTC) - timedelta(days=days_old)).timestamp()
+    os.utime(path, times=(ts, ts))
+
+
 def test_housekeep_prunes_old_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     # Create older artifacts
@@ -37,6 +44,13 @@ def test_housekeep_prunes_old_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_pat
     raw_archive = tmp_path / "data" / "raw" / "kalshi" / "2023-12-01"
     _touch(raw_archive, days_old=120)
 
+    old_tob = tmp_path / "data" / "proc" / "telemetry" / "tob" / "run_old.jsonl.gz"
+    _touch_file(old_tob, days_old=45)
+    recent_intent = (
+        tmp_path / "data" / "proc" / "telemetry" / "quote_intents" / "run_recent.jsonl.gz"
+    )
+    _touch_file(recent_intent, days_old=5)
+
     newest_teny = tmp_path / "reports" / "TNEY" / "teny_close_20240401"
     _touch(newest_teny, days_old=50)
     older_teny = tmp_path / "reports" / "TNEY" / "teny_close_20240101"
@@ -49,6 +63,10 @@ def test_housekeep_prunes_old_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert not generic_report.exists()
     # Old archive removed
     assert not raw_archive.exists()
+
+    # Old telemetry removed, recent telemetry retained
+    assert not old_tob.exists()
+    assert recent_intent.exists()
 
     # The newest CPI eve artifact should be preserved despite age; older removed
     assert old_cpi.exists()

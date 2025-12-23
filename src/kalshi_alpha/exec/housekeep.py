@@ -14,6 +14,7 @@ RETENTION_ROOTS = [
     Path("reports"),
     Path("reports/_artifacts"),
     Path("data/proc/logs"),
+    Path("data/proc/telemetry"),
 ]
 
 
@@ -74,6 +75,18 @@ def _collect_candidates(root: Path) -> Iterable[Candidate]:
                     continue
             else:
                 entries.append(entry)
+    elif root.name == "telemetry" and root.parent.name == "proc":
+        try:
+            for stream in root.iterdir():
+                if stream.is_dir():
+                    try:
+                        entries.extend(list(stream.iterdir()))
+                    except FileNotFoundError:
+                        continue
+                else:
+                    entries.append(stream)
+        except FileNotFoundError:
+            entries = []
     else:
         try:
             entries = list(root.iterdir())
