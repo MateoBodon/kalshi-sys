@@ -1,5 +1,8 @@
 # Changelog
 
+## 2025-12-23
+- Gitignored `reports/` and removed tracked report outputs so report artifacts stay local-only.
+
 ## 2025-12-22
 - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.
 - Ticket #10: validated CloudWatch agent config on Ubuntu, switched log shipping config to syslog tailing, and captured aws logs proof for kalshi-supervisor-index.

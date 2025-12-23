@@ -6,6 +6,7 @@ __pycache__/
 .hypothesis/
 .venv/
 logs/
+reports/
 *.pyc
 *.pyo
 *.zip
