@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import threading
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
@@ -9,6 +10,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
+
+from kalshi_alpha.datastore.paths import PROC_ROOT
 
 EVENT_TYPES = {
     "sent",
@@ -99,6 +102,9 @@ def _safe_float(value: object) -> float | None:
     return None
 
 DEFAULT_BASE_DIR = Path("data/raw/kalshi")
+DEFAULT_PROC_TELEMETRY_DIR = PROC_ROOT / "telemetry"
+DEFAULT_TELEMETRY_MAX_WINDOW_BYTES = 256 * 1024
+REQUIRED_TELEMETRY_FIELDS = ("run_id", "window_id", "series", "market_ticker", "ts")
 
 
 def _utc_now() -> datetime:
@@ -221,3 +227,71 @@ class TelemetrySink:
             self._current_date = moment_date
             self._current_path = target
         return target
+
+
+@dataclass(slots=True)
+class TelemetryJsonlSink:
+    """Append-only JSONL telemetry sink with run-based rotation + bounds."""
+
+    run_id: str
+    stream: str
+    base_dir: Path | str = DEFAULT_PROC_TELEMETRY_DIR
+    compress: bool = True
+    max_bytes_per_window: int = DEFAULT_TELEMETRY_MAX_WINDOW_BYTES
+    max_bytes_total: int | None = None
+    required_fields: Sequence[str] = REQUIRED_TELEMETRY_FIELDS
+    _path: Path = field(init=False)
+    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
+    _window_bytes: dict[str, int] = field(init=False, default_factory=dict)
+    _total_bytes: int = field(init=False, default=0)
+
+    def __post_init__(self) -> None:
+        if not self.run_id:
+            raise ValueError("run_id is required")
+        stream = str(self.stream or "").strip()
+        if not stream:
+            raise ValueError("stream is required")
+        self.stream = stream
+        base_dir = Path(self.base_dir)
+        (base_dir / stream).mkdir(parents=True, exist_ok=True)
+        suffix = ".jsonl.gz" if self.compress else ".jsonl"
+        self._path = base_dir / stream / f"{self.run_id}{suffix}"
+        max_window = int(self.max_bytes_per_window) if self.max_bytes_per_window is not None else 0
+        self.max_bytes_per_window = max(0, max_window)
+        if self.max_bytes_total is not None:
+            self.max_bytes_total = max(0, int(self.max_bytes_total))
+        self.required_fields = tuple(self.required_fields)
+
+    def emit(self, payload: Mapping[str, Any]) -> bool:
+        record = dict(payload)
+        self._validate(record)
+        line = json.dumps(record, separators=(",", ":"), sort_keys=True)
+        line_bytes = len(line.encode("utf-8")) + 1
+        window_id = str(record.get("window_id", "")).strip()
+        with self._lock:
+            if self.max_bytes_per_window and window_id:
+                used = self._window_bytes.get(window_id, 0)
+                if used + line_bytes > self.max_bytes_per_window:
+                    return False
+                self._window_bytes[window_id] = used + line_bytes
+            if self.max_bytes_total is not None:
+                if self._total_bytes + line_bytes > self.max_bytes_total:
+                    return False
+                self._total_bytes += line_bytes
+            self._append_line(line)
+        return True
+
+    def _append_line(self, line: str) -> None:
+        if self.compress:
+            with gzip.open(self._path, "at", encoding="utf-8") as handle:
+                handle.write(line)
+                handle.write("\n")
+            return
+        with self._path.open("a", encoding="utf-8") as handle:
+            handle.write(line)
+            handle.write("\n")
+
+    def _validate(self, record: Mapping[str, Any]) -> None:
+        missing = [field for field in self.required_fields if not record.get(field)]
+        if missing:
+            raise ValueError(f"Telemetry record missing required fields: {', '.join(missing)}")

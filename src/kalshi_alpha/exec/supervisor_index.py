@@ -385,7 +385,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--tob-output-dir",
         type=Path,
         default=DEFAULT_TOB_DIR,
-        help="Directory for TOB snapshot logs (default: data/raw/kalshi/tob).",
+        help="Directory for TOB + quote intent telemetry (default: data/proc/telemetry).",
     )
     parser.add_argument(
         "--tob-depth",
@@ -454,9 +454,6 @@ def _build_config(args: argparse.Namespace) -> SupervisorIndexConfig:
     )
     if config.record_tob and not config.tob_run_id:
         config.tob_run_id = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%SZ")
-    if config.record_tob and config.tob_run_id and config.tob_output_dir:
-        if config.tob_output_dir.name != config.tob_run_id:
-            config.tob_output_dir = config.tob_output_dir / config.tob_run_id
     if config.skip_preflight and not config.offline:
         raise ValueError("--skip-preflight is only allowed with --offline")
     return config

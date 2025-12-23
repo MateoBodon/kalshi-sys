@@ -60,8 +60,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--tob-run-id", help="Run identifier for TOB snapshots.")
     parser.add_argument(
         "--tob-output-dir",
-        default="data/raw/kalshi/tob",
-        help="Directory for TOB snapshot logs (default: data/raw/kalshi/tob).",
+        default="data/proc/telemetry",
+        help="Directory for TOB + quote intent telemetry (default: data/proc/telemetry).",
     )
     parser.add_argument(
         "--tob-depth",

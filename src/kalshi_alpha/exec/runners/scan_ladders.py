@@ -663,8 +663,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             raise ValueError("TOB recording is only supported for index ladder series.")
         tob_run_id = str(args.tob_run_id or datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%SZ"))
         output_dir = Path(args.tob_output_dir)
-        if output_dir.name != tob_run_id:
-            output_dir = output_dir / tob_run_id
         tob_logger = TobSnapshotLogger(
             run_id=tob_run_id,
             output_dir=output_dir,
@@ -2223,7 +2221,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--tob-output-dir",
         type=Path,
         default=DEFAULT_TOB_DIR,
-        help="Directory for TOB snapshot logs (default: data/raw/kalshi/tob).",
+        help="Directory for TOB + quote intent telemetry (default: data/proc/telemetry).",
     )
     parser.add_argument(
         "--tob-depth",
