@@ -31,6 +31,7 @@ SERIES_HORIZONS: tuple[tuple[str, str], ...] = (
 MAX_CALIBRATION_AGE_DAYS = 14.0
 POLYGON_PING_URL = "https://api.polygon.io/v1/marketstatus/now"
 GO_NO_GO_PATH = Path("reports/_artifacts/go_no_go.json")
+FRESHNESS_SCOPE = "index"
 
 
 @dataclass(slots=True)
@@ -136,6 +137,9 @@ def run_preflight(
     polygon_ping: Callable[[float], bool] | None = None,
     require_kalshi: bool = True,
     require_polygon: bool | None = None,
+    freshness_artifact_path: Path | None = None,
+    require_freshness: bool | None = None,
+    freshness_scope: str | None = FRESHNESS_SCOPE,
 ) -> PreflightResult:
     """Evaluate GO/NO-GO checks for index ladder windows."""
 
@@ -150,6 +154,8 @@ def run_preflight(
     env_missing: list[str] = []
     if require_polygon is None:
         require_polygon = require_kalshi
+    if require_freshness is None:
+        require_freshness = require_kalshi
     if require_kalshi:
         env_missing.extend(_missing_env_vars(["KALSHI_API_KEY_ID", "KALSHI_PRIVATE_KEY_PEM_PATH"]))
         key_path_raw = os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
@@ -184,6 +190,31 @@ def run_preflight(
     if calib_reasons:
         reasons.extend(calib_reasons)
     details["calibration_age_days"] = calib_ages
+
+    # Data freshness --------------------------------------------------------
+    if require_freshness:
+        from kalshi_alpha.exec.monitors import freshness as freshness_monitor
+
+        artifact_path = (
+            Path(freshness_artifact_path)
+            if freshness_artifact_path
+            else freshness_monitor.FRESHNESS_ARTIFACT_PATH
+        )
+        payload = freshness_monitor.load_artifact(artifact_path)
+        summary = freshness_monitor.summarize_artifact(
+            payload,
+            artifact_path=artifact_path,
+            scope=freshness_scope,
+        )
+        details["data_freshness"] = summary
+        if not summary.get("required_feeds_ok", True):
+            reasons.append("STALE_FEEDS")
+            stale_feeds = summary.get("stale_feeds") or []
+            stale_normalized = {str(feed).strip().lower() for feed in stale_feeds if isinstance(feed, str)}
+            if "polygon_index.websocket" in stale_normalized and "polygon_ws_stale" not in reasons:
+                reasons.append("polygon_ws_stale")
+            if summary.get("status") == "MISSING":
+                reasons.append("data_freshness_missing")
 
     # Polygon connectivity --------------------------------------------------
     if require_polygon and polygon_key_present:
@@ -234,6 +265,9 @@ def write_go_no_go_artifact(
     payload = {
         "go": bool(result.go),
         "reasons": list(result.reasons),
+        "scope": FRESHNESS_SCOPE,
+        "scoped_blockers": list(result.reasons),
+        "unscoped_blockers": [],
         "details": dict(result.details),
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "source": source,

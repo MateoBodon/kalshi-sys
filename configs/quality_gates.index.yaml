@@ -3,5 +3,6 @@ data_freshness:
     namespace: polygon_index
     timestamp_field: snapshot_ts
     max_age_seconds: 10
+    scope: index
 monitors:
   tz_not_et: 0
