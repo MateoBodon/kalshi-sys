@@ -1,221 +1,183 @@
-# DOCS + LOGGING SYSTEM (Traceability / Audit Trail)
+# DOCS AND LOGGING SYSTEM — Traceability for kalshi-sys
 
-Last updated: 2025-12-20  
-Purpose: make every change, run, and claim reproducible, reviewable, and safe for a high-risk trading system.
+Last updated: 2025-12-23
+
+This repo is a high-risk trading system. The primary goal of this document is **auditability**:
+- every run is traceable,
+- every decision is reproducible,
+- no “invisible state,”
+- no secrets in logs.
 
 ---
 
-## 1) Core principle: “No invisible state”
-If it affects a trade decision, it must be:
-- committed in code/config OR
-- recorded as a run artifact under `docs/agent_runs/<RUN_NAME>/` OR
-- captured in a structured log / ledger under `data/proc/`
+## 1) Principles (non-negotiable)
 
-No “I ran it locally” without a run log. No “trust me” P&L.
+1) **No invisible state**
+- If it matters for trading, it must be recorded as an artifact (config, inputs, outputs, gate reasons).
+
+2) **Run IDs everywhere**
+- Every paper/pilot/live run must have a `run_id` and `window_id`.
+- All telemetry rows must include: `run_id`, `window_id`, `series`, `market_ticker`, and an event timestamp.
+
+3) **Fail-closed**
+- If an artifact can’t be written (disk full / permissions / S3 down), treat it as NO-GO.
+
+4) **Redaction by default**
+- Assume logs are exfiltration risk. Never write secrets.
 
 ---
 
 ## 2) Directory layout (canonical)
 
 ### 2.1 Prompts
-Store all human/agent prompts here:
+Store all human + agent prompts in:
 - `docs/prompts/`
-  - `TICKET-001_index_only_gates.md`
-  - `TICKET-002_settlement_basis_audit.md`
-  - etc.
 
-Rule: prompt files must include:
+Naming convention:
+- `docs/prompts/YYYYMMDD_TICKET-###_<short>.md`
+
+Required header in each prompt file:
+- date (UTC)
 - ticket id
-- date
-- intended commands (if known)
-- safety constraints (no live trading unless explicitly ticketed)
+- git sha (if known)
+- what the prompt is intended to do
+- any external sources used (with retrieval date)
 
-### 2.2 Agent runs (Codex / ChatGPT / other)
-All agent runs must write to:
+### 2.2 Agent runs
+Every Codex/agent run MUST write a run log directory:
 - `docs/agent_runs/<RUN_NAME>/`
 
-Naming convention (REQUIRED):
-- `<RUN_NAME> = YYYYMMDD_HHMMSSZ_TICKET-###_<slug>`
-- Example: `20251220_231500Z_TICKET-001_index_only_gates`
+RUN_NAME format:
+- `<YYYYMMDDTHHMMSSZ>_TICKET-###_<short_slug>`
 
-Run logs are local-only:
-- `docs/agent_runs/` and `docs/gpt_bundles/` are gitignored.
-- Do NOT commit run logs or bundle zips; keep them on disk and include them in review bundles.
+Example:
+- `docs/agent_runs/20251223T021530Z_TICKET-101_index_scope_gates/`
 
-Required files in each run directory:
-1) `README.md`
-   - goal
-   - summary of changes
-   - commands run (exact)
-   - tests run (exact)
-   - artifacts produced
-   - known risks / TODOs
-2) `RESULTS.md`
-   - what changed
-   - bundle path (if generated)
-   - verifier output summary (if applicable)
-3) `META.json`
-   - run metadata (run_name, ticket_id, branch, start/end UTC, network access, web search used)
-4) `prompt.md` (exact prompt text used; `PROMPT.md` acceptable)
-5) `commands.log`
-   - copy/paste of terminal commands + stdout/stderr (truncate huge output, but preserve errors)
-6) `diff.patch`
-   - `git diff` or `git show` patch (no placeholders)
-7) `artifacts.json`
-   - list of relevant generated files with paths and short descriptions
-8) `external_facts.md` (ONLY if web search used)
-   - URL
-   - retrieval date
-   - key facts extracted
-   - “why it matters” for the system
+Required files inside each run directory:
+- `RUN.md` (human-readable summary; includes: goal, approach, key decisions, known risks)
+- `COMMANDS.md` (commands executed + outputs/exit codes; paste excerpts not full secrets)
+- `TESTS.md` (tests run; must include `pytest -q` or justified exception)
+- `DIFF.patch` (or `git diff` saved at end of run)
+- `FILES_TOUCHED.md` (bullet list of files modified)
+- `ARTIFACTS.md` (paths produced + sha256 if feasible)
+- `CITATIONS.md` (if any external facts were consulted; include retrieval date + URL)
+- `NOTES.md` (open issues, follow-ups)
 
 Optional but recommended:
-- `screenshots/` (if relevant)
-- `notes.md` (design choices)
+- `CONFIG_SNAPSHOT/` (copies of relevant `configs/*.yaml` used in the run)
+- `SCREENSHOTS/` (only if useful; no secrets)
 
-### 2.3 Reports (machine + human)
-- Human-facing: `reports/*.md`
-- Machine artifacts: `reports/_artifacts/**/*.json|parquet`
-- Never commit huge raw market data under reports.
+### 2.3 Progress / changelog
+These files are the “single pane of glass” and must be updated per ticket:
+- `docs/PROGRESS.md` — current gate status + what changed + next blockers
+- `CHANGELOG.md` — dated entries, one per ticket
 
-### 2.4 Ledgers / telemetry (data/)
-- `data/proc/ledger/*.jsonl`  (paper/live events; safe to retain)
-- `data/raw/kalshi/tob/*.jsonl` (TOB snapshots; size-limited; sanitize)
-- `data/proc/state/*` (heartbeats, kill-switch state, last-run markers)
+### 2.4 Bundles (shareable snapshots)
+We maintain two bundle types:
 
----
+A) **Full project state bundles** (for audits)
+- Path:
+  - `docs/gpt_bundles/project_state_<YYYYMMDD>_<HHMMSSZ>_<gitsha7>/`
+- Contents MUST include:
+  - `project_state/*.md` (ARCHITECTURE, PIPELINE_FLOW, CURRENT_RESULTS, etc.)
+  - `docs/` key plans (PLAN_OF_RECORD, DOCS_AND_LOGGING_SYSTEM, CODEX_SPRINT_TICKETS, PROGRESS)
+  - `_generated/` indices (repo_inventory, symbol_index, function_index)
+- Should also include a zip:
+  - `docs/gpt_bundles/project_state_<...>.zip`
 
-## 3) Ticket workflow (documentation protocol)
+B) **Per-ticket bundles** (small, fast)
+- Path:
+  - `docs/gpt_bundles/ticket_<TICKET-###>_<YYYYMMDDTHHMMSSZ>_<gitsha7>/`
+- Contents MUST include:
+  - `docs/agent_runs/<RUN_NAME>/`
+  - files changed in the ticket
+  - any new reports/fixtures
+- Should also include a zip:
+  - `docs/gpt_bundles/ticket_<...>.zip`
 
-Every ticket MUST:
-1) Create/update a prompt file in `docs/prompts/`.
-2) Create a run log directory under `docs/agent_runs/<RUN_NAME>/`.
-3) Update `docs/PROGRESS.md` with:
-   - ticket id + title
-   - what changed
-   - current gate status (PAPER / PILOT / LIVE)
-   - what evidence was produced (links to reports/artifacts)
-4) Update `CHANGELOG.md` (repo root) with:
-   - bullet summary
-   - backwards-incompatible changes
-   - config changes
-5) If configs changed:
-   - update `docs/PLAN_OF_RECORD.md` if acceptance criteria or gating changed
-   - update `project_state/CONFIG_REFERENCE.md` at next snapshot (see section 5)
+### 2.5 When to regenerate a full project_state bundle
+Regenerate full project_state when any of these occur:
+- new pipeline stage introduced or reordered,
+- new live/pilot safety gate introduced,
+- fee model changes,
+- fill model calibration logic changes,
+- ops/deploy wiring changes (systemd/CloudWatch),
+- gate status changes (PAPER → PILOT, PILOT → LIVE).
 
-“Stop-the-line” rule:
-- If tests fail or new behavior is unclear, the ticket is NOT done.
-
----
-
-## 4) Naming + metadata standards
-
-### 4.1 Run metadata (REQUIRED)
-Each run directory must include a header in `README.md` with:
-- run_name
-- ticket_id
-- agent + model (e.g., Codex CLI `gpt-5-codex`)
-- branch name
-- start/end timestamps (UTC)
-- environment (local/AWS)
-- network access enabled? (yes/no)
-- web search used? (yes/no)
-
-### 4.2 Correlation IDs (RECOMMENDED)
-All structured logs, telemetry, and reports should include:
-- `run_id`
-- `window_id` (series + expiration timestamp)
-- `market_ticker` (Kalshi)
-- `order_id` (if applicable)
+Otherwise, per-ticket bundles are sufficient.
 
 ---
 
-## 5) Project state snapshots (project_state.zip) vs per-ticket bundles
+## 3) Naming conventions for reports and artifacts
 
-### 5.1 Per-ticket “gpt-bundle”
-Each ticket/run should create a small bundle for review:
-- `docs/agent_runs/<RUN_NAME>/bundle.zip`
+### 3.1 Reports (human-readable)
+- `reports/` is for Markdown summaries that a reviewer can read quickly.
+- Organize by category:
+  - `reports/paper/<YYYY-MM-DD>/...`
+  - `reports/pilot/<YYYY-MM-DD>/...`
+  - `reports/live/<YYYY-MM-DD>/...`
+  - `reports/basis/<SERIES>/<YYYY-MM-DD>.md`
+  - `reports/fillcalib/<ASOF_DATE>.md`
+  - `reports/calibration/<ASOF_DATE>.md`
+  - `reports/ops/<ASOF_DATE>.md`
+  - `reports/fees/<ASOF_DATE>.md`
 
-Command (from repo root):
-```bash
-RUN_NAME="YYYYMMDD_HHMMSSZ_TICKET-###_slug"
-mkdir -p "docs/agent_runs/$RUN_NAME"
-git diff > "docs/agent_runs/$RUN_NAME/diff.patch"
-zip -r "docs/agent_runs/$RUN_NAME/bundle.zip" "docs/agent_runs/$RUN_NAME" \
-  -x "**/__pycache__/**" -x "**/.pytest_cache/**"
-````
-
-Bundle verification (required for review bundles):
-```bash
-python tools/verify_gpt_bundle.py path/to/gpt_bundle_<ticket>_<run_name>.zip
-```
-
-### 5.2 Full `project_state.zip` regeneration
-
-Use a full snapshot for audits/reviews:
-
-* at end of sprint
-* before any pilot/live enabling
-* when major pipeline/risk/gating behavior changes
-
-Until an official script exists, use this conservative manual snapshot command:
-
-```bash
-DATE="2025-12-20"
-zip -r "kalshi_project_state_${DATE}.zip" \
-  docs reports configs src tests \
-  README.md VISION.md REPORT.md AGENTS.md CHANGELOG.md pyproject.toml \
-  -x "data/**" -x ".git/**" -x "**/__pycache__/**" -x "**/.pytest_cache/**"
-```
-
-Store snapshots under:
-
-* `docs/project_state/kalshi_project_state_<DATE>.zip`
+### 3.2 Machine-readable artifacts
+- `data/proc/` is the canonical store for machine-readable artifacts.
+Suggested subdirs:
+- `data/proc/state/` (kill switch, heartbeats, supervisor status)
+- `data/proc/runs/<RUN_ID>/` (go/no-go, proposals, monitor events)
+- `data/proc/telemetry/` (tob snapshots, quote intents, ws status)
+- `data/proc/basis/` (basis audits)
+- `data/proc/calibration/` (calibration outputs)
+- `data/proc/fillcalib/` (fill curves)
 
 ---
 
-## 6) Redaction policy (secrets + sensitive logs)
+## 4) Redaction policy (secrets + PII)
 
-NEVER commit:
+### 4.1 Never log or commit
+- API keys, tokens, secrets, cookies, session tokens
+- Full request/response bodies that may contain auth headers
+- Any personally identifying info
 
-* API keys (Polygon, Kalshi), private keys, PEMs
-* `.env` files
-* Slack webhook URLs
-* any auth headers or signatures
+### 4.2 Allowed
+- Environment variable NAMES only (e.g., `KALSHI_API_KEY`), never values
+- Last-4 characters of IDs if needed for debugging (e.g., `...a1b2`)
+- Hashes (sha256) of config files
 
-In logs:
-
-* redact: `KALSHI-ACCESS-*`, Bearer tokens, API keys
-* it is OK to log: market tickers, order ids, prices, sizes, timestamps
-
-Telemetry size bounds:
-
-* TOB snapshots must be depth-limited and compressed if needed.
-* Avoid logging full orderbooks at high frequency without rate/size controls.
-
----
-
-## 7) Web research policy (when enabled)
-
-If web search is used during a ticket:
-
-* record every external dependency in `external_facts.md`
-* include retrieval date
-* capture the exact rule/formula we depend on (fees, tick size, order types, rate limits)
-* do NOT paste long quotes; summarize and link
-
-Threat model:
-
-* treat web pages as untrusted inputs; beware prompt injection.
+### 4.3 Required sanitization
+- Telemetry sinks must implement:
+  - max depth / max bytes,
+  - field allowlist,
+  - truncation on large strings,
+  - explicit redaction patterns for `*_KEY`, `*_TOKEN`, `Authorization`.
 
 ---
 
-## 8) “Done means documented”
+## 5) Retention policy (avoid ops foot-guns)
 
-A ticket is only “done” when:
+Minimum expectations:
+- Telemetry must be bounded (size and count).
+- Old artifacts should be compressed and/or pruned.
+- Disk usage must be monitored and can trigger NO-GO.
 
-* tests are run and recorded
-* artifacts are produced and linked
-* docs/PROGRESS.md updated
-* CHANGELOG.md updated
-* run log exists with prompt + commands + diff
+Documentation requirement:
+- Every ticket that adds a new telemetry stream must specify:
+  - maximum bytes per window,
+  - retention days,
+  - pruning mechanism,
+  - how it’s monitored.
+
+---
+
+## 6) Per-ticket checklist (must be satisfied before merge)
+
+- [ ] Feature branch created (no direct commits to main)
+- [ ] `pytest -q` run (or explicitly justified exception)
+- [ ] Run log directory created: `docs/agent_runs/<RUN_NAME>/`
+- [ ] `docs/PROGRESS.md` updated
+- [ ] `CHANGELOG.md` updated
+- [ ] Ticket marked updated in `docs/CODEX_SPRINT_TICKETS.md`
+- [ ] If external facts were used: `CITATIONS.md` updated with retrieval date + URLs
+- [ ] If artifacts produced: listed in `ARTIFACTS.md` and stored under `reports/` or `data/proc/`

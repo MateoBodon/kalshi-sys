@@ -26,6 +26,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #0 — Gitignored `reports/` and removed tracked report outputs so local artifacts never get committed.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251223_061205Z_TICKET-000_ignore-reports/README.md`
+- Ticket #0 — Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251223_062433Z_TICKET-000_main_sync/README.md`
 
 ## 2025-12-21
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.

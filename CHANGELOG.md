@@ -2,6 +2,7 @@
 
 ## 2025-12-23
 - Gitignored `reports/` and removed tracked report outputs so report artifacts stay local-only.
+- Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
 
 ## 2025-12-22
 - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.
