@@ -29,6 +29,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #0 — Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251223_062433Z_TICKET-000_main_sync/README.md`
+- Ticket #101 — Decoupled index GO/NO-GO from macro freshness with explicit scope metadata and index-specific freshness/quality gate configs.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251223T063005Z_TICKET-101_index_scope_gates/README.md`
 
 ## 2025-12-21
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
