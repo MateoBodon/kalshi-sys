@@ -98,7 +98,18 @@ gpt-bundle:
 	cp project_state/CURRENT_RESULTS.md project_state/KNOWN_ISSUES.md project_state/CONFIG_REFERENCE.md "$$STAGING/project_state/"; \
 	cp -R "docs/agent_runs/$(RUN_NAME)" "$$STAGING/docs/agent_runs/"; \
 	DIFF_PATH="$$STAGING/DIFF.patch"; \
-	git diff --patch --binary origin/main...HEAD > "$$DIFF_PATH" || true; \
+	BASE_REF=""; \
+	if git show-ref --verify --quiet refs/remotes/origin/main; then \
+		BASE_REF="origin/main"; \
+	elif git show-ref --verify --quiet refs/heads/main; then \
+		BASE_REF="main"; \
+	fi; \
+	if [ -n "$$BASE_REF" ]; then \
+		MERGE_BASE=$$(git merge-base "$$BASE_REF" HEAD 2>/dev/null || true); \
+		if [ -n "$$MERGE_BASE" ]; then \
+			git diff --patch --binary "$$MERGE_BASE"..HEAD > "$$DIFF_PATH" || true; \
+		fi; \
+	fi; \
 	if [ ! -s "$$DIFF_PATH" ]; then \
 		git diff --patch --binary HEAD~1..HEAD > "$$DIFF_PATH" || git show --patch --binary HEAD > "$$DIFF_PATH"; \
 	fi; \
