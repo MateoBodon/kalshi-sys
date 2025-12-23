@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 import shlex
+import statistics
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -31,6 +32,8 @@ from kalshi_alpha.sched.windows import TradingWindow, windows_for_day
 ET = ZoneInfo("America/New_York")
 SUPPORTED_SERIES = {"INX", "INXU", "NASDAQ100", "NASDAQ100U"}
 DEFAULT_FIXTURES_ROOT = Path("tests/fixtures/settlement_basis")
+DEFAULT_QUOTE_DISTANCE = 0.5
+EXEC_DEFAULTS_PATH = PROJECT_ROOT / "data" / "reference" / "index_execution_defaults.json"
 KALSHI_VALUE_FIELDS = (
     "settlement_value",
     "settlement_price",
@@ -72,21 +75,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Index ladder series (INX, INXU, NASDAQ100, NASDAQ100U).",
     )
     parser.add_argument(
+        "--out-json",
+        type=str,
+        default=None,
+        help="Path for JSON summary (default: data/proc/basis/<SERIES>/<YYYY-MM-DD>.json).",
+    )
+    parser.add_argument(
         "--out-report",
         type=str,
         default=None,
-        help="Path for markdown report (default: reports/settlement_basis/<day>_<series>.md).",
+        help="Path for markdown report (default: reports/basis/<SERIES>/<YYYY-MM-DD>.md).",
     )
     parser.add_argument(
         "--out-data",
         type=str,
         default=None,
-        help="Path for dataset output (default: data/proc/settlement_basis/<day>_<series>.parquet).",
+        help="Optional path for dataset output (default: data/proc/settlement_basis/<day>_<series>.parquet).",
     )
     parser.add_argument(
         "--use-cache",
         action="store_true",
-        help="If dataset exists, regenerate report from it without API calls.",
+        help="If dataset exists, regenerate report/summary from it without API calls.",
     )
     parser.add_argument(
         "--offline-fixtures",
@@ -98,12 +107,34 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _resolve_paths(day: date, series: str, *, out_report: str | None, out_data: str | None) -> tuple[Path, Path]:
-    report_path = Path(out_report) if out_report else REPORTS_ROOT / "settlement_basis" / f"{day.isoformat()}_{series.upper()}.md"
-    data_path = Path(out_data) if out_data else PROC_ROOT / "settlement_basis" / f"{day.isoformat()}_{series.upper()}.parquet"
+def _resolve_paths(
+    day: date,
+    series: str,
+    *,
+    out_report: str | None,
+    out_data: str | None,
+    out_json: str | None,
+) -> tuple[Path, Path, Path]:
+    series_slug = series.upper()
+    report_path = (
+        Path(out_report)
+        if out_report
+        else REPORTS_ROOT / "basis" / series_slug / f"{day.isoformat()}.md"
+    )
+    data_path = (
+        Path(out_data)
+        if out_data
+        else PROC_ROOT / "settlement_basis" / f"{day.isoformat()}_{series_slug}.parquet"
+    )
+    json_path = (
+        Path(out_json)
+        if out_json
+        else PROC_ROOT / "basis" / series_slug / f"{day.isoformat()}.json"
+    )
     report_path.parent.mkdir(parents=True, exist_ok=True)
     data_path.parent.mkdir(parents=True, exist_ok=True)
-    return report_path, data_path
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    return report_path, data_path, json_path
 
 
 def _parse_iso(value: str | None) -> datetime | None:
@@ -227,6 +258,16 @@ def _nearest_strike(value: float | None, strikes: Iterable[float]) -> tuple[floa
     return float(nearest), float(margin)
 
 
+def _median_spacing(strikes: Iterable[float]) -> float | None:
+    values = sorted(float(value) for value in strikes)
+    if len(values) < 2:
+        return None
+    diffs = [b - a for a, b in zip(values, values[1:], strict=False) if b > a]
+    if not diffs:
+        return None
+    return float(statistics.median(diffs))
+
+
 def _load_frame(path: Path) -> pl.DataFrame:
     if path.suffix == ".parquet":
         return pl.read_parquet(path)
@@ -280,6 +321,188 @@ def _series_stats(series: pl.Series) -> dict[str, float | None]:
     }
 
 
+def _quantiles(series: pl.Series, quantiles: dict[str, float]) -> dict[str, float | None]:
+    if series.is_empty():
+        return {label: None for label in quantiles}
+    results: dict[str, float | None] = {}
+    for label, q in quantiles.items():
+        try:
+            value = series.quantile(q, "nearest")
+        except Exception:
+            value = None
+        results[label] = float(value) if value is not None and not math.isnan(float(value)) else None
+    return results
+
+
+def _normalize_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(numeric) else numeric
+
+
+def _load_quote_distance(series: str) -> tuple[float | None, str | None]:
+    if not EXEC_DEFAULTS_PATH.exists():
+        return None, None
+    try:
+        payload = json.loads(EXEC_DEFAULTS_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None, None
+    series_cfg = payload.get("series", {}).get(series.upper())
+    if not isinstance(series_cfg, dict):
+        return None, None
+    for key in ("quote_distance", "quote_distance_points", "quote_distance_index_points"):
+        if key in series_cfg:
+            value = _safe_float(series_cfg.get(key))
+            if value is not None:
+                return value, f"{EXEC_DEFAULTS_PATH.name}:{key}"
+    return None, None
+
+
+def _build_per_window_deltas(frame: pl.DataFrame) -> list[dict[str, object]]:
+    if frame.is_empty() or "window_label" not in frame.columns or "basis" not in frame.columns:
+        return []
+    aggregated = (
+        frame.group_by("window_label")
+        .agg(
+            [
+                pl.col("basis").count().alias("n"),
+                pl.col("basis").mean().alias("mean"),
+                pl.col("basis").quantile(0.05, "nearest").alias("p05"),
+                pl.col("basis").quantile(0.50, "nearest").alias("p50"),
+                pl.col("basis").quantile(0.95, "nearest").alias("p95"),
+            ]
+        )
+        .sort("window_label")
+    )
+    rows: list[dict[str, object]] = []
+    for row in aggregated.iter_rows(named=True):
+        rows.append(
+            {
+                "window_id": row.get("window_label"),
+                "n": int(row.get("n") or 0),
+                "mean": _normalize_float(row.get("mean")),
+                "p05": _normalize_float(row.get("p05")),
+                "p50": _normalize_float(row.get("p50")),
+                "p95": _normalize_float(row.get("p95")),
+            }
+        )
+    return rows
+
+
+def _compute_flip_risk(
+    *,
+    series: str,
+    basis_series: pl.Series,
+    strike_spacings: list[float],
+) -> dict[str, object]:
+    rationale_parts: list[str] = []
+    abs_series = basis_series.abs() if not basis_series.is_empty() else pl.Series([])
+    basis_abs_p95 = _normalize_float(
+        abs_series.quantile(0.95, "nearest") if not abs_series.is_empty() else None
+    )
+
+    strike_spacing = _normalize_float(statistics.median(strike_spacings)) if strike_spacings else None
+    quote_distance, quote_source = _load_quote_distance(series)
+    default_quote_distance_used = False
+    if quote_distance is None:
+        quote_distance = DEFAULT_QUOTE_DISTANCE
+        default_quote_distance_used = True
+        rationale_parts.append(
+            f"quote_distance defaulted to {DEFAULT_QUOTE_DISTANCE:.2f} (no config found)"
+        )
+    elif quote_source:
+        rationale_parts.append(f"quote_distance sourced from {quote_source}")
+
+    if strike_spacing is not None:
+        rationale_parts.append(f"median strike spacing {strike_spacing:.2f}")
+    else:
+        rationale_parts.append("strike spacing unavailable (no strikes)")
+
+    threshold_candidates: list[tuple[str, float]] = []
+    if strike_spacing is not None:
+        threshold_candidates.append(("strike_spacing/2", strike_spacing / 2.0))
+    if quote_distance is not None:
+        threshold_candidates.append(("quote_distance", quote_distance))
+
+    threshold = None
+    threshold_source = None
+    if threshold_candidates:
+        threshold_source, threshold = min(threshold_candidates, key=lambda item: item[1])
+    else:
+        rationale_parts.append("no threshold candidates available")
+
+    if basis_abs_p95 is None:
+        rationale_parts.append("basis_abs_p95 unavailable (insufficient samples)")
+    else:
+        rationale_parts.append(f"basis_abs_p95={basis_abs_p95:.4f}")
+
+    if threshold is None or basis_abs_p95 is None:
+        flag = True
+        rationale_parts.append("flip risk flagged (fail-closed on uncertainty)")
+    else:
+        flag = basis_abs_p95 >= threshold
+        rationale_parts.append(
+            f"threshold={threshold:.4f} ({threshold_source}); flip_risk={'FAIL' if flag else 'PASS'}"
+        )
+
+    thresholds = {
+        "basis_abs_p95": basis_abs_p95,
+        "strike_spacing": strike_spacing,
+        "quote_distance": _normalize_float(quote_distance),
+        "threshold": _normalize_float(threshold),
+        "threshold_source": threshold_source,
+        "quantile": "p95",
+        "default_quote_distance_used": default_quote_distance_used,
+    }
+    return {
+        "flag": bool(flag),
+        "rationale": "; ".join(rationale_parts),
+        "thresholds": thresholds,
+    }
+
+
+def _build_summary(
+    frame: pl.DataFrame,
+    *,
+    day: date,
+    series: str,
+) -> dict[str, object]:
+    basis_series = frame.get_column("basis").drop_nulls() if "basis" in frame.columns else pl.Series([])
+    basis_quantiles = _quantiles(
+        basis_series,
+        {
+            "p01": 0.01,
+            "p05": 0.05,
+            "p50": 0.50,
+            "p95": 0.95,
+            "p99": 0.99,
+        },
+    )
+    strike_spacings = [
+        float(value)
+        for value in frame.get_column("strike_spacing").drop_nulls().to_list()
+        if value is not None
+    ] if "strike_spacing" in frame.columns else []
+    summary = {
+        "series": series.upper(),
+        "asof_date": day.isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "sample_count": int(basis_series.len()),
+        "basis_quantiles": basis_quantiles,
+        "per_window_deltas": _build_per_window_deltas(frame),
+        "flip_risk": _compute_flip_risk(
+            series=series,
+            basis_series=basis_series,
+            strike_spacings=strike_spacings,
+        ),
+    }
+    return summary
+
+
 def _render_report(
     frame: pl.DataFrame,
     *,
@@ -287,12 +510,18 @@ def _render_report(
     series: str,
     dataset_path: Path,
     command: str,
+    summary: dict[str, object],
 ) -> str:
     total_rows = frame.height
     basis_series = frame.get_column("basis").drop_nulls() if "basis" in frame.columns else pl.Series([])
     abs_series = basis_series.abs() if not basis_series.is_empty() else pl.Series([])
     basis_stats = _series_stats(basis_series)
     abs_stats = _series_stats(abs_series)
+    basis_quantiles = summary.get("basis_quantiles", {}) if isinstance(summary, dict) else {}
+    flip_summary = summary.get("flip_risk", {}) if isinstance(summary, dict) else {}
+    flip_flag = bool(flip_summary.get("flag")) if isinstance(flip_summary, dict) else False
+    flip_rationale = str(flip_summary.get("rationale", "")).strip() if isinstance(flip_summary, dict) else ""
+    thresholds = flip_summary.get("thresholds", {}) if isinstance(flip_summary, dict) else {}
     flip_count = frame.filter(pl.col("flip_risk") == True).height if "flip_risk" in frame.columns else 0
     missing_kalshi = frame.filter(pl.col("kalshi_value").is_null()).height if "kalshi_value" in frame.columns else total_rows
     missing_polygon = frame.filter(pl.col("polygon_value").is_null()).height if "polygon_value" in frame.columns else total_rows
@@ -311,11 +540,12 @@ def _render_report(
     lines.append(f"- Missing Polygon values: {missing_polygon}")
     lines.append(f"- Flip-risk windows: {flip_count}")
     lines.append(
-        "- Basis stats (value=Polygon-Kalshi): "
-        f"mean={_format_float(basis_stats['mean'])}, "
-        f"median={_format_float(basis_stats['median'])}, "
-        f"p95={_format_float(basis_stats['p95'])}, "
-        f"p99={_format_float(basis_stats['p99'])}"
+        "- Basis quantiles (value=Polygon-Kalshi): "
+        f"p01={_format_float(_normalize_float(basis_quantiles.get('p01')))}, "
+        f"p05={_format_float(_normalize_float(basis_quantiles.get('p05')))}, "
+        f"p50={_format_float(_normalize_float(basis_quantiles.get('p50')))}, "
+        f"p95={_format_float(_normalize_float(basis_quantiles.get('p95')))}, "
+        f"p99={_format_float(_normalize_float(basis_quantiles.get('p99')))}"
     )
     lines.append(
         "- Abs(basis) stats: "
@@ -326,6 +556,21 @@ def _render_report(
     )
     lines.append("")
     lines.append("Polygon is not settlement truth; Kalshi expiration value is the reference for settlement.")
+    lines.append("")
+
+    lines.append("## Flip-Risk Summary (daily gate)")
+    lines.append(f"- Status: {'FAIL' if flip_flag else 'PASS'}")
+    if thresholds:
+        lines.append(
+            "- Thresholds: "
+            f"basis_abs_p95={_format_float(_normalize_float(thresholds.get('basis_abs_p95')))}, "
+            f"strike_spacing={_format_float(_normalize_float(thresholds.get('strike_spacing')))}, "
+            f"quote_distance={_format_float(_normalize_float(thresholds.get('quote_distance')))}, "
+            f"threshold={_format_float(_normalize_float(thresholds.get('threshold')))} "
+            f"(source={thresholds.get('threshold_source')})"
+        )
+    if flip_rationale:
+        lines.append(f"- Rationale: {flip_rationale}")
     lines.append("")
 
     lines.append("## Top Windows by |Basis|")
@@ -375,6 +620,27 @@ def _render_report(
                     basis=_format_float(row.get("basis")),
                     nearest_strike=_format_float(row.get("nearest_strike")),
                     margin=_format_float(row.get("nearest_strike_margin")),
+                )
+            )
+    lines.append("")
+
+    lines.append("## Per-Window Basis Deltas")
+    per_window = summary.get("per_window_deltas", []) if isinstance(summary, dict) else []
+    if not per_window:
+        lines.append("_No per-window deltas available._")
+    else:
+        headers = ["window", "n", "mean", "p05", "p50", "p95"]
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+        for entry in per_window:
+            lines.append(
+                "| {window} | {n} | {mean} | {p05} | {p50} | {p95} |".format(
+                    window=entry.get("window_id", ""),
+                    n=entry.get("n", 0),
+                    mean=_format_float(_normalize_float(entry.get("mean"))),
+                    p05=_format_float(_normalize_float(entry.get("p05"))),
+                    p50=_format_float(_normalize_float(entry.get("p50"))),
+                    p95=_format_float(_normalize_float(entry.get("p95"))),
                 )
             )
     lines.append("")
@@ -454,6 +720,7 @@ def _build_dataset(
             basis = float(polygon.value) - float(kalshi_value)
 
         nearest_strike, margin = _nearest_strike(polygon.value, strikes)
+        strike_spacing = _median_spacing(strikes)
         flip_risk = False
         if basis is not None and margin is not None:
             flip_risk = abs(basis) >= margin
@@ -474,6 +741,7 @@ def _build_dataset(
                 "basis": basis,
                 "nearest_strike": nearest_strike,
                 "nearest_strike_margin": margin,
+                "strike_spacing": strike_spacing,
                 "flip_risk": flip_risk,
             }
         )
@@ -484,7 +752,13 @@ def _build_dataset(
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
-    report_path, data_path = _resolve_paths(args.day, args.series, out_report=args.out_report, out_data=args.out_data)
+    report_path, data_path, json_path = _resolve_paths(
+        args.day,
+        args.series,
+        out_report=args.out_report,
+        out_data=args.out_data,
+        out_json=args.out_json,
+    )
     raw_args = argv if argv is not None else sys.argv[1:]
     command = " ".join(shlex.quote(part) for part in ["python", "tools/settlement_basis_audit.py", *[str(a) for a in raw_args]])
 
@@ -492,17 +766,37 @@ def main(argv: list[str] | None = None) -> None:
         if not data_path.exists():
             raise FileNotFoundError(f"Dataset not found for --use-cache: {data_path}")
         frame = _load_frame(data_path)
-        report = _render_report(frame, day=args.day, series=args.series, dataset_path=data_path, command=command)
+        summary = _build_summary(frame, day=args.day, series=args.series)
+        json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        report = _render_report(
+            frame,
+            day=args.day,
+            series=args.series,
+            dataset_path=data_path,
+            command=command,
+            summary=summary,
+        )
         report_path.write_text(report, encoding="utf-8")
+        print(f"[settlement_basis] summary written to {json_path}")
         print(f"[settlement_basis] report written to {report_path}")
         return
 
     offline_root = Path(args.offline_fixtures).resolve() if args.offline_fixtures else None
     frame = _build_dataset(day=args.day, series=args.series, offline_fixtures=offline_root)
     _write_frame(frame, data_path)
-    report = _render_report(frame, day=args.day, series=args.series, dataset_path=data_path, command=command)
+    summary = _build_summary(frame, day=args.day, series=args.series)
+    json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    report = _render_report(
+        frame,
+        day=args.day,
+        series=args.series,
+        dataset_path=data_path,
+        command=command,
+        summary=summary,
+    )
     report_path.write_text(report, encoding="utf-8")
     print(f"[settlement_basis] dataset written to {data_path}")
+    print(f"[settlement_basis] summary written to {json_path}")
     print(f"[settlement_basis] report written to {report_path}")
 
 
