@@ -21,17 +21,20 @@ data_freshness:
     timestamp_field: as_of
     max_age_hours: 24
     require_et: true
+    scope: macro
   - name: treasury_yields
     namespace: treasury_yields/daily
     timestamp_field: as_of
     max_age_hours: 72
     require_et: true
+    scope: macro
 reconciliation:
   - name: treasury_10y_vs_dgs10
     namespace: treasury_yields/daily
     par_maturity: "10 YR"
     dgs_maturity: "DGS10"
     tolerance_bps: 5.0
+    scope: macro
 monitors:
   tz_not_et: 0
   non_monotone_ladders: 0

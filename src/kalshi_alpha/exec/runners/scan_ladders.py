@@ -1806,7 +1806,15 @@ def _quality_gate_for_broker(
             details["ev_honesty"] = ev_payload
 
     combined = QualityGateResult(go=go_flag, reasons=reasons, details=details)
-    write_go_no_go(combined)
+    if scope == "index":
+        write_go_no_go(
+            combined,
+            scope="index",
+            scoped_blockers=list(reasons),
+            unscoped_blockers=[],
+        )
+    else:
+        write_go_no_go(combined)
     return combined
 
 

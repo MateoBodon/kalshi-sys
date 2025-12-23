@@ -31,7 +31,7 @@ CHANNEL_EVENT_ALIASES: dict[str, tuple[str, ...]] = {
     "AM": ("AM", "XA"),
     "AS": ("AS", "XS"),
 }
-DEFAULT_FRESHNESS_CONFIG = Path("/tmp/index_freshness.yaml")  # noqa: S108
+DEFAULT_FRESHNESS_CONFIG = Path("configs/freshness.index.yaml")
 DEFAULT_FRESHNESS_OUTPUT = Path("reports/_artifacts/monitors/freshness.json")
 DEFAULT_PROC_PARQUET = Path("data/proc/polygon_index/snapshot_2025-11-04.parquet")
 

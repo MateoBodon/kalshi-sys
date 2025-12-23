@@ -6,4 +6,5 @@ feeds:
     label: Massive index websocket
     age_seconds: 10
     required: true
+    scope: index
     namespace: polygon_index

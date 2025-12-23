@@ -12,26 +12,33 @@ feeds:
     label: Massive index websocket
     age_seconds: 10
     required: true
+    scope: index
     namespace: polygon_index
   bls_cpi.latest_release:
     age_days: 35
     required: false
+    scope: macro
   dol_claims.latest_report:
     age_days: 8
     required: false
+    scope: macro
   treasury_10y.daily:
     age_business_days: 3
     expected_maturity: DGS10
     required: false
+    scope: macro
   cleveland_nowcast.monthly:
     age_days: 35
     required: false
+    scope: macro
   aaa_gas.daily:
     age_days: 2
     price_min: 2.0
     price_max: 6.0
     required: false
+    scope: macro
   nws_daily_climate:
     age_days: 2
     active_stations: []
     required: false
+    scope: macro

@@ -32,6 +32,7 @@ class FeedState:
     age_minutes: float | None
     ok: bool
     reason: str | None = None
+    scope: str | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_metrics(self) -> dict[str, Any]:
@@ -43,6 +44,8 @@ class FeedState:
             "age_minutes": self._round(self.age_minutes),
             "last_ts": self.last_ts.isoformat() if self.last_ts else None,
         }
+        if self.scope:
+            payload["scope"] = self.scope
         if self.reason:
             payload["reason"] = self.reason
         if self.details:
@@ -70,6 +73,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "label": "BLS CPI (latest release)",
             "age_days": 35.0,
             "required": True,
+            "scope": "macro",
             "namespace": ("bls_cpi", "latest_release"),
             "timestamp_column": "release_datetime",
         },
@@ -77,6 +81,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "label": "DOL Claims (ETA-539)",
             "age_days": 8.0,
             "required": True,
+            "scope": "macro",
             "namespace": ("dol_claims", "latest_report"),
             "timestamp_column": "week_ending",
         },
@@ -84,6 +89,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "label": "Treasury 10Y Par Yield",
             "age_business_days": 3.0,
             "required": True,
+            "scope": "macro",
             "namespace": ("treasury_yields", "daily"),
             "timestamp_column": "as_of",
             "expected_maturity": "DGS10",
@@ -92,6 +98,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "label": "Cleveland Fed Nowcast (monthly)",
             "age_days": 35.0,
             "required": True,
+            "scope": "macro",
             "namespace": ("cleveland_nowcast", "monthly"),
             "timestamp_column": "as_of",
         },
@@ -99,6 +106,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "label": "AAA National Gas (daily)",
             "age_days": 2.0,
             "required": True,
+            "scope": "macro",
             "price_min": 2.0,
             "price_max": 6.0,
         },
@@ -106,6 +114,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "label": "NWS Daily Climate (stations)",
             "age_days": 2.0,
             "required": True,
+            "scope": "macro",
             "active_stations": [],
             "namespace": ("nws_cli", "daily_climate"),
         },
@@ -113,6 +122,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
             "label": "Polygon index websocket",
             "age_seconds": 2.0,
             "required": True,
+            "scope": "index",
             "namespace": "polygon_index",
         },
     }
@@ -331,6 +341,9 @@ def _feed_in_scope(feed: Mapping[str, Any], scope: str) -> bool:
     feed_id = str(feed.get("id") or "").strip().lower()
     if not feed_id:
         return False
+    feed_scope = _normalize_scope(feed.get("scope"))
+    if feed_scope is not None:
+        return feed_scope == scope
     if scope == "index":
         return feed_id.startswith(_INDEX_FEED_PREFIXES)
     if scope == "macro":
@@ -385,6 +398,7 @@ def _evaluate_feed(
 ) -> FeedState:
     label = str(cfg.get("label") or feed_id)
     required = bool(cfg.get("required", True))
+    scope = _normalize_scope(cfg.get("scope"))
     handlers: dict[str, Callable[[Mapping[str, Any], str, bool, datetime, Path], FeedState]] = {
         "bls_cpi.latest_release": _evaluate_bls,
         "dol_claims.latest_report": _evaluate_claims,
@@ -402,8 +416,20 @@ def _evaluate_feed(
     }
     handler = handlers.get(feed_id)
     if handler is None:
-        return FeedState(feed_id, label, required, None, None, not required, "UNKNOWN_FEED")
-    return handler(cfg, label, required, now, proc_root)
+        return FeedState(
+            feed_id=feed_id,
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=not required,
+            reason="UNKNOWN_FEED",
+            scope=scope,
+        )
+    feed_state = handler(cfg, label, required, now, proc_root)
+    if feed_state.scope is None:
+        feed_state.scope = scope
+    return feed_state
 
 
 def _evaluate_polygon_ws(
@@ -417,10 +443,26 @@ def _evaluate_polygon_ws(
     threshold_seconds = _to_float(cfg.get("age_seconds"), default=2.0)
     latest_path = _latest_snapshot_path(raw_root, namespace)
     if latest_path is None:
-        return FeedState("polygon_index.websocket", label, required, None, None, not required, "NO_SNAPSHOTS")
+        return FeedState(
+            feed_id="polygon_index.websocket",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=not required,
+            reason="NO_SNAPSHOTS",
+        )
     last_ts = _parse_snapshot_timestamp(latest_path.name)
     if last_ts is None:
-        return FeedState("polygon_index.websocket", label, required, None, None, False, "BAD_TIMESTAMP")
+        return FeedState(
+            feed_id="polygon_index.websocket",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="BAD_TIMESTAMP",
+        )
     age_seconds = max((now - last_ts).total_seconds(), 0.0)
     age_minutes = age_seconds / 60.0
     ok = True
@@ -433,14 +475,14 @@ def _evaluate_polygon_ws(
         "snapshot_path": str(latest_path),
     }
     return FeedState(
-        "polygon_index.websocket",
-        label,
-        required,
-        last_ts,
-        age_minutes,
-        ok or not required,
-        reason,
-        details,
+        feed_id="polygon_index.websocket",
+        label=label,
+        required=required,
+        last_ts=last_ts,
+        age_minutes=age_minutes,
+        ok=ok or not required,
+        reason=reason,
+        details=details,
     )
 
 
@@ -456,13 +498,37 @@ def _evaluate_bls(
     threshold_days = _to_float(cfg.get("age_days"), default=35.0)
     path = _latest_parquet(proc_root, namespace)
     if path is None:
-        return FeedState("bls_cpi.latest_release", label, required, None, None, not required, "MISSING")
+        return FeedState(
+            feed_id="bls_cpi.latest_release",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=not required,
+            reason="MISSING",
+        )
     frame = pl.read_parquet(path)
     if timestamp_column not in frame.columns:
-        return FeedState("bls_cpi.latest_release", label, required, None, None, False, "MISSING_TIMESTAMP")
+        return FeedState(
+            feed_id="bls_cpi.latest_release",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="MISSING_TIMESTAMP",
+        )
     last_ts = _extract_datetime(frame.select(pl.col(timestamp_column).max()).item())
     if last_ts is None:
-        return FeedState("bls_cpi.latest_release", label, required, None, None, False, "NO_DATA")
+        return FeedState(
+            feed_id="bls_cpi.latest_release",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="NO_DATA",
+        )
     age_minutes = _age_minutes(last_ts, now)
     age_days = _age_days(last_ts, now)
     ok = True
@@ -475,14 +541,14 @@ def _evaluate_bls(
         "count": frame.height,
     }
     return FeedState(
-        "bls_cpi.latest_release",
-        label,
-        required,
-        last_ts,
-        age_minutes,
-        ok or not required,
-        reason,
-        details,
+        feed_id="bls_cpi.latest_release",
+        label=label,
+        required=required,
+        last_ts=last_ts,
+        age_minutes=age_minutes,
+        ok=ok or not required,
+        reason=reason,
+        details=details,
     )
 
 
@@ -498,13 +564,37 @@ def _evaluate_claims(
     threshold_days = _to_float(cfg.get("age_days"), default=8.0)
     path = _latest_parquet(proc_root, namespace)
     if path is None:
-        return FeedState("dol_claims.latest_report", label, required, None, None, not required, "MISSING")
+        return FeedState(
+            feed_id="dol_claims.latest_report",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=not required,
+            reason="MISSING",
+        )
     frame = pl.read_parquet(path)
     if timestamp_column not in frame.columns:
-        return FeedState("dol_claims.latest_report", label, required, None, None, False, "MISSING_TIMESTAMP")
+        return FeedState(
+            feed_id="dol_claims.latest_report",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="MISSING_TIMESTAMP",
+        )
     last_ts = _extract_date_as_datetime(frame.select(pl.col(timestamp_column).max()).item())
     if last_ts is None:
-        return FeedState("dol_claims.latest_report", label, required, None, None, False, "NO_DATA")
+        return FeedState(
+            feed_id="dol_claims.latest_report",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="NO_DATA",
+        )
     age_minutes = _age_minutes(last_ts, now)
     age_days = _age_days(last_ts, now)
     ok = True
@@ -513,14 +603,14 @@ def _evaluate_claims(
     reason = None if ok else f"STALE>{threshold_days}d"
     details = {"age_days": _round(age_days), "threshold_days": threshold_days, "count": frame.height}
     return FeedState(
-        "dol_claims.latest_report",
-        label,
-        required,
-        last_ts,
-        age_minutes,
-        ok or not required,
-        reason,
-        details,
+        feed_id="dol_claims.latest_report",
+        label=label,
+        required=required,
+        last_ts=last_ts,
+        age_minutes=age_minutes,
+        ok=ok or not required,
+        reason=reason,
+        details=details,
     )
 
 
@@ -537,17 +627,49 @@ def _evaluate_treasury(
     threshold_business_days = _to_float(cfg.get("age_business_days"), default=3.0)
     path = _latest_parquet(proc_root, namespace)
     if path is None:
-        return FeedState("treasury_10y.daily", label, required, None, None, not required, "MISSING")
+        return FeedState(
+            feed_id="treasury_10y.daily",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=not required,
+            reason="MISSING",
+        )
     frame = pl.read_parquet(path)
     if timestamp_column not in frame.columns or "maturity" not in frame.columns:
-        return FeedState("treasury_10y.daily", label, required, None, None, False, "MISSING_COLUMNS")
+        return FeedState(
+            feed_id="treasury_10y.daily",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="MISSING_COLUMNS",
+        )
     normalized = frame.with_columns(pl.col("maturity").str.to_uppercase())
     subset = normalized.filter(pl.col("maturity") == expected_maturity)
     if subset.is_empty():
-        return FeedState("treasury_10y.daily", label, required, None, None, False, "TENY_SERIES_MISMATCH")
+        return FeedState(
+            feed_id="treasury_10y.daily",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="TENY_SERIES_MISMATCH",
+        )
     last_ts = _extract_date_as_datetime(subset.select(pl.col(timestamp_column).max()).item())
     if last_ts is None:
-        return FeedState("treasury_10y.daily", label, required, None, None, False, "NO_DATA")
+        return FeedState(
+            feed_id="treasury_10y.daily",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="NO_DATA",
+        )
     age_minutes = _age_minutes(last_ts, now)
     age_business = _business_days(last_ts.date(), now.date())
     ok = True
@@ -560,14 +682,14 @@ def _evaluate_treasury(
         "count": int(subset.height),
     }
     return FeedState(
-        "treasury_10y.daily",
-        label,
-        required,
-        last_ts,
-        age_minutes,
-        ok or not required,
-        reason,
-        details,
+        feed_id="treasury_10y.daily",
+        label=label,
+        required=required,
+        last_ts=last_ts,
+        age_minutes=age_minutes,
+        ok=ok or not required,
+        reason=reason,
+        details=details,
     )
 
 
@@ -583,13 +705,37 @@ def _evaluate_cleveland(
     threshold_days = _to_float(cfg.get("age_days"), default=35.0)
     path = _latest_parquet(proc_root, namespace)
     if path is None:
-        return FeedState("cleveland_nowcast.monthly", label, required, None, None, not required, "MISSING")
+        return FeedState(
+            feed_id="cleveland_nowcast.monthly",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=not required,
+            reason="MISSING",
+        )
     frame = pl.read_parquet(path)
     if timestamp_column not in frame.columns:
-        return FeedState("cleveland_nowcast.monthly", label, required, None, None, False, "MISSING_TIMESTAMP")
+        return FeedState(
+            feed_id="cleveland_nowcast.monthly",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="MISSING_TIMESTAMP",
+        )
     last_ts = _extract_datetime(frame.select(pl.col(timestamp_column).max()).item())
     if last_ts is None:
-        return FeedState("cleveland_nowcast.monthly", label, required, None, None, False, "NO_DATA")
+        return FeedState(
+            feed_id="cleveland_nowcast.monthly",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="NO_DATA",
+        )
     age_minutes = _age_minutes(last_ts, now)
     age_days = _age_days(last_ts, now)
     ok = True
@@ -598,14 +744,14 @@ def _evaluate_cleveland(
     reason = None if ok else f"STALE>{threshold_days}d"
     details = {"age_days": _round(age_days), "threshold_days": threshold_days, "count": frame.height}
     return FeedState(
-        "cleveland_nowcast.monthly",
-        label,
-        required,
-        last_ts,
-        age_minutes,
-        ok or not required,
-        reason,
-        details,
+        feed_id="cleveland_nowcast.monthly",
+        label=label,
+        required=required,
+        last_ts=last_ts,
+        age_minutes=age_minutes,
+        ok=ok or not required,
+        reason=reason,
+        details=details,
     )
 
 
@@ -621,14 +767,38 @@ def _evaluate_aaa(
     price_max = _to_float(cfg.get("price_max"), default=6.0)
     daily_path = proc_root / "aaa_daily.parquet"
     if not daily_path.exists():
-        return FeedState("aaa_gas.daily", label, required, None, None, not required, "MISSING")
+        return FeedState(
+            feed_id="aaa_gas.daily",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=not required,
+            reason="MISSING",
+        )
     frame = pl.read_parquet(daily_path)
     if frame.is_empty() or "date" not in frame.columns or "price" not in frame.columns:
-        return FeedState("aaa_gas.daily", label, required, None, None, False, "NO_DATA")
+        return FeedState(
+            feed_id="aaa_gas.daily",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="NO_DATA",
+        )
     idx = frame.select(pl.col("date").max()).to_series().item()
     last_ts = _extract_date_as_datetime(idx)
     if last_ts is None:
-        return FeedState("aaa_gas.daily", label, required, None, None, False, "INVALID_DATE")
+        return FeedState(
+            feed_id="aaa_gas.daily",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="INVALID_DATE",
+        )
     latest_row = frame.filter(pl.col("date") == idx).sort("date").tail(1)
     price = float(latest_row["price"][0]) if not latest_row.is_empty() else None
     age_minutes = _age_minutes(last_ts, now)
@@ -653,14 +823,14 @@ def _evaluate_aaa(
         "price_max": price_max,
     }
     return FeedState(
-        "aaa_gas.daily",
-        label,
-        required,
-        last_ts,
-        age_minutes,
-        ok or not required,
-        reason,
-        details,
+        feed_id="aaa_gas.daily",
+        label=label,
+        required=required,
+        last_ts=last_ts,
+        age_minutes=age_minutes,
+        ok=ok or not required,
+        reason=reason,
+        details=details,
     )
 
 
@@ -677,13 +847,38 @@ def _evaluate_weather(
     active_stations = sorted({str(item).upper() for item in active_stations_raw if str(item).strip()})
     if not active_stations:
         not_required_details = {"stations": [], "note": "not_required"}
-        return FeedState("nws_daily_climate", label, False, None, None, True, "NOT_REQUIRED", not_required_details)
+        return FeedState(
+            feed_id="nws_daily_climate",
+            label=label,
+            required=False,
+            last_ts=None,
+            age_minutes=None,
+            ok=True,
+            reason="NOT_REQUIRED",
+            details=not_required_details,
+        )
     path = _latest_parquet(proc_root, namespace)
     if path is None:
-        return FeedState("nws_daily_climate", label, required, None, None, False, "MISSING")
+        return FeedState(
+            feed_id="nws_daily_climate",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="MISSING",
+        )
     frame = pl.read_parquet(path)
     if frame.is_empty() or "station_id" not in frame.columns or "record_date" not in frame.columns:
-        return FeedState("nws_daily_climate", label, required, None, None, False, "MISSING_COLUMNS")
+        return FeedState(
+            feed_id="nws_daily_climate",
+            label=label,
+            required=required,
+            last_ts=None,
+            age_minutes=None,
+            ok=False,
+            reason="MISSING_COLUMNS",
+        )
     frame = frame.with_columns(pl.col("station_id").str.to_uppercase())
     station_entries: list[dict[str, Any]] = []
     stale_stations: list[str] = []
@@ -758,14 +953,14 @@ def _evaluate_weather(
         "active_station_count": len(active_stations),
     }
     return FeedState(
-        "nws_daily_climate",
-        label,
-        required,
-        last_ts_overall,
-        worst_age,
-        ok or not required,
-        reason,
-        details,
+        feed_id="nws_daily_climate",
+        label=label,
+        required=required,
+        last_ts=last_ts_overall,
+        age_minutes=worst_age,
+        ok=ok or not required,
+        reason=reason,
+        details=details,
     )
 
 

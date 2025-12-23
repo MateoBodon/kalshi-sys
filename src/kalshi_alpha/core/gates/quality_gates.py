@@ -34,6 +34,7 @@ class DataFreshnessThreshold:
     timestamp_field: str = "as_of"
     max_age: timedelta = timedelta(hours=24)
     require_et: bool = True
+    scope: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class ReconciliationThreshold:
     par_maturity: str
     dgs_maturity: str
     tolerance_bps: float
+    scope: str | None = None
 
 
 @dataclass(frozen=True)
@@ -125,6 +127,7 @@ def load_quality_gate_config(path: Path | None = None) -> QualityGateConfig:
                 timestamp_field=str(item.get("timestamp_field", "as_of")),
                 max_age=max_age,
                 require_et=bool(item.get("require_et", True)),
+                scope=_normalize_scope(item.get("scope")),
             )
         )
 
@@ -151,6 +154,7 @@ def load_quality_gate_config(path: Path | None = None) -> QualityGateConfig:
                 par_maturity=str(item.get("par_maturity", "10 YR")),
                 dgs_maturity=str(item.get("dgs_maturity", "DGS10")),
                 tolerance_bps=tolerance if tolerance is not None else 5.0,
+                scope=_normalize_scope(item.get("scope")),
             )
         )
 
@@ -213,24 +217,40 @@ def _filter_quality_gate_config(config: QualityGateConfig, scope: str | None) ->
         data_freshness = [
             item
             for item in config.data_freshness
-            if _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
+            if (item.scope == "index")
+            or (
+                item.scope is None
+                and _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
+            )
         ]
         reconciliations = [
             item
             for item in config.reconciliations
-            if _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
+            if (item.scope == "index")
+            or (
+                item.scope is None
+                and _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
+            )
         ]
     elif normalized == "macro":
         metrics = [item for item in config.metrics if item.series.lower() not in INDEX_SERIES]
         data_freshness = [
             item
             for item in config.data_freshness
-            if _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
+            if (item.scope == "macro")
+            or (
+                item.scope is None
+                and _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
+            )
         ]
         reconciliations = [
             item
             for item in config.reconciliations
-            if _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
+            if (item.scope == "macro")
+            or (
+                item.scope is None
+                and _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
+            )
         ]
     else:
         return config

@@ -168,9 +168,14 @@ def test_stale_freshness_blocks_execution(
 
     go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
     assert go_artifact["go"] is False
+    assert go_artifact.get("scope") == "index"
+    assert go_artifact.get("unscoped_blockers") == []
     reasons = go_artifact.get("reasons", [])
     assert "STALE_FEEDS" in reasons
     assert "polygon_ws_stale" in reasons
+    scoped_blockers = go_artifact.get("scoped_blockers", [])
+    assert "STALE_FEEDS" in scoped_blockers
+    assert "polygon_ws_stale" in scoped_blockers
 
     proposals_dir = tmp_path / "exec" / "proposals" / "INXU"
     proposal_files = sorted(proposals_dir.glob("*.json"))
@@ -270,6 +275,9 @@ def test_macro_stale_allows_execution_with_index_gates(
 
     go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
     assert go_artifact["go"] is True
+    assert go_artifact.get("scope") == "index"
+    assert go_artifact.get("scoped_blockers") == []
+    assert go_artifact.get("unscoped_blockers") == []
     reasons = go_artifact.get("reasons", [])
     assert "STALE_FEEDS" not in reasons
     assert "polygon_ws_stale" not in reasons
