@@ -37,6 +37,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=float(INDEX_OPS_CONFIG.min_ev_usd),
         help="Minimum EV_after_fees per contract (USD)",
     )
+    parser.add_argument("--online", action="store_true", help="Use live data sources (default).")
     parser.add_argument("--offline", action="store_true", help="Use offline fixtures for driver data")
     parser.add_argument("--broker", default="dry", choices=["dry", "live"], help="Execution broker adapter")
     parser.add_argument("--kill-switch-file", help="Override kill-switch sentinel path")
@@ -75,6 +76,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=10 * 1024,
         help="Approx max bytes per snapshot record (default: %(default)s).",
     )
+    parser.add_argument(
+        "--telemetry-only",
+        action="store_true",
+        help="Skip broker execution and emit telemetry artifacts only (dry-run only).",
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
@@ -94,7 +100,7 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
         "--broker",
         args.broker,
     ]
-    if not args.offline:
+    if not args.offline and not args.telemetry_only:
         scan_args.append("--pilot")
     if args.offline:
         scan_args.append("--offline")
@@ -116,6 +122,8 @@ def _build_scan_args(args: argparse.Namespace) -> list[str]:
             scan_args.extend(["--tob-output-dir", str(Path(args.tob_output_dir))])
         scan_args.extend(["--tob-depth", str(int(args.tob_depth))])
         scan_args.extend(["--tob-max-bytes", str(int(args.tob_max_bytes))])
+    if args.telemetry_only:
+        scan_args.append("--telemetry-only")
     if args.broker == "live":
         scan_args.append("--i-understand-the-risks")
     if args.quiet:
@@ -163,6 +171,13 @@ def _refit_execution_curves(series: str) -> None:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
+    if args.offline and args.online:
+        raise SystemExit("[microlive] Cannot combine --offline and --online.")
+    if args.telemetry_only:
+        if str(args.broker or "").lower() != "dry":
+            raise SystemExit("[microlive] --telemetry-only requires --broker dry.")
+        if not args.record_tob:
+            raise SystemExit("[microlive] --telemetry-only requires --record-tob.")
     scan_args = _build_scan_args(args)
     reference = parse_now_override(args.now)
     allowed, _, next_window = guard_series_window(args.series.upper(), now=reference, quiet=args.quiet)

@@ -630,6 +630,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.discover:
         _run_discovery(args)
         return
+    if args.telemetry_only:
+        if str(args.broker or "").lower() != "dry":
+            raise ValueError("--telemetry-only requires --broker dry.")
+        if getattr(args, "pilot", False):
+            raise ValueError("--telemetry-only cannot be combined with --pilot.")
     if not args.series:
         raise ValueError("--series is required unless --discover is specified.")
     try:
@@ -804,6 +809,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             print(f"[u-roll] {current_label or '?'}→{target_label or '?'}")
 
     outcome.monitors.setdefault("data_freshness", data_freshness_summary)
+    if args.telemetry_only:
+        outcome.monitors.setdefault("telemetry_only", True)
     if ws_age_ms is not None:
         outcome.monitors.setdefault("ws_freshness_age_ms", ws_age_ms)
     outcome.monitors.setdefault(
@@ -1077,7 +1084,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 price=float(proposal.market_yes_price),
                 size=int(proposal.contracts),
             )
-    if proposals:
+    if proposals and not args.telemetry_only:
         try:
             broker_status = execute_broker(
                 broker_mode=args.broker,
@@ -1097,6 +1104,10 @@ def main(argv: Sequence[str] | None = None) -> None:
                     f"[broker] mode={broker_status.get('mode')} "
                     f"orders={broker_status.get('orders_recorded')}"
                 )
+    elif proposals and args.telemetry_only:
+        broker_status = {"mode": str(args.broker).lower(), "orders_recorded": 0, "skipped": "telemetry_only"}
+        if not args.quiet:
+            print("[broker] skipped (telemetry-only)")
 
     outstanding_summary = OutstandingOrdersState.load().summary()
     pilot_metadata = {
@@ -2207,6 +2218,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         default="dry",
         choices=["dry", "live"],
         help="Broker adapter to use when executing orders.",
+    )
+    parser.add_argument(
+        "--telemetry-only",
+        action="store_true",
+        help="Skip broker execution and emit telemetry artifacts only (dry-run only).",
     )
     parser.add_argument(
         "--record-tob",
