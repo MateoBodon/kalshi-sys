@@ -22,6 +22,11 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
 
+## 2025-12-23
+- Ticket #0 — Gitignored `reports/` and removed tracked report outputs so local artifacts never get committed.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251223_061205Z_TICKET-000_ignore-reports/README.md`
+
 ## 2025-12-21
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
   - Gate status: PAPER
