@@ -127,7 +127,10 @@ Otherwise, per-ticket bundles are sufficient.
 Suggested subdirs:
 - `data/proc/state/` (kill switch, heartbeats, supervisor status)
 - `data/proc/runs/<RUN_ID>/` (go/no-go, proposals, monitor events)
-- `data/proc/telemetry/` (tob snapshots, quote intents, ws status)
+- `data/proc/telemetry/`
+  - `tob/<RUN_ID>.jsonl.gz` (bounded TOB snapshots)
+  - `quote_intents/<RUN_ID>.jsonl.gz` (bounded quote intents)
+  - `ws_status/` (ws heartbeat + staleness summaries)
 - `data/proc/basis/` (basis audits)
 - `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json` (daily basis summary: quantiles, per-window deltas, flip-risk flag)
 - `data/proc/calibration/` (calibration outputs)
@@ -169,6 +172,11 @@ Documentation requirement:
   - retention days,
   - pruning mechanism,
   - how it’s monitored.
+
+Telemetry retention (index ladders):
+- Max bytes per window (per stream): 256KB (bounded at write time).
+- Per-record caps: TOB snapshots 10KB, quote intents 2KB.
+- Retention days: 30 (pruned via `python -m kalshi_alpha.exec.housekeep --keep-days 30`).
 
 ---
 

@@ -35,6 +35,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #102 — Promoted settlement basis audit to a preflight gate with daily JSON/MD artifacts, flip-risk summary, and fixture-based tests.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/README.md`
+- Ticket #103 — Added bounded TOB + quote-intent telemetry capture (gzipped) with per-window caps + retention in housekeeping for index ladders.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251223T195343Z_TICKET-103_telemetry_capture/RUN.md`
 
 ## 2025-12-21
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
