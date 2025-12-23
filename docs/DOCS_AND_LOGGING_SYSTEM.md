@@ -120,6 +120,7 @@ Otherwise, per-ticket bundles are sufficient.
   - `reports/fillcalib/<ASOF_DATE>.md`
   - `reports/calibration/<ASOF_DATE>.md`
   - `reports/ops/<ASOF_DATE>.md`
+  - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
   - `reports/fees/<ASOF_DATE>.md`
 
 ### 3.2 Machine-readable artifacts
@@ -131,6 +132,7 @@ Suggested subdirs:
   - `tob/<RUN_ID>.jsonl.gz` (bounded TOB snapshots)
   - `quote_intents/<RUN_ID>.jsonl.gz` (bounded quote intents)
   - `ws_status/` (ws heartbeat + staleness summaries)
+  - `runs/<RUN_ID>.json` (run metadata: preflight status, bounds, paths)
 - `data/proc/basis/` (basis audits)
 - `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json` (daily basis summary: quantiles, per-window deltas, flip-risk flag)
 - `data/proc/calibration/` (calibration outputs)

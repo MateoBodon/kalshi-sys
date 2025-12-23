@@ -38,6 +38,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 - Ticket #103 — Added bounded TOB + quote-intent telemetry capture (gzipped) with per-window caps + retention in housekeeping for index ladders; updated settlement basis audit to use authenticated trade-api/v2 with KX series mapping.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251223T195343Z_TICKET-103_telemetry_capture/RUN.md`
+- Ticket #103 RETRY — Verified telemetry-only dry-run emits TOB + quote-intent artifacts and ops volume report; documented NO-GO preflight reasons per series.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251223T223258Z_TICKET-103_telemetry_proof/RUN.md`
 
 ## 2025-12-21
 - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.

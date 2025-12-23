@@ -7,6 +7,7 @@
 - Ticket #102: promoted settlement basis audit to a preflight gate with daily JSON/MD artifacts, flip-risk summaries, and fixture-based tests.
 - Ticket #103: added bounded TOB + quote-intent telemetry capture to `data/proc/telemetry` (gzipped), per-window caps, and housekeeping retention.
 - Fix: settlement basis audit now uses authenticated trade-api/v2 with KX series mapping for index ladders.
+- Ticket #103 RETRY: added telemetry-only dry-run override with run metadata, ops telemetry volume report, and improved GPT bundle diff range.
 
 ## 2025-12-22
 - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.
