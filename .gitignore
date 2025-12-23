@@ -7,6 +7,8 @@ __pycache__/
 .venv/
 logs/
 reports/
+!src/kalshi_alpha/exec/reports/
+!src/kalshi_alpha/exec/reports/*.py
 *.pyc
 *.pyo
 *.zip

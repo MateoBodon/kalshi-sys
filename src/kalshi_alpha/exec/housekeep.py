@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
 
+DEFAULT_KEEP_DAYS = 30
 RETENTION_ROOTS = [
     Path("data/raw/kalshi"),
     Path("reports"),
@@ -29,7 +30,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--keep-days",
         type=int,
-        default=30,
+        default=DEFAULT_KEEP_DAYS,
         help="Retention window in days (default: 30).",
     )
     return parser.parse_args(argv)
