@@ -1,0 +1,2 @@
+{"record_type":"tob_snapshot","run_id":"TEST_RUN","series":"INXU","market_ticker":"KXINXU-TEST","ts":"2025-01-01T00:00:00+00:00","ts_utc":"2025-01-01T00:00:00+00:00","best_bid_price":0.50,"best_bid_size":10,"best_ask_price":0.60,"best_ask_size":12}
+{"record_type":"tob_snapshot","run_id":"TEST_RUN","series":"INXU","market_ticker":"KXINXU-TEST","ts":"2025-01-01T00:00:20+00:00","ts_utc":"2025-01-01T00:00:20+00:00","best_bid_price":0.52,"best_bid_size":9,"best_ask_price":0.54,"best_ask_size":11}
