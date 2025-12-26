@@ -1,0 +1,24 @@
+# FILES TOUCHED
+
+- CHANGELOG.md
+- docs/CODEX_SPRINT_TICKETS.md
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/PLAN_OF_RECORD.md
+- docs/PROGRESS.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/ARTIFACTS.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/FILES_TOUCHED.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/NOTES.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RESULTS.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/TESTS.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/CITATIONS.md
+- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/prompt.md
+- src/kalshi_alpha/core/execution/fillprob.py
+- src/kalshi_alpha/exec/runners/scan_ladders.py
+- tests/fixtures/telemetry/quote_intents/20250101_000000Z.jsonl
+- tests/fixtures/telemetry/tob/20250101_000000Z.jsonl
+- tests/test_fillcalib_dataset.py
+- tools/build_fillcalib_dataset.py
