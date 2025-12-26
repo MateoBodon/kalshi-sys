@@ -65,6 +65,25 @@ def _safe_float(value: Any) -> float | None:
     return None
 
 
+def _parse_snapshot_timestamp(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+    elif isinstance(value, str):
+        try:
+            numeric = float(value)
+        except ValueError:
+            return None
+    else:
+        return None
+    if numeric >= 1e14:  # nanoseconds
+        numeric /= 1e9
+    elif numeric >= 1e11:  # milliseconds
+        numeric /= 1e3
+    return datetime.fromtimestamp(numeric, tz=UTC)
+
+
 @dataclass(frozen=True)
 class MinuteBar:
     timestamp: datetime
@@ -349,28 +368,47 @@ class PolygonIndicesClient:
     def fetch_snapshot(self, symbol: str) -> IndexSnapshot:
         """Fetch the latest snapshot for an index ticker."""
 
-        path = f"/v2/snapshot/locale/us/market/indices/tickers/{symbol}"
-        payload = self._request("GET", path)
-        results = cast("dict[str, Any]", payload.get("results") or {})
-        last_quote = cast("dict[str, Any]", results.get("lastQuote") or {})
-        prev_day = cast("dict[str, Any]", results.get("prevDay") or {})
-        last_updated = results.get("lastUpdated")
-        last_price = _safe_float(last_quote.get("p")) or _safe_float(last_quote.get("P"))
-        change = _safe_float(results.get("todaysChange"))
-        change_percent = _safe_float(results.get("todaysChangePerc"))
-        previous_close = _safe_float(prev_day.get("c")) or _safe_float(prev_day.get("close"))
+        path = "/v3/snapshot/indices"
+        payload = self._request("GET", path, params={"ticker.any_of": symbol})
+        results = payload.get("results") or []
+        if isinstance(results, dict):
+            results_list: list[dict[str, Any]] = [cast("dict[str, Any]", results)]
+        elif isinstance(results, list):
+            results_list = [item for item in results if isinstance(item, dict)]
+        else:
+            results_list = []
+        if not results_list:
+            raise PolygonAPIError(f"Polygon snapshot returned no results for {symbol}")
+        entry = next(
+            (item for item in results_list if str(item.get("ticker")).upper() == symbol.upper()),
+            results_list[0],
+        )
+        if entry.get("error"):
+            message = entry.get("message") or entry.get("error") or "unknown error"
+            raise PolygonAPIError(f"Polygon snapshot error for {symbol}: {message}")
+        session = cast("dict[str, Any]", entry.get("session") or {})
+        last_updated = entry.get("last_updated")
+        last_price = _safe_float(entry.get("value"))
+        change = _safe_float(session.get("change"))
+        change_percent = _safe_float(session.get("change_percent"))
+        previous_close = _safe_float(session.get("previous_close"))
         return IndexSnapshot(
-            ticker=str(results.get("ticker") or symbol),
+            ticker=str(entry.get("ticker") or symbol),
             last_price=last_price,
             change=change,
             change_percent=change_percent,
             previous_close=previous_close,
             timestamp=(
-                datetime.fromtimestamp(float(last_updated) / 1000.0, tz=UTC)
-                if isinstance(last_updated, (int, float))
+                _parse_snapshot_timestamp(last_updated)
+                if last_updated is not None
                 else None
             ),
         )
+
+    def fetch_market_status(self) -> dict[str, Any]:
+        """Fetch current market status (marketstatus/now)."""
+
+        return self._request("GET", "/v1/marketstatus/now")
 
     @staticmethod
     def _bar_to_row(bar: MinuteBar) -> dict[str, object]:

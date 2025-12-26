@@ -14,6 +14,7 @@ from kalshi_alpha.drivers.polygon_index.client import (
     INDICES_WS_URL,
     IndexSnapshot,
     MinuteBar,
+    PolygonAPIError,
     PolygonIndicesClient,
 )
 
@@ -128,14 +129,14 @@ def test_fetch_minute_bars_handles_pagination() -> None:
 def test_fetch_snapshot_parses_payload() -> None:
     payload = {
         "status": "OK",
-        "results": {
-            "ticker": "I:SPX",
-            "lastQuote": {"p": 5030.25},
-            "todaysChange": 10.0,
-            "todaysChangePerc": 0.2,
-            "prevDay": {"c": 5020.0},
-            "lastUpdated": 1700000000000,
-        },
+        "results": [
+            {
+                "ticker": "I:SPX",
+                "value": 5030.25,
+                "last_updated": 1_700_000_000_000_000_000,
+                "session": {"change": 10.0, "change_percent": 0.2, "previous_close": 5020.0},
+            }
+        ],
     }
     session = _FakeSession(_FakeResponse(status_code=200, payload=payload))
     client = PolygonIndicesClient(api_key="stub", session=session)
@@ -143,6 +144,41 @@ def test_fetch_snapshot_parses_payload() -> None:
     assert isinstance(snapshot, IndexSnapshot)
     assert snapshot.last_price == pytest.approx(5030.25)
     assert snapshot.previous_close == pytest.approx(5020.0)
+    assert snapshot.timestamp == datetime.fromtimestamp(1_700_000_000, tz=UTC)
+    assert session.last_request is not None
+    assert session.last_request["url"].endswith("/v3/snapshot/indices")
+    assert session.last_request["params"] == {"ticker.any_of": "I:SPX"}
+
+
+def test_fetch_snapshot_handles_entitlement_error() -> None:
+    payload = {
+        "status": "OK",
+        "results": [
+            {
+                "ticker": "I:SPX",
+                "error": "NOT_ENTITLED",
+                "message": "Not entitled to this ticker.",
+            }
+        ],
+    }
+    session = _FakeSession(_FakeResponse(status_code=200, payload=payload))
+    client = PolygonIndicesClient(api_key="stub", session=session)
+    with pytest.raises(PolygonAPIError, match="NOT_ENTITLED"):
+        client.fetch_snapshot("I:SPX")
+
+
+def test_fetch_market_status_calls_endpoint() -> None:
+    payload = {
+        "status": "OK",
+        "market": "closed",
+        "serverTime": "2025-12-25T16:30:00-05:00",
+    }
+    session = _FakeSession(_FakeResponse(status_code=200, payload=payload))
+    client = PolygonIndicesClient(api_key="stub", session=session)
+    status = client.fetch_market_status()
+    assert status["market"] == "closed"
+    assert session.last_request is not None
+    assert session.last_request["url"].endswith("/v1/marketstatus/now")
 
 
 @pytest.mark.asyncio
