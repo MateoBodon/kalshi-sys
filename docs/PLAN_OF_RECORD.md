@@ -183,7 +183,7 @@ Required artifacts:
 - `reports/fillcalib/<ASOF_DATE>.md` (sample counts + conservative curve)
 - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
 - Per-ticket GPT bundles should include telemetry artifacts (`data/proc/telemetry/*`) and the ops volume report when generated.
-- Per-ticket GPT bundles should include fillcalib curves + reports, pilot readiness artifacts, and calibration-age markdown when generated (`data/proc/fillcalib/*.json`, `reports/fillcalib/*.md`, `reports/pilot_ready.json`, `reports/pilot_readiness.md`, `reports/calibration/*.md`).
+- Per-ticket GPT bundles should include fillcalib curves + reports, pilot readiness artifacts, and calibration-age reports when generated (`data/proc/fillcalib/*.json`, `reports/fillcalib/*.md`, `reports/pilot_ready.json`, `reports/pilot_readiness.md`, `reports/calibration/**`).
 
 Notes:
 - Fill curves are proxy estimates based on TOB crossings only (upper bound), not realized fills or queue position.

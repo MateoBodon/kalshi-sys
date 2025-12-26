@@ -237,7 +237,9 @@ Scope reminder:
 **Likely files/modules:**
 - `Makefile` (gpt-bundle target)
 - `tools/verify_gpt_bundle.py`
+- `tools/gpt_bundle_builder.py`
 - `tests/test_gpt_bundle_verifier.py`
+- `tests/test_gpt_bundle_builder.py`
 - `docs/DOCS_AND_LOGGING_SYSTEM.md`
 
 **Acceptance criteria:**

@@ -98,7 +98,7 @@ B) **Per-ticket bundles** (small, fast)
     - `reports/fillcalib/*.md`
     - `reports/pilot_ready.json`
     - `reports/pilot_readiness.md`
-    - `reports/calibration/*.md`
+    - `reports/calibration/**` (calibration age reports, including nested markdown)
 - Should also include a zip:
   - `docs/gpt_bundles/ticket_<...>.zip`
 

@@ -26,9 +26,9 @@ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-t
 - Ticket #104 — Built fill calibration dataset builder, conservative maker fill curves + loader wiring (uncalibrated only when curves missing), and added fixture-based tests. **FAIL** (bundle missing listed artifacts).
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md`
-- Ticket #108 — GPT bundle completeness: include fillcalib + pilot readiness + calibration reports, and fail-closed on missing ARTIFACTS.md entries.
+- Ticket #108 — GPT bundle completeness: staged bundler now includes calibration subtrees, enforces ARTIFACTS.md fail-closed checks, and adds regression coverage.
   - Gate status: PAPER
-  - Evidence: agent run log `docs/agent_runs/20251226T194930Z_TICKET-108_bundle_artifacts_fix/RUN.md`
+  - Evidence: agent run log `docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/RUN.md`
 - Ticket #103 follow-up — Freshness monitor now honors Polygon marketstatus for closed/extended hours and ops market-status CLI added.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md`
