@@ -7,7 +7,7 @@ import asyncio
 import contextlib
 import json
 import ssl
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,6 +36,12 @@ DEFAULT_FRESHNESS_OUTPUT = Path("reports/_artifacts/monitors/freshness.json")
 DEFAULT_PROC_PARQUET = Path("data/proc/polygon_index/snapshot_2025-11-04.parquet")
 
 AliasMap = dict[str, tuple[str, ...]]
+
+INDEX_GROUP_BY_SYMBOL = {
+    "I:SPX": "s_and_p",
+    "I:NDX": "nasdaq",
+}
+_OPEN_STATUSES = {"open"}
 
 
 @dataclass(frozen=True)
@@ -73,6 +79,47 @@ class CadenceTracker:
                 f"[polygon-ws] info: {symbol} cadence delta={delta:.3f}s",
                 flush=True,
             )
+
+
+def _normalize_status(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    return text or None
+
+
+def _format_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _market_status_for_symbol(payload: Mapping[str, Any], symbol: str) -> str | None:
+    groups = payload.get("indicesGroups")
+    if isinstance(groups, Mapping):
+        group_key = INDEX_GROUP_BY_SYMBOL.get(symbol.upper())
+        if group_key:
+            status = _normalize_status(groups.get(group_key))
+            if status:
+                return status
+    return _normalize_status(payload.get("market"))
+
+
+def _inactive_symbols(
+    payload: Mapping[str, Any],
+    symbols: Sequence[str],
+) -> tuple[list[str], dict[str, str]]:
+    inactive: list[str] = []
+    statuses: dict[str, str] = {}
+    for symbol in symbols:
+        status = _market_status_for_symbol(payload, symbol)
+        if status is None:
+            continue
+        if status not in _OPEN_STATUSES:
+            inactive.append(symbol)
+            statuses[symbol] = status
+    return inactive, statuses
 
 
 def _resolved_aliases(raw: Sequence[str]) -> AliasMap:
@@ -479,6 +526,28 @@ async def _value_fallback_loop(
                 stale_symbols.append(symbol)
         if not stale_symbols:
             continue
+        market_status = None
+        try:
+            market_status = client.fetch_market_status()
+        except Exception as exc:  # pragma: no cover - network guard
+            print(f"[polygon-ws] warning: market status check failed: {exc}", flush=True)
+        if isinstance(market_status, Mapping):
+            inactive, statuses = _inactive_symbols(market_status, stale_symbols)
+            if inactive:
+                for symbol in inactive:
+                    tracker.update(symbol, now)
+                server_time = _format_text(market_status.get("serverTime"))
+                server_info = f" serverTime={server_time}" if server_time else ""
+                summary = ", ".join(
+                    f"{symbol}:{statuses.get(symbol, 'unknown')}" for symbol in inactive
+                )
+                print(
+                    f"[polygon-ws] info: market inactive{server_info}; skip REST fallback for {summary}",
+                    flush=True,
+                )
+                stale_symbols = [symbol for symbol in stale_symbols if symbol not in inactive]
+                if not stale_symbols:
+                    continue
         for symbol in stale_symbols:
             try:
                 snapshot = client.fetch_snapshot(symbol)

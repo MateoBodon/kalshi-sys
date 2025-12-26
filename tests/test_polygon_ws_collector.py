@@ -117,6 +117,29 @@ def test_parse_args_uses_alias_overrides(monkeypatch) -> None:
     assert config.ws_url.startswith("wss://")
 
 
+def test_inactive_symbols_detects_closed_indices_group() -> None:
+    payload = {
+        "indicesGroups": {"s_and_p": "closed", "nasdaq": "open"},
+        "market": "open",
+    }
+    inactive, statuses = polygon_ws._inactive_symbols(  # type: ignore[attr-defined]
+        payload,
+        ["I:SPX", "I:NDX"],
+    )
+    assert inactive == ["I:SPX"]
+    assert statuses["I:SPX"] == "closed"
+
+
+def test_inactive_symbols_uses_market_status_fallback() -> None:
+    payload = {"market": "extended-hours"}
+    inactive, statuses = polygon_ws._inactive_symbols(  # type: ignore[attr-defined]
+        payload,
+        ["I:SPX"],
+    )
+    assert inactive == ["I:SPX"]
+    assert statuses["I:SPX"] == "extended-hours"
+
+
 class _StubWebsocket:
     def __init__(self, messages: list[str]) -> None:
         self._messages = iter(messages)
