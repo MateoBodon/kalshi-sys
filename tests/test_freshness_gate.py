@@ -10,6 +10,7 @@ import polars as pl
 import pytest
 import yaml
 
+import kalshi_alpha.exec.monitors.freshness as freshness
 from kalshi_alpha.exec.monitors.freshness import (
     FRESHNESS_ARTIFACT_PATH,
     load_artifact,
@@ -120,6 +121,14 @@ def _seed_monitor_artifacts(monitors_dir: Path, now: datetime) -> None:
     )
 
 
+def _write_polygon_snapshot(raw_root: Path, timestamp: datetime) -> None:
+    snapshot_dir = raw_root / f"{timestamp.year:04d}" / f"{timestamp.month:02d}" / f"{timestamp.day:02d}" / "polygon_index"
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    stamp = timestamp.strftime("%Y%m%dT%H%M%S")
+    payload = {"ticker": "I:SPX", "last_price": 5000.0, "timestamp": timestamp.isoformat()}
+    (snapshot_dir / f"{stamp}_I_SPX_snapshot.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _seed_ledger(proc_root: Path, now: datetime) -> Path:
     ledger_path = proc_root / "ledger_all.parquet"
     frame = pl.DataFrame(
@@ -144,6 +153,62 @@ def _freshness_config(path: Path, *, active_stations: Iterable[str]) -> Path:
     }
     path.write_text(yaml.safe_dump(payload), encoding="utf-8")
     return path
+
+
+def test_freshness_polygon_ws_ignores_closed_market(
+    tmp_path: Path,
+    isolated_data_roots: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _, proc_root = isolated_data_roots
+    now = datetime(2025, 11, 3, 12, 0, tzinfo=UTC)
+    stale = now - timedelta(minutes=30)
+
+    raw_root = proc_root.parent / "raw"
+    _write_polygon_snapshot(raw_root, stale)
+
+    config_path = tmp_path / "freshness.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "required_order": ["polygon_index.websocket"],
+                "feeds": {
+                    "polygon_index.websocket": {
+                        "label": "Massive index websocket",
+                        "age_seconds": 5,
+                        "required": True,
+                        "scope": "index",
+                        "namespace": "polygon_index",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        freshness,
+        "_fetch_market_status",
+        lambda: {
+            "market": "closed",
+            "serverTime": "2025-12-25T16:00:00-05:00",
+            "indicesGroups": {"s_and_p": "closed", "nasdaq": "closed"},
+        },
+    )
+
+    output_path = tmp_path / "reports" / "_artifacts" / "monitors" / "freshness.json"
+    payload = write_freshness_artifact(
+        config_path=config_path,
+        output_path=output_path,
+        proc_root=proc_root,
+        now=now,
+    )
+    metrics = payload["metrics"]
+    assert metrics["stale_feeds"] == []
+    feed = next(entry for entry in metrics["feeds"] if entry["id"] == "polygon_index.websocket")
+    assert feed["ok"] is True
+    assert feed["details"]["market_status"]["market"] == "closed"
 
 
 def test_freshness_stale_feed_blocks_ramp(

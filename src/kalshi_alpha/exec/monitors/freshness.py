@@ -14,11 +14,14 @@ import polars as pl
 import yaml
 
 from kalshi_alpha.datastore import paths as datastore_paths
+from kalshi_alpha.drivers.polygon_index.client import PolygonIndicesClient
 from kalshi_alpha.exec.monitors.summary import MONITOR_ARTIFACTS_DIR
 
 FRESHNESS_CONFIG_PATH = Path("configs/freshness.yaml")
 FRESHNESS_ARTIFACT_PATH = MONITOR_ARTIFACTS_DIR / "freshness.json"
 _INDEX_FEED_PREFIXES = ("polygon", "index")
+_INDEX_MARKET_GROUPS = ("s_and_p", "nasdaq")
+_MARKET_OPEN = {"open"}
 
 
 @dataclass(slots=True)
@@ -337,6 +340,53 @@ def _normalize_scope(scope: str | None) -> str | None:
     return None
 
 
+def _fetch_market_status() -> dict[str, Any] | None:
+    try:
+        client = PolygonIndicesClient()
+        return client.fetch_market_status()
+    except Exception:
+        return None
+
+
+def _market_status_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    market = payload.get("market")
+    if market is not None:
+        summary["market"] = str(market)
+    server_time = payload.get("serverTime")
+    if server_time is not None:
+        summary["serverTime"] = str(server_time)
+    indices_groups = payload.get("indicesGroups")
+    if isinstance(indices_groups, Mapping):
+        summary["indicesGroups"] = {
+            key: str(indices_groups.get(key))
+            for key in _INDEX_MARKET_GROUPS
+            if indices_groups.get(key) is not None
+        }
+    return summary
+
+
+def _inactive_market_reason(payload: Mapping[str, Any] | None) -> str | None:
+    if payload is None:
+        return None
+    indices_groups = payload.get("indicesGroups")
+    if isinstance(indices_groups, Mapping):
+        statuses = [
+            str(indices_groups.get(key)).strip().lower()
+            for key in _INDEX_MARKET_GROUPS
+            if indices_groups.get(key) is not None
+        ]
+        if statuses and all(status not in _MARKET_OPEN for status in statuses):
+            return "indicesGroups:" + ",".join(statuses)
+    market = payload.get("market")
+    if market is None:
+        return None
+    status = str(market).strip().lower()
+    if status and status not in _MARKET_OPEN:
+        return f"market:{status}"
+    return None
+
+
 def _feed_in_scope(feed: Mapping[str, Any], scope: str) -> bool:
     feed_id = str(feed.get("id") or "").strip().lower()
     if not feed_id:
@@ -439,10 +489,23 @@ def _evaluate_polygon_ws(
     now: datetime,
     raw_root: Path,
 ) -> FeedState:
+    status_payload = _fetch_market_status()
     namespace = str(cfg.get("namespace", "polygon_index"))
     threshold_seconds = _to_float(cfg.get("age_seconds"), default=2.0)
     latest_path = _latest_snapshot_path(raw_root, namespace)
     if latest_path is None:
+        inactive_reason = _inactive_market_reason(status_payload)
+        if inactive_reason:
+            return FeedState(
+                feed_id="polygon_index.websocket",
+                label=label,
+                required=required,
+                last_ts=None,
+                age_minutes=None,
+                ok=True,
+                reason=None,
+                details={"market_status": inactive_reason},
+            )
         return FeedState(
             feed_id="polygon_index.websocket",
             label=label,
@@ -454,6 +517,18 @@ def _evaluate_polygon_ws(
         )
     last_ts = _parse_snapshot_timestamp(latest_path.name)
     if last_ts is None:
+        inactive_reason = _inactive_market_reason(status_payload)
+        if inactive_reason:
+            return FeedState(
+                feed_id="polygon_index.websocket",
+                label=label,
+                required=required,
+                last_ts=None,
+                age_minutes=None,
+                ok=True,
+                reason=None,
+                details={"market_status": inactive_reason},
+            )
         return FeedState(
             feed_id="polygon_index.websocket",
             label=label,
@@ -467,13 +542,22 @@ def _evaluate_polygon_ws(
     age_minutes = age_seconds / 60.0
     ok = True
     if threshold_seconds is not None and age_seconds > threshold_seconds:
-        ok = False
-    reason = None if ok else f"STALE>{threshold_seconds}s"
+        inactive_reason = _inactive_market_reason(status_payload)
+        if inactive_reason:
+            ok = True
+            reason = None
+        else:
+            ok = False
+            reason = f"STALE>{threshold_seconds}s"
+    else:
+        reason = None
     details = {
         "age_seconds": round(age_seconds, 3),
         "threshold_seconds": threshold_seconds,
         "snapshot_path": str(latest_path),
     }
+    if status_payload is not None:
+        details["market_status"] = _market_status_summary(status_payload)
     return FeedState(
         feed_id="polygon_index.websocket",
         label=label,
