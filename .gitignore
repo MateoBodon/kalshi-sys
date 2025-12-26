@@ -12,7 +12,6 @@ reports/
 *.pyc
 *.pyo
 *.zip
-!docs/gpt_bundles/*.zip
 
 .env
 .env.*
