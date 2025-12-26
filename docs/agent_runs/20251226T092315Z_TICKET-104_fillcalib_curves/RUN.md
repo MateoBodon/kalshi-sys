@@ -11,3 +11,6 @@
 ## Risks
 - Proxy fills are an upper bound (no queue position/cancel latency), so curves may still be optimistic even after scaling.
 - If curves are missing or stale, fill alpha collapses to zero; paper fill metrics will be conservative and may suppress diagnostics.
+
+## Follow-up
+- Generated real curves from telemetry for INXU (2025-12-23 → 2025-12-26) and ran `make pilot-readiness` to refresh readiness artifacts.
