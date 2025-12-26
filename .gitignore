@@ -12,6 +12,9 @@ reports/
 *.pyc
 *.pyo
 *.zip
+DIFF.patch
+docs/agent_runs/
+docs/gpt_bundles/
 
 .env
 .env.*
