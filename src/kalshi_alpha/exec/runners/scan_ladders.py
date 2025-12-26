@@ -652,6 +652,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     driver_fixtures = fixtures_root / "drivers"
 
     client = _build_client(fixtures_root, use_online=args.online)
+    series_upper = args.series.upper()
+    fill_curve_status = fillprob.curve_status() if series_upper in INDEX_SERIES else None
     fill_alpha_value, fill_alpha_auto = _resolve_fill_alpha_arg(args.fill_alpha, args.series)
     pal_guard = _build_pal_guard(args)
     risk_manager = _build_risk_manager(args)
@@ -660,7 +662,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     correlation_guard = CorrelationAwareLimiter.from_yaml(correlation_config_path)
     quote_optimizer = QuoteOptimizer()
     offline_mode = args.offline or not args.online
-    series_upper = args.series.upper()
     tob_logger: TobSnapshotLogger | None = None
     tob_run_id: str | None = None
     if getattr(args, "record_tob", False):
@@ -778,6 +779,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         sniper=getattr(args, "sniper", False),
         sniper_threshold=float(getattr(args, "sniper_threshold", 0.05)),
     )
+
+    if fill_curve_status is not None:
+        outcome.monitors.setdefault("fill_curve", fill_curve_status.as_dict())
 
     if pilot_session:
         outcome.monitors.setdefault("pilot_session_id", pilot_session.session_id)
