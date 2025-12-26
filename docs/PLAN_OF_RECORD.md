@@ -171,7 +171,7 @@ Goal: â€œWe can estimate maker fill probability vs price/time-to-expiry/queue.â€
 Commands (expected):
 - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --record-tob` (writes quote intents + TOB snapshots)
 - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --record-tob --telemetry-only` (NO-GO override for telemetry-only runs)
-- `python tools/build_fillcalib_dataset.py --series INXU --from <DATE> --to <DATE>`
+- `python tools/build_fillcalib_dataset.py --series INXU --from <DATE> --to <DATE> --telemetry-root data/proc/telemetry --horizon-seconds 30 --min-samples 200 --scaler 0.25`
 - `make pilot-readiness`
 
 Required artifacts:
@@ -179,9 +179,13 @@ Required artifacts:
 - `data/proc/telemetry/quote_intents/<RUN_ID>.jsonl.gz`
 - `data/proc/telemetry/runs/<RUN_ID>.json`
 - `data/proc/fillcalib/curves_<ASOF_DATE>.json`
+- `data/proc/fillcalib/dataset_<ASOF_DATE>.parquet` (optional; small datasets only)
 - `reports/fillcalib/<ASOF_DATE>.md` (sample counts + conservative curve)
 - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
 - Per-ticket GPT bundles should include telemetry artifacts (`data/proc/telemetry/*`) and the ops volume report when generated.
+
+Notes:
+- Fill curves are proxy estimates based on TOB crossings only (upper bound), not realized fills or queue position.
 
 Retention + bounds:
 - Per-window cap: 256KB per stream (TOB + quote intents).

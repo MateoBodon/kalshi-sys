@@ -1,6 +1,8 @@
 # Changelog
 
 ## 2025-12-26
+- Added fill calibration dataset builder that derives conservative maker fill curves from TOB + quote-intent telemetry, with proxy-fill disclaimers and optional parquet output.
+- Scanner now records fill-curve status (uncalibrated only when curves are missing/invalid) and clamps fill alpha from the latest fillcalib curves.
 - Freshness monitor now consults Polygon `/v1/marketstatus/now` so closed/extended hours do not flag `polygon_index.websocket` as stale.
 - Added `python -m kalshi_alpha.exec.market_status` CLI for ops to print market status + server time.
 - Verified telemetry-only dry-run captures TOB + quote-intent artifacts, wrote ops telemetry volume report, and proved retention pruning with a synthetic old-file deletion.

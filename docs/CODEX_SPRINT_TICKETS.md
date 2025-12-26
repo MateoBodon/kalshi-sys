@@ -140,6 +140,8 @@ Scope reminder:
 - `data/proc/fillcalib/curves_<ASOF_DATE>.json`
 - `reports/fillcalib/<ASOF_DATE>.md`
 
+**Status:** DONE (2025-12-26)
+
 ---
 
 ## TICKET-105 — Calibration age visibility: single summary artifact + scoreboard + explicit NO-GO reasons

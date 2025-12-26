@@ -138,6 +138,7 @@ Suggested subdirs:
 - `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json` (daily basis summary: quantiles, per-window deltas, flip-risk flag)
 - `data/proc/calibration/` (calibration outputs)
 - `data/proc/fillcalib/` (fill curves)
+- `data/proc/fillcalib/dataset_<ASOF_DATE>.parquet` (optional fillcalib dataset if small)
 
 ### 3.3 Market status guardrails
 - The Polygon indices websocket collector checks `/v1/marketstatus/now` before REST fallback.
