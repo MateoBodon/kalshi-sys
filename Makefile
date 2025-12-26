@@ -90,41 +90,7 @@ gpt-bundle:
 	fi; \
 	BUNDLE_ROOT="docs/gpt_bundles"; \
 	STAGING="$$BUNDLE_ROOT/$(RUN_NAME)"; \
-	mkdir -p "$$STAGING/docs/agent_runs" "$$STAGING/project_state" "$$STAGING/docs"; \
-	cp AGENTS.md "$$STAGING/"; \
-	cp docs/PLAN_OF_RECORD.md docs/DOCS_AND_LOGGING_SYSTEM.md docs/CODEX_SPRINT_TICKETS.md "$$STAGING/docs/"; \
-	cp docs/PROGRESS.md "$$STAGING/docs/"; \
-	cp docs/PROGRESS.md "$$STAGING/PROGRESS.md"; \
-	cp project_state/CURRENT_RESULTS.md project_state/KNOWN_ISSUES.md project_state/CONFIG_REFERENCE.md "$$STAGING/project_state/"; \
-	cp -R "docs/agent_runs/$(RUN_NAME)" "$$STAGING/docs/agent_runs/"; \
-	if [ -d "data/proc/telemetry" ]; then \
-		mkdir -p "$$STAGING/data/proc"; \
-		cp -R "data/proc/telemetry" "$$STAGING/data/proc/"; \
-	fi; \
-	if ls data/proc/fillcalib/*.json >/dev/null 2>&1; then \
-		mkdir -p "$$STAGING/data/proc/fillcalib"; \
-		cp data/proc/fillcalib/*.json "$$STAGING/data/proc/fillcalib/"; \
-	fi; \
-	if ls reports/ops/telemetry_volume_*.md >/dev/null 2>&1; then \
-		mkdir -p "$$STAGING/reports/ops"; \
-		cp reports/ops/telemetry_volume_*.md "$$STAGING/reports/ops/"; \
-	fi; \
-	if ls reports/fillcalib/*.md >/dev/null 2>&1; then \
-		mkdir -p "$$STAGING/reports/fillcalib"; \
-		cp reports/fillcalib/*.md "$$STAGING/reports/fillcalib/"; \
-	fi; \
-	if [ -f "reports/pilot_ready.json" ]; then \
-		mkdir -p "$$STAGING/reports"; \
-		cp "reports/pilot_ready.json" "$$STAGING/reports/"; \
-	fi; \
-	if [ -f "reports/pilot_readiness.md" ]; then \
-		mkdir -p "$$STAGING/reports"; \
-		cp "reports/pilot_readiness.md" "$$STAGING/reports/"; \
-	fi; \
-	if ls reports/calibration/*.md >/dev/null 2>&1; then \
-		mkdir -p "$$STAGING/reports/calibration"; \
-		cp reports/calibration/*.md "$$STAGING/reports/calibration/"; \
-	fi; \
+	$(PYTHON) -m tools.gpt_bundle_builder --run-name "$(RUN_NAME)" --staging "$$STAGING"; \
 	DIFF_PATH="$$STAGING/DIFF.patch"; \
 	BASE_REF=""; \
 	if git show-ref --verify --quiet refs/remotes/origin/main; then \
