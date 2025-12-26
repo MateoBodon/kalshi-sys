@@ -132,3 +132,14 @@
 - git diff 00ff4c697c8c2dac171149f844e819a0fbf70f3d..HEAD > docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch (exit 0)
 
 - python3 - <<'PY' ... (update META.json end_utc/git_sha_end) (exit 0)
+
+- git add docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md (exit 1)
+- git add -f docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md (exit 0)
+- git commit -m "Update run log checklist verification" -m "Tests: not run (run log updates only)" (exit 0)
+- PYTHON=python3 make gpt-bundle TICKET=TICKET-104 RUN_NAME=20251226T092315Z_TICKET-104_fillcalib_curves (exit 0)
+
+- git diff 00ff4c697c8c2dac171149f844e819a0fbf70f3d..HEAD > docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch (exit 0)
+- python3 - <<'PY' ... (update META.json end_utc/git_sha_end) (exit 0)
+- git add -f docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md (exit 0)
+- git commit -m "Log final bundle run (checklist)" -m "Tests: not run (run log update only)" (exit 0)
+- git push origin main (exit 0)
