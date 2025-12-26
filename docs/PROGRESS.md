@@ -1,6 +1,6 @@
 # Progress
 
-Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
+Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
 
 ## 2025-12-22
 - Ticket #0 — Project_state rebuild: refreshed `project_state/` docs with generated inventories, symbol index, dependency graph, and navigation; bundled snapshot zip created.
@@ -24,6 +24,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
 
 ## 2025-12-26
 - Ticket #103 follow-up — Freshness monitor now honors Polygon marketstatus for closed/extended hours and ops market-status CLI added.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md`
+- Ticket #103 RETRY — Dry-run telemetry proof captured: TOB + quote-intent artifacts produced for INXU/NASDAQ100U (telemetry-only override), ops telemetry volume report written, retention pruning proved, and GPT bundle now carries telemetry artifacts + full diff.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md`
 

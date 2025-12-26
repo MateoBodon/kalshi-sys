@@ -74,7 +74,7 @@ Scope reminder:
 - `reports/basis/<SERIES>/<YYYY-MM-DD>.md`
 - `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json`
 
-**Status:** DONE (2025-12-23)
+**Status:** DONE (2025-12-26) — dry-run telemetry artifacts + ops volume report captured; retention pruning verified.
 
 **Follow-up:** 2025-12-25 — REST snapshot switched to v3 indices endpoint + marketstatus guard added for closed/extended hours.
 **Follow-up:** 2025-12-26 — Freshness monitor now honors marketstatus (closed/extended) + ops market status CLI added.

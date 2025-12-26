@@ -181,6 +181,7 @@ Required artifacts:
 - `data/proc/fillcalib/curves_<ASOF_DATE>.json`
 - `reports/fillcalib/<ASOF_DATE>.md` (sample counts + conservative curve)
 - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
+- Per-ticket GPT bundles should include telemetry artifacts (`data/proc/telemetry/*`) and the ops volume report when generated.
 
 Retention + bounds:
 - Per-window cap: 256KB per stream (TOB + quote intents).

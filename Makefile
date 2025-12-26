@@ -97,6 +97,14 @@ gpt-bundle:
 	cp docs/PROGRESS.md "$$STAGING/PROGRESS.md"; \
 	cp project_state/CURRENT_RESULTS.md project_state/KNOWN_ISSUES.md project_state/CONFIG_REFERENCE.md "$$STAGING/project_state/"; \
 	cp -R "docs/agent_runs/$(RUN_NAME)" "$$STAGING/docs/agent_runs/"; \
+	if [ -d "data/proc/telemetry" ]; then \
+		mkdir -p "$$STAGING/data/proc"; \
+		cp -R "data/proc/telemetry" "$$STAGING/data/proc/"; \
+	fi; \
+	if ls reports/ops/telemetry_volume_*.md >/dev/null 2>&1; then \
+		mkdir -p "$$STAGING/reports/ops"; \
+		cp reports/ops/telemetry_volume_*.md "$$STAGING/reports/ops/"; \
+	fi; \
 	DIFF_PATH="$$STAGING/DIFF.patch"; \
 	BASE_REF=""; \
 	if git show-ref --verify --quiet refs/remotes/origin/main; then \

@@ -3,6 +3,8 @@
 ## 2025-12-26
 - Freshness monitor now consults Polygon `/v1/marketstatus/now` so closed/extended hours do not flag `polygon_index.websocket` as stale.
 - Added `python -m kalshi_alpha.exec.market_status` CLI for ops to print market status + server time.
+- Verified telemetry-only dry-run captures TOB + quote-intent artifacts, wrote ops telemetry volume report, and proved retention pruning with a synthetic old-file deletion.
+- `make gpt-bundle` now includes telemetry artifacts (`data/proc/telemetry/*` and `reports/ops/telemetry_volume_*.md`) when present.
 
 ## 2025-12-25
 - Fix: Polygon indices REST snapshot fallback now uses `/v3/snapshot/indices`, parses v3 fields (value/session/last_updated), and fails closed on NOT_ENTITLED responses with updated unit tests.

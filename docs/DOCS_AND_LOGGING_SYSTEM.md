@@ -92,6 +92,7 @@ B) **Per-ticket bundles** (small, fast)
   - `docs/agent_runs/<RUN_NAME>/`
   - files changed in the ticket
   - any new reports/fixtures
+  - telemetry artifacts when generated (`data/proc/telemetry/*` and `reports/ops/telemetry_volume_*.md`)
 - Should also include a zip:
   - `docs/gpt_bundles/ticket_<...>.zip`
 
