@@ -227,3 +227,30 @@ Scope reminder:
 **Expected artifacts:**
 - `reports/safety/live_smoke_<DATE>.md`
 - `docs/agent_runs/<RUN_NAME>/` with clear proof of enforced behavior
+
+---
+
+## TICKET-108 — GPT bundle completeness for calibration/readiness artifacts
+
+**Goal (1 sentence):** Ensure per-ticket GPT bundles include fillcalib, pilot readiness, and calibration age artifacts, and fail-closed if ARTIFACTS.md lists files missing from the bundle.
+
+**Likely files/modules:**
+- `Makefile` (gpt-bundle target)
+- `tools/verify_gpt_bundle.py`
+- `tests/test_gpt_bundle_verifier.py`
+- `docs/DOCS_AND_LOGGING_SYSTEM.md`
+
+**Acceptance criteria:**
+- Bundles include `data/proc/fillcalib/*.json`, `reports/fillcalib/*.md`, `reports/pilot_ready.json`, `reports/pilot_readiness.md`, and `reports/calibration/*.md` when present.
+- Bundle verification fails if `docs/agent_runs/<RUN_NAME>/ARTIFACTS.md` lists an existing file missing from the bundle.
+- Regression tests cover bundle contents and fail-closed behavior.
+
+**Minimal tests/commands:**
+- `pytest -q`
+- `PYTHON=python3 make gpt-bundle TICKET=TICKET-108 RUN_NAME=<RUN_NAME>`
+
+**Expected artifacts:**
+- `docs/gpt_bundles/gpt_bundle_TICKET-108_<RUN_NAME>.zip`
+- `docs/agent_runs/<RUN_NAME>/` updated with bundle evidence
+
+**Status:** DONE (2025-12-26)
