@@ -1,0 +1,54 @@
+# Commands
+
+(Commands will be appended during the run.)
+- date -u "+%Y%m%d_%H%M%SZ"
+  - output: 20251222_191125Z
+- mkdir -p docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist
+- created initial run log stubs (PROMPT.md, COMMANDS.md, RESULTS.md, TESTS.md, META.json, diff.patch, artifacts.json, README.md, commands.log, prompt.md)
+- cat deploy/systemd/supervisor_index.service
+  - output: ExecStart uses /opt/kalshi-sys/.venv/bin/python, StartLimit in [Unit], no PYTHONPATH
+- rg -n "kalshi-supervisor-index.service" docs/runbooks/aws_supervisor_index.md
+  - output: runbook uses /etc/systemd/system/kalshi-supervisor-index.service
+- rg -n "PYTHONPATH" deploy/systemd docs/runbooks
+  - output: no matches
+- rg -n "scipy|pandas" -S src/kalshi_alpha/strategies/index src/kalshi_alpha/exec/preflight_index.py
+  - output: model_polygon imports pandas/scipy; hourly_above_below imports scipy
+- sed -n '1,120p' src/kalshi_alpha/exec/preflight_index.py
+  - output: preflight imports model_polygon (runtime dependency on pandas/scipy)
+- ssh kalshi-aws "pip install -e ." (missing cd)
+  - output: error (not a valid editable requirement)
+- ssh kalshi-aws "cd /opt/kalshi-sys; pip install -e ."
+  - output: requirements already satisfied; no SciPy compile
+- ssh kalshi-aws "systemctl show -p ExecStart -p FragmentPath -p User"
+  - output: ExecStart uses /opt/kalshi-sys/.venv/bin/python
+- ssh kalshi-aws "systemctl status kalshi-supervisor-index.service --no-pager" | sed (redacted)
+  - output: Active=running, dry-run broker, venv python
+- ssh kalshi-aws "systemctl cat kalshi-supervisor-index.service"
+  - output: no PYTHONPATH; StartLimit in [Unit]
+- ssh kalshi-aws "journalctl -u kalshi-supervisor-index.service -n 50 --no-pager" | sed (redacted)
+  - output: supervisor ran on EC2 (dry-run); window activity lines
+- updated docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/RESULTS.md
+- updated docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/README.md
+- git status -sb
+  - output: clean working tree on codex/TICKET-010_cloudwatch_validation
+- git checkout main
+- git merge codex/TICKET-010_cloudwatch_validation
+  - output: fast-forward merge
+- git push origin main
+  - output: pushed main
+- wrote docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/PROMPT.md (full user prompt)
+- pytest -q
+  - result: 117 passed, 740 skipped
+- git show --no-color HEAD > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/diff.patch
+- date -u "+%Y-%m-%dT%H:%M:%SZ"
+  - output: 2025-12-22T19:17:06Z
+- wrote docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/META.json (end_utc updated; branch=main)
+- make gpt-bundle TICKET=ticket-009 RUN_NAME=20251222_191125Z_TICKET-009_correctness_checklist
+  - output: Wrote docs/gpt_bundles/gpt_bundle_ticket-009_20251222_191125Z_TICKET-009_correctness_checklist.zip
+- wrote docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/artifacts.json (bundle path)
+- updated docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/RESULTS.md (bundle path)
+- git status -sb
+  - output: clean working tree on main
+- date -u "+%Y-%m-%dT%H:%M:%SZ"
+  - output: 2025-12-22T19:18:36Z
+- wrote docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/META.json (end_utc updated)

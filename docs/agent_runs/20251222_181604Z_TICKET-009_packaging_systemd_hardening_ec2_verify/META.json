@@ -1,0 +1,10 @@
+{
+  "run_name": "20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify",
+  "ticket_id": "TICKET-009_packaging_systemd_hardening_ec2_verify",
+  "branch": "codex/TICKET-009_packaging_systemd_hardening_ec2_verify",
+  "start_utc": "2025-12-22T18:16:04Z",
+  "end_utc": "2025-12-22T18:36:44Z",
+  "environment": "AWS/local",
+  "network_access": "enabled",
+  "web_search_used": false
+}

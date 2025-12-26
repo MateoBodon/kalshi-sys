@@ -1,0 +1,20 @@
+commit a907a2eed87531d8178c3dc183d6f070182f9ebe
+Author: Mateo Bodon <55267042+MateoBodon@users.noreply.github.com>
+Date:   Mon Dec 22 14:06:58 2025 -0500
+
+    Ignore docs directory
+    
+    Tests: not run (not requested)
+
+diff --git a/.gitignore b/.gitignore
+index 691c363..b278228 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -9,6 +9,7 @@ logs/
+ *.pyc
+ *.pyo
+ *.zip
++docs/
+ docs/agent_runs/
+ docs/gpt_bundles/
+ 

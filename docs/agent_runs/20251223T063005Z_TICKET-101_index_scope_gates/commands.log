@@ -1,0 +1,31 @@
+$ date -u +%Y%m%dT%H%M%SZ
+20251223T063005Z
+
+$ git rev-parse HEAD
+3a95e827f5b3a1209e36e78bd1f3fbe1f34fefa4
+
+$ git checkout -b codex/TICKET-101_index_scope_gates
+Switched to a new branch 'codex/TICKET-101_index_scope_gates'
+
+$ pytest -q
+117 passed, 741 skipped
+
+$ make monitors
+/bin/sh: python: command not found
+make: *** [monitors] Error 127
+
+$ PYTHON=python3 make monitors
+- ⬜ ev_gap: NO_DATA
+- ⬜ fill_vs_alpha: NO_DATA
+- ⬜ ev_seq_guard: NO_DATA
+- ⚠️ freeze_window: ALERT — Freeze active for CPI
+- ✅ drawdown: OK
+- ✅ ws_disconnect_rate: OK
+- ✅ auth_error_streak: OK
+- ✅ kill_switch: OK
+
+$ python3 -m kalshi_alpha.exec.preflight_index --offline
+PRECHECK index: NO-GO reasons=4 series=INX,NASDAQ100,INXU,NASDAQ100U
+
+$ python3 -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --max-runtime-seconds 5
+SUPERVISOR preflight: NO-GO reasons=4 series=INXU (broker=dry)

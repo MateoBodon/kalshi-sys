@@ -1,0 +1,16 @@
+{
+  "run_name": "20251223T223258Z_TICKET-103_telemetry_proof",
+  "generated_at": "2025-12-23T23:18:05Z",
+  "artifacts": [
+    {"path": "data/proc/telemetry/tob/20251223_225859Z.jsonl.gz"},
+    {"path": "data/proc/telemetry/quote_intents/20251223_225859Z.jsonl.gz"},
+    {"path": "data/proc/telemetry/runs/20251223_225859Z.json"},
+    {"path": "data/proc/telemetry/runs/20251223_225626Z.json"},
+    {"path": "data/proc/telemetry/runs/20251223_225724Z.json"},
+    {"path": "data/proc/telemetry/runs/20251223_225825Z.json"},
+    {"path": "reports/ops/telemetry_volume_2025-12-23.md"},
+    {"path": "reports/_artifacts/go_no_go.json"},
+    {"path": "reports/_artifacts/monitors/freshness.json"},
+    {"path": "data/proc/state/heartbeat.json"}
+  ]
+}

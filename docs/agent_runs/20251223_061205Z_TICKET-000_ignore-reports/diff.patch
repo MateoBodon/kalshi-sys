@@ -1,0 +1,41 @@
+diff --git a/.gitignore b/.gitignore
+index b278228..a8090bf 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,6 +6,7 @@ __pycache__/
+ .hypothesis/
+ .venv/
+ logs/
++reports/
+ *.pyc
+ *.pyo
+ *.zip
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 14690f7..1857948 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,8 @@
+ # Changelog
+ 
++## 2025-12-23
++- Gitignored `reports/` and removed tracked report outputs so report artifacts stay local-only.
++
+ ## 2025-12-22
+ - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.
+ - Ticket #10: validated CloudWatch agent config on Ubuntu, switched log shipping config to syslog tailing, and captured aws logs proof for kalshi-supervisor-index.
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index 5c32f84..f245d15 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -22,6 +22,11 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
+ 
++## 2025-12-23
++- Ticket #0 — Gitignored `reports/` and removed tracked report outputs so local artifacts never get committed.
++  - Gate status: PAPER
++  - Evidence: agent run log `docs/agent_runs/20251223_061205Z_TICKET-000_ignore-reports/README.md`
++
+ ## 2025-12-21
+ - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
+   - Gate status: PAPER

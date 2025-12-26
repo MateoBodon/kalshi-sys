@@ -1,0 +1,469 @@
+commit f74dfcc2a229cf828a78b23d0caafdd78af22fca
+Author: Mateo Bodon <55267042+MateoBodon@users.noreply.github.com>
+Date:   Sun Dec 21 18:15:15 2025 -0500
+
+    Ticket #5: AWS supervisor runbook + wiring
+    
+    Tests: pytest -q; pytest tests/test_index_scanner_fixtures.py::test_macro_stale_allows_execution_with_index_gates -q; python -m kalshi_alpha.exec.supervisor_index --help; PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --help
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 9a66803..97de22e 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,7 @@
+ - Added bounded TOB snapshot + quote-intent logging for index ladders, a fill-calibration dataset builder, and reporting notes for calibration inputs.
+ - Enforced pilot broker-boundary safety checks (maker-only crossing, window freeze, caps, kill switch) with new live-broker tests and explicit ack/env gating.
+ - Ticket #4 RETRY: tightened pilot config to index-only ladders, enforced TOB freshness at the live broker boundary, and added stale-TOB + kill-switch queue safety tests.
++- Added AWS supervisor runbook + on-call checks, a systemd supervisor template, and supervisor_index CLI aliases for `--dry-run` and `--series` with tests; stabilized the macro-stale index scanner fixture test with a fixed `--now` and clock-skew override.
+ - Added GPT bundle verification tooling, hardened `make gpt-bundle` diff generation, and added bundle hygiene tests for missing artifacts/placeholder diffs.
+ - Gitignored local run logs and GPT bundle artifacts (keep on disk, include in bundles for review).
+ 
+diff --git a/deploy/systemd/supervisor_index.service b/deploy/systemd/supervisor_index.service
+new file mode 100644
+index 0000000..97c1f5a
+--- /dev/null
++++ b/deploy/systemd/supervisor_index.service
+@@ -0,0 +1,20 @@
++[Unit]
++Description=Kalshi Index Supervisor (paper-only default)
++After=network.target
++
++[Service]
++Type=simple
++WorkingDirectory=/opt/kalshi-sys
++User=kalshi
++Group=kalshi
++Environment=SUPERVISOR_BROKER=dry
++Environment=PYTHONPATH=/opt/kalshi-sys/src
++EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
++ExecStart=/usr/bin/env python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --dry-run --broker ${SUPERVISOR_BROKER}
++Restart=always
++RestartSec=10
++StartLimitIntervalSec=300
++StartLimitBurst=5
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index def1333..9bf37ea 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -17,6 +17,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
+ - Ticket #4 RETRY — Pilot safety enforced at broker boundary: tightened pilot config to index-only, enforced TOB staleness checks, added broker-boundary tests (crossing/stale/kill-switch queue), and refreshed run logs (supersedes 20251221_055147Z run).
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/README.md`; tests `tests/test_broker_live_safety.py`, `src/kalshi_alpha/brokers/kalshi/live.py`
++- Ticket #5 — AWS / 24-7 supervisor wiring: added AWS runbook + on-call checks, a systemd supervisor template, supervisor_index CLI aliases for `--dry-run` + `--series` with tests, and stabilized the macro-stale index scanner fixture test.
++  - Gate status: PAPER
++  - Evidence: agent run log `docs/agent_runs/20251221_223847Z_TICKET-005_aws_supervisor_wiring/README.md`
+ - Ticket #7 — Bundle / diff hygiene stop-the-line: added GPT bundle verifier, hardened gpt-bundle diff generation, and tests for missing artifacts/placeholder diffs.
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251221_204343Z_TICKET-007_bundle_diff_hygiene/README.md`; tests `tests/test_gpt_bundle_verifier.py`
+diff --git a/docs/runbooks/aws_supervisor_index.md b/docs/runbooks/aws_supervisor_index.md
+new file mode 100644
+index 0000000..57ab538
+--- /dev/null
++++ b/docs/runbooks/aws_supervisor_index.md
+@@ -0,0 +1,154 @@
++# AWS Supervisor Index Runbook (paper-default)
++
++This runbook describes an AWS-ready, fail-closed deployment for the 24/7
++`kalshi_alpha.exec.supervisor_index` loop. Default posture is PAPER/dry-run.
++
++Last updated: 2025-12-21
++
++## Scope and defaults
++- Scope: index ladder windows only (INX/INXU/NASDAQ100/NASDAQ100U).
++- Default broker: dry (paper). Live must be explicitly armed and is out of scope
++  for this runbook unless a separate approval ticket exists.
++- Optional: `--series` can restrict the supervisor to a subset for smoke checks.
++
++## Prerequisites
++- Repo installed or checked out on the host (example: `/opt/kalshi-sys`).
++- Python 3.11+ environment activated.
++- Either:
++  - `pip install -e .`, or
++  - set `PYTHONPATH=src` in the EnvironmentFile.
++
++## Environment variables and secrets (SSM / Secrets Manager)
++Store secrets in AWS SSM Parameter Store or Secrets Manager and render into a
++local EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
++Do NOT store secrets in the repo.
++
++Required for online supervisor (preflight + discovery):
++- `POLYGON_API_KEY`
++  - Used by Polygon REST ping and websocket readers.
++  - Loaded via `kalshi_alpha.utils.keys.load_polygon_api_key()`.
++- `KALSHI_API_KEY_ID`
++  - Used by `kalshi_alpha.brokers.kalshi.http_client.KalshiHttpClient`.
++- `KALSHI_PRIVATE_KEY_PEM_PATH`
++  - Path to RSA private key PEM for Kalshi auth.
++
++Optional / ops:
++- `SUPERVISOR_BROKER`
++  - Used by `deploy/systemd/supervisor_index.service` to set broker mode.
++  - Default is `dry`; override only with explicit approval.
++- `KALSHI_MONITOR_SLACK_WEBHOOK`
++  - Used by `kalshi_alpha.exec.monitors.cli` for Slack alerts.
++- `KALSHI_INDEX_PAPER_LEDGER_PATH`
++  - Overrides default paper ledger path.
++
++## Configs and artifact paths
++Core configs:
++- `configs/index_ops.yaml` (window definitions + cancel buffers).
++- `configs/quality_gates.index.yaml` (index-only freshness thresholds).
++- `configs/freshness.index.yaml` (index-only data freshness monitor).
++- `configs/pilot.yaml` (pilot safety caps used by index scanners).
++
++Runtime artifacts:
++- Heartbeat: `data/proc/state/heartbeat.json`
++- Kill switch: `data/proc/state/kill_switch`
++- Outstanding orders: `data/proc/state/orders.json`
++- Monitor artifacts: `reports/_artifacts/monitors/*.json`
++- Freshness monitor: `reports/_artifacts/monitors/freshness.json`
++- GO/NO-GO summary: `reports/_artifacts/go_no_go.json`
++
++## Deployment (systemd on EC2)
++1) Copy the systemd unit template:
++   - `deploy/systemd/supervisor_index.service`
++2) Set WorkingDirectory + User/Group placeholders.
++3) Create an EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
++   - Include `SUPERVISOR_BROKER=dry` (default) and any required keys.
++4) Install and enable the service:
++   - `sudo cp deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service`
++   - `sudo systemctl daemon-reload`
++   - `sudo systemctl enable --now kalshi-supervisor-index.service`
++
++Watchdog behavior:
++- The service uses `Restart=always` and will self-heal after failures.
++- The supervisor exits after the final window; systemd restarts it and keeps a
++  24/7 posture.
++
++Monitoring jobs (recommended):
++- Reuse the existing templates under `configs/systemd/` for runtime monitors.
++  - `kalshi-alpha-monitors.service` runs `python -m kalshi_alpha.exec.monitors.cli`.
++  - `kalshi-alpha-monitors.timer` runs every 5 minutes.
++- Add an index-only freshness cron/timer:
++  - `python -m kalshi_alpha.exec.monitors.freshness --config configs/freshness.index.yaml`
++
++## Log routing (journald -> CloudWatch)
++- Configure the CloudWatch Agent to collect systemd/journald logs for
++  `kalshi-supervisor-index.service`.
++- Example signals to index in CloudWatch:
++  - `NO-GO` lines from supervisor logs.
++  - `skip ... polygon WS stale` lines.
++  - `fresh WS ok age=` lines for freshness trending.
++
++## Health checks and staleness thresholds
++Heartbeat:
++- Path: `data/proc/state/heartbeat.json`
++- Threshold: 5 minutes (see `heartbeat_stale(threshold=timedelta(minutes=5))` in
++  `src/kalshi_alpha/exec/runners/scan_ladders.py`).
++- Alarm if last heartbeat is older than 5 minutes.
++
++Monitor artifacts:
++- Path: `reports/_artifacts/monitors/*.json`
++- Staleness threshold: 30 minutes (DEFAULT_MONITOR_MAX_AGE_MINUTES in
++  `src/kalshi_alpha/exec/monitors/summary.py`).
++- Alarm if the newest monitor artifact is older than 30 minutes.
++
++Data freshness (index scope):
++- Config: `configs/freshness.index.yaml`
++- Polygon index websocket age_seconds threshold: 10 seconds.
++- Use `python -m kalshi_alpha.exec.monitors.freshness --config configs/freshness.index.yaml`
++  on a 5-minute cadence to refresh `freshness.json`.
++
++Supervisor WS gating:
++- Default thresholds: soft 1500 ms, strict 800 ms
++  (`DEFAULT_WS_SOFT_MS`, `DEFAULT_WS_STRICT_MS` in
++  `src/kalshi_alpha/exec/supervisor_index.py`).
++- Alarm if repeated `skip <window>: polygon WS stale` messages appear.
++
++Preflight calibration freshness:
++- Max age: 14 days (`MAX_CALIBRATION_AGE_DAYS` in
++  `src/kalshi_alpha/exec/preflight_index.py`).
++- Alarm if calibration files under `data/proc/calib/index/*/*/params.json`
++  exceed 14 days.
++
++## Alert conditions (minimum set)
++- Heartbeat stale > 5 minutes.
++- Monitor artifacts stale > 30 minutes.
++- Freshness artifact reports `status=ALERT` or `polygon_index.websocket` age > 10s.
++- Supervisor logs contain `NO-GO` or `polygon_ws_stale` for more than 2 windows.
++- systemd restarts > 3 within 10 minutes (crash loop).
++
++## Break-glass procedures
++Kill switch (immediate halt):
++1) Create the sentinel file: `touch data/proc/state/kill_switch`.
++2) Confirm `kill_switch_engaged` appears in `reports/_artifacts/go_no_go.json`.
++3) Remove file to resume (after incident review).
++
++Cancel-all (safe cleanup):
++- The kill switch triggers `cancel_all` intent in `data/proc/state/orders.json`.
++- For live orders, manually cancel via Kalshi UI/API (no built-in CLI yet).
++- For dry-run cleanup: `python -m kalshi_alpha.exec.runners.orders_doctor --reconcile --show`.
++
++Disable live broker quickly:
++- If running with a live override, set broker back to dry in the EnvironmentFile
++  (for example, `SUPERVISOR_BROKER=dry`), then restart the service:
++  - `sudo systemctl restart kalshi-supervisor-index.service`
++- Live should never be enabled without explicit approval and acknowledgment.
++
++## Local smoke commands
++- Dry-run (requires keys):
++  - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
++- No-keys smoke:
++  - `python -m kalshi_alpha.exec.supervisor_index --help`
++
++## Related docs
++- `docs/runbooks/oncall_checks.md`
++- `docs/runbooks/hourly.md`
++- `docs/index_ladders/aws_supervisor_index.md`
+diff --git a/docs/runbooks/oncall_checks.md b/docs/runbooks/oncall_checks.md
+new file mode 100644
+index 0000000..01d55a1
+--- /dev/null
++++ b/docs/runbooks/oncall_checks.md
+@@ -0,0 +1,50 @@
++# On-Call Checks (supervisor_index)
++
++Last updated: 2025-12-21
++
++## Quick triage (0-5 minutes)
++- Check service status:
++  - `systemctl status kalshi-supervisor-index.service`
++- Check recent logs for NO-GO / WS stale:
++  - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
++- Check heartbeat age:
++  - `data/proc/state/heartbeat.json` should be updated within 5 minutes.
++- Check monitor artifacts:
++  - newest file under `reports/_artifacts/monitors/*.json` should be < 30 minutes old.
++- Check data freshness:
++  - `reports/_artifacts/monitors/freshness.json` status should be OK and
++    `polygon_index.websocket` age_seconds should be <= 10.
++
++## Standard checks (every shift)
++- Run runtime monitors (no secrets in output):
++  - `python -m kalshi_alpha.exec.monitors.cli --no-report`
++- Refresh data freshness (index-only):
++  - `python -m kalshi_alpha.exec.monitors.freshness --config configs/freshness.index.yaml --print`
++- Confirm kill switch is not engaged:
++  - absence of `data/proc/state/kill_switch`.
++- Confirm outstanding orders state is sane:
++  - `data/proc/state/orders.json` should have no unexpected live entries.
++
++## Response guide
++- Heartbeat stale (>5 min):
++  - Restart service, verify windows are active, check Polygon connectivity.
++- Monitor artifacts stale (>30 min):
++  - Run monitors CLI and check for filesystem write errors.
++- Data freshness ALERT or polygon WS stale:
++  - Validate POLYGON_API_KEY, network egress, and Polygon websocket logs.
++- Repeated NO-GO with `missing_env`:
++  - Validate EnvironmentFile content and permissions.
++- Crash loop:
++  - `systemctl status` for exit code; check recent deploys.
++
++## Break-glass (only if necessary)
++- Kill switch:
++  - `touch data/proc/state/kill_switch` and restart supervisor.
++- Cancel-all (live):
++  - Use Kalshi UI/API to cancel orders; `data/proc/state/orders.json` records intent.
++- Disable live broker:
++  - Set broker to dry in EnvironmentFile and restart service.
++
++## Escalation
++- If issues persist past two windows, escalate to the incident lead and start a
++  post-mortem draft using `docs/runbooks/postmortem_template.md`.
+diff --git a/src/kalshi_alpha/exec/supervisor_index.py b/src/kalshi_alpha/exec/supervisor_index.py
+index b5a5877..ef1a361 100644
+--- a/src/kalshi_alpha/exec/supervisor_index.py
++++ b/src/kalshi_alpha/exec/supervisor_index.py
+@@ -53,6 +53,7 @@ class SupervisorIndexConfig:
+     tob_max_bytes: int = DEFAULT_TOB_MAX_BYTES
+     max_runtime_seconds: float | None = None
+     skip_preflight: bool = False
++    series_filter: tuple[str, ...] | None = None
+ 
+     def normalized_broker(self) -> str:
+         return (self.broker or "dry").strip().lower()
+@@ -134,8 +135,12 @@ def _pick_window(now_et: datetime) -> TradingWindow | None:
+     return upcoming[0] if upcoming else None
+ 
+ 
+-def _series_to_run(window: TradingWindow) -> tuple[str, ...]:
+-    return tuple(series.upper() for series in window.series)
++def _series_to_run(window: TradingWindow, *, series_filter: Sequence[str] | None = None) -> tuple[str, ...]:
++    candidates = [series.upper() for series in window.series]
++    if series_filter:
++        allowed = {series.upper() for series in series_filter}
++        candidates = [series for series in candidates if series in allowed]
++    return tuple(candidates)
+ 
+ 
+ def _default_runner(
+@@ -211,11 +216,12 @@ async def _run_window(
+             quiet=config.quiet,
+         )
+ 
++    series_to_run = _series_to_run(window, series_filter=config.series_filter)
+     tasks = [
+-        asyncio.to_thread(runner, series, window, config, now_et) for series in _series_to_run(window)
++        asyncio.to_thread(runner, series, window, config, now_et) for series in series_to_run
+     ]
+     if tasks:
+-        _log(f"running window {window.label} for series {','.join(_series_to_run(window))}", quiet=config.quiet)
++        _log(f"running window {window.label} for series {','.join(series_to_run)}", quiet=config.quiet)
+         await asyncio.gather(*tasks)
+     return True, True
+ 
+@@ -320,11 +326,17 @@ def _is_transient_preflight(reasons: Sequence[str]) -> bool:
+     return all(reason in transient_tags for reason in reasons)
+ 
+ 
+-def main(argv: Sequence[str] | None = None) -> None:
++def _build_parser() -> argparse.ArgumentParser:
+     parser = argparse.ArgumentParser(description="Index ladder supervisor (paper, maker-only).")
+     parser.add_argument("--loop", action="store_true", help="Run continuously across windows until close.")
+     parser.add_argument("--sleep-seconds", type=float, default=DEFAULT_SLEEP_SECONDS, help="Loop sleep interval.")
++    parser.add_argument(
++        "--series",
++        nargs="+",
++        help="Restrict supervisor to specific series (INX/INXU/NASDAQ100/NASDAQ100U).",
++    )
+     parser.add_argument("--broker", default="dry", choices=["dry", "live"], help="Execution broker (default dry).")
++    parser.add_argument("--dry-run", action="store_true", help="Alias for --broker dry (safe default).")
+     parser.add_argument("--offline", action="store_true", help="Use offline fixtures (skips WS gating).")
+     parser.add_argument("--no-ws-listen", action="store_true", help="Disable local Polygon WS listener.")
+     parser.add_argument("--ws-soft-ms", type=float, default=DEFAULT_WS_SOFT_MS, help="WS freshness soft threshold.")
+@@ -369,12 +381,25 @@ def main(argv: Sequence[str] | None = None) -> None:
+         default=60.0,
+         help="Seconds before retrying a transient preflight failure inside the same window (0 to disable).",
+     )
++    return parser
++
+ 
+-    args = parser.parse_args(list(argv) if argv is not None else None)
++def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
++    parser = _build_parser()
++    return parser.parse_args(list(argv) if argv is not None else None)
++
++
++def _build_config(args: argparse.Namespace) -> SupervisorIndexConfig:
++    broker = args.broker
++    if args.dry_run:
++        if args.broker != "dry":
++            raise ValueError("--dry-run cannot be combined with --broker live.")
++        broker = "dry"
++    series_filter = tuple(str(series).upper() for series in args.series) if args.series else None
+     config = SupervisorIndexConfig(
+         loop=bool(args.loop),
+         sleep_seconds=max(1.0, float(args.sleep_seconds)),
+-        broker=args.broker,
++        broker=broker,
+         offline=bool(args.offline),
+         listen_ws=not bool(args.no_ws_listen) and not bool(args.offline),
+         ws_soft_ms=max(1.0, float(args.ws_soft_ms)),
+@@ -390,6 +415,7 @@ def main(argv: Sequence[str] | None = None) -> None:
+         tob_max_bytes=max(256, int(args.tob_max_bytes)),
+         max_runtime_seconds=float(args.max_runtime_seconds) if args.max_runtime_seconds else None,
+         skip_preflight=bool(args.skip_preflight),
++        series_filter=series_filter,
+     )
+     if config.record_tob and not config.tob_run_id:
+         config.tob_run_id = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%SZ")
+@@ -398,6 +424,12 @@ def main(argv: Sequence[str] | None = None) -> None:
+             config.tob_output_dir = config.tob_output_dir / config.tob_run_id
+     if config.skip_preflight and not config.offline:
+         raise ValueError("--skip-preflight is only allowed with --offline")
++    return config
++
++
++def main(argv: Sequence[str] | None = None) -> None:
++    args = _parse_args(argv)
++    config = _build_config(args)
+ 
+     ws_factory = lambda: WSListener(
+         soft_ms=config.ws_soft_ms,
+diff --git a/tests/exec/test_supervisor_index.py b/tests/exec/test_supervisor_index.py
+index bf90b12..183dfb6 100644
+--- a/tests/exec/test_supervisor_index.py
++++ b/tests/exec/test_supervisor_index.py
+@@ -8,6 +8,7 @@ import pytest
+ 
+ from kalshi_alpha.exec.index_paper_ledger import LEDGER_ENV_KEY, log_index_paper_trade
+ from kalshi_alpha.exec.preflight_index import PreflightResult
++from kalshi_alpha.exec import supervisor_index
+ from kalshi_alpha.exec.supervisor_index import SupervisorIndexConfig, _run_once, _run_window
+ from kalshi_alpha.sched import next_windows
+ 
+@@ -38,6 +39,41 @@ def _no_go_preflight(_: datetime) -> PreflightResult:
+     return PreflightResult(go=False, reasons=["env_missing"], details={})
+ 
+ 
++def test_supervisor_dry_run_alias() -> None:
++    args = supervisor_index._parse_args(["--dry-run", "--offline"])
++    config = supervisor_index._build_config(args)
++    assert config.broker == "dry"
++    assert config.offline
++
++
++def test_supervisor_dry_run_conflicts_with_live() -> None:
++    args = supervisor_index._parse_args(["--dry-run", "--broker", "live"])
++    with pytest.raises(ValueError, match="--dry-run cannot be combined"):
++        supervisor_index._build_config(args)
++
++
++@pytest.mark.asyncio
++async def test_supervisor_series_filter_runs_subset(tmp_path: Path) -> None:
++    now = datetime(2025, 11, 3, 9, 50, tzinfo=ET)
++    config = SupervisorIndexConfig(
++        now=now,
++        offline=True,
++        loop=False,
++        quiet=True,
++        series_filter=("INXU",),
++    )
++    calls: list[str] = []
++
++    await _run_once(
++        config,
++        preflight_fn=_go_preflight,
++        ws_factory=lambda: FakeWSListener(True),
++        runner=lambda series, window, cfg, moment: calls.append(series),
++    )
++
++    assert calls == ["INXU"]
++
++
+ @pytest.mark.asyncio
+ async def test_supervisor_skips_outside_window(tmp_path: Path) -> None:
+     now = datetime(2025, 11, 3, 7, 0, tzinfo=ET)  # well before 10:00 ET hourly window
+diff --git a/tests/test_index_scanner_fixtures.py b/tests/test_index_scanner_fixtures.py
+index 87140a6..6b7811d 100644
+--- a/tests/test_index_scanner_fixtures.py
++++ b/tests/test_index_scanner_fixtures.py
+@@ -18,6 +18,7 @@ from kalshi_alpha.strategies.index import close_range, hourly_above_below
+ 
+ ET = ZoneInfo("America/New_York")
+ UTC = ZoneInfo("UTC")
++FIXED_NOW_ET = datetime(2025, 11, 3, 11, 55, tzinfo=ET)
+ 
+ 
+ def _configure_index_calibration(proc_root: Path) -> None:
+@@ -241,6 +242,7 @@ def test_macro_stale_allows_execution_with_index_gates(
+     }
+     (monitors_dir / "freshness.json").write_text(json.dumps(freshness_payload, indent=2), encoding="utf-8")
+ 
++    monkeypatch.setattr(scan_ladders, "_clock_skew_seconds", lambda *_: 0.0)
+     monkeypatch.chdir(tmp_path)
+     scan_ladders.main(
+         [
+@@ -261,6 +263,8 @@ def test_macro_stale_allows_execution_with_index_gates(
+             "index",
+             "--pal-policy",
+             str(pal_policy_path),
++            "--now",
++            FIXED_NOW_ET.isoformat(),
+         ]
+     )
+ 

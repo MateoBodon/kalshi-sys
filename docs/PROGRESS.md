@@ -22,6 +22,11 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
 
+## 2025-12-26
+- Ticket #103 follow-up — Freshness monitor now honors Polygon marketstatus for closed/extended hours and ops market-status CLI added.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md`
+
 ## 2025-12-25
 - Ticket #103 follow-up — Updated Polygon indices REST snapshot fallback to the v3 indices snapshot endpoint, added NOT_ENTITLED fail-closed handling + tests, and guarded REST fallback during closed/extended hours via marketstatus.
   - Gate status: PAPER

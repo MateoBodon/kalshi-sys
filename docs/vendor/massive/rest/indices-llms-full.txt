@@ -1,0 +1,1067 @@
+# REST API
+
+## Aggregates
+
+# REST
+## Indices
+
+### Custom Bars (OHLC)
+
+**Endpoint:** `GET /v2/aggs/ticker/{indicesTicker}/range/{multiplier}/{timespan}/{from}/{to}`
+
+**Description:**
+
+Retrieve aggregated historical OHLC (Open, High, Low, Close) and value data for a specified index over a custom date range and time interval in Eastern Time (ET). Unlike stocks or options, these aggregates are derived from index values rather than individual trades, reflecting the performance of a market segment, sector, or benchmark. If no index updates occur within a given timeframe, no aggregate bar is produced, resulting in an empty interval that indicates a period without new index data. Users can customize their view by adjusting the multiplier and timespan parameters (e.g., a 5-minute interval). This approach supports various analytical and visualization needs related to broad market or sector performance.
+
+Use Cases: Data visualization, market trend analysis, benchmark comparisons, research and modeling.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `indicesTicker` | string | Yes | The ticker symbol of Index. |
+| `multiplier` | integer | Yes | The size of the timespan multiplier. |
+| `timespan` | string | Yes | The size of the time window. |
+| `from` | string | Yes | The start of the aggregate time window. Either a date with the format YYYY-MM-DD or a millisecond timestamp. |
+| `to` | string | Yes | The end of the aggregate time window. Either a date with the format YYYY-MM-DD or a millisecond timestamp. |
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `sort` | N/A | No | Sort the results by timestamp. `asc` will return results in ascending order (oldest at the top), `desc` will return results in descending order (newest at the top).  |
+| `limit` | integer | No | Limits the number of base aggregates queried to create the aggregate results. Max 50000 and Default 5000. Read more about how limit is used to calculate aggregate results in our article on <a href="https://massive.com/blog/aggs-api-updates/" target="_blank" alt="Aggregate Data API Improvements">Aggregate Data API Improvements</a>.  |
+
+## Sample Response
+
+```json
+{
+  "count": 2,
+  "queryCount": 2,
+  "request_id": "0cf72b6da685bcd386548ffe2895904a",
+  "results": [
+    {
+      "c": 11995.88235998666,
+      "h": 12340.44936267155,
+      "l": 11970.34221717375,
+      "o": 12230.83658266843,
+      "t": 1678341600000
+    },
+    {
+      "c": 11830.28178808306,
+      "h": 12069.62262033557,
+      "l": 11789.85923449393,
+      "o": 12001.69552583921,
+      "t": 1678428000000
+    }
+  ],
+  "status": "OK",
+  "ticker": "I:NDX"
+}
+```
+
+
+---
+
+# REST
+## Indices
+
+### Daily Ticker Summary (OHLC)
+
+**Endpoint:** `GET /v1/open-close/{indicesTicker}/{date}`
+
+**Description:**
+
+Retrieve the opening and closing prices for a specific index on a given date, along with any pre-market and after-hours trade prices. This endpoint provides essential daily pricing details, enabling users to evaluate performance, conduct historical analysis, and gain insights into trading activity outside regular market sessions.
+
+Use Cases: Daily performance analysis, historical data collection, after-hours insights, portfolio tracking.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `indicesTicker` | string | Yes | The ticker symbol of Index. |
+| `date` | string | Yes | The date of the requested open/close in the format YYYY-MM-DD. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `afterHours` | number | The close value of the ticker symbol in after hours trading. |
+| `close` | number | The close value for the symbol in the given time period. |
+| `from` | string | The requested date. |
+| `high` | number | The highest value for the symbol in the given time period. |
+| `low` | number | The lowest value for the symbol in the given time period. |
+| `open` | number | The open value for the symbol in the given time period. |
+| `preMarket` | integer | The open value of the ticker symbol in pre-market trading. |
+| `status` | string | The status of this request's response. |
+| `symbol` | string | The exchange symbol that this item is traded under. |
+
+## Sample Response
+
+```json
+{
+  "afterHours": 11830.43006295237,
+  "close": 11830.28178808306,
+  "from": "2023-03-10T00:00:00.000Z",
+  "high": 12069.62262033557,
+  "low": 11789.85923449393,
+  "open": 12001.69552583921,
+  "preMarket": 12001.69552583921,
+  "status": "OK",
+  "symbol": "I:NDX"
+}
+```
+
+
+---
+
+# REST
+## Indices
+
+### Previous Day Bar (OHLC)
+
+**Endpoint:** `GET /v2/aggs/ticker/{indicesTicker}/prev`
+
+**Description:**
+
+Retrieve the previous trading day's open, high, low, and close (OHLC) data for a specified index ticker. This endpoint provides key pricing metrics, including volume, to help users assess recent performance and inform trading strategies.
+
+Use Cases: Baseline comparison, technical analysis, market research, and daily reporting.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `indicesTicker` | string | Yes | The ticker symbol of Index. |
+
+## Sample Response
+
+```json
+{
+  "queryCount": 1,
+  "request_id": "b2170df985474b6d21a6eeccfb6bee67",
+  "results": [
+    {
+      "T": "I:NDX",
+      "c": 15070.14948566977,
+      "h": 15127.4195807999,
+      "l": 14946.7243781848,
+      "o": 15036.48391066877,
+      "t": 1687291200000
+    }
+  ],
+  "resultsCount": 1,
+  "status": "OK",
+  "ticker": "I:NDX"
+}
+```
+
+
+---
+
+## Market Operations
+
+# REST
+## Indices
+
+### Market Holidays
+
+**Endpoint:** `GET /v1/marketstatus/upcoming`
+
+**Description:**
+
+Retrieve upcoming market holidays and their corresponding open/close times. This endpoint is forward-looking only, listing future holidays that affect market hours. Use this data to plan ahead for trading activities and system operations.
+
+Use Cases: Trading schedule adjustments, integrated holiday calendars, operational planning (e.g., system maintenance), and notifying users about upcoming market closures.
+
+## Sample Response
+
+```json
+[
+  {
+    "date": "2020-11-26",
+    "exchange": "NYSE",
+    "name": "Thanksgiving",
+    "status": "closed"
+  },
+  {
+    "date": "2020-11-26",
+    "exchange": "NASDAQ",
+    "name": "Thanksgiving",
+    "status": "closed"
+  },
+  {
+    "date": "2020-11-26",
+    "exchange": "OTC",
+    "name": "Thanksgiving",
+    "status": "closed"
+  },
+  {
+    "close": "2020-11-27T18:00:00.000Z",
+    "date": "2020-11-27",
+    "exchange": "NASDAQ",
+    "name": "Thanksgiving",
+    "open": "2020-11-27T14:30:00.000Z",
+    "status": "early-close"
+  },
+  {
+    "close": "2020-11-27T18:00:00.000Z",
+    "date": "2020-11-27",
+    "exchange": "NYSE",
+    "name": "Thanksgiving",
+    "open": "2020-11-27T14:30:00.000Z",
+    "status": "early-close"
+  }
+]
+```
+
+
+---
+
+# REST
+## Indices
+
+### Market Status
+
+**Endpoint:** `GET /v1/marketstatus/now`
+
+**Description:**
+
+Retrieve the current trading status for various exchanges and overall financial markets. This endpoint provides real-time indicators of whether markets are open, closed, or operating in pre-market/after-hours sessions, along with timing details for the current or upcoming trading periods.
+
+Use Cases: Real-time monitoring, algorithm scheduling, UI updates, and operational planning.
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `afterHours` | boolean | Whether or not the market is in post-market hours. |
+| `currencies` | object | Contains the status of various currency markets. |
+| `currencies.crypto` | string | The status of the crypto market. |
+| `currencies.fx` | string | The status of the forex market. |
+| `earlyHours` | boolean | Whether or not the market is in pre-market hours. |
+| `exchanges` | object | Contains the status of different US stock exchanges (e.g., Nasdaq, NYSE). |
+| `exchanges.nasdaq` | string | The status of the Nasdaq market. |
+| `exchanges.nyse` | string | The status of the NYSE market. |
+| `exchanges.otc` | string | The status of the OTC market. |
+| `indicesGroups` | object | Contains the status of various index groups (e.g., MSCI, FTSE Russell). |
+| `indicesGroups.cccy` | string | The status of Cboe Streaming Market Indices Cryptocurrency ("CCCY") indices trading hours. |
+| `indicesGroups.cgi` | string | The status of Cboe Global Indices ("CGI") trading hours. |
+| `indicesGroups.dow_jones` | string | The status of Dow Jones indices trading hours |
+| `indicesGroups.ftse_russell` | string | The status of Financial Times Stock Exchange Group ("FTSE") Russell indices trading hours. |
+| `indicesGroups.msci` | string | The status of Morgan Stanley Capital International ("MSCI") indices trading hours. |
+| `indicesGroups.mstar` | string | The status of Morningstar ("MSTAR") indices trading hours. |
+| `indicesGroups.mstarc` | string | The status of Morningstar Customer ("MSTARC") indices trading hours. |
+| `indicesGroups.nasdaq` | string | The status of National Association of Securities Dealers Automated Quotations ("Nasdaq") indices trading hours. |
+| `indicesGroups.s_and_p` | string | The status of Standard & Poor's ("S&P") indices trading hours. |
+| `indicesGroups.societe_generale` | string | The status of Societe Generale indices trading hours. |
+| `market` | string | The status of the market as a whole. |
+| `serverTime` | string | The current time of the server, returned as a date-time in RFC3339 format. |
+
+## Sample Response
+
+```json
+{
+  "afterHours": true,
+  "currencies": {
+    "crypto": "open",
+    "fx": "open"
+  },
+  "earlyHours": false,
+  "exchanges": {
+    "nasdaq": "extended-hours",
+    "nyse": "extended-hours",
+    "otc": "closed"
+  },
+  "market": "extended-hours",
+  "serverTime": "2020-11-10T17:37:37-05:00"
+}
+```
+
+
+---
+
+## Snapshots
+
+# REST
+## Indices
+
+### Indices Snapshot
+
+**Endpoint:** `GET /v3/snapshot/indices`
+
+**Description:**
+
+Retrieve snapshot data for one or more indices, including their current value, recent performance metrics, and trading session details. By consolidating key information for each specified index, this endpoint helps users assess market conditions, track broad economic sentiment, and integrate index-level data into trading or analysis workflows.
+
+Use Cases: Market condition assessment, economic sentiment tracking, portfolio context, and integrated index data analysis.
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ticker.any_of` | string | No | Comma separated list of tickers, up to a maximum of 250. If no tickers are passed then all results will be returned in a paginated manner.  Warning: The maximum number of characters allowed in a URL are subject to your technology stack. |
+| `ticker` | string | No | Search a range of tickers lexicographically. |
+| `ticker.gte` | string | No | Range by ticker. |
+| `ticker.gt` | string | No | Range by ticker. |
+| `ticker.lte` | string | No | Range by ticker. |
+| `ticker.lt` | string | No | Range by ticker. |
+| `order` | string | No | Order results based on the `sort` field. |
+| `limit` | integer | No | Limit the number of results returned, default is 10 and max is 250. |
+| `sort` | string | No | Sort field used for ordering. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `next_url` | string | If present, this value can be used to fetch the next page of data. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | array[object] | An array of results containing the requested data. |
+| `results[].error` | string | The error while looking for this ticker. |
+| `results[].last_updated` | integer | The nanosecond timestamp of when this information was updated. |
+| `results[].market_status` | string | The market status for the market that trades this ticker. |
+| `results[].message` | string | The error message while looking for this ticker. |
+| `results[].name` | string | Name of Index. |
+| `results[].session` | object | Trading session metrics, detailing change percentages and key price points (open, close, high, low) for the asset within the current trading day. |
+| `results[].ticker` | string | Ticker of asset queried. |
+| `results[].timeframe` | enum: DELAYED, REAL-TIME | The time relevance of the data. |
+| `results[].type` | enum: indices | The indices market. |
+| `results[].value` | number | Value of Index. |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "request_id": "6a7e466379af0a71039d60cc78e72282",
+  "results": [
+    {
+      "last_updated": 1679597116344223500,
+      "market_status": "closed",
+      "name": "Dow Jones Industrial Average",
+      "session": {
+        "change": -50.01,
+        "change_percent": -1.45,
+        "close": 3822.39,
+        "high": 3834.41,
+        "low": 38217.11,
+        "open": 3827.38,
+        "previous_close": 3812.19
+      },
+      "ticker": "I:DJI",
+      "timeframe": "REAL-TIME",
+      "type": "indices",
+      "value": 3822.39
+    },
+    {
+      "error": "NOT_FOUND",
+      "message": "Ticker not found.",
+      "ticker": "APx"
+    },
+    {
+      "error": "NOT_ENTITLED",
+      "message": "Not entitled to this ticker.",
+      "ticker": "APy"
+    }
+  ],
+  "status": "OK"
+}
+```
+
+
+---
+
+# REST
+## Indices
+
+### Unified Snapshot
+
+**Endpoint:** `GET /v3/snapshot`
+
+**Description:**
+
+Retrieve unified snapshots of market data for multiple asset classes including stocks, options, forex, and cryptocurrencies in a single request. This endpoint consolidates key metrics such as last trade, last quote, open, high, low, close, and volume for a comprehensive view of current market conditions. By aggregating data from various sources into one response, users can efficiently monitor, compare, and act on information spanning multiple markets and asset types.
+
+Use Cases: Cross-market analysis, diversified portfolio monitoring, global market insights, multi-asset trading strategies.
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ticker` | string | No | Search a range of tickers lexicographically. |
+| `type` | string | No | Query by the type of asset. |
+| `ticker.gte` | string | No | Range by ticker. |
+| `ticker.gt` | string | No | Range by ticker. |
+| `ticker.lte` | string | No | Range by ticker. |
+| `ticker.lt` | string | No | Range by ticker. |
+| `ticker.any_of` | string | No | Comma separated list of tickers, up to a maximum of 250. If no tickers are passed then all results will be returned in a paginated manner.  Warning: The maximum number of characters allowed in a URL are subject to your technology stack.  |
+| `order` | string | No | Order results based on the `sort` field. |
+| `limit` | integer | No | Limit the number of results returned, default is 10 and max is 250. |
+| `sort` | string | No | Sort field used for ordering. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `next_url` | string | If present, this value can be used to fetch the next page of data. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | array[object] | An array of results containing the requested data. |
+| `results[].break_even_price` | number | The price of the underlying asset for the contract to break even. For a call, this value is (strike price + premium paid). For a put, this value is (strike price - premium paid). |
+| `results[].details` | object | The details for this contract. |
+| `results[].error` | string | The error while looking for this ticker. |
+| `results[].fmv` | number | Fair Market Value is only available on Business plans. It is our proprietary algorithm to generate a real-time, accurate, fair market value of a tradable security. For more information, <a rel="nofollow" target="_blank" href="https://massive.com/contact">contact us</a>. |
+| `results[].fmv_last_updated` | integer | If Fair Market Value (FMV) is available, this field is the nanosecond timestamp of the last FMV calculation. |
+| `results[].greeks` | object | The greeks for this contract. There are certain circumstances where greeks will not be returned, such as options contracts that are deep in the money. See this <a href="https://massive.com/blog/greeks-and-implied-volatility/#testing" alt="link">article</a> for more information. |
+| `results[].implied_volatility` | number | The market's forecast for the volatility of the underlying asset, based on this option's current price. |
+| `results[].last_minute` | object | The most recent minute aggregate for this stock. |
+| `results[].last_quote` | object | The most recent quote for this contract. This is only returned if your current plan includes quotes. |
+| `results[].last_trade` | object | The most recent quote for this contract. This is only returned if your current plan includes trades. |
+| `results[].last_updated` | integer | The nanosecond timestamp of when this information was updated. |
+| `results[].market_status` | string | The market status for the market that trades this ticker. Possible values for stocks, options, crypto, and forex snapshots are open, closed, early_trading, or late_trading. Possible values for indices snapshots are regular_trading, closed, early_trading, and late_trading. |
+| `results[].message` | string | The error message while looking for this ticker. |
+| `results[].name` | string | The name of this contract. |
+| `results[].open_interest` | number | The quantity of this contract held at the end of the last trading day. |
+| `results[].session` | object | Comprehensive trading session metrics, detailing price changes, trading volume, and key price points (open, close, high, low) for the asset within the current trading day. Includes specific changes during early, regular, and late trading periods to enable detailed performance analysis and trend tracking. |
+| `results[].ticker` | string | The ticker symbol for the asset. |
+| `results[].timeframe` | enum: DELAYED, REAL-TIME | The time relevance of the data. |
+| `results[].type` | enum: stocks, options, fx, crypto, indices | The asset class for this ticker. |
+| `results[].underlying_asset` | object | Information on the underlying stock for this options contract.  The market data returned depends on your current stocks plan. |
+| `results[].value` | number | Value of Index. |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "request_id": "abc123",
+  "results": [
+    {
+      "break_even_price": 171.075,
+      "details": {
+        "contract_type": "call",
+        "exercise_style": "american",
+        "expiration_date": "2022-10-14",
+        "shares_per_contract": 100,
+        "strike_price": 5,
+        "underlying_ticker": "NCLH"
+      },
+      "fmv": 0.05,
+      "fmv_last_updated": 1636573458757383400,
+      "greeks": {
+        "delta": 0.5520187372272933,
+        "gamma": 0.00706756515659829,
+        "theta": -0.018532772783847958,
+        "vega": 0.7274811132998142
+      },
+      "implied_volatility": 0.3048997097864957,
+      "last_quote": {
+        "ask": 21.25,
+        "ask_exchange": 12,
+        "ask_size": 110,
+        "bid": 20.9,
+        "bid_exchange": 10,
+        "bid_size": 172,
+        "last_updated": 1636573458756383500,
+        "midpoint": 21.075,
+        "timeframe": "REAL-TIME"
+      },
+      "last_trade": {
+        "conditions": [
+          209
+        ],
+        "exchange": 316,
+        "price": 0.05,
+        "sip_timestamp": 1675280958783136800,
+        "size": 2,
+        "timeframe": "REAL-TIME"
+      },
+      "market_status": "closed",
+      "name": "NCLH $5 Call",
+      "open_interest": 8921,
+      "session": {
+        "change": -0.05,
+        "change_percent": -1.07,
+        "close": 6.65,
+        "early_trading_change": -0.01,
+        "early_trading_change_percent": -0.03,
+        "high": 7.01,
+        "late_trading_change": -0.4,
+        "late_trading_change_percent": -0.02,
+        "low": 5.42,
+        "open": 6.7,
+        "previous_close": 6.71,
+        "regular_trading_change": -0.6,
+        "regular_trading_change_percent": -0.5,
+        "volume": 67
+      },
+      "ticker": "O:NCLH221014C00005000",
+      "type": "options",
+      "underlying_asset": {
+        "change_to_break_even": 23.123999999999995,
+        "last_updated": 1636573459862384600,
+        "price": 147.951,
+        "ticker": "AAPL",
+        "timeframe": "REAL-TIME"
+      }
+    },
+    {
+      "fmv": 0.05,
+      "fmv_last_updated": 1636573458757383400,
+      "last_minute": {
+        "close": 412.05,
+        "high": 412.1,
+        "low": 412.05,
+        "open": 412.1,
+        "transactions": 26,
+        "volume": 610,
+        "vwap": 412.0881
+      },
+      "last_quote": {
+        "ask": 21.25,
+        "ask_exchange": 300,
+        "ask_size": 110,
+        "bid": 20.9,
+        "bid_exchange": 323,
+        "bid_size": 172,
+        "last_updated": 1636573458756383500,
+        "timeframe": "REAL-TIME"
+      },
+      "last_trade": {
+        "conditions": [
+          209
+        ],
+        "exchange": 316,
+        "id": "4064",
+        "last_updated": 1675280958783136800,
+        "price": 0.05,
+        "size": 2,
+        "timeframe": "REAL-TIME"
+      },
+      "market_status": "closed",
+      "name": "Apple Inc.",
+      "session": {
+        "change": -1.05,
+        "change_percent": -4.67,
+        "close": 21.4,
+        "early_trading_change": -0.39,
+        "early_trading_change_percent": -0.07,
+        "high": 22.49,
+        "late_trading_change": 1.2,
+        "late_trading_change_percent": 3.92,
+        "low": 21.35,
+        "open": 22.49,
+        "previous_close": 22.45,
+        "volume": 37
+      },
+      "ticker": "AAPL",
+      "type": "stocks"
+    },
+    {
+      "error": "NOT_FOUND",
+      "message": "Ticker not found.",
+      "ticker": "TSLAAPL"
+    }
+  ],
+  "status": "OK"
+}
+```
+
+
+---
+
+## Technical Indicators
+
+# REST
+## Indices
+
+### Exponential Moving Average (EMA)
+
+**Endpoint:** `GET /v1/indicators/ema/{indicesTicker}`
+
+**Description:**
+
+Retrieve the Exponential Moving Average (EMA) for a specified ticker over a defined time range. The EMA places greater weight on recent prices, enabling quicker trend detection and more responsive signals.
+
+Use Cases: Trend identification, EMA crossover signals, dynamic support/resistance levels, and adjusting strategies based on recent market volatility.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `indicesTicker` | string | Yes | The ticker symbol for which to get exponential moving average (EMA) data. |
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `timestamp` | string | No | Query by timestamp. Either a date with the format YYYY-MM-DD or a millisecond timestamp. |
+| `timespan` | string | No | The size of the aggregate time window. |
+| `adjusted` | boolean | No | Whether or not the aggregates used to calculate the exponential moving average are adjusted for splits. By default, aggregates are adjusted. Set this to false to get results that are NOT adjusted for splits. |
+| `window` | integer | No | The window size used to calculate the exponential moving average (EMA). i.e. a window size of 10 with daily aggregates would result in a 10 day moving average. |
+| `series_type` | string | No | The value in the aggregate which will be used to calculate the exponential moving average. i.e. 'close' will result in using close values to  calculate the exponential moving average (EMA). |
+| `expand_underlying` | boolean | No | Whether or not to include the aggregates used to calculate this indicator in the response. |
+| `order` | string | No | The order in which to return the results, ordered by timestamp. |
+| `limit` | integer | No | Limit the number of results returned, default is 10 and max is 5000 |
+| `timestamp.gte` | string | No | Range by timestamp. |
+| `timestamp.gt` | string | No | Range by timestamp. |
+| `timestamp.lte` | string | No | Range by timestamp. |
+| `timestamp.lt` | string | No | Range by timestamp. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `next_url` | string | If present, this value can be used to fetch the next page of data. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | object | The results of the EMA indicator calculation. |
+| `results.underlying` | object | The underlying aggregates used. |
+| `results.values` | array[object] | Timestamp or indicator value. |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "next_url": "https://api.massive.com/v1/indicators/ema/I:NDX?cursor=YWRqdXN0ZWQ9dHJ1ZSZhcD0lN0IlMjJ2JTIyJTNBMCUyQyUyMm8lMjIlM0EwJTJDJTIyYyUyMiUzQTE1MDg0Ljk5OTM4OTgyMDAzJTJDJTIyaCUyMiUzQTAlMkMlMjJsJTIyJTNBMCUyQyUyMnQlMjIlM0ExNjg3MjE5MjAwMDAwJTdEJmFzPSZleHBhbmRfdW5kZXJseWluZz1mYWxzZSZsaW1pdD0xJm9yZGVyPWRlc2Mmc2VyaWVzX3R5cGU9Y2xvc2UmdGltZXNwYW49ZGF5JnRpbWVzdGFtcC5sdD0xNjg3MjM3MjAwMDAwJndpbmRvdz01MA",
+  "request_id": "b9201816341441eed663a90443c0623a",
+  "results": {
+    "underlying": {
+      "url": "https://api.massive.com/v2/aggs/ticker/I:NDX/range/1/day/1678338000000/1687366449650?limit=226&sort=desc"
+    },
+    "values": [
+      {
+        "timestamp": 1687237200000,
+        "value": 14452.002555459003
+      }
+    ]
+  },
+  "status": "OK"
+}
+```
+
+
+---
+
+# REST
+## Indices
+
+### Moving Average Convergence/Divergence (MACD)
+
+**Endpoint:** `GET /v1/indicators/macd/{indicesTicker}`
+
+**Description:**
+
+Retrieve the Moving Average Convergence/Divergence (MACD) for a specified ticker over a defined time range. MACD is a momentum indicator derived from two moving averages, helping to identify trend strength, direction, and potential trading signals.
+
+Use Cases: Momentum analysis, signal generation (crossover events), spotting overbought/oversold conditions, and confirming trend directions.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `indicesTicker` | string | Yes | The ticker symbol for which to get MACD data. |
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `timestamp` | string | No | Query by timestamp. Either a date with the format YYYY-MM-DD or a millisecond timestamp. |
+| `timespan` | string | No | The size of the aggregate time window. |
+| `adjusted` | boolean | No | Whether or not the aggregates used to calculate the MACD are adjusted for splits. By default, aggregates are adjusted. Set this to false to get results that are NOT adjusted for splits. |
+| `short_window` | integer | No | The short window size used to calculate MACD data. |
+| `long_window` | integer | No | The long window size used to calculate MACD data. |
+| `signal_window` | integer | No | The window size used to calculate the MACD signal line. |
+| `series_type` | string | No | The value in the aggregate which will be used to calculate the MACD. i.e. 'close' will result in using close values to  calculate the MACD. |
+| `expand_underlying` | boolean | No | Whether or not to include the aggregates used to calculate this indicator in the response. |
+| `order` | string | No | The order in which to return the results, ordered by timestamp. |
+| `limit` | integer | No | Limit the number of results returned, default is 10 and max is 5000 |
+| `timestamp.gte` | string | No | Range by timestamp. |
+| `timestamp.gt` | string | No | Range by timestamp. |
+| `timestamp.lte` | string | No | Range by timestamp. |
+| `timestamp.lt` | string | No | Range by timestamp. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `next_url` | string | If present, this value can be used to fetch the next page of data. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | object | The results of the MACD indicator calculation. |
+| `results.underlying` | object | The underlying aggregates used. |
+| `results.values` | array[object] | Each entry in the values array represents MACD indicator data for a specific timestamp and includes: |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "next_url": "https://api.massive.com/v1/indicators/macd/I:NDX?cursor=YWRqdXN0ZWQ9dHJ1ZSZhcD0lN0IlMjJ2JTIyJTNBMCUyQyUyMm8lMjIlM0EwJTJDJTIyYyUyMiUzQTE1MDg0Ljk5OTM4OTgyMDAzJTJDJTIyaCUyMiUzQTAlMkMlMjJsJTIyJTNBMCUyQyUyMnQlMjIlM0ExNjg3MTUwODAwMDAwJTdEJmFzPSZleHBhbmRfdW5kZXJseWluZz1mYWxzZSZsaW1pdD0yJmxvbmdfd2luZG93PTI2Jm9yZGVyPWRlc2Mmc2VyaWVzX3R5cGU9Y2xvc2Umc2hvcnRfd2luZG93PTEyJnNpZ25hbF93aW5kb3c9OSZ0aW1lc3Bhbj1kYXkmdGltZXN0YW1wLmx0PTE2ODcyMTkyMDAwMDA",
+  "request_id": "2eeda0be57e83cbc64cc8d1a74e84dbd",
+  "results": {
+    "underlying": {
+      "url": "https://api.massive.com/v2/aggs/ticker/I:NDX/range/1/day/1678338000000/1687366537196?limit=121&sort=desc"
+    },
+    "values": [
+      {
+        "histogram": -4.7646219788108795,
+        "signal": 220.7596784587801,
+        "timestamp": 1687237200000,
+        "value": 215.9950564799692
+      },
+      {
+        "histogram": 3.4518937661882205,
+        "signal": 221.9508339534828,
+        "timestamp": 1687219200000,
+        "value": 225.40272771967102
+      }
+    ]
+  },
+  "status": "OK"
+}
+```
+
+
+---
+
+# REST
+## Indices
+
+### Relative Strength Index (RSI)
+
+**Endpoint:** `GET /v1/indicators/rsi/{indicesTicker}`
+
+**Description:**
+
+Retrieve the Relative Strength Index (RSI) for a specified ticker over a defined time range. The RSI measures the speed and magnitude of price changes, oscillating between 0 and 100 to help identify overbought or oversold conditions.
+
+Use Cases: Overbought/oversold detection, divergence analysis, trend confirmation, and refining market entry/exit strategies.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `indicesTicker` | string | Yes | The ticker symbol for which to get relative strength index (RSI) data. |
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `timestamp` | string | No | Query by timestamp. Either a date with the format YYYY-MM-DD or a millisecond timestamp. |
+| `timespan` | string | No | The size of the aggregate time window. |
+| `adjusted` | boolean | No | Whether or not the aggregates used to calculate the relative strength index are adjusted for splits. By default, aggregates are adjusted. Set this to false to get results that are NOT adjusted for splits. |
+| `window` | integer | No | The window size used to calculate the relative strength index (RSI). |
+| `series_type` | string | No | The value in the aggregate which will be used to calculate the relative strength index. i.e. 'close' will result in using close values to  calculate the relative strength index (RSI). |
+| `expand_underlying` | boolean | No | Whether or not to include the aggregates used to calculate this indicator in the response. |
+| `order` | string | No | The order in which to return the results, ordered by timestamp. |
+| `limit` | integer | No | Limit the number of results returned, default is 10 and max is 5000 |
+| `timestamp.gte` | string | No | Range by timestamp. |
+| `timestamp.gt` | string | No | Range by timestamp. |
+| `timestamp.lte` | string | No | Range by timestamp. |
+| `timestamp.lt` | string | No | Range by timestamp. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `next_url` | string | If present, this value can be used to fetch the next page of data. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | object | The results of the RSI indicator calculation. |
+| `results.underlying` | object | The underlying aggregates used. |
+| `results.values` | array[object] | Timestamp or indicator value. |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "next_url": "https://api.massive.com/v1/indicators/rsi/I:NDX?cursor=YWRqdXN0ZWQ9dHJ1ZSZhcD0lN0IlMjJ2JTIyJTNBMCUyQyUyMm8lMjIlM0EwJTJDJTIyYyUyMiUzQTE1MDg0Ljk5OTM4OTgyMDAzJTJDJTIyaCUyMiUzQTAlMkMlMjJsJTIyJTNBMCUyQyUyMnQlMjIlM0ExNjg3MjE5MjAwMDAwJTdEJmFzPSZleHBhbmRfdW5kZXJseWluZz1mYWxzZSZsaW1pdD0xJm9yZGVyPWRlc2Mmc2VyaWVzX3R5cGU9Y2xvc2UmdGltZXNwYW49ZGF5JnRpbWVzdGFtcC5sdD0xNjg3MjM3MjAwMDAwJndpbmRvdz0xNA",
+  "request_id": "28a8417f521f98e1d08f6ed7d1fbcad3",
+  "results": {
+    "underlying": {
+      "url": "https://api.massive.com/v2/aggs/ticker/I:NDX/range/1/day/1678338000000/1687366658253?limit=66&sort=desc"
+    },
+    "values": [
+      {
+        "timestamp": 1687237200000,
+        "value": 73.98019439047955
+      }
+    ]
+  },
+  "status": "OK"
+}
+```
+
+
+---
+
+# REST
+## Indices
+
+### Simple Moving Average (SMA)
+
+**Endpoint:** `GET /v1/indicators/sma/{indicesTicker}`
+
+**Description:**
+
+Retrieve the Simple Moving Average (SMA) for a specified ticker over a defined time range. The SMA calculates the average price across a set number of periods, smoothing price fluctuations to reveal underlying trends and potential signals.
+
+Use Cases: Trend analysis, trading signal generation (e.g., SMA crossovers), identifying support/resistance, and refining entry/exit timing.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `indicesTicker` | string | Yes | The ticker symbol for which to get simple moving average (SMA) data. |
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `timestamp` | string | No | Query by timestamp. Either a date with the format YYYY-MM-DD or a millisecond timestamp. |
+| `timespan` | string | No | The size of the aggregate time window. |
+| `adjusted` | boolean | No | Whether or not the aggregates used to calculate the simple moving average are adjusted for splits. By default, aggregates are adjusted. Set this to false to get results that are NOT adjusted for splits. |
+| `window` | integer | No | The window size used to calculate the simple moving average (SMA). i.e. a window size of 10 with daily aggregates would result in a 10 day moving average. |
+| `series_type` | string | No | The value in the aggregate which will be used to calculate the simple moving average. i.e. 'close' will result in using close values to  calculate the simple moving average (SMA). |
+| `expand_underlying` | boolean | No | Whether or not to include the aggregates used to calculate this indicator in the response. |
+| `order` | string | No | The order in which to return the results, ordered by timestamp. |
+| `limit` | integer | No | Limit the number of results returned, default is 10 and max is 5000 |
+| `timestamp.gte` | string | No | Range by timestamp. |
+| `timestamp.gt` | string | No | Range by timestamp. |
+| `timestamp.lte` | string | No | Range by timestamp. |
+| `timestamp.lt` | string | No | Range by timestamp. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `next_url` | string | If present, this value can be used to fetch the next page of data. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | object | The results of the SMA indicator calculation. |
+| `results.underlying` | object | The underlying aggregates used. |
+| `results.values` | array[object] | Timestamp or indicator value. |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "next_url": "https://api.massive.com/v1/indicators/sma/I:NDX?cursor=YWRqdXN0ZWQ9dHJ1ZSZhcD0lN0IlMjJ2JTIyJTNBMCUyQyUyMm8lMjIlM0EwJTJDJTIyYyUyMiUzQTE1MDg0Ljk5OTM4OTgyMDAzJTJDJTIyaCUyMiUzQTAlMkMlMjJsJTIyJTNBMCUyQyUyMnQlMjIlM0ExNjg3MjE5MjAwMDAwJTdEJmFzPSZleHBhbmRfdW5kZXJseWluZz1mYWxzZSZsaW1pdD0xJm9yZGVyPWRlc2Mmc2VyaWVzX3R5cGU9Y2xvc2UmdGltZXNwYW49ZGF5JnRpbWVzdGFtcC5sdD0xNjg3MjM3MjAwMDAwJndpbmRvdz01Mw",
+  "request_id": "4cae270008cb3f947e3f92c206e3888a",
+  "results": {
+    "underlying": {
+      "url": "https://api.massive.com/v2/aggs/ticker/I:NDX/range/1/day/1678338000000/1687366378997?limit=240&sort=desc"
+    },
+    "values": [
+      {
+        "timestamp": 1687237200000,
+        "value": 14362.676417589264
+      }
+    ]
+  },
+  "status": "OK"
+}
+```
+
+
+---
+
+## Tickers
+
+# REST
+## Indices
+
+### All Tickers
+
+**Endpoint:** `GET /v3/reference/tickers`
+
+**Description:**
+
+Retrieve a comprehensive list of ticker symbols supported by Massive across various asset classes (e.g., stocks, indices, forex, crypto). Each ticker entry provides essential details such as symbol, name, market, currency, and active status.
+
+Use Cases: Asset discovery, data integration, filtering/selection, and application development.
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ticker` | string | No | Specify a ticker symbol. Defaults to empty string which queries all tickers. |
+| `type` | string | No | Specify the type of the tickers. Find the types that we support via our [Ticker Types API](https://massive.com/docs/rest/stocks/tickers/ticker-types). Defaults to empty string which queries all types. |
+| `market` | string | No | Filter by market type. By default all markets are included. |
+| `exchange` | string | No | Specify the asset's primary exchange Market Identifier Code (MIC) according to [ISO 10383](https://www.iso20022.org/market-identifier-codes). Defaults to empty string which queries all exchanges. |
+| `cusip` | string | No | Specify the CUSIP code of the asset you want to search for. Find more information about CUSIP codes [at their website](https://www.cusip.com/identifiers.html#/CUSIP). Defaults to empty string which queries all CUSIPs.  Note: Although you can query by CUSIP, due to legal reasons we do not return the CUSIP in the response. |
+| `cik` | string | No | Specify the CIK of the asset you want to search for. Find more information about CIK codes [at their website](https://www.sec.gov/edgar/searchedgar/cik.htm). Defaults to empty string which queries all CIKs. |
+| `date` | string | No | Specify a point in time to retrieve tickers available on that date. Defaults to the most recent available date. |
+| `search` | string | No | Search for terms within the ticker and/or company name. |
+| `active` | boolean | No | Specify if the tickers returned should be actively traded on the queried date. Default is true. |
+| `ticker.gte` | string | No | Range by ticker. |
+| `ticker.gt` | string | No | Range by ticker. |
+| `ticker.lte` | string | No | Range by ticker. |
+| `ticker.lt` | string | No | Range by ticker. |
+| `order` | string | No | Order results based on the `sort` field. |
+| `limit` | integer | No | Limit the number of results returned, default is 100 and max is 1000. |
+| `sort` | string | No | Sort field used for ordering. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `count` | integer | The total number of results for this request. |
+| `next_url` | string | If present, this value can be used to fetch the next page of data. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | array[object] | An array of tickers that match your query.  Note: Although you can query by CUSIP, due to legal reasons we do not return the CUSIP in the response. |
+| `results[].active` | boolean | Whether or not the asset is actively traded. False means the asset has been delisted. |
+| `results[].base_currency_name` | string | The name of the currency that this asset is priced against. |
+| `results[].base_currency_symbol` | string | The ISO 4217 code of the currency that this asset is priced against. |
+| `results[].cik` | string | The CIK number for this ticker. Find more information [here](https://en.wikipedia.org/wiki/Central_Index_Key). |
+| `results[].composite_figi` | string | The composite OpenFIGI number for this ticker. Find more information [here](https://www.openfigi.com/about/figi) |
+| `results[].currency_name` | string | The name of the currency that this asset is traded with. |
+| `results[].currency_symbol` | string | The ISO 4217 code of the currency that this asset is traded with. |
+| `results[].delisted_utc` | string | The last date that the asset was traded. |
+| `results[].last_updated_utc` | string | The information is accurate up to this time. |
+| `results[].locale` | enum: us, global | The locale of the asset. |
+| `results[].market` | enum: stocks, crypto, fx, otc, indices | The market type of the asset. |
+| `results[].name` | string | The name of the asset. For stocks/equities this will be the companies registered name. For crypto/fx this will be the name of the currency or coin pair. |
+| `results[].primary_exchange` | string | The ISO code of the primary listing exchange for this asset. |
+| `results[].share_class_figi` | string | The share Class OpenFIGI number for this ticker. Find more information [here](https://www.openfigi.com/about/figi) |
+| `results[].ticker` | string | The exchange symbol that this item is traded under. |
+| `results[].type` | string | The type of the asset. Find the types that we support via our [Ticker Types API](https://massive.com/docs/rest/stocks/tickers/ticker-types). |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "count": 1,
+  "next_url": "https://api.massive.com/v3/reference/tickers?cursor=YWN0aXZlPXRydWUmZGF0ZT0yMDIxLTA0LTI1JmxpbWl0PTEmb3JkZXI9YXNjJnBhZ2VfbWFya2VyPUElN0M5YWRjMjY0ZTgyM2E1ZjBiOGUyNDc5YmZiOGE1YmYwNDVkYzU0YjgwMDcyMWE2YmI1ZjBjMjQwMjU4MjFmNGZiJnNvcnQ9dGlja2Vy",
+  "request_id": "e70013d92930de90e089dc8fa098888e",
+  "results": [
+    {
+      "active": true,
+      "cik": "0001090872",
+      "composite_figi": "BBG000BWQYZ5",
+      "currency_name": "usd",
+      "last_updated_utc": "2021-04-25T00:00:00Z",
+      "locale": "us",
+      "market": "stocks",
+      "name": "Agilent Technologies Inc.",
+      "primary_exchange": "XNYS",
+      "share_class_figi": "BBG001SCTQY4",
+      "ticker": "A",
+      "type": "CS"
+    }
+  ],
+  "status": "OK"
+}
+```
+
+
+---
+
+# REST
+## Indices
+
+### Ticker Overview
+
+**Endpoint:** `GET /v3/reference/tickers/{ticker}`
+
+**Description:**
+
+Retrieve comprehensive details for a single ticker supported by Massive. This endpoint offers a deep look into a company’s fundamental attributes, including its primary exchange, standardized identifiers (CIK, composite FIGI, share class FIGI), market capitalization, industry classification, and key dates. Users also gain access to branding assets (e.g., logos, icons), enabling them to enrich applications and analyses with visually consistent, contextually relevant information.
+
+Use Cases: Company research, data integration, application enhancement, due diligence & compliance.
+
+## Path Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ticker` | string | Yes | Specify a case-sensitive ticker symbol. For example, AAPL represents Apple Inc. |
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `date` | string | No | Specify a point in time to get information about the ticker available on that date. When retrieving information from SEC filings, we compare this date with the period of report date on the SEC filing.  For example, consider an SEC filing submitted by AAPL on 2019-07-31, with a period of report date ending on 2019-06-29. That means that the filing was submitted on 2019-07-31, but the filing was created based on information from 2019-06-29. If you were to query for AAPL details on 2019-06-29, the ticker details would include information from the SEC filing.  Defaults to the most recent available date. |
+
+## Response Attributes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `count` | integer | The total number of results for this request. |
+| `request_id` | string | A request id assigned by the server. |
+| `results` | object | Ticker with details. |
+| `results.active` | boolean | Whether or not the asset is actively traded. False means the asset has been delisted. |
+| `results.address` | object | Company headquarters address details. |
+| `results.branding` | object | Provides URLs aiding in visual identification. |
+| `results.cik` | string | The CIK number for this ticker. Find more information [here](https://en.wikipedia.org/wiki/Central_Index_Key). |
+| `results.composite_figi` | string | The composite OpenFIGI number for this ticker. Find more information [here](https://www.openfigi.com/about/figi) |
+| `results.currency_name` | string | The name of the currency that this asset is traded with. |
+| `results.delisted_utc` | string | The last date that the asset was traded. |
+| `results.description` | string | A description of the company and what they do/offer. |
+| `results.homepage_url` | string | The URL of the company's website homepage. |
+| `results.list_date` | string | The date that the symbol was first publicly listed in the format YYYY-MM-DD. |
+| `results.locale` | enum: us, global | The locale of the asset. |
+| `results.market` | enum: stocks, crypto, fx, otc, indices | The market type of the asset. |
+| `results.market_cap` | number | The most recent close price of the ticker multiplied by weighted outstanding shares. |
+| `results.name` | string | The name of the asset. For stocks/equities this will be the companies registered name. For crypto/fx this will be the name of the currency or coin pair. |
+| `results.phone_number` | string | The phone number for the company behind this ticker. |
+| `results.primary_exchange` | string | The ISO code of the primary listing exchange for this asset. |
+| `results.round_lot` | number | Round lot size of this security. |
+| `results.share_class_figi` | string | The share Class OpenFIGI number for this ticker. Find more information [here](https://www.openfigi.com/about/figi) |
+| `results.share_class_shares_outstanding` | number | The recorded number of outstanding shares for this particular share class. |
+| `results.sic_code` | string | The standard industrial classification code for this ticker.  For a list of SIC Codes, see the SEC's <a rel="nofollow" target="_blank" href="https://www.sec.gov/info/edgar/siccodes.htm">SIC Code List</a>. |
+| `results.sic_description` | string | A description of this ticker's SIC code. |
+| `results.ticker` | string | The exchange symbol that this item is traded under. |
+| `results.ticker_root` | string | The root of a specified ticker. For example, the root of BRK.A is BRK. |
+| `results.ticker_suffix` | string | The suffix of a specified ticker. For example, the suffix of BRK.A is A. |
+| `results.total_employees` | number | The approximate number of employees for the company. |
+| `results.type` | string | The type of the asset. Find the types that we support via our [Ticker Types API](https://massive.com/docs/rest/stocks/tickers/ticker-types). |
+| `results.weighted_shares_outstanding` | number | The shares outstanding calculated assuming all shares of other share classes are converted to this share class. |
+| `status` | string | The status of this request's response. |
+
+## Sample Response
+
+```json
+{
+  "request_id": "31d59dda-80e5-4721-8496-d0d32a654afe",
+  "results": {
+    "active": true,
+    "address": {
+      "address1": "One Apple Park Way",
+      "city": "Cupertino",
+      "postal_code": "95014",
+      "state": "CA"
+    },
+    "branding": {
+      "icon_url": "https://api.massive.com/v1/reference/company-branding/d3d3LmFwcGxlLmNvbQ/images/2022-01-10_icon.png",
+      "logo_url": "https://api.massive.com/v1/reference/company-branding/d3d3LmFwcGxlLmNvbQ/images/2022-01-10_logo.svg"
+    },
+    "cik": "0000320193",
+    "composite_figi": "BBG000B9XRY4",
+    "currency_name": "usd",
+    "description": "Apple designs a wide variety of consumer electronic devices, including smartphones (iPhone), tablets (iPad), PCs (Mac), smartwatches (Apple Watch), AirPods, and TV boxes (Apple TV), among others. The iPhone makes up the majority of Apple's total revenue. In addition, Apple offers its customers a variety of services such as Apple Music, iCloud, Apple Care, Apple TV+, Apple Arcade, Apple Card, and Apple Pay, among others. Apple's products run internally developed software and semiconductors, and the firm is well known for its integration of hardware, software and services. Apple's products are distributed online as well as through company-owned stores and third-party retailers. The company generates roughly 40% of its revenue from the Americas, with the remainder earned internationally.",
+    "homepage_url": "https://www.apple.com",
+    "list_date": "1980-12-12",
+    "locale": "us",
+    "market": "stocks",
+    "market_cap": 2771126040150,
+    "name": "Apple Inc.",
+    "phone_number": "(408) 996-1010",
+    "primary_exchange": "XNAS",
+    "round_lot": 100,
+    "share_class_figi": "BBG001S5N8V8",
+    "share_class_shares_outstanding": 16406400000,
+    "sic_code": "3571",
+    "sic_description": "ELECTRONIC COMPUTERS",
+    "ticker": "AAPL",
+    "ticker_root": "AAPL",
+    "total_employees": 154000,
+    "type": "CS",
+    "weighted_shares_outstanding": 16334371000
+  },
+  "status": "OK"
+}
+```
+
+
+---

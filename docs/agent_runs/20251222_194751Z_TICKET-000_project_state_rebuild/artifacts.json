@@ -1,0 +1,30 @@
+[
+  {
+    "path": "tools/project_state_build.py",
+    "description": "Generator script for project_state/_generated outputs."
+  },
+  {
+    "path": "project_state/",
+    "description": "Rebuilt project_state documentation set."
+  },
+  {
+    "path": "project_state/_generated/repo_inventory.json",
+    "description": "Repo inventory (files, roles, sizes)."
+  },
+  {
+    "path": "project_state/_generated/symbol_index.json",
+    "description": "AST-derived symbols per Python file."
+  },
+  {
+    "path": "project_state/_generated/import_graph.json",
+    "description": "Internal import adjacency list."
+  },
+  {
+    "path": "project_state/_generated/make_targets.txt",
+    "description": "Makefile targets list."
+  },
+  {
+    "path": "docs/gpt_bundles/project_state_20251222_194751Z_a907a2e.zip",
+    "description": "Snapshot bundle for review (project_state + key docs)."
+  }
+]

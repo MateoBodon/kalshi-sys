@@ -1,0 +1,6 @@
+[
+  {
+    "path": "reports/_artifacts/go_no_go.json",
+    "description": "Go/NO-GO artifact updated by CLI smoke runs."
+  }
+]

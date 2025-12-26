@@ -1,0 +1,34 @@
+[
+  {
+    "path": "docs/runbooks/aws_supervisor_index.md",
+    "description": "AWS runbook for supervisor_index deployment, alerts, and break-glass."
+  },
+  {
+    "path": "docs/runbooks/oncall_checks.md",
+    "description": "On-call checklist for supervisor_index health and incident response."
+  },
+  {
+    "path": "deploy/systemd/supervisor_index.service",
+    "description": "Systemd template for 24/7 supervisor_index with dry-run default."
+  },
+  {
+    "path": "src/kalshi_alpha/exec/supervisor_index.py",
+    "description": "Added --dry-run alias and --series filter support." 
+  },
+  {
+    "path": "tests/exec/test_supervisor_index.py",
+    "description": "Tests for supervisor_index CLI aliases and series filtering." 
+  },
+  {
+    "path": "tests/test_index_scanner_fixtures.py",
+    "description": "Stabilized macro-stale fixture test with fixed --now and clock-skew override." 
+  },
+  {
+    "path": "docs/PROGRESS.md",
+    "description": "Progress entry for Ticket #5." 
+  },
+  {
+    "path": "CHANGELOG.md",
+    "description": "Changelog entry for Ticket #5." 
+  }
+]

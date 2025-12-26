@@ -1,0 +1,104 @@
+(Commands will be appended during the run.)
+$ date -u "+%Y%m%d_%H%M%SZ"
+20251222_181604Z
+$ mkdir -p docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+$ (created run log stubs)
+$ cat AGENTS.md
+(see output in terminal)
+$ cat docs/CODEX_SPRINT_TICKETS.md
+(see output in terminal)
+$ git status -sb
+## main...origin/main
+$ git checkout -b codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+Switched to a new branch 'codex/TICKET-009_packaging_systemd_hardening_ec2_verify'
+$ cat deploy/systemd/supervisor_index.service
+(see output in terminal)
+$ cat docs/runbooks/aws_supervisor_index.md
+(see output in terminal)
+$ rg -n "PYTHONPATH" deploy/systemd docs/runbooks
+(no matches)
+$ pytest -q
+Results (10.11s):
+  117 passed
+  740 skipped
+$ apply_patch (docs/PROGRESS.md, CHANGELOG.md)
+(updated Ticket #9 RETRY entries)
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/README.md
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/RESULTS.md
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/prompt.md
+# EC2 verification blocked: no host/SSH access provided in this run.
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+ M CHANGELOG.md
+ M docs/PROGRESS.md
+$ git add CHANGELOG.md docs/PROGRESS.md
+$ git commit -m "Ticket #9 retry: document EC2 verification blocked" -m "Tests: pytest -q"
+[codex/TICKET-009_packaging_systemd_hardening_ec2_verify 24f93cb] Ticket #9 retry: document EC2 verification blocked
+ 2 files changed, 4 insertions(+)
+$ git show --no-color HEAD > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/diff.patch
+$ date -u "+%Y-%m-%dT%H:%M:%SZ"
+2025-12-22T18:22:28Z
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/META.json
+$ make gpt-bundle TICKET=TICKET-009_packaging_systemd_hardening_ec2_verify RUN_NAME=20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+Usage: make gpt-bundle TICKET=ticket-XX RUN_NAME=YYYYMMDD_HHMMSSZ_TICKET-XXX_slug
+make: *** [gpt-bundle] Error 1
+$ make gpt-bundle TICKET=ticket-009 RUN_NAME=20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_ticket-009_20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify.zip
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/RESULTS.md
+(updated with bundle path)
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+$ cat docs/ACCESS.md
+(output redacted: contains SSH host/IP)
+$ ssh -o BatchMode=yes kalshi-aws "whoami"
+ubuntu
+$ git remote get-url origin
+(output redacted)
+$ git push -u origin codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+(pushed branch to origin)
+$ ssh kalshi-aws "... bootstrap script ..."
+(branch missing on first run; after push, script failed due to local $PYBIN expansion)
+$ ssh kalshi-aws "REPO_URL=... BRANCH=... bash -s" <<'EOF'
+(pip install -e . succeeded; output summarized)
+$ rg -n "SSM|Parameter Store|Secrets Manager|kalshi-supervisor.env|KALSHI_API_KEY_ID|POLYGON_API_KEY" -S docs configs
+(output redacted)
+$ ssh kalshi-aws "sudo ls -l /etc/kalshi/kalshi-supervisor.env"
+ls: cannot access '/etc/kalshi/kalshi-supervisor.env': No such file or directory
+$ ssh kalshi-aws "sudo ls -l /etc/kalshi"
+total 0
+$ ssh kalshi-aws "sudo mkdir -p /etc/kalshi; sudo tee /etc/kalshi/kalshi-supervisor.env ..."
+(created env file with empty key placeholders)
+$ ssh kalshi-aws "sudo cp /opt/kalshi-sys/deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service; sudo systemctl daemon-reload"
+$ ssh kalshi-aws "sudo systemctl enable --now kalshi-supervisor-index.service"
+$ ssh kalshi-aws "sudo systemctl cat kalshi-supervisor-index.service"
+(ExecStart /opt/kalshi-sys/.venv/bin/python; no PYTHONPATH)
+$ ssh kalshi-aws "sudo systemctl restart kalshi-supervisor-index.service"
+$ ssh kalshi-aws "sudo systemctl status kalshi-supervisor-index.service --no-pager"
+(output redacted: host/IP)
+$ ssh kalshi-aws "sudo systemctl show kalshi-supervisor-index.service -p ExecStart -p FragmentPath -p User --no-pager"
+(output shows ExecStart /opt/kalshi-sys/.venv/bin/python; User=kalshi)
+$ ssh kalshi-aws "sudo journalctl -u kalshi-supervisor-index.service -n 200 --no-pager"
+(output redacted: host/IP)
+$ ssh kalshi-aws "sudo -u kalshi bash -lc '... PYBIN debug ...'"
+(output summarized; PYBIN expansion issue confirmed)
+$ apply_patch (docs/PROGRESS.md, CHANGELOG.md)
+(updated Ticket #9 RETRY to DONE and changelog note)
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/RESULTS.md
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/README.md
+$ git add CHANGELOG.md docs/PROGRESS.md
+$ git commit -m "Ticket #9 retry: record EC2 proof" -m "Tests: pytest -q"
+[codex/TICKET-009_packaging_systemd_hardening_ec2_verify 4f5f5c6] Ticket #9 retry: record EC2 proof
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+$ git push
+(pushed branch to origin)
+$ git show --no-color HEAD > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/diff.patch
+$ date -u "+%Y-%m-%dT%H:%M:%SZ"
+2025-12-22T18:36:44Z
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/META.json
+$ make gpt-bundle TICKET=ticket-009 RUN_NAME=20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_ticket-009_20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify.zip
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening_ec2_verify...origin/codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+$ cat > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/artifacts.json

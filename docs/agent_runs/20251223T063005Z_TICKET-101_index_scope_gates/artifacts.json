@@ -1,0 +1,42 @@
+[
+  {
+    "path": "reports/_artifacts/go_no_go.json",
+    "description": "Latest GO/NO-GO artifact from preflight/supervisor runs"
+  },
+  {
+    "path": "reports/_artifacts/monitors/auth_error_streak.json",
+    "description": "Monitor output (auth error streak) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/drawdown.json",
+    "description": "Monitor output (drawdown) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/ev_gap.json",
+    "description": "Monitor output (ev gap) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/ev_seq_guard.json",
+    "description": "Monitor output (ev seq guard) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/fill_vs_alpha.json",
+    "description": "Monitor output (fill vs alpha) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/freeze_window.json",
+    "description": "Monitor output (freeze window) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/freshness 2.json",
+    "description": "Monitor output (freshness) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/kill_switch.json",
+    "description": "Monitor output (kill switch) from make monitors"
+  },
+  {
+    "path": "reports/_artifacts/monitors/ws_disconnect_rate.json",
+    "description": "Monitor output (ws disconnect rate) from make monitors"
+  }
+]

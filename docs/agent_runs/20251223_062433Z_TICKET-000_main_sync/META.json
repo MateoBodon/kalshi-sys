@@ -1,0 +1,11 @@
+{
+  "run_name": "20251223_062433Z_TICKET-000_main_sync",
+  "ticket_id": "TICKET-000",
+  "branch": "main",
+  "start_utc": "2025-12-23T06:24:33Z",
+  "end_utc": "2025-12-23T06:26:46Z",
+  "network_access": "enabled",
+  "web_search_used": false,
+  "sandbox_mode": "danger-full-access",
+  "approval_policy": "never"
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "vendor": "massive",
+    "url": "https://massive.com/docs/rest/stocks/llms-full.txt",
+    "out": "docs/vendor/massive/rest/stocks-llms-full.txt",
+    "type": "text"
+  },
+  {
+    "vendor": "kalshi",
+    "url": "https://docs.kalshi.com/openapi.yaml",
+    "out": "docs/vendor/kalshi/openapi/openapi.yaml",
+    "type": "yaml"
+  }
+]

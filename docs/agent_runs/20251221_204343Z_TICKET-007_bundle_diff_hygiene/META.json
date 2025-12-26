@@ -1,0 +1,9 @@
+{
+  "run_name": "20251221_204343Z_TICKET-007_bundle_diff_hygiene",
+  "ticket_id": "TICKET-007_bundle_diff_hygiene",
+  "branch": "codex/TICKET-007_bundle_diff_hygiene",
+  "start_utc": "2025-12-21T20:43:43Z",
+  "end_utc": "2025-12-21T21:22:23Z",
+  "network_access": "enabled",
+  "web_search_used": false
+}

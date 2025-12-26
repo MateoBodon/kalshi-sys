@@ -6,6 +6,13 @@ Codex (and other agents) must follow the rules below. If any instruction conflic
 
 ---
 
+## Source of truth (vendor docs)
+- Massive (Polygon) docs: docs/vendor/massive/
+  - Use rest-stocks-llms-full.txt for endpoint details + response schemas.
+- Kalshi docs: docs/vendor/kalshi/
+  - openapi.yaml is the source of truth for endpoints/schemas.
+  - Additional guides: rate_limits.md, pagination.md, orderbook_responses.md, subpenny_pricing.md, websockets.md, fix.md
+
 ## 1) Hard scope
 
 Only work on the **index ladder** pipeline for:

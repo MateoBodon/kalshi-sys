@@ -1,0 +1,56 @@
+(Commands will be appended during the run.)
+$ date -u "+%Y%m%d_%H%M%SZ"
+20251222_191125Z
+$ mkdir -p docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist
+$ (created run log stubs)
+$ cat deploy/systemd/supervisor_index.service
+(see output in terminal)
+$ rg -n "kalshi-supervisor-index.service" docs/runbooks/aws_supervisor_index.md
+(see output in terminal)
+$ rg -n "PYTHONPATH" deploy/systemd docs/runbooks
+(no matches)
+$ rg -n "scipy|pandas" -S src/kalshi_alpha/strategies/index src/kalshi_alpha/exec/preflight_index.py
+(see output in terminal)
+$ sed -n '1,120p' src/kalshi_alpha/exec/preflight_index.py
+(see output in terminal)
+$ ssh kalshi-aws "sudo -u kalshi bash -lc '... python -m pip install -e .'"
+ERROR: . is not a valid editable requirement.
+$ ssh kalshi-aws "sudo -u kalshi bash -lc 'cd /opt/kalshi-sys; ... python -m pip install -e .'"
+(output shows requirements satisfied; no SciPy build)
+$ ssh kalshi-aws "sudo systemctl show kalshi-supervisor-index.service -p ExecStart -p FragmentPath -p User --no-pager"
+(see output in terminal)
+$ ssh kalshi-aws "sudo systemctl status kalshi-supervisor-index.service --no-pager" | sed -E ...
+(output redacted: host/IP)
+$ ssh kalshi-aws "sudo systemctl cat kalshi-supervisor-index.service"
+(see output in terminal)
+$ ssh kalshi-aws "sudo journalctl -u kalshi-supervisor-index.service -n 50 --no-pager" | sed -E ...
+(output redacted: host/IP)
+$ cat > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/RESULTS.md
+$ cat > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/README.md
+$ git status -sb
+## codex/TICKET-010_cloudwatch_validation...origin/codex/TICKET-010_cloudwatch_validation
+$ git checkout main
+Switched to branch 'main'
+$ git merge codex/TICKET-010_cloudwatch_validation
+Fast-forward
+$ git push origin main
+(pushed main)
+$ cat > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/PROMPT.md
+$ pytest -q
+Results (13.40s):
+  117 passed
+  740 skipped
+$ git show --no-color HEAD > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/diff.patch
+$ date -u "+%Y-%m-%dT%H:%M:%SZ"
+2025-12-22T19:17:06Z
+$ cat > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/META.json
+$ make gpt-bundle TICKET=ticket-009 RUN_NAME=20251222_191125Z_TICKET-009_correctness_checklist
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_ticket-009_20251222_191125Z_TICKET-009_correctness_checklist.zip
+$ cat > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/artifacts.json
+$ cat > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/RESULTS.md
+$ git status -sb
+## main...origin/main
+$ date -u "+%Y-%m-%dT%H:%M:%SZ"
+2025-12-22T19:18:36Z
+$ cat > docs/agent_runs/20251222_191125Z_TICKET-009_correctness_checklist/META.json

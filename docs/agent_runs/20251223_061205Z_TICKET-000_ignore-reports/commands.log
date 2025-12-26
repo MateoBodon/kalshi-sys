@@ -1,0 +1,28 @@
+ls
+# Output: repo root listing (AGENTS.md, CHANGELOG.md, configs/, docs/, reports/, etc.)
+
+git status --short
+# Output: reports/* tracked or untracked; multiple modified files in reports/_artifacts/*
+
+rg --files -g '.gitignore'
+# Output: .gitignore
+
+cat .gitignore
+# Output: current ignore rules (no reports/ entry before change)
+
+git checkout -b codex/TICKET-000_ignore-reports
+# Output: Switched to a new branch 'codex/TICKET-000_ignore-reports'
+
+# Edited .gitignore to add reports/
+
+git rm -r --cached reports
+# Output: removed tracked reports/* entries from index (left files in working tree)
+
+pytest -q
+# Output: 117 passed, 740 skipped
+
+date -u +%Y-%m-%dT%H:%M:%SZ
+# Output: 2025-12-23T06:12:41Z
+
+git push origin codex/TICKET-000_ignore-reports
+# Output: pushed branch to origin

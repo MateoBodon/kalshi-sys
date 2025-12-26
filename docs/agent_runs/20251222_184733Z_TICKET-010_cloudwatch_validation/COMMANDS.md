@@ -1,0 +1,95 @@
+# Commands
+
+(Commands will be appended during the run.)
+- date -u "+%Y%m%d_%H%M%SZ"
+  - output: 20251222_184733Z
+- mkdir -p docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation
+- created initial run log stubs (PROMPT.md, COMMANDS.md, RESULTS.md, TESTS.md, META.json, diff.patch, artifacts.json, README.md, commands.log, prompt.md)
+- git status -sb
+  - output: on branch codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+- git checkout -b codex/TICKET-010_cloudwatch_validation
+  - output: Switched to a new branch 'codex/TICKET-010_cloudwatch_validation'
+- cat AGENTS.md
+  - output: (see repo AGENTS.md)
+- rg -n "Ticket #10|CloudWatch" -S docs/CODEX_SPRINT_TICKETS.md
+  - output: acceptance lines located
+- cat docs/runbooks/aws_supervisor_index.md
+  - output: current runbook content
+- cat configs/cloudwatch/kalshi-supervisor-index.json
+  - output: log group /kalshi/kalshi-supervisor-index, stream {instance_id}
+- cat docs/ACCESS.md
+  - output: access notes (host/IP redacted)
+- apply_patch: docs/ACCESS.md (add Quick access section)
+- apply_patch: docs/runbooks/aws_supervisor_index.md (add AWS access section)
+- apply_patch: configs/cloudwatch/kalshi-supervisor-index.json (switch to /var/log/syslog)
+- apply_patch: docs/runbooks/aws_supervisor_index.md (update log routing section)
+- pytest -q
+  - result: 117 passed, 740 skipped
+- git add configs/cloudwatch/kalshi-supervisor-index.json docs/runbooks/aws_supervisor_index.md docs/ACCESS.md
+- git commit -m "Ticket #10: update CloudWatch log shipping config" -m "Tests: pytest -q"
+- git push -u origin codex/TICKET-010_cloudwatch_validation
+  - output: pushed branch to origin
+- ssh kalshi-aws "aws --version"
+  - output: aws not found
+- ssh kalshi-aws "sudo apt-get update && sudo apt-get install -y amazon-cloudwatch-agent awscli"
+  - output: awscli not available via apt (amazon-cloudwatch-agent already installed)
+- ssh kalshi-aws "python3 -m pip install --user awscli"
+  - output: blocked by externally-managed-environment (PEP 668)
+- ssh kalshi-aws "sudo apt-get install -y python3-pip"
+  - output: installed pip
+- ssh kalshi-aws "sudo apt-get install -y pipx"
+  - output: installed pipx
+- ssh kalshi-aws "pipx install awscli"
+  - output: awscli installed; PATH notice
+- ssh kalshi-aws "sudo apt-get install -y amazon-cloudwatch-agent"
+  - output: already newest version
+- ssh kalshi-aws "sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json ... && amazon-cloudwatch-agent-ctl -a fetch-config ..."
+  - output: validation failed (journald not allowed by schema)
+- ssh kalshi-aws "/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent --version"
+  - output: CWAgent/1.300062.0b1304
+- ssh kalshi-aws "sudo grep -m 5 -n \"kalshi-supervisor-index\" /var/log/syslog"
+  - output: syslog contains kalshi-supervisor-index.service lines (host/IP redacted)
+- ssh kalshi-aws "sudo cat /opt/aws/amazon-cloudwatch-agent/doc/amazon-cloudwatch-agent-schema.json | sed -n '625,760p'"
+  - output: logs_collected supports files/windows_events only
+- ssh kalshi-aws "sudo -u kalshi bash -lc 'git fetch --all; git checkout codex/TICKET-010_cloudwatch_validation; git pull'"
+  - output: branch updated on EC2
+- ssh kalshi-aws "sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json ... && amazon-cloudwatch-agent-ctl -a fetch-config ..."
+  - output: Configuration validation succeeded
+- ssh kalshi-aws "sudo amazon-cloudwatch-agent-ctl -a status"
+  - output: status running, configstatus configured
+- ssh kalshi-aws "IMDSv2 region lookup"
+  - output: us-east-1
+- ssh kalshi-aws "/home/ubuntu/.local/bin/aws logs filter-log-events --log-group-name /kalshi/kalshi-supervisor-index --filter-pattern '\"kalshi-supervisor-index\"' --region us-east-1 --limit 5"
+  - output: events returned (instance id/IP redacted)
+- apply_patch: docs/PROGRESS.md (add Ticket #10 DONE entry)
+- apply_patch: CHANGELOG.md (add Ticket #10 entry)
+- updated docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/README.md
+- updated docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/RESULTS.md (PASS + evidence)
+- git add docs/PROGRESS.md CHANGELOG.md
+- git commit -m "Ticket #10: document CloudWatch validation" -m "Tests: pytest -q"
+- git push
+  - output: pushed updated commits to origin
+- git show --no-color HEAD > docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/diff.patch
+- date -u "+%Y-%m-%dT%H:%M:%SZ"
+  - output: 2025-12-22T19:03:15Z
+- wrote docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/META.json (end_utc updated; environment=AWS/local)
+- make gpt-bundle TICKET=ticket-010 RUN_NAME=20251222_184733Z_TICKET-010_cloudwatch_validation
+  - output: Wrote docs/gpt_bundles/gpt_bundle_ticket-010_20251222_184733Z_TICKET-010_cloudwatch_validation.zip
+- wrote docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/artifacts.json (bundle path)
+- git status -sb
+  - output: untracked docs/prompts/PROJECT_STATE_REBUILD
+- apply_patch: .gitignore (ignore docs/)
+- git add .gitignore
+- git commit -m "Ignore docs directory" -m "Tests: not run (not requested)"
+- git push
+  - output: pushed updated commit to origin
+- updated docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/RESULTS.md (added .gitignore note)
+- updated docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/README.md (added .gitignore note)
+- git show --no-color HEAD > docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/diff.patch
+- date -u "+%Y-%m-%dT%H:%M:%SZ"
+  - output: 2025-12-22T19:08:18Z
+- wrote docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/META.json (end_utc updated)
+- make gpt-bundle TICKET=ticket-010 RUN_NAME=20251222_184733Z_TICKET-010_cloudwatch_validation
+  - output: Wrote docs/gpt_bundles/gpt_bundle_ticket-010_20251222_184733Z_TICKET-010_cloudwatch_validation.zip
+- git status -sb
+  - output: clean working tree

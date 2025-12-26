@@ -1,0 +1,1996 @@
+$ rg --files -g 'pyproject.toml' -g 'setup.cfg' -g 'setup.py'
+pyproject.toml
+$ sed -n '1,200p' pyproject.toml
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kalshi-alpha"
+version = "0.1.0"
+description = "Monorepo for Kalshi ladder pricing, scanning, and research."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Kalshi Alpha Team" },
+]
+license = { text = "MIT" }
+dependencies = [
+  "requests>=2.32.3",
+  "cryptography>=43.0.0",
+  "websockets>=12.0",
+  "pydantic>=2.7.0",
+  "polars>=1.6.0",
+  "duckdb>=0.10.2",
+  "python-dateutil>=2.9.0.post0",
+  "pyyaml>=6.0.1",
+  "cachetools>=4.2,<5",
+  "python-dotenv>=1.0.1",
+  "beautifulsoup4>=4.12.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+  "pytest-asyncio>=0.23.0",
+  "hypothesis>=6.99.0",
+  "ruff>=0.5.6",
+  "mypy>=1.10.0",
+  "types-requests>=2.32.0.20240914",
+  "types-python-dateutil>=2.9.0.20240821",
+  "types-pyyaml>=6.0.12.20240813",
+  "pre-commit>=3.7.1",
+  "requests-mock>=1.12.1",
+]
+
+[project.scripts]
+kalshi-scan = "kalshi_alpha.exec.runners.scan_ladders:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["kalshi_alpha*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+markers = [
+  "legacy: mark tests excluded from default CI",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+plugins = ["pydantic.mypy"]
+follow_imports = "skip"
+files = [
+  "src/kalshi_alpha/exec/runners/scan_ladders.py",
+  "src/kalshi_alpha/exec/pilot/runtime.py",
+  "src/kalshi_alpha/exec/pilot/config.py",
+  "src/kalshi_alpha/exec/pilot_bundle.py",
+  "src/kalshi_alpha/exec/reports/ramp.py",
+  "src/kalshi_alpha/exec/runners/pilot.py",
+  "src/kalshi_alpha/exec/pipelines/calendar.py",
+  "src/kalshi_alpha/exec/pipelines/week.py",
+]
+
+[[tool.mypy.overrides]]
+module = ["duckdb", "polars", "cachetools", "cryptography.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "kalshi_alpha.exec.scoreboard"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kalshi_alpha.strategies.teny.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kalshi_alpha.strategies.cpi.components"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kalshi_alpha.strategies.claims.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kalshi_alpha.exec.runners.scan_ladders"
+ignore_errors = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "DTZ", "TID", "ERA", "PL", "ANN"]
+ignore = ["S101", "PLR2004"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PLR2004", "ANN", "DTZ011", "PLC0415", "S311"]
+"src/kalshi_alpha/core/archive/replay.py" = ["PLR0912", "PLR0913", "PLR0915", "E501"]
+"src/kalshi_alpha/exec/runners/scan_ladders.py" = ["PLR0912", "PLR0913", "PLR0915", "PLW0603"]
+"src/kalshi_alpha/exec/pipelines/daily.py" = ["PLR0912", "PLR0913", "PLR0915"]
+"src/kalshi_alpha/core/gates/quality_gates.py" = ["PLR0912", "PLR0913", "PLR0915"]
+"src/kalshi_alpha/strategies/cpi/__init__.py" = ["PLR0913"]
+"src/kalshi_alpha/strategies/teny/__init__.py" = ["PLR0913"]
+"tests/test_heartbeat_refresh.py" = ["PLR0913"]
+"tests/test_preset_autoresolve.py" = ["PLR0913"]
+"src/kalshi_alpha/exec/monitors/runtime.py" = ["PLR0913"]
+"src/kalshi_alpha/exec/monitors/sequential.py" = ["PLR0912", "PLR0915"]
+"src/kalshi_alpha/exec/pipelines/week.py" = ["PLR0912", "PLR0915"]
+"tests/conftest.py" = ["PLR0915"]
+"tests/test_force_run_dry.py" = ["PLR0915"]
+"src/kalshi_alpha/exec/pipelines/today.py" = ["PLR0912"]
+"src/kalshi_alpha/exec/reports/ramp.py" = ["PLR0912", "PLR0913", "PLR0915"]
+"src/kalshi_alpha/exec/pilot/runtime.py" = ["PLR0912"]
+"src/kalshi_alpha/exec/pilot_bundle.py" = ["PLR0912", "PLR0915"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kalshi_alpha"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.coverage.run]
+branch = true
+omit = ["tests/*", "notebooks/*"]
+$ rg --files -g 'requirements*.txt'
+$ rg -n PYTHONPATH=src
+scripts/run_indices_ws.sh:16:PYTHONPATH=src exec python -m kalshi_alpha.exec.collectors.polygon_ws \
+Makefile:41:		uv run pytest && PYTHONPATH=src uv run python -m kalshi_alpha.dev.sanity_check; \
+Makefile:43:		$(PYTHON) -m pytest && PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.sanity_check; \
+Makefile:123:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.sanity_check --live-smoke --env $${KALSHI_ENV:-prod}
+Makefile:145:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.parse_fees --pdf docs/kalshi-fee-schedule.pdf --output data/proc/state/fees.json
+Makefile:148:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.exec.collectors.polygon_ws
+Makefile:154:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.backtest.generate_dataset --start $(START) --end $(END)
+Makefile:157:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.backtest.score_hourly
+Makefile:160:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.backtest.score_close
+Makefile:172:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file "$${REPLAY_FILE}" --speed 10 --start "11:40" --end "12:05" --summary "reports/_artifacts/replay/polygon_index_replay_noon.json" --proc-parquet "reports/_artifacts/replay/polygon_replay_noon.parquet"; \
+Makefile:173:	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file "$${REPLAY_FILE}" --speed 10 --start "15:45" --end "16:05" --summary "reports/_artifacts/replay/polygon_index_replay_close.json" --proc-parquet "reports/_artifacts/replay/polygon_replay_close.parquet"
+Makefile:182:	$(PYTHON) scripts/aws_job.py --job replay --command "PYTHONPATH=src $(PYTHON) -m kalshi_alpha.replay.polygon_index_replay --file $$REPLAY_FILE --speed 20 --start 11:40 --end 12:05" --artifact reports/_artifacts/replay_ev.parquet
+report/agent_logs/20251121_codex_ws_fast_tests.md:9:- PYTHONPATH=src pytest tests/drivers/test_polygon_index_ws.py tests/exec/test_ws_lifecycle.py tests/exec/test_fast_index_scans.py tests/exec/test_time_awareness.py
+report/agent_logs/20251120_codex_notes.md:18:- `PYTHONPATH=src pytest -q tests/test_family_switch.py tests/test_index_windows_guard.py tests/test_micro_runner.py tests/test_pilot_runners.py`
+report/agent_logs/20251120_codex_notes.md:20:- ` PYTHONPATH=src python -m mypy ...` timed out on this machine (mypy available but large config); offline index scan CLI attempts timed out (>60s). Need follow-up run in better-resourced env.
+report/agent_logs/20251121_codex_index_paper_ledger_scoreboard.md:11:- `PYTHONPATH=src pytest -q tests/exec/test_index_paper_ledger.py tests/exec/test_scoreboard_index_paper.py`
+report/agent_logs/20251121_codex_index_paper_ledger_scoreboard.md:12:- `PYTHONPATH=src pytest -q tests/drivers/test_kalshi_index_history.py tests/strategies/test_index_panel_polygon.py tests/strategies/test_model_polygon.py tests/strategies/test_fill_model.py tests/exec/test_backtest_index_polygon.py tests/exec/test_fast_index_scans.py tests/exec/test_time_awareness.py`
+report/agent_logs/20251220_codex_notes.md:20:- Tests: pytest -q (fails: ModuleNotFoundError: kalshi_alpha); PYTHONPATH=src pytest -q; python -m kalshi_alpha.exec.preflight_index (fails: ModuleNotFoundError); PYTHONPATH=src python -m kalshi_alpha.exec.preflight_index; python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run (fails: ModuleNotFoundError); PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run.
+scripts/run_polygon_ws.sh:14:PYTHONPATH=src exec python -m kalshi_alpha.exec.collectors.polygon_ws \
+report/agent_logs/20251121_codex_preflight_supervisor_index.md:4:- Tests: `PYTHONPATH=src pytest -q tests/exec/test_preflight_index.py tests/exec/test_supervisor_index.py tests/exec/test_index_paper_ledger.py tests/exec/test_scoreboard_index_paper.py tests/exec/test_fast_index_scans.py tests/exec/test_time_awareness.py` (skips expected fixtures).
+report/agent_logs/20251121_codex_backtest_kalshi_quotes.md:3:- Tests: `PYTHONPATH=src pytest -q tests/drivers/test_kalshi_index_history.py tests/strategies/test_fill_model.py tests/exec/test_backtest_index_polygon.py`, plus fast index smoke `tests/strategies/test_index_panel_polygon.py tests/strategies/test_model_polygon.py tests/exec/test_fast_index_scans.py tests/exec/test_time_awareness.py`.
+report/agent_logs/20251121_codex_model_backtest.md:9:- `PYTHONPATH=src pytest tests/strategies/test_index_panel_polygon.py tests/strategies/test_model_polygon.py tests/exec/test_backtest_index_polygon.py`
+reports/fillcalib/README.md:27:PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index \
+reports/fillcalib/README.md:42:PYTHONPATH=src python tools/build_fillcalib_dataset.py \
+README.md:101:PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check
+README.md:119:  PYTHONPATH=src python - <<'PY'
+README.md:133:- **Repo hygiene:** run `PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check` before committing—this blocks stray unfinished markers and env var leaks.
+README.md:372:PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check
+docs/index_ladders/aws_supervisor_index.md:7:PYTHONPATH=src \
+docs/index_ladders/aws_supervisor_index.md:18:PYTHONPATH=src FAMILY=index \
+docs/runbooks/aws_supervisor_index.md:22:  - set `PYTHONPATH=src` in the EnvironmentFile.
+docs/runbooks/aws_supervisor_index.md:53:- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+$ rg --files -g '*.service' deploy docs
+deploy/systemd/supervisor_index.service
+$ sed -n '1,200p' deploy/systemd/supervisor_index.service
+[Unit]
+Description=Kalshi Index Supervisor (paper-only default)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kalshi-sys
+User=kalshi
+Group=kalshi
+Environment=SUPERVISOR_BROKER=dry
+Environment=PYTHONPATH=/opt/kalshi-sys/src
+EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+ExecStart=/usr/bin/env python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --series INXU --dry-run --broker ${SUPERVISOR_BROKER}
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
+$ sed -n '1,200p' docs/runbooks/aws_supervisor_index.md
+# AWS Supervisor Index Runbook (paper-default)
+
+This runbook describes an AWS-ready, fail-closed deployment for the 24/7
+`kalshi_alpha.exec.supervisor_index` loop. Default posture is PAPER/dry-run.
+
+Last updated: 2025-12-21
+
+## Scope and defaults
+- Scope: index ladder windows only (INX/INXU/NASDAQ100/NASDAQ100U).
+- Default broker: dry (paper). Live must be explicitly armed and is out of scope
+  for this runbook unless a separate approval ticket exists.
+- Optional: `--series` can restrict the supervisor to a subset for smoke checks.
+- Canonical systemd unit: `deploy/systemd/supervisor_index.service` (paper-only default).
+  - The template pins `--series INXU` for dry-run verification; adjust only with
+    explicit approval and updated verification evidence.
+
+## Prerequisites
+- Repo installed or checked out on the host (example: `/opt/kalshi-sys`).
+- Python 3.11+ environment activated.
+- Either:
+  - `pip install -e .`, or
+  - set `PYTHONPATH=src` in the EnvironmentFile.
+
+## EC2 setup (copy/paste)
+> Use a dedicated non-root user (example: `kalshi`). Run commands as that user
+> unless `sudo` is required. Replace placeholders in <>.
+
+```bash
+sudo useradd --create-home --shell /bin/bash kalshi
+sudo mkdir -p /opt/kalshi-sys /etc/kalshi
+sudo chown -R kalshi:kalshi /opt/kalshi-sys
+
+sudo -u kalshi bash -lc '\
+  set -euo pipefail\
+  cd /opt/kalshi-sys\
+  git clone <REPO_URL> .\
+  python -m venv .venv\
+  source .venv/bin/activate\
+  pip install -U pip wheel\
+  pip install -e .\
+'
+
+sudo tee /etc/kalshi/kalshi-supervisor.env >/dev/null <<'EOF'
+SUPERVISOR_BROKER=dry
+POLYGON_API_KEY=<SSM_OR_SECRETS_MANAGER>
+KALSHI_API_KEY_ID=<SSM_OR_SECRETS_MANAGER>
+KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
+EOF
+sudo chmod 600 /etc/kalshi/kalshi-supervisor.env
+```
+
+Notes:
+- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+  `PYTHONPATH=/opt/kalshi-sys/src` to the EnvironmentFile.
+- Keep secrets in SSM/Secrets Manager and render locally; never commit them.
+
+## Environment variables and secrets (SSM / Secrets Manager)
+Store secrets in AWS SSM Parameter Store or Secrets Manager and render into a
+local EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
+Do NOT store secrets in the repo.
+
+Required for online supervisor (preflight + discovery):
+- `POLYGON_API_KEY`
+  - Used by Polygon REST ping and websocket readers.
+  - Loaded via `kalshi_alpha.utils.keys.load_polygon_api_key()`.
+- `KALSHI_API_KEY_ID`
+  - Used by `kalshi_alpha.brokers.kalshi.http_client.KalshiHttpClient`.
+- `KALSHI_PRIVATE_KEY_PEM_PATH`
+  - Path to RSA private key PEM for Kalshi auth.
+
+Optional / ops:
+- `SUPERVISOR_BROKER`
+  - Used by `deploy/systemd/supervisor_index.service` to set broker mode.
+  - Default is `dry`; override only with explicit approval.
+- `KALSHI_MONITOR_SLACK_WEBHOOK`
+  - Used by `kalshi_alpha.exec.monitors.cli` for Slack alerts.
+- `KALSHI_INDEX_PAPER_LEDGER_PATH`
+  - Overrides default paper ledger path.
+
+## Configs and artifact paths
+Core configs:
+- `configs/index_ops.yaml` (window definitions + cancel buffers).
+- `configs/quality_gates.index.yaml` (index-only freshness thresholds).
+- `configs/freshness.index.yaml` (index-only data freshness monitor).
+- `configs/pilot.yaml` (pilot safety caps used by index scanners).
+
+Runtime artifacts:
+- Heartbeat: `data/proc/state/heartbeat.json`
+- Kill switch: `data/proc/state/kill_switch`
+- Outstanding orders: `data/proc/state/orders.json`
+- Monitor artifacts: `reports/_artifacts/monitors/*.json`
+- Freshness monitor: `reports/_artifacts/monitors/freshness.json`
+- GO/NO-GO summary: `reports/_artifacts/go_no_go.json`
+
+## Deployment (systemd on EC2)
+1) Copy the systemd unit template:
+   - `deploy/systemd/supervisor_index.service`
+2) Set WorkingDirectory + User/Group placeholders in the unit file.
+3) Create an EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
+   - Include `SUPERVISOR_BROKER=dry` (default) and any required keys.
+4) Install and enable the service:
+   - `sudo cp deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service`
+   - `sudo systemctl daemon-reload`
+   - `sudo systemctl enable --now kalshi-supervisor-index.service`
+5) Verify status + logs:
+   - `systemctl status kalshi-supervisor-index.service`
+   - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
+
+Watchdog behavior:
+- The service uses `Restart=always` and will self-heal after failures.
+- The supervisor exits after the final window; systemd restarts it and keeps a
+  24/7 posture.
+
+Monitoring jobs (recommended):
+- Use the index-specific templates under `configs/systemd/`:
+  - `kalshi-index-monitors.service` + `kalshi-index-monitors.timer`
+  - `kalshi-index-freshness.service` + `kalshi-index-freshness.timer`
+- Install + enable:
+  - `sudo cp configs/systemd/kalshi-index-monitors.service /etc/systemd/system/`
+  - `sudo cp configs/systemd/kalshi-index-monitors.timer /etc/systemd/system/`
+  - `sudo cp configs/systemd/kalshi-index-freshness.service /etc/systemd/system/`
+  - `sudo cp configs/systemd/kalshi-index-freshness.timer /etc/systemd/system/`
+  - `sudo systemctl daemon-reload`
+  - `sudo systemctl enable --now kalshi-index-monitors.timer`
+  - `sudo systemctl enable --now kalshi-index-freshness.timer`
+
+## Log routing (journald -> CloudWatch)
+Use the CloudWatch Agent to ship journald logs for
+`kalshi-supervisor-index.service`. The repo includes a minimal config template
+you can copy to the host:
+
+```bash
+sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json \
+  /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+```
+
+CloudWatch destinations (default template):
+- Log group: `/kalshi/kalshi-supervisor-index`
+- Log stream: `{instance_id}`
+
+Example signals to index in CloudWatch:
+- `NO-GO` lines from supervisor logs.
+- `skip ... polygon WS stale` lines.
+- `fresh WS ok age=` lines for freshness trending.
+- `[heartbeat] updated` lines for heartbeat confirmation.
+
+If the agent is not installed, install it first (example for Ubuntu):
+```bash
+sudo apt-get update
+sudo apt-get install -y amazon-cloudwatch-agent
+```
+
+## Health checks and staleness thresholds
+Heartbeat:
+- Path: `data/proc/state/heartbeat.json`
+- Threshold: 5 minutes (see `heartbeat_stale(threshold=timedelta(minutes=5))` in
+  `src/kalshi_alpha/exec/runners/scan_ladders.py`).
+- Alarm if last heartbeat is older than 5 minutes.
+
+Monitor artifacts:
+- Path: `reports/_artifacts/monitors/*.json`
+- Staleness threshold: 30 minutes (DEFAULT_MONITOR_MAX_AGE_MINUTES in
+  `src/kalshi_alpha/exec/monitors/summary.py`).
+- Alarm if the newest monitor artifact is older than 30 minutes.
+
+Data freshness (index scope):
+- Config: `configs/freshness.index.yaml`
+- Polygon index websocket age_seconds threshold: 10 seconds.
+- Use `python -m kalshi_alpha.exec.monitors.freshness --config configs/freshness.index.yaml`
+  on a 5-minute cadence to refresh `freshness.json`.
+
+Supervisor WS gating:
+- Default thresholds: soft 1500 ms, strict 800 ms
+  (`DEFAULT_WS_SOFT_MS`, `DEFAULT_WS_STRICT_MS` in
+  `src/kalshi_alpha/exec/supervisor_index.py`).
+- Alarm if repeated `skip <window>: polygon WS stale` messages appear.
+
+Preflight calibration freshness:
+- Max age: 14 days (`MAX_CALIBRATION_AGE_DAYS` in
+  `src/kalshi_alpha/exec/preflight_index.py`).
+- Alarm if calibration files under `data/proc/calib/index/*/*/params.json`
+  exceed 14 days.
+
+## Alert conditions (minimum set)
+- Heartbeat stale > 5 minutes.
+- Monitor artifacts stale > 30 minutes.
+- Freshness artifact reports `status=ALERT` or `polygon_index.websocket` age > 10s.
+- Supervisor logs contain `NO-GO` or `polygon_ws_stale` for more than 2 windows.
+- systemd restarts > 3 within 10 minutes (crash loop).
+
+## Break-glass procedures
+Kill switch (immediate halt):
+1) Create the sentinel file: `touch data/proc/state/kill_switch`.
+2) Confirm `kill_switch_engaged` appears in `reports/_artifacts/go_no_go.json`.
+3) Remove file to resume (after incident review).
+
+Stop/disable the service:
+- `sudo systemctl stop kalshi-supervisor-index.service`
+$ sed -n '1,200p' docs/index_ladders/aws_supervisor_index.md
+# supervisor_index on AWS (paper runs)
+
+Goal: loop over SPX/NDX windows during U.S. cash hours, enforce preflight + WS freshness, and place **maker-only dry** quotes that log to `data/proc/ledger/index_paper.jsonl`.
+
+## Single-window invocation (cron/EventBridge)
+```bash
+PYTHONPATH=src \
+FAMILY=index \
+python -m kalshi_alpha.exec.supervisor_index \
+  --now "2025-11-21T09:50:00-05:00"   # any time inside the window
+```
+- Picks the active or next window and runs `micro_index` for its series.
+- Skips trading if preflight fails or Polygon index WS is stale.
+- Use `--offline --no-ws-listen` for fixture-only tests.
+
+## Long-lived loop (cash hours on an EC2 box)
+```bash
+PYTHONPATH=src FAMILY=index \
+python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 30
+```
+- Starts a shared Polygon index websocket listener for freshness gating.
+- Re-checks preflight per window; skips if NO-GO or WS age exceeds thresholds (soft 1500ms / strict 800ms by default).
+- Broker defaults to `dry`; **do not set `--broker live` without human approval.**
+- Example EventBridge rule (UTC, covers EST 09:45–16:05): `cron(0/15 14-21 ? * MON-FRI *)` invoking a Lambda/RunCommand wrapper that calls the supervisor with `--loop --sleep-seconds 30`.
+
+## Operational notes
+- Preflight (see `kalshi_alpha.exec.preflight_index.run_preflight`) checks env/keys, kill-switch, calibration freshness, and Polygon REST reachability.
+- Kill-switch: pass `--kill-switch-file` to point at a sentinel (default is `data/proc/state/kill_switch`).
+- WS gating: when `--offline` or `--no-ws-listen` is set, WS checks are bypassed; otherwise the supervisor opens a single Massive index WS and requires fresh ticks.
+- Paper ledger writes can be redirected with `KALSHI_INDEX_PAPER_LEDGER_PATH` for sandbox runs.
+- Use `--quiet` to reduce stdout noise in AWS logs.
+- Logs emit WS freshness on each window: `fresh WS ok age=XYZms strict=<bool> window=<label>`; grep for `fresh WS ok` in CloudWatch to confirm feed health. Preflight NO-GO reasons are emitted once per window unless transient (`polygon_unreachable`), in which case the supervisor will retry within the same window (default 60s interval).
+$ rg -n PYTHONPATH docs/runbooks docs/index_ladders
+docs/index_ladders/aws_supervisor_index.md:7:PYTHONPATH=src \
+docs/index_ladders/aws_supervisor_index.md:18:PYTHONPATH=src FAMILY=index \
+docs/runbooks/aws_supervisor_index.md:22:  - set `PYTHONPATH=src` in the EnvironmentFile.
+docs/runbooks/aws_supervisor_index.md:53:- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+docs/runbooks/aws_supervisor_index.md:54:  `PYTHONPATH=/opt/kalshi-sys/src` to the EnvironmentFile.
+$ rg --files docs/runbooks
+docs/runbooks/outage_playbook.md
+docs/runbooks/eod.md
+docs/runbooks/oncall_checks.md
+docs/runbooks/postmortem_template.md
+docs/runbooks/hourly.md
+docs/runbooks/aws_supervisor_index.md
+$ rg -n systemd|supervisor docs/runbooks
+docs/runbooks/oncall_checks.md:1:# On-Call Checks (supervisor_index)
+docs/runbooks/oncall_checks.md:7:  - `systemctl status kalshi-supervisor-index.service`
+docs/runbooks/oncall_checks.md:9:  - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
+docs/runbooks/oncall_checks.md:42:  - `touch data/proc/state/kill_switch` and restart supervisor.
+docs/runbooks/aws_supervisor_index.md:4:`kalshi_alpha.exec.supervisor_index` loop. Default posture is PAPER/dry-run.
+docs/runbooks/aws_supervisor_index.md:12:- Optional: `--series` can restrict the supervisor to a subset for smoke checks.
+docs/runbooks/aws_supervisor_index.md:13:- Canonical systemd unit: `deploy/systemd/supervisor_index.service` (paper-only default).
+docs/runbooks/aws_supervisor_index.md:43:sudo tee /etc/kalshi/kalshi-supervisor.env >/dev/null <<'EOF'
+docs/runbooks/aws_supervisor_index.md:49:sudo chmod 600 /etc/kalshi/kalshi-supervisor.env
+docs/runbooks/aws_supervisor_index.md:59:local EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
+docs/runbooks/aws_supervisor_index.md:62:Required for online supervisor (preflight + discovery):
+docs/runbooks/aws_supervisor_index.md:73:  - Used by `deploy/systemd/supervisor_index.service` to set broker mode.
+docs/runbooks/aws_supervisor_index.md:95:## Deployment (systemd on EC2)
+docs/runbooks/aws_supervisor_index.md:96:1) Copy the systemd unit template:
+docs/runbooks/aws_supervisor_index.md:97:   - `deploy/systemd/supervisor_index.service`
+docs/runbooks/aws_supervisor_index.md:99:3) Create an EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
+docs/runbooks/aws_supervisor_index.md:102:   - `sudo cp deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service`
+docs/runbooks/aws_supervisor_index.md:104:   - `sudo systemctl enable --now kalshi-supervisor-index.service`
+docs/runbooks/aws_supervisor_index.md:106:   - `systemctl status kalshi-supervisor-index.service`
+docs/runbooks/aws_supervisor_index.md:107:   - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
+docs/runbooks/aws_supervisor_index.md:111:- The supervisor exits after the final window; systemd restarts it and keeps a
+docs/runbooks/aws_supervisor_index.md:115:- Use the index-specific templates under `configs/systemd/`:
+docs/runbooks/aws_supervisor_index.md:119:  - `sudo cp configs/systemd/kalshi-index-monitors.service /etc/systemd/system/`
+docs/runbooks/aws_supervisor_index.md:120:  - `sudo cp configs/systemd/kalshi-index-monitors.timer /etc/systemd/system/`
+docs/runbooks/aws_supervisor_index.md:121:  - `sudo cp configs/systemd/kalshi-index-freshness.service /etc/systemd/system/`
+docs/runbooks/aws_supervisor_index.md:122:  - `sudo cp configs/systemd/kalshi-index-freshness.timer /etc/systemd/system/`
+docs/runbooks/aws_supervisor_index.md:129:`kalshi-supervisor-index.service`. The repo includes a minimal config template
+docs/runbooks/aws_supervisor_index.md:133:sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json \
+docs/runbooks/aws_supervisor_index.md:140:- Log group: `/kalshi/kalshi-supervisor-index`
+docs/runbooks/aws_supervisor_index.md:144:- `NO-GO` lines from supervisor logs.
+docs/runbooks/aws_supervisor_index.md:177:  `src/kalshi_alpha/exec/supervisor_index.py`).
+docs/runbooks/aws_supervisor_index.md:191:- systemd restarts > 3 within 10 minutes (crash loop).
+docs/runbooks/aws_supervisor_index.md:200:- `sudo systemctl stop kalshi-supervisor-index.service`
+docs/runbooks/aws_supervisor_index.md:201:- `sudo systemctl disable kalshi-supervisor-index.service`
+docs/runbooks/aws_supervisor_index.md:211:  - `sudo systemctl restart kalshi-supervisor-index.service`
+docs/runbooks/aws_supervisor_index.md:216:  - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
+docs/runbooks/aws_supervisor_index.md:218:  - `python -m kalshi_alpha.exec.supervisor_index --help`
+docs/runbooks/aws_supervisor_index.md:228:- `docs/index_ladders/aws_supervisor_index.md`
+$ rg -n pip install|uv README.md docs
+README.md:72:   pip install --upgrade pip
+README.md:73:   pip install -e ".[dev]"        # use `uv pip install -e ".[dev]"` when available
+README.md:115:- **Editable installs:** pip 25’s default PEP 660 mode does not add `src/` to `sys.path` on macOS. Pin pip `<25` or install with `python -m pip install -e ".[dev]" --config-settings editable_mode=compat`.
+docs/runbooks/aws_supervisor_index.md:21:  - `pip install -e .`, or
+docs/runbooks/aws_supervisor_index.md:39:  pip install -U pip wheel\
+docs/runbooks/aws_supervisor_index.md:40:  pip install -e .\
+docs/runbooks/aws_supervisor_index.md:53:- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+$ sed -n '60,140p' README.md
+| `exec/proposals/` | Scanner proposal JSON artifacts. |
+| `tests/` | Pytest suites covering core subsystems, brokers, pipelines, and safety checks. |
+| `notebooks/` | Optional research notebooks (no data committed). |
+
+---
+
+## Environment & Configuration
+
+1. **Set up Python environment**
+   ```bash
+   python3.11 -m venv .venv
+   source .venv/bin/activate
+   pip install --upgrade pip
+   pip install -e ".[dev]"        # use `uv pip install -e ".[dev]"` when available
+   ```
+
+2. **Secrets & environment variables**
+   - Copy credentials into `.env.local` (git-ignored). The live broker expects `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PEM_PATH` (path to an RSA private key used for RSA-PSS signatures). Values are never logged; they load via `kalshi_alpha.utils.env.load_env()`.
+   - If `.env.local` is absent, the code falls back to `.env` then environment variables.
+
+3. **Data directories**
+   - `data/raw`, `data/proc`, and `reports/_artifacts` are created on demand. Tests patch these paths to temp locations through fixtures (see `tests/conftest.py`).
+
+4. **Family switch**
+   - Pipelines and scoreboard default to `FAMILY=index` (SPX/NDX only). Pass `--family macro` or set `FAMILY=macro` when you intentionally run CPI/claims/weather/teny workflows.
+
+---
+
+## Quick Start Workflow
+
+```bash
+# Formatting, linting, typing, testing
+make fmt
+make lint
+make typecheck
+make test          # runs pytest -q -m "not legacy" across the suite
+
+# Optional live smoke (no submits; requires credentials)
+python -m kalshi_alpha.dev.sanity_check --live-smoke --env demo
+
+# Repo hygiene (run locally & in CI)
+PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check
+
+# Dry-run ladder scan with offline fixtures
+python -m kalshi_alpha.exec.runners.scan_ladders \
+  --series CPI \
+  --offline \
+  --fixtures-root tests/data_fixtures \
+  --report \
+  --paper-ledger \
+  --quiet
+```
+
+### Environment & Tooling Notes
+
+- **Editable installs:** pip 25’s default PEP 660 mode does not add `src/` to `sys.path` on macOS. Pin pip `<25` or install with `python -m pip install -e ".[dev]" --config-settings editable_mode=compat`.
+- **Manual `.pth` fallback:** drop `.venv/lib/python3.11/site-packages/kalshi_alpha_local.pth` containing the absolute `src` path if imports ever fail.
+- **Calibration refresh:** regenerate `data/proc/*_calib.parquet` from fixtures:
+  ```bash
+  PYTHONPATH=src python - <<'PY'
+  import json
+  from pathlib import Path
+  from kalshi_alpha.strategies.cpi import calibrate as cpi
+  from kalshi_alpha.strategies.claims import calibrate as claims
+  from kalshi_alpha.strategies.teny import calibrate as teny
+  from kalshi_alpha.strategies.weather import calibrate as weather
+  fixtures = Path("tests/fixtures")
+  cpi(json.loads((fixtures/"cpi"/"history.json").read_text())["history"])
+  claims(json.loads((fixtures/"claims"/"history.json").read_text())["history"])
+  teny(json.loads((fixtures/"teny"/"history.json").read_text())["history"])
+  weather(json.loads((fixtures/"weather"/"history.json").read_text())["history"])
+  PY
+  ```
+- **Repo hygiene:** run `PYTHONPATH=src python -m kalshi_alpha.dev.sanity_check` before committing—this blocks stray unfinished markers and env var leaks.
+
+Common targets:
+- `make scan` – shorthand for CPI dry-run scan.
+- `python -m kalshi_alpha.exec.pipelines.daily ...` – run structured daily pipeline (see below). New helpers:
+  - `--snap-to-window {off,wait,print}` aligns execution with the next Eastern-time window (print-only or sleep-until-open behaviour).
+  - `--force-run` (DRY broker only) now always produces a markdown report labelled **FORCE-RUN (DRY)** so manual reviews match production scans.
+- `python -m kalshi_alpha.exec.pipelines.preflight --mode ...` – quick ET-aware window + gate check (see “Window Gating & Preflight”).
+$ sed -n '1,200p' project_state/KNOWN_ISSUES.md
+# Known Issues and Limitations
+
+- **No recent fills in committed artifacts**: `reports/scoreboard_7d.md` and `reports/scoreboard_30d.md` report "No ledger data available," and `reports/pilot_readiness.md` shows insufficient data for all index series.
+- **GO/NO-GO failures due to stale feeds**: `reports/_artifacts/go_no_go.json` lists stale Cleveland nowcast and Treasury yields, plus `heartbeat_stale` and `monitors_stale` reasons.
+- **Model simplifications**: Polygon-only model uses sqrt(time) scaling with Student-t/normal assumptions and no explicit conditioning on realized volatility or microstructure features (noted in agent logs).
+- **Fill model calibration gap**: Maker fill probability heuristic exists but is not calibrated on real TOB fills (explicit TODO in agent logs).
+- **AWS wiring gap for index supervisor**: runbooks + systemd template exist (`docs/runbooks/aws_supervisor_index.md`, `deploy/systemd/supervisor_index.service`), but AWS deployment/verification is still pending.
+- **Type-check coverage gaps**: `pyproject.toml` includes `mypy` ignore sections for several modules (scoreboard, CPI/claims/teny strategies, tests), which may mask typing regressions.
+$ sed -n '1,200p' docs/PROGRESS.md
+# Progress
+
+Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
+
+## 2025-12-22
+- Ticket #6 — Fix index CLI smoke entrypoints: added preflight/supervisor summary lines, ensured go/no-go artifact writes on NO-GO, and added stdout fixture coverage for both CLIs.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md`
+- Ticket #8 — AWS dry-run deployment verification: pinned the systemd unit to `--series INXU`, added CloudWatch agent + index monitor timer templates, expanded the AWS runbook with EC2/systemd/CloudWatch steps, and collected EC2 systemd + CloudWatch proof for two windows.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
+
+## 2025-12-21
+- Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_011149Z_TICKET-002_settlement_basis_audit/README.md`
+- Ticket #3 — TOB snapshot logger + fill-calibration dataset skeleton: added bounded TOB + quote-intent logging for index ladders, dataset builder, and calibration README.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_033013Z_TICKET-003_tob_snapshot_logger/README.md`
+- Ticket #4 RETRY — Pilot safety enforced at broker boundary: tightened pilot config to index-only, enforced TOB staleness checks, added broker-boundary tests (crossing/stale/kill-switch queue), and refreshed run logs (supersedes 20251221_055147Z run).
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_192920Z_TICKET-004_pilot_broker_boundary_retry/README.md`; tests `tests/test_broker_live_safety.py`, `src/kalshi_alpha/brokers/kalshi/live.py`
+- Ticket #5 — AWS / 24-7 supervisor wiring: added AWS runbook + on-call checks, a systemd supervisor template, supervisor_index CLI aliases for `--dry-run` + `--series` with tests, and stabilized the macro-stale index scanner fixture test.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_223847Z_TICKET-005_aws_supervisor_wiring/README.md`
+- Ticket #7 — Bundle / diff hygiene stop-the-line: added GPT bundle verifier, hardened gpt-bundle diff generation, and tests for missing artifacts/placeholder diffs.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251221_204343Z_TICKET-007_bundle_diff_hygiene/README.md`; tests `tests/test_gpt_bundle_verifier.py`
+
+## 2025-12-20
+- Ticket #1 — Index-only GO/NO-GO gates: scoped quality gates and freshness summaries to index feeds, and index runners now forward the index scope so macro staleness no longer blocks index scans.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251220_231551Z_TICKET-001_index_only_gates/README.md`
+$ sed -n '1,200p' CHANGELOG.md
+# Changelog
+
+## 2025-12-22
+- Ticket #6: `preflight_index` and `supervisor_index` now emit GO/NO-GO summary lines, always write `reports/_artifacts/go_no_go.json`, and have stdout fixture coverage for both CLIs.
+- Ticket #8: refreshed AWS supervisor dry-run wiring with `--series INXU` in the systemd unit, added CloudWatch journald config + index monitor timer templates, and expanded the AWS runbook with EC2/systemd/CloudWatch copy/paste steps.
+- Ticket #8: captured EC2 systemd + CloudWatch proof for two dry-run windows (sanitized excerpts in run log).
+
+## 2025-12-21
+- Added a settlement basis audit CLI for index ladders, offline fixtures + unit tests, and daily report outputs comparing Polygon window values to Kalshi expiration values.
+- Fixed backtest CLI subprocess tests to inject repo PYTHONPATH so `python -m kalshi_alpha...` resolves in pytest runs.
+- Added bounded TOB snapshot + quote-intent logging for index ladders, a fill-calibration dataset builder, and reporting notes for calibration inputs.
+- Enforced pilot broker-boundary safety checks (maker-only crossing, window freeze, caps, kill switch) with new live-broker tests and explicit ack/env gating.
+- Ticket #4 RETRY: tightened pilot config to index-only ladders, enforced TOB freshness at the live broker boundary, and added stale-TOB + kill-switch queue safety tests.
+- Added AWS supervisor runbook + on-call checks, a systemd supervisor template, and supervisor_index CLI aliases for `--dry-run` and `--series` with tests; stabilized the macro-stale index scanner fixture test with a fixed `--now` and clock-skew override.
+- Added GPT bundle verification tooling, hardened `make gpt-bundle` diff generation, and added bundle hygiene tests for missing artifacts/placeholder diffs.
+- Gitignored local run logs and GPT bundle artifacts (keep on disk, include in bundles for review).
+
+## 2025-12-20
+- Scoped index GO/NO-GO evaluation to index-only freshness + quality gates, added quality-gates scope plumbing for index runners, and updated index readiness/scoreboard outputs plus tests so macro staleness no longer blocks index runs.
+
+## 2025-11-20
+- Critical Fix: Polygon batch websocket payloads (`stream_aggregates`) now accept list or dict messages, preventing supervisor crashes on Massive bursts.
+- Feat: Skew-Normal Pricing for hourly index above/below; added `skew` input to bias downside tails and protect maker inventory.
+- New 24/7 `kalshi_alpha.exec.supervisor` daemon orchestrates hourly INXU/NASDAQ100U scans and the 15:50 EOD close run; it keeps Polygon indices websockets alive, trips the kill switch when latency/age exceeds 500 ms, and drops heartbeats so ops can see status at a glance.
+- `scan_ladders --sniper` now hits top-of-book mispricings (>5% probability gap) as taker orders, caps size to visible depth, tags liquidity in metadata, and records sniper counts/thresholds in monitors for dashboards.
+- Added proof-of-fill CLI (`scripts/proof_of_fill.py`) to reconcile Kalshi order history with the ledger, print per-window fill/PnL tables, and persist `pnl_window_YYYY-MM-DD.parquet` artifacts.
+- Introduced staged sizing via `configs/size_ladder.yaml` plus loader helpers; the live loop now respects the current ladder stage and final-minute freshness freezes.
+- New promotion audit helper (`scripts/check_promotion_ladder.py`) scores recent PnL/SLO artifacts to recommend stage upgrades; unit tests cover ladder parsing and promotion paths.
+- Expanded tests for live close gating and freshness breaches, keeping the hourly loop aligned with discovery close targets and NO-GO rules.
+
+## 2025-11-11
+- Rolled out `kalshi_alpha.exec.slo` + scoreboard SLO lines (freshness/time-at-risk/VaR headroom) with optional CloudWatch publishing via `python -m kalshi_alpha.exec.scoreboard --publish-slo-cloudwatch`.
+- Added `python -m report.digest` (daily Markdown + PNG digest with optional S3 upload) and linked it from REPORT/runbooks.
+- Delivered `monitor/drift_sigma_tod.py` + `kalshi_alpha.exec.monitors.sigma_drift`; scanner shrink factors now respect Sigma drift alerts (`tests/test_sigma_drift_monitor.py`).
+- Landed the fee/rule watcher CLI (`monitor/fee_rules_watch.py`), stateful ack flow, and a runtime gate that blocks `scan_ladders` until the change is acknowledged (`tests/test_fee_rules_watch.py`).
+- Introduced `kalshi_alpha.exec.limits` (public `LossBudget` + `ProposalLimitChecker`) so PAL + daily/weekly stops are enforced during proposal generation; runners and tests were updated accordingly (`tests/test_limits.py`, `tests/test_u_hourly_rotation.py`).
+- Documented promotion milestones in `docs/promotion_ladder.md` and wired hourly/EOD runbooks to the fee watcher, sigma drift monitor, and daily digest workflow.
+- Landed correlation-aware VaR caps and inventory tilt: `kalshi_alpha.risk.correlation` feeds `scan_ladders` with cross-bin/cross-index sizing adjustments, new config `configs/index_correlation.yaml`, and unit coverage in `tests/test_correlation_var.py`.
+- Added dynamic quote optimization (`kalshi_alpha.exec.quote_optim`) wired into `scan_ladders` to apply PMF-skew/microprice penalties, freshness widening, and replacement throttles; covered via `tests/test_quote_optim.py`.
+- Built the dual-feed failover controller (`kalshi_alpha.data.failover`) plus `python -m tools.failover_smoke --dry-run`; CI/unit coverage lives in `tests/test_failover.py`.
+- Shipped `kalshi_alpha.sched.hotrestart.HotRestartManager` with hot-restart snapshots (`data/proc/state/hot_restart.json`) and regression tests (`tests/test_hotrestart.py`); runbooks reference the workflow.
+- Tightened ΔEV parity CI: `scripts/parity_gate.py` now enforces per-window thresholds, emits `reports/_artifacts/monitors/ev_gap.json`, and is exercised by `tests/test_parity_gate.py`.
+- Documentation refresh: hourly/EOD runbooks include hot-restart + dual-feed guidance, new `docs/runbooks/outage_playbook.md`, and a reusable [Post-Mortem Template](docs/runbooks/postmortem_template.md).
+- Added market discovery plumbing (`kalshi_alpha.markets.discovery` + `scan_ladders --discover`) so ops can confirm INX/NDX ladders before arming the scheduler; fixtures/tests live under `tests/test_market_discovery.py` and `tests/test_scan_ladders_discover.py`.
+- Landed the new PMF bridge (`kalshi_alpha.models.pmf_index`) plus hourly/EOD calibration jobs (`jobs/calib_hourly.py`, `jobs/calib_eod.py`), persistence paths, and plotting hooks — see `tests/test_pmf_calib_jobs.py` and `tests/test_index_pmf_model.py`.
+- `python -m report.honesty` now computes reliability curves, Brier, and ECE; scoreboard consumes the artifact, scan_ladders applies per-series clamps, and telemetry exposes the shrink factors.
+- Built the TOB recorder + fill-model pipeline (`kalshi_alpha.exec.collectors.kalshi_tob`, `kalshi_alpha.replay.fill_model`, `kalshi_alpha.core.execution.fillprob`) so fill alpha automatically downshifts off real depth snapshots.
+- Enforced per-family VaR caps via `kalshi_alpha.risk.var_index` and surfaced exposure snapshots in scanner monitors.
+- Shipped the AWS shim (`scripts/aws_job.py`, Dockerfile) with `make aws-calib` / `make aws-replay`, plus the ΔEV parity gate (`scripts/parity_gate.py`, `make parity-ci`).
+
+## 2025-11-03
+- Added `kalshi_alpha.exec.monitors.freshness` with configurable thresholds (`configs/freshness.yaml`) for CPI, Claims, TenY, Cleveland, AAA Gas, and NWS climate feeds; the monitor emits `reports/_artifacts/monitors/freshness.json` and a CLI table (`make freshness-smoke`).
+- Ramp readiness now ingests the freshness artifact, surfaces a “Data Freshness” table in JSON/Markdown, and stamps `STALE_FEEDS` when any required feed is stale, missing, out-of-range (AAA), or misaligned (TenY series identity).
+- `scan_ladders` short-circuits the pre-submit gate whenever `required_feeds_ok` is false, sharing the same artifact and reasons as the readiness report.
+- Weather freshness is scoped to the active station list; stale stations are enumerated in readiness and block GO decisions.
+- Documentation refreshed with the new data freshness workflow, and sample monitor output (`reports/_artifacts/monitors/freshness.json`) added for reference.
+
+## 2025-11-02 (Sprint 7)
+- `pilot_session.json` now records the target `family`, normalized `cusum_state`, fill realism gap, and full alert summary; tests cover payload structure and artifact writes.
+- Pilot scans import `ev_honesty_bins` from `reports/pilot_ready.json` and enforce the recommended per-bin weights/caps before sizing orders, even when the series-level decision is GO.
+- `pilot_readiness.md` renders a per-bin EV honesty table alongside the existing summary metrics, and `README_pilot.md` includes an explicit final GO/NO-GO decision with rationale.
+- Bundle checklist and runbook guidance updated to highlight per-bin enforcement, freshness gates, and the richer session metadata.
+
+## 2025-11-02 (Sprint 6)
+- Introduced `python -m kalshi_alpha.exec.runners.pilot` as the single pilot entrypoint; it auto-enforces maker-only sizing, per-bin clamps from the pilot config, and records structured session metadata.
+- Pilot runs now persist `reports/_artifacts/pilot_session.json` with trades, Δbps/t-stat, CuSum status, fill realism, and recent monitor alerts. Ramp readiness ingests the session file to surface per-bin EV honesty alongside optional manual caps/weights.
+- `compute_ramp_policy` exposes `ledger_age_minutes` / `monitors_age_minutes` in `pilot_ready.json`, generates per-bin EV summaries (`ev_honesty_bins`), and carries per-bin overrides into the bundle README.
+- `python -m kalshi_alpha.exec.pilot_bundle` now packages the session artifact and a generated `README_pilot.md` checklist covering EV honesty flags, CuSum, freeze violations, drawdown, WS/auth health, and freshness thresholds.
+- Expanded mypy/ruff coverage to the new pilot modules and refreshed the pilot test suite (session JSON, bundle contents, staleness gates, per-bin overrides, kill-switch/freeze guards).
+
+## 2025-11-02 (Sprint 4)
+- Added ledger/monitor freshness checks plus panic-backoff aggregation to the pilot ramp report; sequential CuSum and freeze-window violations now force series-level `NO-GO` decisions.
+- Extended runtime monitors with `ev_seq_guard`, `freeze_window`, and inline kill-switch visibility; panic backoff is emitted when three monitor families alert inside 30 minutes.
+- Introduced `python -m kalshi_alpha.exec.pilot_bundle` (`make pilot-bundle`) to bundle pilot readiness JSON/Markdown, monitors, scoreboards, ladder reports, and a telemetry slice into a single tarball with manifest metadata.
+- Updated the runbook with the new freeze policy, pilot bundle workflow, rollback guidance, and review checklist.
+
+## 2025-11-02
+- Hardened the Kalshi HTTP client with header-only RSA-PSS signing (no bearer tokens), exponential backoff, and structured logging.
+- Refactored `LiveBroker` to rely on the header-signed client, enforce idempotency via locking, and guard against duplicate submissions.
+- Added integration tests validating signature construction, retry behaviour, query exclusion, and millisecond timestamps; refreshed broker safety tests to use the new client abstraction.
+- Documented the credential expectations and connectivity flow in `.env.example`, `README.md`, and `docs/RUNBOOK.md`.
+- Introduced an authenticated websocket client with reconnect/backoff, plus a live smoke CLI path (`sanity_check --live-smoke`) that exercises read-only REST checks.
+- Expanded the paper ledger to capture latency, partial fills, slippage ticks, and expected vs. realized EV; scoreboard and ladder reports now plot EV honesty with confidence badges.
+- Added automatic fill ratio and slippage calibration from live ledgers with persisted state (`fill_alpha.json`, `slippage.json`) and regression tests.
+- Landed production risk configs (`pal_policy.yaml`, `portfolio.yaml`, `quality_gates.yaml`) with CI guardrails to prevent accidental loosening of limits.
+- Introduced the telemetry sink (`data/raw/kalshi/.../exec.jsonl`) plus helper make targets (`make telemetry-smoke`, `make report`, `make live-smoke`).
+- Extended telemetry to capture REST/WS latency, sanitized order books, and auth streak metadata; new monitor CLI (`make monitors`) produces JSON artifacts and optional Slack alerts.
+- Added a ramp policy engine (`make pilot-readiness`) that enforces fill/Δbps/t-stat criteria, emits GO/NO-GO multipliers, and writes machine-readable readiness JSON.
+- Published systemd timers and logrotate templates under `configs/` for daily runs, telemetry shipping, and recurring monitors.
+$ sed -n '1,200p' docs/DOCS_AND_LOGGING_SYSTEM.md
+# DOCS + LOGGING SYSTEM (Traceability / Audit Trail)
+
+Last updated: 2025-12-20  
+Purpose: make every change, run, and claim reproducible, reviewable, and safe for a high-risk trading system.
+
+---
+
+## 1) Core principle: “No invisible state”
+If it affects a trade decision, it must be:
+- committed in code/config OR
+- recorded as a run artifact under `docs/agent_runs/<RUN_NAME>/` OR
+- captured in a structured log / ledger under `data/proc/`
+
+No “I ran it locally” without a run log. No “trust me” P&L.
+
+---
+
+## 2) Directory layout (canonical)
+
+### 2.1 Prompts
+Store all human/agent prompts here:
+- `docs/prompts/`
+  - `TICKET-001_index_only_gates.md`
+  - `TICKET-002_settlement_basis_audit.md`
+  - etc.
+
+Rule: prompt files must include:
+- ticket id
+- date
+- intended commands (if known)
+- safety constraints (no live trading unless explicitly ticketed)
+
+### 2.2 Agent runs (Codex / ChatGPT / other)
+All agent runs must write to:
+- `docs/agent_runs/<RUN_NAME>/`
+
+Naming convention (REQUIRED):
+- `<RUN_NAME> = YYYYMMDD_HHMMSSZ_TICKET-###_<slug>`
+- Example: `20251220_231500Z_TICKET-001_index_only_gates`
+
+Run logs are local-only:
+- `docs/agent_runs/` and `docs/gpt_bundles/` are gitignored.
+- Do NOT commit run logs or bundle zips; keep them on disk and include them in review bundles.
+
+Required files in each run directory:
+1) `README.md`
+   - goal
+   - summary of changes
+   - commands run (exact)
+   - tests run (exact)
+   - artifacts produced
+   - known risks / TODOs
+2) `RESULTS.md`
+   - what changed
+   - bundle path (if generated)
+   - verifier output summary (if applicable)
+3) `META.json`
+   - run metadata (run_name, ticket_id, branch, start/end UTC, network access, web search used)
+4) `prompt.md` (exact prompt text used; `PROMPT.md` acceptable)
+5) `commands.log`
+   - copy/paste of terminal commands + stdout/stderr (truncate huge output, but preserve errors)
+6) `diff.patch`
+   - `git diff` or `git show` patch (no placeholders)
+7) `artifacts.json`
+   - list of relevant generated files with paths and short descriptions
+8) `external_facts.md` (ONLY if web search used)
+   - URL
+   - retrieval date
+   - key facts extracted
+   - “why it matters” for the system
+
+Optional but recommended:
+- `screenshots/` (if relevant)
+- `notes.md` (design choices)
+
+### 2.3 Reports (machine + human)
+- Human-facing: `reports/*.md`
+- Machine artifacts: `reports/_artifacts/**/*.json|parquet`
+- Never commit huge raw market data under reports.
+
+### 2.4 Ledgers / telemetry (data/)
+- `data/proc/ledger/*.jsonl`  (paper/live events; safe to retain)
+- `data/raw/kalshi/tob/*.jsonl` (TOB snapshots; size-limited; sanitize)
+- `data/proc/state/*` (heartbeats, kill-switch state, last-run markers)
+
+---
+
+## 3) Ticket workflow (documentation protocol)
+
+Every ticket MUST:
+1) Create/update a prompt file in `docs/prompts/`.
+2) Create a run log directory under `docs/agent_runs/<RUN_NAME>/`.
+3) Update `docs/PROGRESS.md` with:
+   - ticket id + title
+   - what changed
+   - current gate status (PAPER / PILOT / LIVE)
+   - what evidence was produced (links to reports/artifacts)
+4) Update `CHANGELOG.md` (repo root) with:
+   - bullet summary
+   - backwards-incompatible changes
+   - config changes
+5) If configs changed:
+   - update `docs/PLAN_OF_RECORD.md` if acceptance criteria or gating changed
+   - update `project_state/CONFIG_REFERENCE.md` at next snapshot (see section 5)
+
+“Stop-the-line” rule:
+- If tests fail or new behavior is unclear, the ticket is NOT done.
+
+---
+
+## 4) Naming + metadata standards
+
+### 4.1 Run metadata (REQUIRED)
+Each run directory must include a header in `README.md` with:
+- run_name
+- ticket_id
+- agent + model (e.g., Codex CLI `gpt-5-codex`)
+- branch name
+- start/end timestamps (UTC)
+- environment (local/AWS)
+- network access enabled? (yes/no)
+- web search used? (yes/no)
+
+### 4.2 Correlation IDs (RECOMMENDED)
+All structured logs, telemetry, and reports should include:
+- `run_id`
+- `window_id` (series + expiration timestamp)
+- `market_ticker` (Kalshi)
+- `order_id` (if applicable)
+
+---
+
+## 5) Project state snapshots (project_state.zip) vs per-ticket bundles
+
+### 5.1 Per-ticket “gpt-bundle”
+Each ticket/run should create a small bundle for review:
+- `docs/agent_runs/<RUN_NAME>/bundle.zip`
+
+Command (from repo root):
+```bash
+RUN_NAME="YYYYMMDD_HHMMSSZ_TICKET-###_slug"
+mkdir -p "docs/agent_runs/$RUN_NAME"
+git diff > "docs/agent_runs/$RUN_NAME/diff.patch"
+zip -r "docs/agent_runs/$RUN_NAME/bundle.zip" "docs/agent_runs/$RUN_NAME" \
+  -x "**/__pycache__/**" -x "**/.pytest_cache/**"
+````
+
+Bundle verification (required for review bundles):
+```bash
+python tools/verify_gpt_bundle.py path/to/gpt_bundle_<ticket>_<run_name>.zip
+```
+
+### 5.2 Full `project_state.zip` regeneration
+
+Use a full snapshot for audits/reviews:
+
+* at end of sprint
+* before any pilot/live enabling
+* when major pipeline/risk/gating behavior changes
+
+Until an official script exists, use this conservative manual snapshot command:
+
+```bash
+DATE="2025-12-20"
+zip -r "kalshi_project_state_${DATE}.zip" \
+  docs reports configs src tests \
+  README.md VISION.md REPORT.md AGENTS.md CHANGELOG.md pyproject.toml \
+  -x "data/**" -x ".git/**" -x "**/__pycache__/**" -x "**/.pytest_cache/**"
+```
+
+Store snapshots under:
+
+* `docs/project_state/kalshi_project_state_<DATE>.zip`
+
+---
+
+## 6) Redaction policy (secrets + sensitive logs)
+
+NEVER commit:
+
+* API keys (Polygon, Kalshi), private keys, PEMs
+* `.env` files
+* Slack webhook URLs
+* any auth headers or signatures
+
+In logs:
+
+* redact: `KALSHI-ACCESS-*`, Bearer tokens, API keys
+* it is OK to log: market tickers, order ids, prices, sizes, timestamps
+
+Telemetry size bounds:
+
+* TOB snapshots must be depth-limited and compressed if needed.
+* Avoid logging full orderbooks at high frequency without rate/size controls.
+
+---
+
+## 7) Web research policy (when enabled)
+
+If web search is used during a ticket:
+$ apply_patch (deploy/systemd/supervisor_index.service)
+- moved StartLimitIntervalSec/StartLimitBurst to [Unit]
+- removed PYTHONPATH and switched ExecStart to /opt/kalshi-sys/.venv/bin/python
+$ sed -n '200,260p' docs/runbooks/aws_supervisor_index.md
+- `sudo systemctl stop kalshi-supervisor-index.service`
+- `sudo systemctl disable kalshi-supervisor-index.service`
+
+Cancel-all (safe cleanup):
+- The kill switch triggers `cancel_all` intent in `data/proc/state/orders.json`.
+- For live orders, manually cancel via Kalshi UI/API (no built-in CLI yet).
+- For dry-run cleanup: `python -m kalshi_alpha.exec.runners.orders_doctor --reconcile --show`.
+
+Disable live broker quickly:
+- If running with a live override, set broker back to dry in the EnvironmentFile
+  (for example, `SUPERVISOR_BROKER=dry`), then restart the service:
+  - `sudo systemctl restart kalshi-supervisor-index.service`
+- Live should never be enabled without explicit approval and acknowledgment.
+
+## Local smoke commands
+- Dry-run (requires keys):
+  - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
+- No-keys smoke:
+  - `python -m kalshi_alpha.exec.supervisor_index --help`
+
+## Redaction policy (do not paste into logs/docs)
+- AWS account IDs, instance IDs, private IPs, or AMI IDs.
+- API keys, PEM contents, or signed request payloads.
+- Full CloudWatch log streams; use short sanitized excerpts only.
+
+## Related docs
+- `docs/runbooks/oncall_checks.md`
+- `docs/runbooks/hourly.md`
+- `docs/index_ladders/aws_supervisor_index.md`
+$ apply_patch (docs/runbooks/aws_supervisor_index.md)
+- switched prerequisites to venv + editable install
+- added EC2 bootstrap with venv install and systemd enable/status
+- removed PYTHONPATH guidance
+- updated local smoke commands to venv python
+$ apply_patch (docs/index_ladders/aws_supervisor_index.md)
+- replaced PYTHONPATH examples with .venv/bin/python
+$ apply_patch (docs/runbooks/aws_supervisor_index.md)
+- added no-secrets reminder comment inside bootstrap script
+$ apply_patch (project_state/KNOWN_ISSUES.md)
+- updated AWS wiring gap wording to reflect Ticket #8 proof and remaining gaps
+$ rg -n PYTHONPATH docs/runbooks docs/index_ladders
+$ rg --files -g 'TESTS.md'
+$ pytest -q
+ss.....sssssssssssssss.............ssss..ssssssss...........ssssssssssss [  8%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 16%]
+sss...ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 25%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 33%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 42%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 50%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 58%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss.sssss [ 67%]
+sssssssssssssssssssssss................................................. [ 75%]
+..................ssssssssssssssssssssssssssss..ssssssssssssssssssssssss [ 84%]
+sssssssssss...ssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 92%]
+ssssssssssss.sssssssssssssssssssssssssssssssss.........ssssssssss        [100%]
+$ TMP_VENV=/tmp/kalshi_pkg_smoke_venv
+$ rm -rf /tmp/kalshi_pkg_smoke_venv
+$ python3.11 -m venv /tmp/kalshi_pkg_smoke_venv
+$ source /tmp/kalshi_pkg_smoke_venv/bin/activate
+$ python -m pip install -U pip wheel
+Requirement already satisfied: pip in /private/tmp/kalshi_pkg_smoke_venv/lib/python3.11/site-packages (25.3)
+Collecting wheel
+  Using cached wheel-0.45.1-py3-none-any.whl.metadata (2.3 kB)
+Using cached wheel-0.45.1-py3-none-any.whl (72 kB)
+Installing collected packages: wheel
+Successfully installed wheel-0.45.1
+$ python -m pip install -e .
+Obtaining file:///Users/mateobodon/Documents/Programming/Projects/kalshi-sys
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Collecting requests>=2.32.3 (from kalshi-alpha==0.1.0)
+  Using cached requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+Collecting cryptography>=43.0.0 (from kalshi-alpha==0.1.0)
+  Using cached cryptography-46.0.3-cp311-abi3-macosx_10_9_universal2.whl.metadata (5.7 kB)
+Collecting websockets>=12.0 (from kalshi-alpha==0.1.0)
+  Using cached websockets-15.0.1-cp311-cp311-macosx_11_0_arm64.whl.metadata (6.8 kB)
+Collecting pydantic>=2.7.0 (from kalshi-alpha==0.1.0)
+  Using cached pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+Collecting polars>=1.6.0 (from kalshi-alpha==0.1.0)
+  Using cached polars-1.36.1-py3-none-any.whl.metadata (10 kB)
+Collecting duckdb>=0.10.2 (from kalshi-alpha==0.1.0)
+  Downloading duckdb-1.4.3-cp311-cp311-macosx_11_0_arm64.whl.metadata (4.3 kB)
+Collecting python-dateutil>=2.9.0.post0 (from kalshi-alpha==0.1.0)
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting pyyaml>=6.0.1 (from kalshi-alpha==0.1.0)
+  Using cached pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl.metadata (2.4 kB)
+Collecting cachetools<5,>=4.2 (from kalshi-alpha==0.1.0)
+  Using cached cachetools-4.2.4-py3-none-any.whl.metadata (4.8 kB)
+Collecting python-dotenv>=1.0.1 (from kalshi-alpha==0.1.0)
+  Using cached python_dotenv-1.2.1-py3-none-any.whl.metadata (25 kB)
+Collecting beautifulsoup4>=4.12.3 (from kalshi-alpha==0.1.0)
+  Downloading beautifulsoup4-4.14.3-py3-none-any.whl.metadata (3.8 kB)
+Collecting soupsieve>=1.6.1 (from beautifulsoup4>=4.12.3->kalshi-alpha==0.1.0)
+  Downloading soupsieve-2.8.1-py3-none-any.whl.metadata (4.6 kB)
+Collecting typing-extensions>=4.0.0 (from beautifulsoup4>=4.12.3->kalshi-alpha==0.1.0)
+  Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting cffi>=2.0.0 (from cryptography>=43.0.0->kalshi-alpha==0.1.0)
+  Using cached cffi-2.0.0-cp311-cp311-macosx_11_0_arm64.whl.metadata (2.6 kB)
+Collecting pycparser (from cffi>=2.0.0->cryptography>=43.0.0->kalshi-alpha==0.1.0)
+  Using cached pycparser-2.23-py3-none-any.whl.metadata (993 bytes)
+Collecting polars-runtime-32==1.36.1 (from polars>=1.6.0->kalshi-alpha==0.1.0)
+  Using cached polars_runtime_32-1.36.1-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.5 kB)
+Collecting annotated-types>=0.6.0 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.41.5 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Downloading pydantic_core-2.41.5-cp311-cp311-macosx_11_0_arm64.whl.metadata (7.3 kB)
+Collecting typing-inspection>=0.4.2 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting six>=1.5 (from python-dateutil>=2.9.0.post0->kalshi-alpha==0.1.0)
+  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting charset_normalizer<4,>=2 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached charset_normalizer-3.4.4-cp311-cp311-macosx_10_9_universal2.whl.metadata (37 kB)
+Collecting idna<4,>=2.5 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+Collecting urllib3<3,>=1.21.1 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached urllib3-2.6.2-py3-none-any.whl.metadata (6.6 kB)
+Collecting certifi>=2017.4.17 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+Using cached cachetools-4.2.4-py3-none-any.whl (10 kB)
+Downloading beautifulsoup4-4.14.3-py3-none-any.whl (107 kB)
+Using cached cryptography-46.0.3-cp311-abi3-macosx_10_9_universal2.whl (7.2 MB)
+Using cached cffi-2.0.0-cp311-cp311-macosx_11_0_arm64.whl (180 kB)
+Downloading duckdb-1.4.3-cp311-cp311-macosx_11_0_arm64.whl (13.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.7/13.7 MB 36.9 MB/s  0:00:00
+Using cached polars-1.36.1-py3-none-any.whl (802 kB)
+Using cached polars_runtime_32-1.36.1-cp39-abi3-macosx_11_0_arm64.whl (39.3 MB)
+Using cached pydantic-2.12.5-py3-none-any.whl (463 kB)
+Downloading pydantic_core-2.41.5-cp311-cp311-macosx_11_0_arm64.whl (1.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 45.4 MB/s  0:00:00
+Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Using cached python_dotenv-1.2.1-py3-none-any.whl (21 kB)
+Using cached pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl (175 kB)
+Using cached requests-2.32.5-py3-none-any.whl (64 kB)
+Using cached charset_normalizer-3.4.4-cp311-cp311-macosx_10_9_universal2.whl (206 kB)
+Using cached idna-3.11-py3-none-any.whl (71 kB)
+Using cached urllib3-2.6.2-py3-none-any.whl (131 kB)
+Using cached certifi-2025.11.12-py3-none-any.whl (159 kB)
+Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Downloading soupsieve-2.8.1-py3-none-any.whl (36 kB)
+Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Using cached websockets-15.0.1-cp311-cp311-macosx_11_0_arm64.whl (173 kB)
+Using cached pycparser-2.23-py3-none-any.whl (118 kB)
+Building wheels for collected packages: kalshi-alpha
+  Building editable for kalshi-alpha (pyproject.toml): started
+  Building editable for kalshi-alpha (pyproject.toml): finished with status 'done'
+  Created wheel for kalshi-alpha: filename=kalshi_alpha-0.1.0-0.editable-py3-none-any.whl size=12846 sha256=99399dd684f274d9376cf56ebc15f6118af67fb496497687bc585487e9ee4f35
+  Stored in directory: /private/var/folders/vl/qxd4t5nd2r77b5w5xdgxmj7c0000gn/T/pip-ephem-wheel-cache-28azsvx8/wheels/09/82/f7/92f27d451af687b9d9638c3e4c1724ebaff585e178394cf1b2
+Successfully built kalshi-alpha
+Installing collected packages: websockets, urllib3, typing-extensions, soupsieve, six, pyyaml, python-dotenv, pycparser, polars-runtime-32, idna, duckdb, charset_normalizer, certifi, cachetools, annotated-types, typing-inspection, requests, python-dateutil, pydantic-core, polars, cffi, beautifulsoup4, pydantic, cryptography, kalshi-alpha
+
+Successfully installed annotated-types-0.7.0 beautifulsoup4-4.14.3 cachetools-4.2.4 certifi-2025.11.12 cffi-2.0.0 charset_normalizer-3.4.4 cryptography-46.0.3 duckdb-1.4.3 idna-3.11 kalshi-alpha-0.1.0 polars-1.36.1 polars-runtime-32-1.36.1 pycparser-2.23 pydantic-2.12.5 pydantic-core-2.41.5 python-dateutil-2.9.0.post0 python-dotenv-1.2.1 pyyaml-6.0.3 requests-2.32.5 six-1.17.0 soupsieve-2.8.1 typing-extensions-4.15.0 typing-inspection-0.4.2 urllib3-2.6.2 websockets-15.0.1
+$ python -m kalshi_alpha.exec.preflight_index --offline --now 2025-12-22T10:50:00-05:00
+$ python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-22T10:50:00-05:00 --no-ws-listen
+$ apply_patch (pyproject.toml)
+- added scipy runtime dependency for index model imports
+$ rm -rf /tmp/kalshi_pkg_smoke_venv
+$ python3.11 -m venv /tmp/kalshi_pkg_smoke_venv
+$ source /tmp/kalshi_pkg_smoke_venv/bin/activate
+$ python -m pip install -U pip wheel
+Requirement already satisfied: pip in /private/tmp/kalshi_pkg_smoke_venv/lib/python3.11/site-packages (25.3)
+Collecting wheel
+  Using cached wheel-0.45.1-py3-none-any.whl.metadata (2.3 kB)
+Using cached wheel-0.45.1-py3-none-any.whl (72 kB)
+Installing collected packages: wheel
+Successfully installed wheel-0.45.1
+$ python -m pip install -e .
+Obtaining file:///Users/mateobodon/Documents/Programming/Projects/kalshi-sys
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Collecting requests>=2.32.3 (from kalshi-alpha==0.1.0)
+  Using cached requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+Collecting cryptography>=43.0.0 (from kalshi-alpha==0.1.0)
+  Using cached cryptography-46.0.3-cp311-abi3-macosx_10_9_universal2.whl.metadata (5.7 kB)
+Collecting websockets>=12.0 (from kalshi-alpha==0.1.0)
+  Using cached websockets-15.0.1-cp311-cp311-macosx_11_0_arm64.whl.metadata (6.8 kB)
+Collecting pydantic>=2.7.0 (from kalshi-alpha==0.1.0)
+  Using cached pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+Collecting polars>=1.6.0 (from kalshi-alpha==0.1.0)
+  Using cached polars-1.36.1-py3-none-any.whl.metadata (10 kB)
+Collecting scipy>=1.11.0 (from kalshi-alpha==0.1.0)
+  Downloading scipy-1.16.3-cp311-cp311-macosx_14_0_arm64.whl.metadata (62 kB)
+Collecting duckdb>=0.10.2 (from kalshi-alpha==0.1.0)
+  Using cached duckdb-1.4.3-cp311-cp311-macosx_11_0_arm64.whl.metadata (4.3 kB)
+Collecting python-dateutil>=2.9.0.post0 (from kalshi-alpha==0.1.0)
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting pyyaml>=6.0.1 (from kalshi-alpha==0.1.0)
+  Using cached pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl.metadata (2.4 kB)
+Collecting cachetools<5,>=4.2 (from kalshi-alpha==0.1.0)
+  Using cached cachetools-4.2.4-py3-none-any.whl.metadata (4.8 kB)
+Collecting python-dotenv>=1.0.1 (from kalshi-alpha==0.1.0)
+  Using cached python_dotenv-1.2.1-py3-none-any.whl.metadata (25 kB)
+Collecting beautifulsoup4>=4.12.3 (from kalshi-alpha==0.1.0)
+  Using cached beautifulsoup4-4.14.3-py3-none-any.whl.metadata (3.8 kB)
+Collecting soupsieve>=1.6.1 (from beautifulsoup4>=4.12.3->kalshi-alpha==0.1.0)
+  Using cached soupsieve-2.8.1-py3-none-any.whl.metadata (4.6 kB)
+Collecting typing-extensions>=4.0.0 (from beautifulsoup4>=4.12.3->kalshi-alpha==0.1.0)
+  Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting cffi>=2.0.0 (from cryptography>=43.0.0->kalshi-alpha==0.1.0)
+  Using cached cffi-2.0.0-cp311-cp311-macosx_11_0_arm64.whl.metadata (2.6 kB)
+Collecting pycparser (from cffi>=2.0.0->cryptography>=43.0.0->kalshi-alpha==0.1.0)
+  Using cached pycparser-2.23-py3-none-any.whl.metadata (993 bytes)
+Collecting polars-runtime-32==1.36.1 (from polars>=1.6.0->kalshi-alpha==0.1.0)
+  Using cached polars_runtime_32-1.36.1-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.5 kB)
+Collecting annotated-types>=0.6.0 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.41.5 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached pydantic_core-2.41.5-cp311-cp311-macosx_11_0_arm64.whl.metadata (7.3 kB)
+Collecting typing-inspection>=0.4.2 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting six>=1.5 (from python-dateutil>=2.9.0.post0->kalshi-alpha==0.1.0)
+  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting charset_normalizer<4,>=2 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached charset_normalizer-3.4.4-cp311-cp311-macosx_10_9_universal2.whl.metadata (37 kB)
+Collecting idna<4,>=2.5 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+Collecting urllib3<3,>=1.21.1 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached urllib3-2.6.2-py3-none-any.whl.metadata (6.6 kB)
+Collecting certifi>=2017.4.17 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+Collecting numpy<2.6,>=1.25.2 (from scipy>=1.11.0->kalshi-alpha==0.1.0)
+  Downloading numpy-2.4.0-cp311-cp311-macosx_14_0_arm64.whl.metadata (6.6 kB)
+Using cached cachetools-4.2.4-py3-none-any.whl (10 kB)
+Using cached beautifulsoup4-4.14.3-py3-none-any.whl (107 kB)
+Using cached cryptography-46.0.3-cp311-abi3-macosx_10_9_universal2.whl (7.2 MB)
+Using cached cffi-2.0.0-cp311-cp311-macosx_11_0_arm64.whl (180 kB)
+Using cached duckdb-1.4.3-cp311-cp311-macosx_11_0_arm64.whl (13.7 MB)
+Using cached polars-1.36.1-py3-none-any.whl (802 kB)
+Using cached polars_runtime_32-1.36.1-cp39-abi3-macosx_11_0_arm64.whl (39.3 MB)
+Using cached pydantic-2.12.5-py3-none-any.whl (463 kB)
+Using cached pydantic_core-2.41.5-cp311-cp311-macosx_11_0_arm64.whl (1.9 MB)
+Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Using cached python_dotenv-1.2.1-py3-none-any.whl (21 kB)
+Using cached pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl (175 kB)
+Using cached requests-2.32.5-py3-none-any.whl (64 kB)
+Using cached charset_normalizer-3.4.4-cp311-cp311-macosx_10_9_universal2.whl (206 kB)
+Using cached idna-3.11-py3-none-any.whl (71 kB)
+Using cached urllib3-2.6.2-py3-none-any.whl (131 kB)
+Using cached certifi-2025.11.12-py3-none-any.whl (159 kB)
+Downloading scipy-1.16.3-cp311-cp311-macosx_14_0_arm64.whl (20.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 20.9/20.9 MB 26.3 MB/s  0:00:00
+Downloading numpy-2.4.0-cp311-cp311-macosx_14_0_arm64.whl (5.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 22.0 MB/s  0:00:00
+Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Using cached soupsieve-2.8.1-py3-none-any.whl (36 kB)
+Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Using cached websockets-15.0.1-cp311-cp311-macosx_11_0_arm64.whl (173 kB)
+Using cached pycparser-2.23-py3-none-any.whl (118 kB)
+Building wheels for collected packages: kalshi-alpha
+  Building editable for kalshi-alpha (pyproject.toml): started
+  Building editable for kalshi-alpha (pyproject.toml): finished with status 'done'
+  Created wheel for kalshi-alpha: filename=kalshi_alpha-0.1.0-0.editable-py3-none-any.whl size=12851 sha256=17339a395dca0ca330240c80810e83c2c99dbbfff19105e101eff10192520d84
+  Stored in directory: /private/var/folders/vl/qxd4t5nd2r77b5w5xdgxmj7c0000gn/T/pip-ephem-wheel-cache-vi_yrwc7/wheels/09/82/f7/92f27d451af687b9d9638c3e4c1724ebaff585e178394cf1b2
+Successfully built kalshi-alpha
+Installing collected packages: websockets, urllib3, typing-extensions, soupsieve, six, pyyaml, python-dotenv, pycparser, polars-runtime-32, numpy, idna, duckdb, charset_normalizer, certifi, cachetools, annotated-types, typing-inspection, scipy, requests, python-dateutil, pydantic-core, polars, cffi, beautifulsoup4, pydantic, cryptography, kalshi-alpha
+
+Successfully installed annotated-types-0.7.0 beautifulsoup4-4.14.3 cachetools-4.2.4 certifi-2025.11.12 cffi-2.0.0 charset_normalizer-3.4.4 cryptography-46.0.3 duckdb-1.4.3 idna-3.11 kalshi-alpha-0.1.0 numpy-2.4.0 polars-1.36.1 polars-runtime-32-1.36.1 pycparser-2.23 pydantic-2.12.5 pydantic-core-2.41.5 python-dateutil-2.9.0.post0 python-dotenv-1.2.1 pyyaml-6.0.3 requests-2.32.5 scipy-1.16.3 six-1.17.0 soupsieve-2.8.1 typing-extensions-4.15.0 typing-inspection-0.4.2 urllib3-2.6.2 websockets-15.0.1
+$ python -m kalshi_alpha.exec.preflight_index --offline --now 2025-12-22T10:50:00-05:00
+$ python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-22T10:50:00-05:00 --no-ws-listen
+$ sed -n '1,200p' src/kalshi_alpha/strategies/index/model_polygon.py
+"""Simple Polygon-only distribution model for SPX/NDX ladders."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import UTC, datetime, time
+from math import sqrt
+from pathlib import Path
+from typing import Mapping, Sequence
+from zoneinfo import ZoneInfo
+
+import numpy as np
+import pandas as pd
+from pandas.api import types as pd_types
+from scipy import stats
+
+from kalshi_alpha.datastore.paths import PROC_ROOT
+from kalshi_alpha.drivers.polygon_index.symbols import resolve_series
+from kalshi_alpha.strategies import base
+from kalshi_alpha.core.pricing import LadderBinProbability
+
+ET = ZoneInfo("America/New_York")
+PARAM_ROOT = PROC_ROOT / "calib" / "index_polygon"
+
+
+@dataclass(frozen=True)
+class ModelParams:
+    symbol: str
+    horizon: str
+    mean_per_sqrt_hour: float
+    std_per_sqrt_hour: float
+    df: float | None
+    sample_count: int
+    minutes_range: tuple[float, float]
+    generated_at: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "symbol": self.symbol,
+            "horizon": self.horizon,
+            "mean_per_sqrt_hour": self.mean_per_sqrt_hour,
+            "std_per_sqrt_hour": self.std_per_sqrt_hour,
+            "df": self.df,
+            "sample_count": self.sample_count,
+            "minutes_range": list(self.minutes_range),
+            "generated_at": self.generated_at,
+        }
+
+
+def _ensure_timestamp(series: pd.Series) -> pd.Series:
+    ts = series.copy()
+    if not pd_types.is_datetime64_any_dtype(ts):
+        ts = pd.to_datetime(ts)
+    if ts.dt.tz is None:
+        ts = ts.dt.tz_localize("UTC")
+    return ts.dt.tz_convert(ET)
+
+
+def _target_price_map(df: pd.DataFrame, target_clock: time) -> dict[pd.Timestamp, float]:
+    """Return a per-day target price map (ET) using last price <= target."""
+
+    targets: dict[pd.Timestamp, float] = {}
+    for trading_day, group in df.groupby("trading_day"):
+        target_dt = datetime.combine(trading_day, target_clock, tzinfo=ET)
+        before = group[group["timestamp_et"] <= target_dt]
+        if not before.empty:
+            row = before.loc[before["timestamp_et"].idxmax()]
+            targets[target_dt] = float(row["price"])
+            continue
+        after = group[group["timestamp_et"] >= target_dt]
+        if after.empty:
+            continue
+        row = after.loc[after["timestamp_et"].idxmin()]
+        targets[target_dt] = float(row["price"])
+    return targets
+
+
+def _normalized_returns(
+    df: pd.DataFrame,
+    *,
+    target_clock: time,
+) -> tuple[np.ndarray, list[float]]:
+    targets = _target_price_map(df, target_clock)
+    deltas: list[float] = []
+    scaled: list[float] = []
+    minutes_list: list[float] = []
+
+    for _, row in df.iterrows():
+        trading_day = row["trading_day"]
+        target_dt = datetime.combine(trading_day, target_clock, tzinfo=ET)
+        target_price = targets.get(target_dt)
+        if target_price is None:
+            continue
+        now_ts = row["timestamp_et"]
+        minutes_to_target = (target_dt - now_ts).total_seconds() / 60.0
+        if minutes_to_target <= 0:
+            continue
+        delta = target_price - float(row["price"])
+        norm = delta / sqrt(max(minutes_to_target / 60.0, 1e-6))
+        deltas.append(delta)
+        scaled.append(norm)
+        minutes_list.append(minutes_to_target)
+    return np.asarray(scaled), minutes_list
+
+
+def fit_from_panel(
+    panel: Mapping | "pd.DataFrame",
+    horizon: str,
+    *,
+    symbols: Sequence[str] | None = None,
+) -> dict[str, ModelParams]:
+    """Fit per-symbol Student-t parameters from a Polygon index panel."""
+
+    horizon_norm = horizon.lower()
+    if horizon_norm not in {"noon", "close"}:
+        raise ValueError("horizon must be 'noon' or 'close'")
+    target_clock = time(12, 0) if horizon_norm == "noon" else time(16, 0)
+
+    if isinstance(panel, pd.DataFrame):
+        df = panel.copy()
+    else:
+        # Polars DataFrame or similar mapping.
+        import polars as pl  # local import to avoid hard dependency in tests
+
+        if isinstance(panel, pl.DataFrame):
+            df = panel.to_pandas()
+        else:
+            df = pd.DataFrame(panel)
+
+    if "timestamp_et" not in df.columns:
+        raise ValueError("panel must contain a timestamp_et column in ET")
+    df["timestamp_et"] = _ensure_timestamp(df["timestamp_et"])
+    df["trading_day"] = df["timestamp_et"].dt.date
+
+    if symbols is not None:
+        want = {sym.upper() for sym in symbols}
+        df = df[df["symbol"].str.upper().isin(want)]
+    if df.empty:
+        raise ValueError("panel contains no rows for requested symbols")
+
+    grouped = df.groupby("symbol")
+    results: dict[str, ModelParams] = {}
+    for symbol, frame in grouped:
+        scaled, minutes_list = _normalized_returns(frame, target_clock=target_clock)
+        if scaled.size == 0:
+            continue
+        mean_norm = float(np.mean(scaled))
+        std_norm = float(np.std(scaled, ddof=1)) or 1e-6
+        # Light-touch heavy-tail allowance: df grows slowly with sample size.
+        df_value = max(3.0, min(50.0, 2.0 + scaled.size / 10.0))
+        params = ModelParams(
+            symbol=str(symbol),
+            horizon=horizon_norm,
+            mean_per_sqrt_hour=mean_norm,
+            std_per_sqrt_hour=std_norm,
+            df=df_value,
+            sample_count=int(scaled.size),
+            minutes_range=(float(min(minutes_list)), float(max(minutes_list))),
+            generated_at=datetime.now(tz=UTC).isoformat(),
+        )
+        results[str(symbol)] = params
+    if not results:
+        raise ValueError("no model parameters could be fit from the panel")
+    return results
+
+
+def predict_pmf(
+    now_state: Mapping[str, float],
+    params: Mapping[str, object],
+    ladder_strikes: Sequence[float],
+) -> list[LadderBinProbability]:
+    """Generate a ladder PMF from fitted parameters."""
+
+    symbol = str(now_state.get("symbol") or params.get("symbol") or "")
+    if not symbol:
+        raise ValueError("now_state must include a symbol")
+    normalized_symbol = symbol.upper().replace("_", ":")
+    minutes_to_target = float(now_state.get("minutes_to_target", 0.0))
+    if minutes_to_target <= 0:
+        raise ValueError("minutes_to_target must be positive")
+    price_now = float(now_state.get("price") or now_state.get("current_price") or 0.0)
+    if not np.isfinite(price_now):
+        raise ValueError("current price is required")
+
+    def _as_mapping(obj: object) -> Mapping[str, object]:
+        if isinstance(obj, ModelParams):
+            return obj.as_dict()
+        if isinstance(obj, Mapping):
+            return obj
+        raise TypeError(f"Unsupported parameter object for {symbol}: {type(obj)}")
+
+    # Params may already be narrowed to a single symbol; otherwise look up.
+    param_obj: object | None = params
+    if isinstance(params, Mapping):
+        if "symbols" in params:
+            symbols_map = params.get("symbols")  # type: ignore[assignment]
+            if isinstance(symbols_map, Mapping):
+                param_obj = symbols_map.get(normalized_symbol) or symbols_map.get(symbol)
+        elif normalized_symbol in params:
+$ apply_patch (pyproject.toml)
+- added pandas runtime dependency for index model imports
+$ rm -rf /tmp/kalshi_pkg_smoke_venv
+$ python3.11 -m venv /tmp/kalshi_pkg_smoke_venv
+$ source /tmp/kalshi_pkg_smoke_venv/bin/activate
+$ python -m pip install -U pip wheel
+Requirement already satisfied: pip in /private/tmp/kalshi_pkg_smoke_venv/lib/python3.11/site-packages (25.3)
+Collecting wheel
+  Using cached wheel-0.45.1-py3-none-any.whl.metadata (2.3 kB)
+Using cached wheel-0.45.1-py3-none-any.whl (72 kB)
+Installing collected packages: wheel
+Successfully installed wheel-0.45.1
+$ python -m pip install -e .
+Obtaining file:///Users/mateobodon/Documents/Programming/Projects/kalshi-sys
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Collecting requests>=2.32.3 (from kalshi-alpha==0.1.0)
+  Using cached requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+Collecting cryptography>=43.0.0 (from kalshi-alpha==0.1.0)
+  Using cached cryptography-46.0.3-cp311-abi3-macosx_10_9_universal2.whl.metadata (5.7 kB)
+Collecting websockets>=12.0 (from kalshi-alpha==0.1.0)
+  Using cached websockets-15.0.1-cp311-cp311-macosx_11_0_arm64.whl.metadata (6.8 kB)
+Collecting pydantic>=2.7.0 (from kalshi-alpha==0.1.0)
+  Using cached pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+Collecting polars>=1.6.0 (from kalshi-alpha==0.1.0)
+  Using cached polars-1.36.1-py3-none-any.whl.metadata (10 kB)
+Collecting scipy>=1.11.0 (from kalshi-alpha==0.1.0)
+  Using cached scipy-1.16.3-cp311-cp311-macosx_14_0_arm64.whl.metadata (62 kB)
+Collecting pandas>=2.2.0 (from kalshi-alpha==0.1.0)
+  Using cached pandas-2.3.3-cp311-cp311-macosx_11_0_arm64.whl.metadata (91 kB)
+Collecting duckdb>=0.10.2 (from kalshi-alpha==0.1.0)
+  Using cached duckdb-1.4.3-cp311-cp311-macosx_11_0_arm64.whl.metadata (4.3 kB)
+Collecting python-dateutil>=2.9.0.post0 (from kalshi-alpha==0.1.0)
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting pyyaml>=6.0.1 (from kalshi-alpha==0.1.0)
+  Using cached pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl.metadata (2.4 kB)
+Collecting cachetools<5,>=4.2 (from kalshi-alpha==0.1.0)
+  Using cached cachetools-4.2.4-py3-none-any.whl.metadata (4.8 kB)
+Collecting python-dotenv>=1.0.1 (from kalshi-alpha==0.1.0)
+  Using cached python_dotenv-1.2.1-py3-none-any.whl.metadata (25 kB)
+Collecting beautifulsoup4>=4.12.3 (from kalshi-alpha==0.1.0)
+  Using cached beautifulsoup4-4.14.3-py3-none-any.whl.metadata (3.8 kB)
+Collecting soupsieve>=1.6.1 (from beautifulsoup4>=4.12.3->kalshi-alpha==0.1.0)
+  Using cached soupsieve-2.8.1-py3-none-any.whl.metadata (4.6 kB)
+Collecting typing-extensions>=4.0.0 (from beautifulsoup4>=4.12.3->kalshi-alpha==0.1.0)
+  Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting cffi>=2.0.0 (from cryptography>=43.0.0->kalshi-alpha==0.1.0)
+  Using cached cffi-2.0.0-cp311-cp311-macosx_11_0_arm64.whl.metadata (2.6 kB)
+Collecting pycparser (from cffi>=2.0.0->cryptography>=43.0.0->kalshi-alpha==0.1.0)
+  Using cached pycparser-2.23-py3-none-any.whl.metadata (993 bytes)
+Collecting numpy>=1.23.2 (from pandas>=2.2.0->kalshi-alpha==0.1.0)
+  Using cached numpy-2.4.0-cp311-cp311-macosx_14_0_arm64.whl.metadata (6.6 kB)
+Collecting pytz>=2020.1 (from pandas>=2.2.0->kalshi-alpha==0.1.0)
+  Using cached pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+Collecting tzdata>=2022.7 (from pandas>=2.2.0->kalshi-alpha==0.1.0)
+  Using cached tzdata-2025.3-py2.py3-none-any.whl.metadata (1.4 kB)
+Collecting polars-runtime-32==1.36.1 (from polars>=1.6.0->kalshi-alpha==0.1.0)
+  Using cached polars_runtime_32-1.36.1-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.5 kB)
+Collecting annotated-types>=0.6.0 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.41.5 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached pydantic_core-2.41.5-cp311-cp311-macosx_11_0_arm64.whl.metadata (7.3 kB)
+Collecting typing-inspection>=0.4.2 (from pydantic>=2.7.0->kalshi-alpha==0.1.0)
+  Using cached typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting six>=1.5 (from python-dateutil>=2.9.0.post0->kalshi-alpha==0.1.0)
+  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting charset_normalizer<4,>=2 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached charset_normalizer-3.4.4-cp311-cp311-macosx_10_9_universal2.whl.metadata (37 kB)
+Collecting idna<4,>=2.5 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+Collecting urllib3<3,>=1.21.1 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached urllib3-2.6.2-py3-none-any.whl.metadata (6.6 kB)
+Collecting certifi>=2017.4.17 (from requests>=2.32.3->kalshi-alpha==0.1.0)
+  Using cached certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+Using cached cachetools-4.2.4-py3-none-any.whl (10 kB)
+Using cached beautifulsoup4-4.14.3-py3-none-any.whl (107 kB)
+Using cached cryptography-46.0.3-cp311-abi3-macosx_10_9_universal2.whl (7.2 MB)
+Using cached cffi-2.0.0-cp311-cp311-macosx_11_0_arm64.whl (180 kB)
+Using cached duckdb-1.4.3-cp311-cp311-macosx_11_0_arm64.whl (13.7 MB)
+Using cached pandas-2.3.3-cp311-cp311-macosx_11_0_arm64.whl (10.8 MB)
+Using cached numpy-2.4.0-cp311-cp311-macosx_14_0_arm64.whl (5.5 MB)
+Using cached polars-1.36.1-py3-none-any.whl (802 kB)
+Using cached polars_runtime_32-1.36.1-cp39-abi3-macosx_11_0_arm64.whl (39.3 MB)
+Using cached pydantic-2.12.5-py3-none-any.whl (463 kB)
+Using cached pydantic_core-2.41.5-cp311-cp311-macosx_11_0_arm64.whl (1.9 MB)
+Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Using cached python_dotenv-1.2.1-py3-none-any.whl (21 kB)
+Using cached pytz-2025.2-py2.py3-none-any.whl (509 kB)
+Using cached pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl (175 kB)
+Using cached requests-2.32.5-py3-none-any.whl (64 kB)
+Using cached charset_normalizer-3.4.4-cp311-cp311-macosx_10_9_universal2.whl (206 kB)
+Using cached idna-3.11-py3-none-any.whl (71 kB)
+Using cached urllib3-2.6.2-py3-none-any.whl (131 kB)
+Using cached certifi-2025.11.12-py3-none-any.whl (159 kB)
+Using cached scipy-1.16.3-cp311-cp311-macosx_14_0_arm64.whl (20.9 MB)
+Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Using cached soupsieve-2.8.1-py3-none-any.whl (36 kB)
+Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Using cached tzdata-2025.3-py2.py3-none-any.whl (348 kB)
+Using cached websockets-15.0.1-cp311-cp311-macosx_11_0_arm64.whl (173 kB)
+Using cached pycparser-2.23-py3-none-any.whl (118 kB)
+Building wheels for collected packages: kalshi-alpha
+  Building editable for kalshi-alpha (pyproject.toml): started
+  Building editable for kalshi-alpha (pyproject.toml): finished with status 'done'
+  Created wheel for kalshi-alpha: filename=kalshi_alpha-0.1.0-0.editable-py3-none-any.whl size=12859 sha256=e932bc6aa13a6aec15122a2eb640c89ca08d6a95a99a6cd18fba0c1dec8e2a7a
+  Stored in directory: /private/var/folders/vl/qxd4t5nd2r77b5w5xdgxmj7c0000gn/T/pip-ephem-wheel-cache-izyq89av/wheels/09/82/f7/92f27d451af687b9d9638c3e4c1724ebaff585e178394cf1b2
+Successfully built kalshi-alpha
+Installing collected packages: pytz, websockets, urllib3, tzdata, typing-extensions, soupsieve, six, pyyaml, python-dotenv, pycparser, polars-runtime-32, numpy, idna, duckdb, charset_normalizer, certifi, cachetools, annotated-types, typing-inspection, scipy, requests, python-dateutil, pydantic-core, polars, cffi, beautifulsoup4, pydantic, pandas, cryptography, kalshi-alpha
+
+Successfully installed annotated-types-0.7.0 beautifulsoup4-4.14.3 cachetools-4.2.4 certifi-2025.11.12 cffi-2.0.0 charset_normalizer-3.4.4 cryptography-46.0.3 duckdb-1.4.3 idna-3.11 kalshi-alpha-0.1.0 numpy-2.4.0 pandas-2.3.3 polars-1.36.1 polars-runtime-32-1.36.1 pycparser-2.23 pydantic-2.12.5 pydantic-core-2.41.5 python-dateutil-2.9.0.post0 python-dotenv-1.2.1 pytz-2025.2 pyyaml-6.0.3 requests-2.32.5 scipy-1.16.3 six-1.17.0 soupsieve-2.8.1 typing-extensions-4.15.0 typing-inspection-0.4.2 tzdata-2025.3 urllib3-2.6.2 websockets-15.0.1
+$ python -m kalshi_alpha.exec.preflight_index --offline --now 2025-12-22T10:50:00-05:00
+PRECHECK index: NO-GO reasons=4 series=INX,NASDAQ100,INXU,NASDAQ100U
+$ python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-22T10:50:00-05:00 --no-ws-listen
+SUPERVISOR preflight: NO-GO reasons=4 series=INXU (broker=dry)
+[supervisor_index] 2025-12-22T05:32:04+00:00 NO-GO hourly-1100: calibration_missing:INX:close, calibration_missing:NASDAQ100:close, calibration_missing:INXU:noon, calibration_missing:NASDAQ100U:noon
+$ ls -l reports/_artifacts/go_no_go.json
+-rw-r--r--@ 1 mateobodon  staff  408 Dec 22 00:32 reports/_artifacts/go_no_go.json
+$ ls -lt reports/_artifacts | head -n 5
+total 1528
+-rw-r--r--@  1 mateobodon  staff    408 Dec 22 00:32 go_no_go.json
+-rw-r--r--@  1 mateobodon  staff    148 Dec 22 00:28 ev_honesty_NASDAQ100.csv
+-rw-r--r--@  1 mateobodon  staff    148 Dec 22 00:28 ev_honesty_INXU.csv
+-rw-r--r--@  1 mateobodon  staff   2732 Dec 21 22:36 20251222T033620_ledger.json
+$ rg --files docs/prompts
+docs/prompts/TICKET-002_settlement_basis_audit.md
+docs/prompts/TICKET-001_index_only_gates.md
+$ cat > docs/prompts/TICKET-009_packaging_systemd_hardening.md <<'EOF'
+$ apply_patch (docs/PROGRESS.md)
+- added Ticket #9 progress entry with evidence path
+$ apply_patch (CHANGELOG.md)
+- added Ticket #9 changelog entry
+$ cat > TESTS.md <<'EOF'
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening
+ M CHANGELOG.md
+ M deploy/systemd/supervisor_index.service
+ M docs/PROGRESS.md
+ M docs/index_ladders/aws_supervisor_index.md
+ M docs/runbooks/aws_supervisor_index.md
+ M pyproject.toml
+?? TESTS.md
+?? docs/prompts/TICKET-009_packaging_systemd_hardening.md
+$ git diff -- project_state/KNOWN_ISSUES.md
+$ sed -n '1,80p' project_state/KNOWN_ISSUES.md
+# Known Issues and Limitations
+
+- **No recent fills in committed artifacts**: `reports/scoreboard_7d.md` and `reports/scoreboard_30d.md` report "No ledger data available," and `reports/pilot_readiness.md` shows insufficient data for all index series.
+- **GO/NO-GO failures due to stale feeds**: `reports/_artifacts/go_no_go.json` lists stale Cleveland nowcast and Treasury yields, plus `heartbeat_stale` and `monitors_stale` reasons.
+- **Model simplifications**: Polygon-only model uses sqrt(time) scaling with Student-t/normal assumptions and no explicit conditioning on realized volatility or microstructure features (noted in agent logs).
+- **Fill model calibration gap**: Maker fill probability heuristic exists but is not calibrated on real TOB fills (explicit TODO in agent logs).
+- **AWS wiring gap for index supervisor**: Ticket #8 captured EC2 systemd + CloudWatch dry-run proof for two windows, but a fresh EC2 bootstrap (from scratch) and always-on supervisor soak are still pending.
+- **Type-check coverage gaps**: `pyproject.toml` includes `mypy` ignore sections for several modules (scoreboard, CPI/claims/teny strategies, tests), which may mask typing regressions.
+$ git ls-files -v project_state/KNOWN_ISSUES.md
+$ rg -n project_state .gitignore
+$ git status -sb --ignored
+## codex/TICKET-009_packaging_systemd_hardening
+ M CHANGELOG.md
+ M deploy/systemd/supervisor_index.service
+ M docs/PROGRESS.md
+ M docs/index_ladders/aws_supervisor_index.md
+ M docs/runbooks/aws_supervisor_index.md
+ M pyproject.toml
+?? TESTS.md
+?? docs/prompts/TICKET-009_packaging_systemd_hardening.md
+!! .DS_Store
+!! .env.local
+!! .hypothesis/
+!! .mypy_cache/
+!! .pytest_cache/
+!! .ruff_cache/
+!! .venv/
+!! configs/.DS_Store
+!! data/.DS_Store
+!! data/proc/.DS_Store
+!! data/proc/_cache_aaa.html
+!! data/proc/_cache_aaa.html.meta.json
+!! data/proc/aaa_daily.parquet
+!! data/proc/aaa_monthly.parquet
+!! data/proc/audit/
+!! data/proc/bls_cpi/
+!! data/proc/calib/index/ndx/hourly/1000/
+!! data/proc/calib/index/ndx/hourly/1100/
+!! data/proc/calib/index/ndx/hourly/1200/
+!! data/proc/calib/index/ndx/hourly/1300/
+!! data/proc/calib/index/ndx/hourly/1400/
+!! data/proc/calib/index/ndx/hourly/1500/
+!! data/proc/calib/index/ndx/hourly/1600/
+!! data/proc/calib/index/spx/hourly/1000/
+!! data/proc/calib/index/spx/hourly/1100/
+!! data/proc/calib/index/spx/hourly/1200/
+!! data/proc/calib/index/spx/hourly/1300/
+!! data/proc/calib/index/spx/hourly/1400/
+!! data/proc/calib/index/spx/hourly/1500/
+!! data/proc/calib/index/spx/hourly/1600/
+!! data/proc/calib/index_pmf/
+!! data/proc/claims_calib.parquet
+!! data/proc/cleveland_nowcast/
+!! data/proc/cpi_calib.parquet
+!! data/proc/dol_claims/
+!! data/proc/fillcalib/
+!! data/proc/ledger/
+!! data/proc/ledger_all.parquet
+!! data/proc/logs/
+!! data/proc/macro_calendar/
+!! data/proc/nws_cli/
+!! data/proc/polygon_index/
+!! data/proc/settlement_basis/
+!! data/proc/state/
+!! data/proc/teny_calib.parquet
+!! data/proc/treasury_yields/
+!! data/proc/weather_calib.parquet
+!! data/raw/
+!! docker/.DS_Store
+!! docs/.DS_Store
+!! docs/CODEX_SPRINT_TICKETS.md
+!! docs/PLAN_OF_RECORD.md
+!! docs/agent_runs/
+!! docs/gpt_bundles/
+!! docs/gpt_outputs/
+!! docs/prompts/12-20-25prompt1.md
+!! exec/
+!! jobs/.DS_Store
+!! jobs/__pycache__/
+!! logs/
+!! monitor/.DS_Store
+!! monitor/__pycache__/
+!! project_state/
+!! report/.DS_Store
+!! report/__pycache__/
+!! reports/.DS_Store
+!! reports/INXU/2025-12-21.md
+!! reports/INXU/2025-12-22.md
+!! reports/NASDAQ100U/2025-12-21.md
+!! reports/_artifacts/.DS_Store
+!! reports/_artifacts/20251221T035405_ledger.csv
+!! reports/_artifacts/20251221T035405_ledger.json
+!! reports/_artifacts/20251221T035432_ledger.csv
+!! reports/_artifacts/20251221T035432_ledger.json
+!! reports/_artifacts/20251221T035655_ledger.csv
+!! reports/_artifacts/20251221T035655_ledger.json
+!! reports/_artifacts/20251221T035657_ledger.csv
+!! reports/_artifacts/20251221T035657_ledger.json
+!! reports/_artifacts/20251222T031628_ledger.csv
+!! reports/_artifacts/20251222T031628_ledger.json
+!! reports/_artifacts/20251222T032145_ledger.csv
+!! reports/_artifacts/20251222T032145_ledger.json
+!! reports/_artifacts/20251222T033620_ledger.csv
+!! reports/_artifacts/20251222T033620_ledger.json
+!! "reports/_artifacts/monitors/freshness 2.json"
+!! reports/backtests/.DS_Store
+!! reports/index_hourly/.DS_Store
+!! reports/index_ladders/.DS_Store
+!! scripts/.DS_Store
+!! scripts/__pycache__/
+!! src/.DS_Store
+!! src/kalshi_alpha.egg-info/
+!! src/kalshi_alpha/.DS_Store
+!! src/kalshi_alpha/__pycache__/
+!! src/kalshi_alpha/backtest/__pycache__/
+!! src/kalshi_alpha/brokers/__pycache__/
+!! src/kalshi_alpha/brokers/kalshi/__pycache__/
+!! src/kalshi_alpha/config/__pycache__/
+!! src/kalshi_alpha/core/__pycache__/
+!! src/kalshi_alpha/core/archive/__pycache__/
+!! src/kalshi_alpha/core/backtest/__pycache__/
+!! src/kalshi_alpha/core/datastore/__pycache__/
+!! src/kalshi_alpha/core/execution/__pycache__/
+!! src/kalshi_alpha/core/fees/__pycache__/
+!! src/kalshi_alpha/core/gates/__pycache__/
+!! src/kalshi_alpha/core/kalshi_api/__pycache__/
+!! src/kalshi_alpha/core/pricing/__pycache__/
+!! src/kalshi_alpha/core/risk/__pycache__/
+!! src/kalshi_alpha/core/sizing/__pycache__/
+!! src/kalshi_alpha/data/__pycache__/
+!! src/kalshi_alpha/datastore/__pycache__/
+!! src/kalshi_alpha/dev/__pycache__/
+!! src/kalshi_alpha/drivers/__pycache__/
+!! src/kalshi_alpha/drivers/aaa_gas/__pycache__/
+!! src/kalshi_alpha/drivers/bls_cpi/__pycache__/
+!! src/kalshi_alpha/drivers/calendar/__pycache__/
+!! src/kalshi_alpha/drivers/cleveland_nowcast/__pycache__/
+!! src/kalshi_alpha/drivers/dol_claims/__pycache__/
+!! src/kalshi_alpha/drivers/macro_calendar/__pycache__/
+!! src/kalshi_alpha/drivers/nws_cli/__pycache__/
+!! src/kalshi_alpha/drivers/polygon_index/__pycache__/
+!! src/kalshi_alpha/drivers/treasury_yields/__pycache__/
+!! src/kalshi_alpha/exec/__pycache__/
+!! src/kalshi_alpha/exec/collectors/__pycache__/
+!! src/kalshi_alpha/exec/ingest/__pycache__/
+!! src/kalshi_alpha/exec/ledger/__pycache__/
+!! src/kalshi_alpha/exec/monitors/__pycache__/
+!! src/kalshi_alpha/exec/pilot/__pycache__/
+!! src/kalshi_alpha/exec/pipelines/__pycache__/
+!! src/kalshi_alpha/exec/policy/__pycache__/
+!! src/kalshi_alpha/exec/reports/__pycache__/
+!! src/kalshi_alpha/exec/runners/__pycache__/
+!! src/kalshi_alpha/exec/scanners/__pycache__/
+!! src/kalshi_alpha/exec/state/__pycache__/
+!! src/kalshi_alpha/exec/telemetry/__pycache__/
+!! src/kalshi_alpha/markets/__pycache__/
+!! src/kalshi_alpha/models/__pycache__/
+!! src/kalshi_alpha/replay/__pycache__/
+!! src/kalshi_alpha/risk/__pycache__/
+!! src/kalshi_alpha/sched/__pycache__/
+!! src/kalshi_alpha/strategies/__pycache__/
+!! src/kalshi_alpha/strategies/claims/__pycache__/
+!! src/kalshi_alpha/strategies/cpi/__pycache__/
+!! src/kalshi_alpha/strategies/index/__pycache__/
+!! src/kalshi_alpha/strategies/teny/__pycache__/
+!! src/kalshi_alpha/strategies/weather/__pycache__/
+!! src/kalshi_alpha/structures/__pycache__/
+!! src/kalshi_alpha/utils/__pycache__/
+!! tests/.DS_Store
+!! tests/__pycache__/
+!! tests/backtest/.DS_Store
+!! tests/backtest/__pycache__/
+!! tests/brokers/__pycache__/
+!! tests/config/__pycache__/
+!! tests/data_fixtures/.DS_Store
+!! tests/dev/__pycache__/
+!! tests/drivers/.DS_Store
+!! tests/drivers/__pycache__/
+!! tests/exec/.DS_Store
+!! tests/exec/__pycache__/
+!! tests/fixtures/.DS_Store
+!! tests/strategies/.DS_Store
+!! tests/strategies/__pycache__/
+!! tests/telemetry/.DS_Store
+!! tests/telemetry/__pycache__/
+!! tests/tools/__pycache__/
+!! tools/.DS_Store
+!! tools/__pycache__/
+$ git add deploy/systemd/supervisor_index.service docs/runbooks/aws_supervisor_index.md docs/index_ladders/aws_supervisor_index.md
+$ git add pyproject.toml
+$ git commit -m Ticket #9: harden systemd packaging -m Tests: pytest -q; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.preflight_index --offline --now "2025-12-22T10:50:00-05:00"; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now "2025-12-22T10:50:00-05:00" --no-ws-listen
+[codex/TICKET-009_packaging_systemd_hardening 96037e2] Ticket #9: harden systemd packaging
+ 4 files changed, 29 insertions(+), 20 deletions(-)
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening
+ M CHANGELOG.md
+ M docs/PROGRESS.md
+?? TESTS.md
+?? docs/prompts/TICKET-009_packaging_systemd_hardening.md
+$ git add CHANGELOG.md docs/PROGRESS.md TESTS.md docs/prompts/TICKET-009_packaging_systemd_hardening.md
+$ git commit -m Ticket #9: update docs and test log -m Tests: pytest -q; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.preflight_index --offline --now "2025-12-22T10:50:00-05:00"; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now "2025-12-22T10:50:00-05:00" --no-ws-listen
+[codex/TICKET-009_packaging_systemd_hardening 436c9ec] Ticket #9: update docs and test log
+ 4 files changed, 33 insertions(+)
+ create mode 100644 TESTS.md
+ create mode 100644 docs/prompts/TICKET-009_packaging_systemd_hardening.md
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening
+$ git diff --cached | rg -n API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook || true
+$ git diff HEAD~2..HEAD > docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch
+$ cat > docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/prompt.md <<'EOF'
+$ cat > docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/README.md <<'EOF'
+$ cat > docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/artifacts.json <<'EOF'
+$ cat > docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/META.json <<'EOF'
+$ make gpt-bundle TICKET=TICKET-009_packaging_systemd_hardening RUN_NAME=20251222_052313Z_TICKET-009_packaging_systemd_hardening
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/DIFF.patch (deflated 64%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/PROGRESS.md (deflated 60%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/CODEX_SPRINT_TICKETS.md (deflated 62%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/DOCS_AND_LOGGING_SYSTEM.md (deflated 52%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/PLAN_OF_RECORD.md (deflated 60%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/PROGRESS.md (deflated 60%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch (deflated 64%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log (deflated 75%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/prompt.md (deflated 50%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/README.md (deflated 47%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/RESULTS.md (stored 0%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/artifacts.json (deflated 13%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/META.json (deflated 44%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/LAST_COMMIT.txt (stored 0%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/AGENTS.md (deflated 47%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/CONFIG_REFERENCE.md (deflated 81%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/CURRENT_RESULTS.md (deflated 50%)
+  adding: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/KNOWN_ISSUES.md (deflated 43%)
+FAIL: GPT bundle verification failed.
+- RESULTS.md is empty or placeholder
+- META.json missing end_utc
+$ date -u +%Y-%m-%dT%H:%M:%SZ
+2025-12-22T05:39:00Z
+$ python - <<'PY'
+$ rg -n gpt-bundle Makefile
+11:.PHONY: fmt lint typecheck test scan telemetry-smoke report digest sigma-drift fee-rules-watch live-smoke monitors pilot-readiness pilot-bundle freshness-smoke ingest-index calibrate-index scan-index-noon scan-index-close micro-index fees-parse collect-polygon-ws backtest-build backtest-hourly backtest-close replay-yesterday aws-calib aws-replay aws-deploy-dashboards parity-ci gpt-bundle
+85:gpt-bundle:
+88:		echo "Usage: make gpt-bundle TICKET=ticket-XX RUN_NAME=YYYYMMDD_HHMMSSZ_TICKET-XXX_slug"; \
+$ sed -n '80,130p' Makefile
+		uv run python -m kalshi_alpha.exec.pilot_bundle; \
+	else \
+		$(PYTHON) -m kalshi_alpha.exec.pilot_bundle; \
+	fi
+
+gpt-bundle:
+	@set -e; \
+	if [ -z "$(RUN_NAME)" ] || [ -z "$(TICKET)" ]; then \
+		echo "Usage: make gpt-bundle TICKET=ticket-XX RUN_NAME=YYYYMMDD_HHMMSSZ_TICKET-XXX_slug"; \
+		exit 1; \
+	fi; \
+	BUNDLE_ROOT="docs/gpt_bundles"; \
+	STAGING="$$BUNDLE_ROOT/$(RUN_NAME)"; \
+	mkdir -p "$$STAGING/docs/agent_runs" "$$STAGING/project_state" "$$STAGING/docs"; \
+	cp AGENTS.md "$$STAGING/"; \
+	cp docs/PLAN_OF_RECORD.md docs/DOCS_AND_LOGGING_SYSTEM.md docs/CODEX_SPRINT_TICKETS.md "$$STAGING/docs/"; \
+	cp docs/PROGRESS.md "$$STAGING/docs/"; \
+	cp docs/PROGRESS.md "$$STAGING/PROGRESS.md"; \
+	cp project_state/CURRENT_RESULTS.md project_state/KNOWN_ISSUES.md project_state/CONFIG_REFERENCE.md "$$STAGING/project_state/"; \
+	cp -R "docs/agent_runs/$(RUN_NAME)" "$$STAGING/docs/agent_runs/"; \
+	DIFF_PATH="$$STAGING/DIFF.patch"; \
+	git diff --patch --binary origin/main...HEAD > "$$DIFF_PATH" || true; \
+	if [ ! -s "$$DIFF_PATH" ]; then \
+		git diff --patch --binary HEAD~1..HEAD > "$$DIFF_PATH" || git show --patch --binary HEAD > "$$DIFF_PATH"; \
+	fi; \
+	if [ ! -s "$$DIFF_PATH" ]; then \
+		echo "ERROR: DIFF.patch is empty; ensure changes are committed or present in the working tree."; \
+		exit 1; \
+	fi; \
+	git log -1 --oneline > "$$STAGING/LAST_COMMIT.txt"; \
+	zip -r "$$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip" "$$STAGING" \
+		-x "**/__pycache__/**" -x "**/.pytest_cache/**"; \
+	$(PYTHON) tools/verify_gpt_bundle.py "$$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip"; \
+	echo "Wrote $$BUNDLE_ROOT/gpt_bundle_$(TICKET)_$(RUN_NAME).zip"
+
+freshness-smoke:
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run python -m kalshi_alpha.exec.monitors.freshness --print; \
+	else \
+		$(PYTHON) -m kalshi_alpha.exec.monitors.freshness --print; \
+	fi
+
+live-smoke:
+	PYTHONPATH=src $(PYTHON) -m kalshi_alpha.dev.sanity_check --live-smoke --env $${KALSHI_ENV:-prod}
+
+ingest-index:
+	@if [ -z "$(START)" ] || [ -z "$(END)" ]; then \
+		echo "Usage: make ingest-index START=YYYY-MM-DD END=YYYY-MM-DD"; exit 1; \
+	fi
+	$(PYTHON) -m kalshi_alpha.exec.ingest.polygon_index --start $(START) --end $(END) --symbols I:SPX I:NDX
+
+$ cat > docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/RESULTS.md <<'EOF'
+$ make gpt-bundle TICKET=TICKET-009_packaging_systemd_hardening RUN_NAME=20251222_052313Z_TICKET-009_packaging_systemd_hardening
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/ (stored 0%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/DIFF.patch (deflated 64%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/PROGRESS.md (deflated 60%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/CODEX_SPRINT_TICKETS.md (deflated 62%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/DOCS_AND_LOGGING_SYSTEM.md (deflated 52%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/PLAN_OF_RECORD.md (deflated 60%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/PROGRESS.md (deflated 60%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/ (stored 0%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch (deflated 64%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log (deflated 75%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/prompt.md (deflated 50%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/README.md (deflated 47%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/RESULTS.md (deflated 35%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/artifacts.json (deflated 13%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/META.json (deflated 46%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/LAST_COMMIT.txt (stored 0%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/AGENTS.md (deflated 47%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/ (stored 0%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/CONFIG_REFERENCE.md (deflated 81%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/CURRENT_RESULTS.md (deflated 50%)
+updating: docs/gpt_bundles/20251222_052313Z_TICKET-009_packaging_systemd_hardening/project_state/KNOWN_ISSUES.md (deflated 43%)
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-009_packaging_systemd_hardening_20251222_052313Z_TICKET-009_packaging_systemd_hardening.zip
+$ date -u +%Y-%m-%dT%H:%M:%SZ
+2025-12-22T05:40:21Z
+$ python - <<'PY'
+$ rg -n end_utc docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/README.md docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/META.json
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/README.md:8:end_utc: 2025-12-22T05:40:21Z
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/META.json:6:  "end_utc": "2025-12-22T05:40:21Z",
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening
+$ rg -n kalshi_pkg_smoke_venv|pip install -e|preflight_index --offline|supervisor_index --series INXU docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log
+164:report/agent_logs/20251220_codex_notes.md:20:- Tests: pytest -q (fails: ModuleNotFoundError: kalshi_alpha); PYTHONPATH=src pytest -q; python -m kalshi_alpha.exec.preflight_index (fails: ModuleNotFoundError); PYTHONPATH=src python -m kalshi_alpha.exec.preflight_index; python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run (fails: ModuleNotFoundError); PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run.
+178:docs/runbooks/aws_supervisor_index.md:53:- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+223:  - `pip install -e .`, or
+242:  pip install -e .\
+255:- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+440:docs/runbooks/aws_supervisor_index.md:53:- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+485:docs/runbooks/aws_supervisor_index.md:216:  - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
+490:README.md:73:   pip install -e ".[dev]"        # use `uv pip install -e ".[dev]"` when available
+491:README.md:115:- **Editable installs:** pip 25’s default PEP 660 mode does not add `src/` to `sys.path` on macOS. Pin pip `<25` or install with `python -m pip install -e ".[dev]" --config-settings editable_mode=compat`.
+492:docs/runbooks/aws_supervisor_index.md:21:  - `pip install -e .`, or
+494:docs/runbooks/aws_supervisor_index.md:40:  pip install -e .\
+495:docs/runbooks/aws_supervisor_index.md:53:- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+510:   pip install -e ".[dev]"        # use `uv pip install -e ".[dev]"` when available
+552:- **Editable installs:** pip 25’s default PEP 660 mode does not add `src/` to `sys.path` on macOS. Pin pip `<25` or install with `python -m pip install -e ".[dev]" --config-settings editable_mode=compat`.
+932:  - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
+971:$ TMP_VENV=/tmp/kalshi_pkg_smoke_venv
+972:$ rm -rf /tmp/kalshi_pkg_smoke_venv
+973:$ python3.11 -m venv /tmp/kalshi_pkg_smoke_venv
+974:$ source /tmp/kalshi_pkg_smoke_venv/bin/activate
+976:Requirement already satisfied: pip in /private/tmp/kalshi_pkg_smoke_venv/lib/python3.11/site-packages (25.3)
+982:$ python -m pip install -e .
+1075:$ python -m kalshi_alpha.exec.preflight_index --offline --now 2025-12-22T10:50:00-05:00
+1076:$ python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-22T10:50:00-05:00 --no-ws-listen
+1079:$ rm -rf /tmp/kalshi_pkg_smoke_venv
+1080:$ python3.11 -m venv /tmp/kalshi_pkg_smoke_venv
+1081:$ source /tmp/kalshi_pkg_smoke_venv/bin/activate
+1083:Requirement already satisfied: pip in /private/tmp/kalshi_pkg_smoke_venv/lib/python3.11/site-packages (25.3)
+1089:$ python -m pip install -e .
+1188:$ python -m kalshi_alpha.exec.preflight_index --offline --now 2025-12-22T10:50:00-05:00
+1189:$ python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-22T10:50:00-05:00 --no-ws-listen
+1393:$ rm -rf /tmp/kalshi_pkg_smoke_venv
+1394:$ python3.11 -m venv /tmp/kalshi_pkg_smoke_venv
+1395:$ source /tmp/kalshi_pkg_smoke_venv/bin/activate
+1397:Requirement already satisfied: pip in /private/tmp/kalshi_pkg_smoke_venv/lib/python3.11/site-packages (25.3)
+1403:$ python -m pip install -e .
+1509:$ python -m kalshi_alpha.exec.preflight_index --offline --now 2025-12-22T10:50:00-05:00
+1511:$ python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-22T10:50:00-05:00 --no-ws-listen
+1733:$ git commit -m Ticket #9: harden systemd packaging -m Tests: pytest -q; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.preflight_index --offline --now "2025-12-22T10:50:00-05:00"; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now "2025-12-22T10:50:00-05:00" --no-ws-listen
+1743:$ git commit -m Ticket #9: update docs and test log -m Tests: pytest -q; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.preflight_index --offline --now "2025-12-22T10:50:00-05:00"; /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now "2025-12-22T10:50:00-05:00" --no-ws-listen
+1877:$ rg -n kalshi_pkg_smoke_venv|pip install -e|preflight_index --offline|supervisor_index --series INXU docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log
+$ sed -n '1,120p' deploy/systemd/supervisor_index.service
+[Unit]
+Description=Kalshi Index Supervisor (paper-only default)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kalshi-sys
+User=kalshi
+Group=kalshi
+Environment=SUPERVISOR_BROKER=dry
+EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+ExecStart=/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --series INXU --dry-run --broker ${SUPERVISOR_BROKER}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+$ rg -n PYTHONPATH|\.venv/bin/python docs/runbooks/aws_supervisor_index.md docs/index_ladders/aws_supervisor_index.md
+docs/runbooks/aws_supervisor_index.md:225:  - `/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
+docs/runbooks/aws_supervisor_index.md:227:  - `/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --help`
+docs/index_ladders/aws_supervisor_index.md:8:.venv/bin/python -m kalshi_alpha.exec.supervisor_index \
+docs/index_ladders/aws_supervisor_index.md:18:.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 30
+$ rg -n Ticket #9 docs/PROGRESS.md CHANGELOG.md
+CHANGELOG.md:4:- Ticket #9: hardened packaging/systemd by switching supervisor unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap steps, and added scipy/pandas runtime deps for index models.
+docs/PROGRESS.md:6:- Ticket #9 — Packaging/systemd import-path hardening: switched systemd unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap script, and captured fresh venv smoke for preflight/supervisor (offline, dry-run).
+$ rg -n AWS wiring gap project_state/KNOWN_ISSUES.md
+7:- **AWS wiring gap for index supervisor**: Ticket #8 captured EC2 systemd + CloudWatch dry-run proof for two windows, but a fresh EC2 bootstrap (from scratch) and always-on supervisor soak are still pending.
+$ rg -n API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch:161:@@ -47,11 +48,19 @@ KALSHI_API_KEY_ID=<SSM_OR_SECRETS_MANAGER>
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch:162: KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:247:POLYGON_API_KEY=<SSM_OR_SECRETS_MANAGER>
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:248:KALSHI_API_KEY_ID=<SSM_OR_SECRETS_MANAGER>
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:249:KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:265:- `POLYGON_API_KEY`
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:268:- `KALSHI_API_KEY_ID`
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:270:- `KALSHI_PRIVATE_KEY_PEM_PATH`
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:514:   - Copy credentials into `.env.local` (git-ignored). The live broker expects `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PEM_PATH` (path to an RSA private key used for RSA-PSS signatures). Values are never logged; they load via `kalshi_alpha.utils.env.load_env()`.
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:894:* Slack webhook URLs
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:899:* redact: `KALSHI-ACCESS-*`, Bearer tokens, API keys
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:1750:$ git diff --cached | rg -n API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook || true
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:1948:$ rg -n API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:1949:docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch:161:@@ -47,11 +48,19 @@ KALSHI_API_KEY_ID=<SSM_OR_SECRETS_MANAGER>
+docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/commands.log:1950:docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/diff.patch:162: KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
+$ cat docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/RESULTS.md
+# Results
+
+- Changes:
+  - Systemd unit now uses venv python with StartLimit settings in [Unit].
+  - AWS/index ladder runbooks updated to use venv execution + EC2 bootstrap steps.
+  - Added scipy/pandas runtime deps for index model imports.
+- Bundle: docs/gpt_bundles/gpt_bundle_TICKET-009_packaging_systemd_hardening_20251222_052313Z_TICKET-009_packaging_systemd_hardening.zip
+- Verifier: tools/verify_gpt_bundle.py (via make gpt-bundle)
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening
+?? "tests/test_gpt_bundle_verifier 2.py"
+?? "tools/verify_gpt_bundle 2.py"
+$ rm "tests/test_gpt_bundle_verifier 2.py" "tools/verify_gpt_bundle 2.py"
+$ git status -sb
+## codex/TICKET-009_packaging_systemd_hardening
+$ git checkout main
+Your branch is up to date with 'origin/main'.
+$ git merge codex/TICKET-009_packaging_systemd_hardening
+Updating b6ac660..436c9ec
+Fast-forward
+ CHANGELOG.md                                       |  1 +
+ TESTS.md                                           |  7 +++++
+ deploy/systemd/supervisor_index.service            |  7 ++---
+ docs/PROGRESS.md                                   |  3 ++
+ docs/index_ladders/aws_supervisor_index.md         |  7 ++---
+ .../TICKET-009_packaging_systemd_hardening.md      | 22 +++++++++++++++
+ docs/runbooks/aws_supervisor_index.md              | 33 ++++++++++++++--------
+ pyproject.toml                                     |  2 ++
+ 8 files changed, 62 insertions(+), 20 deletions(-)
+ create mode 100644 TESTS.md
+ create mode 100644 docs/prompts/TICKET-009_packaging_systemd_hardening.md
+$ git push origin main

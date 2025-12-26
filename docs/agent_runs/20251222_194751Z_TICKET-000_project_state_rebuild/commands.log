@@ -1,0 +1,45 @@
+# Commands log (abridged)
+
+$ ls
+AGENTS.md ... project_state ... tools
+
+$ git rev-parse HEAD
+a907a2eed87531d8178c3dc183d6f070182f9ebe
+
+$ git branch --show-current
+codex/TICKET-000_project_state_rebuild
+
+$ python --version
+Python 3.11.14
+
+$ uname -a
+Darwin Mateos-MacBook-Pro-7.local 25.0.0 Darwin Kernel Version 25.0.0: Wed Sep 17 21:41:50 PDT 2025; root:xnu-12377.1.9~141/RELEASE_ARM64_T6030 arm64
+
+$ rg --files
+<output truncated>
+
+$ sed -n '1,200p' README.md
+<output truncated>
+
+$ sed -n '1,200p' docs/PROGRESS.md
+<output truncated>
+
+$ sed -n '1,200p' CHANGELOG.md
+<output truncated>
+
+$ sed -n '1,200p' pyproject.toml
+<output truncated>
+
+$ sed -n '1,200p' Makefile
+<output truncated>
+
+$ python tools/project_state_build.py
+<no output>
+
+$ pytest -q
+Results (12.20s):
+    117 passed
+    740 skipped
+
+$ zip -r docs/gpt_bundles/project_state_20251222_194751Z_a907a2e.zip docs/gpt_bundles/project_state_20251222_194751Z_a907a2e -x "**/__pycache__/**" -x "**/.pytest_cache/**"
+<zip output truncated>

@@ -1,0 +1,207 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2e5ffd3..6afa978 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,6 +1,7 @@
+ # Changelog
+ 
+ ## 2025-12-22
++- Ticket #9: hardened packaging/systemd by switching supervisor unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap steps, and added scipy/pandas runtime deps for index models.
+ - Ticket #6: `preflight_index` and `supervisor_index` now emit GO/NO-GO summary lines, always write `reports/_artifacts/go_no_go.json`, and have stdout fixture coverage for both CLIs.
+ - Ticket #8: refreshed AWS supervisor dry-run wiring with `--series INXU` in the systemd unit, added CloudWatch journald config + index monitor timer templates, and expanded the AWS runbook with EC2/systemd/CloudWatch copy/paste steps.
+ - Ticket #8: captured EC2 systemd + CloudWatch proof for two dry-run windows (sanitized excerpts in run log).
+diff --git a/TESTS.md b/TESTS.md
+new file mode 100644
+index 0000000..c9d07ad
+--- /dev/null
++++ b/TESTS.md
+@@ -0,0 +1,7 @@
++# Tests
++
++Date: 2025-12-22
++
++- pytest -q
++- /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.preflight_index --offline --now "2025-12-22T10:50:00-05:00"
++- /tmp/kalshi_pkg_smoke_venv: python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now "2025-12-22T10:50:00-05:00" --no-ws-listen
+diff --git a/deploy/systemd/supervisor_index.service b/deploy/systemd/supervisor_index.service
+index 46fd8e9..8a842e0 100644
+--- a/deploy/systemd/supervisor_index.service
++++ b/deploy/systemd/supervisor_index.service
+@@ -1,6 +1,8 @@
+ [Unit]
+ Description=Kalshi Index Supervisor (paper-only default)
+ After=network.target
++StartLimitIntervalSec=300
++StartLimitBurst=5
+ 
+ [Service]
+ Type=simple
+@@ -8,13 +10,10 @@ WorkingDirectory=/opt/kalshi-sys
+ User=kalshi
+ Group=kalshi
+ Environment=SUPERVISOR_BROKER=dry
+-Environment=PYTHONPATH=/opt/kalshi-sys/src
+ EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+-ExecStart=/usr/bin/env python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --series INXU --dry-run --broker ${SUPERVISOR_BROKER}
++ExecStart=/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --series INXU --dry-run --broker ${SUPERVISOR_BROKER}
+ Restart=always
+ RestartSec=10
+-StartLimitIntervalSec=300
+-StartLimitBurst=5
+ 
+ [Install]
+ WantedBy=multi-user.target
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index 86cf74e..f1e48ad 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -3,6 +3,9 @@
+ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per-ticket GPT bundle for review.
+ 
+ ## 2025-12-22
++- Ticket #9 — Packaging/systemd import-path hardening: switched systemd unit + runbooks to venv python (no PYTHONPATH), added EC2 bootstrap script, and captured fresh venv smoke for preflight/supervisor (offline, dry-run).
++  - Gate status: PAPER
++  - Evidence: agent run log `docs/agent_runs/20251222_052313Z_TICKET-009_packaging_systemd_hardening/README.md`
+ - Ticket #6 — Fix index CLI smoke entrypoints: added preflight/supervisor summary lines, ensured go/no-go artifact writes on NO-GO, and added stdout fixture coverage for both CLIs.
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md`
+diff --git a/docs/index_ladders/aws_supervisor_index.md b/docs/index_ladders/aws_supervisor_index.md
+index 9300c5d..1a1e8e2 100644
+--- a/docs/index_ladders/aws_supervisor_index.md
++++ b/docs/index_ladders/aws_supervisor_index.md
+@@ -4,9 +4,8 @@ Goal: loop over SPX/NDX windows during U.S. cash hours, enforce preflight + WS f
+ 
+ ## Single-window invocation (cron/EventBridge)
+ ```bash
+-PYTHONPATH=src \
+ FAMILY=index \
+-python -m kalshi_alpha.exec.supervisor_index \
++.venv/bin/python -m kalshi_alpha.exec.supervisor_index \
+   --now "2025-11-21T09:50:00-05:00"   # any time inside the window
+ ```
+ - Picks the active or next window and runs `micro_index` for its series.
+@@ -15,8 +14,8 @@ python -m kalshi_alpha.exec.supervisor_index \
+ 
+ ## Long-lived loop (cash hours on an EC2 box)
+ ```bash
+-PYTHONPATH=src FAMILY=index \
+-python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 30
++FAMILY=index \
++.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 30
+ ```
+ - Starts a shared Polygon index websocket listener for freshness gating.
+ - Re-checks preflight per window; skips if NO-GO or WS age exceeds thresholds (soft 1500ms / strict 800ms by default).
+diff --git a/docs/prompts/TICKET-009_packaging_systemd_hardening.md b/docs/prompts/TICKET-009_packaging_systemd_hardening.md
+new file mode 100644
+index 0000000..28da231
+--- /dev/null
++++ b/docs/prompts/TICKET-009_packaging_systemd_hardening.md
+@@ -0,0 +1,22 @@
++# TICKET-009_packaging_systemd_hardening
++
++Date: 2025-12-22
++Ticket: #9 — Packaging/systemd import-path hardening
++
++## Goal
++- Remove reliance on PYTHONPATH=src for systemd and runbooks.
++- Ensure editable install + venv python works for supervisor_index.
++- Keep paper/dry defaults.
++
++## Constraints
++- Follow AGENTS.md (fail-closed, no live trading changes).
++- Do not relax configs/pilot.yaml.
++- Do not touch secrets or log credentials.
++- Add minimal, safe changes only.
++
++## Intended commands
++- rg/sed to locate packaging + systemd/runbook references.
++- pytest -q
++- python -m kalshi_alpha.exec.preflight_index --offline --now "2025-12-22T10:50:00-05:00"
++- python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now "2025-12-22T10:50:00-05:00" --no-ws-listen
++- make gpt-bundle TICKET=TICKET-009_packaging_systemd_hardening RUN_NAME=20251222_052313Z_TICKET-009_packaging_systemd_hardening
+diff --git a/docs/runbooks/aws_supervisor_index.md b/docs/runbooks/aws_supervisor_index.md
+index bc5fe3f..4f81925 100644
+--- a/docs/runbooks/aws_supervisor_index.md
++++ b/docs/runbooks/aws_supervisor_index.md
+@@ -16,16 +16,17 @@ Last updated: 2025-12-21
+ 
+ ## Prerequisites
+ - Repo installed or checked out on the host (example: `/opt/kalshi-sys`).
+-- Python 3.11+ environment activated.
+-- Either:
+-  - `pip install -e .`, or
+-  - set `PYTHONPATH=src` in the EnvironmentFile.
++- Python 3.11+ venv created (example: `/opt/kalshi-sys/.venv`).
++- Editable install: `python -m pip install -e .` (if imports fail with pip 25,
++  use `--config-settings editable_mode=compat` as noted in `README.md`).
+ 
+-## EC2 setup (copy/paste)
++## EC2 bootstrap (copy/paste)
+ > Use a dedicated non-root user (example: `kalshi`). Run commands as that user
+-> unless `sudo` is required. Replace placeholders in <>.
++> unless `sudo` is required. Replace placeholders in <>. Reminder: do not echo
++> secrets into logs; render them into `/etc/kalshi/kalshi-supervisor.env`.
+ 
+ ```bash
++# Reminder: never echo secrets into logs; render them into /etc/kalshi/kalshi-supervisor.env.
+ sudo useradd --create-home --shell /bin/bash kalshi
+ sudo mkdir -p /opt/kalshi-sys /etc/kalshi
+ sudo chown -R kalshi:kalshi /opt/kalshi-sys
+@@ -36,8 +37,8 @@ sudo -u kalshi bash -lc '\
+   git clone <REPO_URL> .\
+   python -m venv .venv\
+   source .venv/bin/activate\
+-  pip install -U pip wheel\
+-  pip install -e .\
++  python -m pip install -U pip wheel\
++  python -m pip install -e .\
+ '
+ 
+ sudo tee /etc/kalshi/kalshi-supervisor.env >/dev/null <<'EOF'
+@@ -47,11 +48,19 @@ KALSHI_API_KEY_ID=<SSM_OR_SECRETS_MANAGER>
+ KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
+ EOF
+ sudo chmod 600 /etc/kalshi/kalshi-supervisor.env
++
++sudo cp /opt/kalshi-sys/deploy/systemd/supervisor_index.service \
++  /etc/systemd/system/kalshi-supervisor-index.service
++sudo systemctl daemon-reload
++sudo systemctl enable --now kalshi-supervisor-index.service
++
++# Status + (optional) stop/start checks
++sudo systemctl status kalshi-supervisor-index.service
++sudo systemctl stop kalshi-supervisor-index.service
++sudo systemctl start kalshi-supervisor-index.service
+ ```
+ 
+ Notes:
+-- If you prefer `PYTHONPATH=src` instead of `pip install -e .`, add
+-  `PYTHONPATH=/opt/kalshi-sys/src` to the EnvironmentFile.
+ - Keep secrets in SSM/Secrets Manager and render locally; never commit them.
+ 
+ ## Environment variables and secrets (SSM / Secrets Manager)
+@@ -213,9 +222,9 @@ Disable live broker quickly:
+ 
+ ## Local smoke commands
+ - Dry-run (requires keys):
+-  - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
++  - `/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
+ - No-keys smoke:
+-  - `python -m kalshi_alpha.exec.supervisor_index --help`
++  - `/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --help`
+ 
+ ## Redaction policy (do not paste into logs/docs)
+ - AWS account IDs, instance IDs, private IPs, or AMI IDs.
+diff --git a/pyproject.toml b/pyproject.toml
+index d641d03..2e5a419 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -18,6 +18,8 @@ dependencies = [
+   "websockets>=12.0",
+   "pydantic>=2.7.0",
+   "polars>=1.6.0",
++  "scipy>=1.11.0",
++  "pandas>=2.2.0",
+   "duckdb>=0.10.2",
+   "python-dateutil>=2.9.0.post0",
+   "pyyaml>=6.0.1",

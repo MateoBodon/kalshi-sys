@@ -1,0 +1,882 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index dbeb827..23e68ad 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,6 +4,7 @@
+ - Gitignored `reports/` and removed tracked report outputs so report artifacts stay local-only.
+ - Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
+ - Ticket #101: decoupled index GO/NO-GO from macro freshness with explicit scope metadata, index-specific freshness/quality gate configs, and scoped go/no-go artifacts.
++- Ticket #102: promoted settlement basis audit to a preflight gate with daily JSON/MD artifacts, flip-risk summaries, and fixture-based tests.
+ 
+ ## 2025-12-22
+ - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.
+diff --git a/REPORT.md b/REPORT.md
+index 69bc921..be9020a 100644
+--- a/REPORT.md
++++ b/REPORT.md
+@@ -32,7 +32,16 @@
+ 
+ ## Runtime Monitors
+ <!-- monitors:start -->
+-_No runtime monitor run recorded._
++_Generated 2025-12-23 06:56:22 UTC_
++
++- ⬜ ev_gap: NO_DATA
++- ⬜ fill_vs_alpha: NO_DATA
++- ⬜ ev_seq_guard: NO_DATA
++- ⚠️ freeze_window: ALERT — Freeze active for CPI
++- ✅ drawdown: OK
++- ✅ ws_disconnect_rate: OK
++- ✅ auth_error_streak: OK
++- ✅ kill_switch: OK
+ <!-- monitors:end -->
+ 
+ ## ANALYSIS
+diff --git a/docs/DOCS_AND_LOGGING_SYSTEM.md b/docs/DOCS_AND_LOGGING_SYSTEM.md
+index 8022aa3..f063e53 100644
+--- a/docs/DOCS_AND_LOGGING_SYSTEM.md
++++ b/docs/DOCS_AND_LOGGING_SYSTEM.md
+@@ -129,6 +129,7 @@ Suggested subdirs:
+ - `data/proc/runs/<RUN_ID>/` (go/no-go, proposals, monitor events)
+ - `data/proc/telemetry/` (tob snapshots, quote intents, ws status)
+ - `data/proc/basis/` (basis audits)
++- `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json` (daily basis summary: quantiles, per-window deltas, flip-risk flag)
+ - `data/proc/calibration/` (calibration outputs)
+ - `data/proc/fillcalib/` (fill curves)
+ 
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index 7727c23..bc82716 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -32,6 +32,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
+ - Ticket #101 — Decoupled index GO/NO-GO from macro freshness with explicit scope metadata and index-specific freshness/quality gate configs.
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251223T063005Z_TICKET-101_index_scope_gates/README.md`
++- Ticket #102 — Promoted settlement basis audit to a preflight gate with daily JSON/MD artifacts, flip-risk summary, and fixture-based tests.
++  - Gate status: PAPER
++  - Evidence: agent run log `docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/README.md`
+ 
+ ## 2025-12-21
+ - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
+diff --git a/src/kalshi_alpha/exec/preflight_index.py b/src/kalshi_alpha/exec/preflight_index.py
+index ae60bed..903a050 100644
+--- a/src/kalshi_alpha/exec/preflight_index.py
++++ b/src/kalshi_alpha/exec/preflight_index.py
+@@ -4,7 +4,7 @@ from __future__ import annotations
+ 
+ import argparse
+ from dataclasses import dataclass
+-from datetime import UTC, datetime, timedelta
++from datetime import UTC, date, datetime, time, timedelta
+ import json
+ import os
+ from pathlib import Path
+@@ -32,6 +32,7 @@ MAX_CALIBRATION_AGE_DAYS = 14.0
+ POLYGON_PING_URL = "https://api.polygon.io/v1/marketstatus/now"
+ GO_NO_GO_PATH = Path("reports/_artifacts/go_no_go.json")
+ FRESHNESS_SCOPE = "index"
++BASIS_AUDIT_ROOT = PROC_ROOT / "basis"
+ 
+ 
+ @dataclass(slots=True)
+@@ -87,6 +88,82 @@ def _file_age_days(path: Path, now: datetime) -> float | None:
+     return max(age_seconds, 0.0) / 86400.0
+ 
+ 
++def _parse_timestamp(value: str | None) -> datetime | None:
++    if not value:
++        return None
++    raw = str(value).strip()
++    if not raw:
++        return None
++    normalized = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
++    try:
++        parsed = datetime.fromisoformat(normalized)
++    except ValueError:
++        return None
++    if parsed.tzinfo is None:
++        return parsed.replace(tzinfo=UTC)
++    return parsed.astimezone(UTC)
++
++
++def _basis_audit_path(root: Path, series: str, asof: date) -> Path:
++    return root / series.upper() / f"{asof.isoformat()}.json"
++
++
++def _check_basis_audit(
++    *,
++    series: str,
++    asof: date,
++    now_utc: datetime,
++    root: Path,
++) -> tuple[bool, list[str], dict[str, object]]:
++    reasons: list[str] = []
++    details: dict[str, object] = {}
++    path = _basis_audit_path(root, series, asof)
++    details["path"] = path.as_posix()
++    if not path.exists():
++        reasons.append(f"basis_audit_missing:{series}")
++        details["status"] = "MISSING"
++        return False, reasons, details
++    try:
++        payload = json.loads(path.read_text(encoding="utf-8"))
++    except (OSError, json.JSONDecodeError) as exc:
++        reasons.append(f"basis_audit_stale:{series}:unreadable")
++        details["status"] = "STALE"
++        details["error"] = str(exc)
++        return False, reasons, details
++
++    asof_payload = payload.get("asof_date")
++    details["asof_date"] = asof_payload
++    if asof_payload != asof.isoformat():
++        reasons.append(f"basis_audit_stale:{series}:asof_mismatch")
++
++    generated_at_raw = payload.get("generated_at")
++    generated_at = _parse_timestamp(str(generated_at_raw) if generated_at_raw else None)
++    details["generated_at"] = generated_at_raw
++    if generated_at is None:
++        reasons.append(f"basis_audit_stale:{series}:missing_generated_at")
++    else:
++        start_of_day = datetime.combine(asof, time(0, 0), tzinfo=ET).astimezone(UTC)
++        if generated_at < start_of_day:
++            reasons.append(f"basis_audit_stale:{series}:generated_before_day")
++        if generated_at > now_utc + timedelta(minutes=5):
++            reasons.append(f"basis_audit_stale:{series}:generated_in_future")
++
++    details["sample_count"] = payload.get("sample_count")
++    details["basis_quantiles"] = payload.get("basis_quantiles")
++    details["flip_risk"] = payload.get("flip_risk")
++
++    flip_payload = payload.get("flip_risk") or {}
++    flip_flag = flip_payload.get("flag")
++    if isinstance(flip_flag, bool):
++        if flip_flag:
++            reasons.append(f"basis_flip_risk:{series}")
++    else:
++        reasons.append(f"basis_flip_risk:{series}:flag_missing")
++
++    details["status"] = "OK" if not reasons else "ALERT"
++    return not reasons, reasons, details
++
++
+ def _calibration_check(
+     *,
+     now: datetime,
+@@ -137,6 +214,9 @@ def run_preflight(
+     polygon_ping: Callable[[float], bool] | None = None,
+     require_kalshi: bool = True,
+     require_polygon: bool | None = None,
++    require_basis_audit: bool | None = None,
++    basis_root: Path | None = None,
++    series: Sequence[str] | None = None,
+     freshness_artifact_path: Path | None = None,
+     require_freshness: bool | None = None,
+     freshness_scope: str | None = FRESHNESS_SCOPE,
+@@ -156,6 +236,8 @@ def run_preflight(
+         require_polygon = require_kalshi
+     if require_freshness is None:
+         require_freshness = require_kalshi
++    if require_basis_audit is None:
++        require_basis_audit = require_kalshi
+     if require_kalshi:
+         env_missing.extend(_missing_env_vars(["KALSHI_API_KEY_ID", "KALSHI_PRIVATE_KEY_PEM_PATH"]))
+         key_path_raw = os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
+@@ -222,6 +304,28 @@ def run_preflight(
+         if not ping_fn(polygon_timeout):
+             reasons.append("polygon_unreachable")
+ 
++    # Basis audit gate ------------------------------------------------------
++    if require_basis_audit:
++        asof = reference_et.date()
++        series_list = [entry.upper() for entry in (series or _series_labels())]
++        root = Path(basis_root) if basis_root else BASIS_AUDIT_ROOT
++        audit_details: dict[str, object] = {
++            "asof_date": asof.isoformat(),
++            "root": root.as_posix(),
++            "series": {},
++        }
++        for series_code in series_list:
++            ok, basis_reasons, basis_detail = _check_basis_audit(
++                series=series_code,
++                asof=asof,
++                now_utc=now_utc,
++                root=root,
++            )
++            audit_details["series"][series_code] = basis_detail
++            if not ok:
++                reasons.extend(basis_reasons)
++        details["basis_audit"] = audit_details
++
+     go = not reasons
+     details["evaluated_at_et"] = reference_et.isoformat()
+     return PreflightResult(go=go, reasons=reasons, details=details)
+diff --git a/src/kalshi_alpha/exec/supervisor_index.py b/src/kalshi_alpha/exec/supervisor_index.py
+index dd96e03..bb66308 100644
+--- a/src/kalshi_alpha/exec/supervisor_index.py
++++ b/src/kalshi_alpha/exec/supervisor_index.py
+@@ -478,6 +478,7 @@ def main(argv: Sequence[str] | None = None) -> None:
+         kill_switch_file=config.kill_switch_file,
+         require_kalshi=not config.offline,
+         require_polygon=not config.offline,
++        series=config.series_filter,
+     )
+     preflight_observer = lambda result: _emit_preflight_summary(result, config=config)
+ 
+diff --git a/tests/exec/test_preflight_index.py b/tests/exec/test_preflight_index.py
+index db6e772..a34758c 100644
+--- a/tests/exec/test_preflight_index.py
++++ b/tests/exec/test_preflight_index.py
+@@ -1,7 +1,7 @@
+ from __future__ import annotations
+ 
+ import json
+-from datetime import UTC, datetime, timedelta
++from datetime import UTC, datetime, timedelta, date
+ from pathlib import Path
+ from zoneinfo import ZoneInfo
+ 
+@@ -78,6 +78,39 @@ def _write_freshness_artifact(
+     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+ 
+ 
++def _write_basis_audit(
++    path: Path,
++    *,
++    series: str,
++    asof_date: date,
++    flip_flag: bool = False,
++    generated_at: datetime | None = None,
++) -> None:
++    payload = {
++        "series": series,
++        "asof_date": asof_date.isoformat(),
++        "generated_at": (generated_at or datetime.now(tz=UTC)).isoformat(),
++        "sample_count": 2,
++        "basis_quantiles": {"p01": -0.2, "p05": -0.1, "p50": 0.0, "p95": 0.2, "p99": 0.3},
++        "per_window_deltas": [
++            {"window_id": "hourly-1000", "n": 2, "mean": 0.05, "p05": -0.1, "p50": 0.0, "p95": 0.2}
++        ],
++        "flip_risk": {
++            "flag": flip_flag,
++            "rationale": "fixture",
++            "thresholds": {"basis_abs_p95": 0.2, "quote_distance": 0.5, "threshold": 0.5},
++        },
++    }
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
++
++
++def _seed_basis_audits(root: Path, *, asof_date: date, series: tuple[str, ...]) -> None:
++    for series_code in series:
++        path = root / series_code / f"{asof_date.isoformat()}.json"
++        _write_basis_audit(path, series=series_code, asof_date=asof_date)
++
++
+ def test_missing_env_triggers_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+     now = datetime(2025, 11, 3, 10, 5, tzinfo=ET)
+     _seed_all_params(tmp_path, now)
+@@ -92,6 +125,7 @@ def test_missing_env_triggers_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPa
+         kill_switch_file=tmp_path / "kill_switch",
+         polygon_ping=lambda _: True,
+         freshness_artifact_path=freshness_path,
++        basis_root=tmp_path / "basis",
+     )
+ 
+     assert not result.go
+@@ -104,6 +138,8 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
+     _seed_all_params(tmp_path, stale_ts)
+     freshness_path = tmp_path / "freshness.json"
+     _write_freshness_artifact(freshness_path)
++    basis_root = tmp_path / "basis"
++    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
+ 
+     key_path = tmp_path / "kalshi.pem"
+     key_path.write_text("dummy", encoding="utf-8")
+@@ -117,6 +153,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
+         kill_switch_file=tmp_path / "kill_switch",
+         polygon_ping=lambda _: True,
+         freshness_artifact_path=freshness_path,
++        basis_root=basis_root,
+     )
+ 
+     assert not result.go
+@@ -128,6 +165,8 @@ def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
+     _seed_all_params(tmp_path, now)
+     freshness_path = tmp_path / "freshness.json"
+     _write_freshness_artifact(freshness_path)
++    basis_root = tmp_path / "basis"
++    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
+ 
+     key_path = tmp_path / "kalshi.pem"
+     key_path.write_text("dummy", encoding="utf-8")
+@@ -141,6 +180,7 @@ def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
+         kill_switch_file=tmp_path / "kill_switch",
+         polygon_ping=lambda _: True,
+         freshness_artifact_path=freshness_path,
++        basis_root=basis_root,
+     )
+ 
+     assert result.go
+@@ -184,6 +224,30 @@ def test_macro_stale_does_not_block_index_preflight(tmp_path: Path, monkeypatch:
+     _seed_all_params(tmp_path, now)
+     freshness_path = tmp_path / "freshness.json"
+     _write_freshness_artifact(freshness_path, polygon_ok=True, macro_ok=False, macro_required=True)
++    basis_root = tmp_path / "basis"
++    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
++
++    key_path = tmp_path / "kalshi.pem"
++    key_path.write_text("dummy", encoding="utf-8")
++    monkeypatch.setenv("KALSHI_API_KEY_ID", "demo-id")
++    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
++    monkeypatch.setenv("POLYGON_API_KEY", "demo-polygon")
++
++    result = run_preflight(
++        now,
++        params_root=tmp_path,
++        kill_switch_file=tmp_path / "kill_switch",
++        polygon_ping=lambda _: True,
++        freshness_artifact_path=freshness_path,
++        basis_root=basis_root,
++    )
++
++
++def test_missing_basis_audit_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
++    now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
++    _seed_all_params(tmp_path, now)
++    freshness_path = tmp_path / "freshness.json"
++    _write_freshness_artifact(freshness_path)
+ 
+     key_path = tmp_path / "kalshi.pem"
+     key_path.write_text("dummy", encoding="utf-8")
+@@ -197,8 +261,13 @@ def test_macro_stale_does_not_block_index_preflight(tmp_path: Path, monkeypatch:
+         kill_switch_file=tmp_path / "kill_switch",
+         polygon_ping=lambda _: True,
+         freshness_artifact_path=freshness_path,
++        basis_root=tmp_path / "basis",
++        series=("INXU",),
+     )
+ 
++    assert not result.go
++    assert any(reason.startswith("basis_audit_missing") for reason in result.reasons)
++
+     assert result.go
+     assert "STALE_FEEDS" not in result.reasons
+     assert "polygon_ws_stale" not in result.reasons
+diff --git a/tests/tools/test_settlement_basis_audit.py b/tests/tools/test_settlement_basis_audit.py
+index 11d07ac..8102f32 100644
+--- a/tests/tools/test_settlement_basis_audit.py
++++ b/tests/tools/test_settlement_basis_audit.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ from pathlib import Path
++import json
+ 
+ import polars as pl
+ 
+@@ -10,6 +11,7 @@ from tools import settlement_basis_audit
+ def test_settlement_basis_offline_fixtures(tmp_path: Path) -> None:
+     report_path = tmp_path / "report.md"
+     data_path = tmp_path / "data.parquet"
++    json_path = tmp_path / "summary.json"
+     fixtures_root = Path("tests/fixtures/settlement_basis").resolve()
+ 
+     settlement_basis_audit.main(
+@@ -20,6 +22,8 @@ def test_settlement_basis_offline_fixtures(tmp_path: Path) -> None:
+             "INXU",
+             "--out-report",
+             str(report_path),
++            "--out-json",
++            str(json_path),
+             "--out-data",
+             str(data_path),
+             "--offline-fixtures",
+@@ -44,11 +48,32 @@ def test_settlement_basis_offline_fixtures(tmp_path: Path) -> None:
+         "basis",
+         "nearest_strike",
+         "nearest_strike_margin",
++        "strike_spacing",
+         "flip_risk",
+     }
+     assert expected_columns.issubset(set(frame.columns))
+     assert frame.filter(pl.col("flip_risk") == True).height >= 1
+ 
++    assert json_path.exists()
++    summary = json_path.read_text(encoding="utf-8")
++    payload = json.loads(summary)
++    assert payload.get("series") == "INXU"
++    assert payload.get("asof_date") == "2025-11-10"
++    assert "generated_at" in payload
++    assert isinstance(payload.get("sample_count"), int)
++    basis_quantiles = payload.get("basis_quantiles", {})
++    for key in ("p01", "p05", "p50", "p95", "p99"):
++        assert key in basis_quantiles
++    per_window = payload.get("per_window_deltas", [])
++    assert per_window
++    first = per_window[0]
++    for key in ("window_id", "n", "mean", "p05", "p50", "p95"):
++        assert key in first
++    flip_risk = payload.get("flip_risk", {})
++    assert "flag" in flip_risk
++    assert "rationale" in flip_risk
++    assert "thresholds" in flip_risk
++
+     assert report_path.exists()
+     report_text = report_path.read_text(encoding="utf-8")
+     assert "p95=" in report_text
+diff --git a/tools/settlement_basis_audit.py b/tools/settlement_basis_audit.py
+index cae414a..b56069a 100644
+--- a/tools/settlement_basis_audit.py
++++ b/tools/settlement_basis_audit.py
+@@ -6,6 +6,7 @@ import argparse
+ import json
+ import math
+ import shlex
++import statistics
+ import subprocess
+ import sys
+ from dataclasses import dataclass
+@@ -31,6 +32,8 @@ from kalshi_alpha.sched.windows import TradingWindow, windows_for_day
+ ET = ZoneInfo("America/New_York")
+ SUPPORTED_SERIES = {"INX", "INXU", "NASDAQ100", "NASDAQ100U"}
+ DEFAULT_FIXTURES_ROOT = Path("tests/fixtures/settlement_basis")
++DEFAULT_QUOTE_DISTANCE = 0.5
++EXEC_DEFAULTS_PATH = PROJECT_ROOT / "data" / "reference" / "index_execution_defaults.json"
+ KALSHI_VALUE_FIELDS = (
+     "settlement_value",
+     "settlement_price",
+@@ -71,22 +74,28 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+         choices=sorted(SUPPORTED_SERIES),
+         help="Index ladder series (INX, INXU, NASDAQ100, NASDAQ100U).",
+     )
++    parser.add_argument(
++        "--out-json",
++        type=str,
++        default=None,
++        help="Path for JSON summary (default: data/proc/basis/<SERIES>/<YYYY-MM-DD>.json).",
++    )
+     parser.add_argument(
+         "--out-report",
+         type=str,
+         default=None,
+-        help="Path for markdown report (default: reports/settlement_basis/<day>_<series>.md).",
++        help="Path for markdown report (default: reports/basis/<SERIES>/<YYYY-MM-DD>.md).",
+     )
+     parser.add_argument(
+         "--out-data",
+         type=str,
+         default=None,
+-        help="Path for dataset output (default: data/proc/settlement_basis/<day>_<series>.parquet).",
++        help="Optional path for dataset output (default: data/proc/settlement_basis/<day>_<series>.parquet).",
+     )
+     parser.add_argument(
+         "--use-cache",
+         action="store_true",
+-        help="If dataset exists, regenerate report from it without API calls.",
++        help="If dataset exists, regenerate report/summary from it without API calls.",
+     )
+     parser.add_argument(
+         "--offline-fixtures",
+@@ -98,12 +107,34 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+     return parser.parse_args(argv)
+ 
+ 
+-def _resolve_paths(day: date, series: str, *, out_report: str | None, out_data: str | None) -> tuple[Path, Path]:
+-    report_path = Path(out_report) if out_report else REPORTS_ROOT / "settlement_basis" / f"{day.isoformat()}_{series.upper()}.md"
+-    data_path = Path(out_data) if out_data else PROC_ROOT / "settlement_basis" / f"{day.isoformat()}_{series.upper()}.parquet"
++def _resolve_paths(
++    day: date,
++    series: str,
++    *,
++    out_report: str | None,
++    out_data: str | None,
++    out_json: str | None,
++) -> tuple[Path, Path, Path]:
++    series_slug = series.upper()
++    report_path = (
++        Path(out_report)
++        if out_report
++        else REPORTS_ROOT / "basis" / series_slug / f"{day.isoformat()}.md"
++    )
++    data_path = (
++        Path(out_data)
++        if out_data
++        else PROC_ROOT / "settlement_basis" / f"{day.isoformat()}_{series_slug}.parquet"
++    )
++    json_path = (
++        Path(out_json)
++        if out_json
++        else PROC_ROOT / "basis" / series_slug / f"{day.isoformat()}.json"
++    )
+     report_path.parent.mkdir(parents=True, exist_ok=True)
+     data_path.parent.mkdir(parents=True, exist_ok=True)
+-    return report_path, data_path
++    json_path.parent.mkdir(parents=True, exist_ok=True)
++    return report_path, data_path, json_path
+ 
+ 
+ def _parse_iso(value: str | None) -> datetime | None:
+@@ -227,6 +258,16 @@ def _nearest_strike(value: float | None, strikes: Iterable[float]) -> tuple[floa
+     return float(nearest), float(margin)
+ 
+ 
++def _median_spacing(strikes: Iterable[float]) -> float | None:
++    values = sorted(float(value) for value in strikes)
++    if len(values) < 2:
++        return None
++    diffs = [b - a for a, b in zip(values, values[1:], strict=False) if b > a]
++    if not diffs:
++        return None
++    return float(statistics.median(diffs))
++
++
+ def _load_frame(path: Path) -> pl.DataFrame:
+     if path.suffix == ".parquet":
+         return pl.read_parquet(path)
+@@ -280,6 +321,188 @@ def _series_stats(series: pl.Series) -> dict[str, float | None]:
+     }
+ 
+ 
++def _quantiles(series: pl.Series, quantiles: dict[str, float]) -> dict[str, float | None]:
++    if series.is_empty():
++        return {label: None for label in quantiles}
++    results: dict[str, float | None] = {}
++    for label, q in quantiles.items():
++        try:
++            value = series.quantile(q, "nearest")
++        except Exception:
++            value = None
++        results[label] = float(value) if value is not None and not math.isnan(float(value)) else None
++    return results
++
++
++def _normalize_float(value: Any) -> float | None:
++    if value is None:
++        return None
++    try:
++        numeric = float(value)
++    except (TypeError, ValueError):
++        return None
++    return None if math.isnan(numeric) else numeric
++
++
++def _load_quote_distance(series: str) -> tuple[float | None, str | None]:
++    if not EXEC_DEFAULTS_PATH.exists():
++        return None, None
++    try:
++        payload = json.loads(EXEC_DEFAULTS_PATH.read_text(encoding="utf-8"))
++    except json.JSONDecodeError:
++        return None, None
++    series_cfg = payload.get("series", {}).get(series.upper())
++    if not isinstance(series_cfg, dict):
++        return None, None
++    for key in ("quote_distance", "quote_distance_points", "quote_distance_index_points"):
++        if key in series_cfg:
++            value = _safe_float(series_cfg.get(key))
++            if value is not None:
++                return value, f"{EXEC_DEFAULTS_PATH.name}:{key}"
++    return None, None
++
++
++def _build_per_window_deltas(frame: pl.DataFrame) -> list[dict[str, object]]:
++    if frame.is_empty() or "window_label" not in frame.columns or "basis" not in frame.columns:
++        return []
++    aggregated = (
++        frame.group_by("window_label")
++        .agg(
++            [
++                pl.col("basis").count().alias("n"),
++                pl.col("basis").mean().alias("mean"),
++                pl.col("basis").quantile(0.05, "nearest").alias("p05"),
++                pl.col("basis").quantile(0.50, "nearest").alias("p50"),
++                pl.col("basis").quantile(0.95, "nearest").alias("p95"),
++            ]
++        )
++        .sort("window_label")
++    )
++    rows: list[dict[str, object]] = []
++    for row in aggregated.iter_rows(named=True):
++        rows.append(
++            {
++                "window_id": row.get("window_label"),
++                "n": int(row.get("n") or 0),
++                "mean": _normalize_float(row.get("mean")),
++                "p05": _normalize_float(row.get("p05")),
++                "p50": _normalize_float(row.get("p50")),
++                "p95": _normalize_float(row.get("p95")),
++            }
++        )
++    return rows
++
++
++def _compute_flip_risk(
++    *,
++    series: str,
++    basis_series: pl.Series,
++    strike_spacings: list[float],
++) -> dict[str, object]:
++    rationale_parts: list[str] = []
++    abs_series = basis_series.abs() if not basis_series.is_empty() else pl.Series([])
++    basis_abs_p95 = _normalize_float(
++        abs_series.quantile(0.95, "nearest") if not abs_series.is_empty() else None
++    )
++
++    strike_spacing = _normalize_float(statistics.median(strike_spacings)) if strike_spacings else None
++    quote_distance, quote_source = _load_quote_distance(series)
++    default_quote_distance_used = False
++    if quote_distance is None:
++        quote_distance = DEFAULT_QUOTE_DISTANCE
++        default_quote_distance_used = True
++        rationale_parts.append(
++            f"quote_distance defaulted to {DEFAULT_QUOTE_DISTANCE:.2f} (no config found)"
++        )
++    elif quote_source:
++        rationale_parts.append(f"quote_distance sourced from {quote_source}")
++
++    if strike_spacing is not None:
++        rationale_parts.append(f"median strike spacing {strike_spacing:.2f}")
++    else:
++        rationale_parts.append("strike spacing unavailable (no strikes)")
++
++    threshold_candidates: list[tuple[str, float]] = []
++    if strike_spacing is not None:
++        threshold_candidates.append(("strike_spacing/2", strike_spacing / 2.0))
++    if quote_distance is not None:
++        threshold_candidates.append(("quote_distance", quote_distance))
++
++    threshold = None
++    threshold_source = None
++    if threshold_candidates:
++        threshold_source, threshold = min(threshold_candidates, key=lambda item: item[1])
++    else:
++        rationale_parts.append("no threshold candidates available")
++
++    if basis_abs_p95 is None:
++        rationale_parts.append("basis_abs_p95 unavailable (insufficient samples)")
++    else:
++        rationale_parts.append(f"basis_abs_p95={basis_abs_p95:.4f}")
++
++    if threshold is None or basis_abs_p95 is None:
++        flag = True
++        rationale_parts.append("flip risk flagged (fail-closed on uncertainty)")
++    else:
++        flag = basis_abs_p95 >= threshold
++        rationale_parts.append(
++            f"threshold={threshold:.4f} ({threshold_source}); flip_risk={'FAIL' if flag else 'PASS'}"
++        )
++
++    thresholds = {
++        "basis_abs_p95": basis_abs_p95,
++        "strike_spacing": strike_spacing,
++        "quote_distance": _normalize_float(quote_distance),
++        "threshold": _normalize_float(threshold),
++        "threshold_source": threshold_source,
++        "quantile": "p95",
++        "default_quote_distance_used": default_quote_distance_used,
++    }
++    return {
++        "flag": bool(flag),
++        "rationale": "; ".join(rationale_parts),
++        "thresholds": thresholds,
++    }
++
++
++def _build_summary(
++    frame: pl.DataFrame,
++    *,
++    day: date,
++    series: str,
++) -> dict[str, object]:
++    basis_series = frame.get_column("basis").drop_nulls() if "basis" in frame.columns else pl.Series([])
++    basis_quantiles = _quantiles(
++        basis_series,
++        {
++            "p01": 0.01,
++            "p05": 0.05,
++            "p50": 0.50,
++            "p95": 0.95,
++            "p99": 0.99,
++        },
++    )
++    strike_spacings = [
++        float(value)
++        for value in frame.get_column("strike_spacing").drop_nulls().to_list()
++        if value is not None
++    ] if "strike_spacing" in frame.columns else []
++    summary = {
++        "series": series.upper(),
++        "asof_date": day.isoformat(),
++        "generated_at": datetime.now(tz=UTC).isoformat(),
++        "sample_count": int(basis_series.len()),
++        "basis_quantiles": basis_quantiles,
++        "per_window_deltas": _build_per_window_deltas(frame),
++        "flip_risk": _compute_flip_risk(
++            series=series,
++            basis_series=basis_series,
++            strike_spacings=strike_spacings,
++        ),
++    }
++    return summary
++
++
+ def _render_report(
+     frame: pl.DataFrame,
+     *,
+@@ -287,12 +510,18 @@ def _render_report(
+     series: str,
+     dataset_path: Path,
+     command: str,
++    summary: dict[str, object],
+ ) -> str:
+     total_rows = frame.height
+     basis_series = frame.get_column("basis").drop_nulls() if "basis" in frame.columns else pl.Series([])
+     abs_series = basis_series.abs() if not basis_series.is_empty() else pl.Series([])
+     basis_stats = _series_stats(basis_series)
+     abs_stats = _series_stats(abs_series)
++    basis_quantiles = summary.get("basis_quantiles", {}) if isinstance(summary, dict) else {}
++    flip_summary = summary.get("flip_risk", {}) if isinstance(summary, dict) else {}
++    flip_flag = bool(flip_summary.get("flag")) if isinstance(flip_summary, dict) else False
++    flip_rationale = str(flip_summary.get("rationale", "")).strip() if isinstance(flip_summary, dict) else ""
++    thresholds = flip_summary.get("thresholds", {}) if isinstance(flip_summary, dict) else {}
+     flip_count = frame.filter(pl.col("flip_risk") == True).height if "flip_risk" in frame.columns else 0
+     missing_kalshi = frame.filter(pl.col("kalshi_value").is_null()).height if "kalshi_value" in frame.columns else total_rows
+     missing_polygon = frame.filter(pl.col("polygon_value").is_null()).height if "polygon_value" in frame.columns else total_rows
+@@ -311,11 +540,12 @@ def _render_report(
+     lines.append(f"- Missing Polygon values: {missing_polygon}")
+     lines.append(f"- Flip-risk windows: {flip_count}")
+     lines.append(
+-        "- Basis stats (value=Polygon-Kalshi): "
+-        f"mean={_format_float(basis_stats['mean'])}, "
+-        f"median={_format_float(basis_stats['median'])}, "
+-        f"p95={_format_float(basis_stats['p95'])}, "
+-        f"p99={_format_float(basis_stats['p99'])}"
++        "- Basis quantiles (value=Polygon-Kalshi): "
++        f"p01={_format_float(_normalize_float(basis_quantiles.get('p01')))}, "
++        f"p05={_format_float(_normalize_float(basis_quantiles.get('p05')))}, "
++        f"p50={_format_float(_normalize_float(basis_quantiles.get('p50')))}, "
++        f"p95={_format_float(_normalize_float(basis_quantiles.get('p95')))}, "
++        f"p99={_format_float(_normalize_float(basis_quantiles.get('p99')))}"
+     )
+     lines.append(
+         "- Abs(basis) stats: "
+@@ -328,6 +558,21 @@ def _render_report(
+     lines.append("Polygon is not settlement truth; Kalshi expiration value is the reference for settlement.")
+     lines.append("")
+ 
++    lines.append("## Flip-Risk Summary (daily gate)")
++    lines.append(f"- Status: {'FAIL' if flip_flag else 'PASS'}")
++    if thresholds:
++        lines.append(
++            "- Thresholds: "
++            f"basis_abs_p95={_format_float(_normalize_float(thresholds.get('basis_abs_p95')))}, "
++            f"strike_spacing={_format_float(_normalize_float(thresholds.get('strike_spacing')))}, "
++            f"quote_distance={_format_float(_normalize_float(thresholds.get('quote_distance')))}, "
++            f"threshold={_format_float(_normalize_float(thresholds.get('threshold')))} "
++            f"(source={thresholds.get('threshold_source')})"
++        )
++    if flip_rationale:
++        lines.append(f"- Rationale: {flip_rationale}")
++    lines.append("")
++
+     lines.append("## Top Windows by |Basis|")
+     if basis_series.is_empty():
+         lines.append("_No basis values available._")
+@@ -378,6 +623,27 @@ def _render_report(
+                 )
+             )
+     lines.append("")
++
++    lines.append("## Per-Window Basis Deltas")
++    per_window = summary.get("per_window_deltas", []) if isinstance(summary, dict) else []
++    if not per_window:
++        lines.append("_No per-window deltas available._")
++    else:
++        headers = ["window", "n", "mean", "p05", "p50", "p95"]
++        lines.append("| " + " | ".join(headers) + " |")
++        lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
++        for entry in per_window:
++            lines.append(
++                "| {window} | {n} | {mean} | {p05} | {p50} | {p95} |".format(
++                    window=entry.get("window_id", ""),
++                    n=entry.get("n", 0),
++                    mean=_format_float(_normalize_float(entry.get("mean"))),
++                    p05=_format_float(_normalize_float(entry.get("p05"))),
++                    p50=_format_float(_normalize_float(entry.get("p50"))),
++                    p95=_format_float(_normalize_float(entry.get("p95"))),
++                )
++            )
++    lines.append("")
+     return "\n".join(lines)
+ 
+ 
+@@ -454,6 +720,7 @@ def _build_dataset(
+             basis = float(polygon.value) - float(kalshi_value)
+ 
+         nearest_strike, margin = _nearest_strike(polygon.value, strikes)
++        strike_spacing = _median_spacing(strikes)
+         flip_risk = False
+         if basis is not None and margin is not None:
+             flip_risk = abs(basis) >= margin
+@@ -474,6 +741,7 @@ def _build_dataset(
+                 "basis": basis,
+                 "nearest_strike": nearest_strike,
+                 "nearest_strike_margin": margin,
++                "strike_spacing": strike_spacing,
+                 "flip_risk": flip_risk,
+             }
+         )
+@@ -484,7 +752,13 @@ def _build_dataset(
+ 
+ def main(argv: list[str] | None = None) -> None:
+     args = _parse_args(argv)
+-    report_path, data_path = _resolve_paths(args.day, args.series, out_report=args.out_report, out_data=args.out_data)
++    report_path, data_path, json_path = _resolve_paths(
++        args.day,
++        args.series,
++        out_report=args.out_report,
++        out_data=args.out_data,
++        out_json=args.out_json,
++    )
+     raw_args = argv if argv is not None else sys.argv[1:]
+     command = " ".join(shlex.quote(part) for part in ["python", "tools/settlement_basis_audit.py", *[str(a) for a in raw_args]])
+ 
+@@ -492,17 +766,37 @@ def main(argv: list[str] | None = None) -> None:
+         if not data_path.exists():
+             raise FileNotFoundError(f"Dataset not found for --use-cache: {data_path}")
+         frame = _load_frame(data_path)
+-        report = _render_report(frame, day=args.day, series=args.series, dataset_path=data_path, command=command)
++        summary = _build_summary(frame, day=args.day, series=args.series)
++        json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
++        report = _render_report(
++            frame,
++            day=args.day,
++            series=args.series,
++            dataset_path=data_path,
++            command=command,
++            summary=summary,
++        )
+         report_path.write_text(report, encoding="utf-8")
++        print(f"[settlement_basis] summary written to {json_path}")
+         print(f"[settlement_basis] report written to {report_path}")
+         return
+ 
+     offline_root = Path(args.offline_fixtures).resolve() if args.offline_fixtures else None
+     frame = _build_dataset(day=args.day, series=args.series, offline_fixtures=offline_root)
+     _write_frame(frame, data_path)
+-    report = _render_report(frame, day=args.day, series=args.series, dataset_path=data_path, command=command)
++    summary = _build_summary(frame, day=args.day, series=args.series)
++    json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
++    report = _render_report(
++        frame,
++        day=args.day,
++        series=args.series,
++        dataset_path=data_path,
++        command=command,
++        summary=summary,
++    )
+     report_path.write_text(report, encoding="utf-8")
+     print(f"[settlement_basis] dataset written to {data_path}")
++    print(f"[settlement_basis] summary written to {json_path}")
+     print(f"[settlement_basis] report written to {report_path}")
+ 
+ 

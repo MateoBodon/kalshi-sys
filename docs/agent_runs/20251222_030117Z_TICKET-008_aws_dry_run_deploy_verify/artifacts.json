@@ -1,0 +1,14 @@
+[
+  {
+    "path": "data/proc/state/heartbeat.json",
+    "description": "Updated by local supervisor_index dry-run smoke."
+  },
+  {
+    "path": "reports/_artifacts/go_no_go.json",
+    "description": "Written by preflight_index offline smoke."
+  },
+  {
+    "path": "reports/INXU/2025-12-22.md",
+    "description": "Generated report from local micro_index scan (offline fixtures)."
+  }
+]

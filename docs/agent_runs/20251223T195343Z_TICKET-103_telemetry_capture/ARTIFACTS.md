@@ -1,0 +1,20 @@
+# Artifacts
+
+- `DIFF.patch`
+- `reports/_artifacts/go_no_go.json`
+- `data/proc/settlement_basis/2025-12-23_INXU.parquet`
+- `data/proc/basis/INXU/2025-12-23.json`
+- `reports/basis/INXU/2025-12-23.md`
+- `data/raw/polygon/I_SPX/2025-12-23.parquet`
+- `data/raw/polygon/I_NDX/2025-12-23.parquet`
+- `data/proc/index_panel_polygon.parquet`
+- `data/proc/calib/index_polygon/INX/close/params.json`
+- `data/proc/calib/index_polygon/INXU/noon/params.json`
+- `data/proc/calib/index_polygon/NASDAQ100/close/params.json`
+- `data/proc/calib/index_polygon/NASDAQ100U/noon/params.json`
+- `data/raw/2025/12/23/polygon_index/20251223T203600_INX_snapshot.json.json`
+- `data/raw/2025/12/23/polygon_index/20251223T203600_INXU_snapshot.json.json`
+- `data/raw/2025/12/23/polygon_index/20251223T203604_INX_snapshot.json.json`
+- `data/raw/2025/12/23/polygon_index/20251223T203604_INXU_snapshot.json.json`
+- `docs/agent_runs/20251223T195343Z_TICKET-103_telemetry_capture/diff.patch`
+- `docs/gpt_bundles/gpt_bundle_TICKET-103_20251223T195343Z_TICKET-103_telemetry_capture.zip`

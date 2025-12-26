@@ -1,0 +1,22 @@
+diff --git a/REPORT.md b/REPORT.md
+index 69bc921..be9020a 100644
+--- a/REPORT.md
++++ b/REPORT.md
+@@ -32,7 +32,16 @@
+ 
+ ## Runtime Monitors
+ <!-- monitors:start -->
+-_No runtime monitor run recorded._
++_Generated 2025-12-23 06:56:22 UTC_
++
++- ⬜ ev_gap: NO_DATA
++- ⬜ fill_vs_alpha: NO_DATA
++- ⬜ ev_seq_guard: NO_DATA
++- ⚠️ freeze_window: ALERT — Freeze active for CPI
++- ✅ drawdown: OK
++- ✅ ws_disconnect_rate: OK
++- ✅ auth_error_streak: OK
++- ✅ kill_switch: OK
+ <!-- monitors:end -->
+ 
+ ## ANALYSIS

@@ -1,0 +1,6 @@
+[
+  {
+    "path": "reports/_artifacts/go_no_go.json",
+    "description": "Offline preflight/supervisor smoke output (NO-GO reasons)."
+  }
+]

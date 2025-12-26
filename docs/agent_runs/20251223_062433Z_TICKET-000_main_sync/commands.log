@@ -1,0 +1,67 @@
+git status --short
+# Output: AGENTS.md and docs/DOCS_AND_LOGGING_SYSTEM.md modified; untracked reports/* files listed
+
+git diff --stat
+# Output: AGENTS.md and docs/DOCS_AND_LOGGING_SYSTEM.md changes
+
+git diff AGENTS.md
+# Output: policy doc rewrite diff
+
+git diff docs/DOCS_AND_LOGGING_SYSTEM.md
+# Output: logging system rewrite diff
+
+date -u +%Y%m%d_%H%M%SZ
+# Output: 20251223_062433Z
+
+git stash push -m "temp: local docs changes"
+# Output: Saved working directory and index state
+
+git status --short
+# Output: untracked reports/* only
+
+git cherry-pick codex/TICKET-000_ignore-reports
+# Output: cherry-picked ignore-reports commit onto main
+
+git stash pop
+# Output: restored AGENTS.md + docs/DOCS_AND_LOGGING_SYSTEM.md changes
+
+git status --short
+# Output: AGENTS.md and docs/DOCS_AND_LOGGING_SYSTEM.md modified
+
+rg -n "2025-12-23" docs/PROGRESS.md
+# Output: location of 2025-12-23 section
+
+sed -n '25,40p' docs/PROGRESS.md
+# Output: 2025-12-23 entries
+
+sed -n '1,20p' CHANGELOG.md
+# Output: 2025-12-23 changelog entry
+
+# Edited docs/PROGRESS.md and CHANGELOG.md to add policy-doc updates.
+
+pytest -q
+# Output: 117 passed, 740 skipped
+
+git status --short
+# Output: AGENTS.md, CHANGELOG.md, docs/DOCS_AND_LOGGING_SYSTEM.md, docs/PROGRESS.md modified
+
+git add -u docs/PROGRESS.md docs/DOCS_AND_LOGGING_SYSTEM.md
+# Output: (clean)
+
+git add AGENTS.md CHANGELOG.md
+# Output: (clean)
+
+git status --short
+# Output: staged updates to AGENTS.md, CHANGELOG.md, docs/DOCS_AND_LOGGING_SYSTEM.md, docs/PROGRESS.md
+
+git commit -m "Update policy docs" -m "Tests: pytest -q"
+# Output: commit created
+
+git push origin main
+# Output: pushed main to origin
+
+date -u +%Y-%m-%dT%H:%M:%SZ
+# Output: 2025-12-23T06:26:46Z
+
+git add AGENTS.md docs/DOCS_AND_LOGGING_SYSTEM.md docs/PROGRESS.md CHANGELOG.md
+# Output: docs path ignored; switched to git add -u for tracked docs

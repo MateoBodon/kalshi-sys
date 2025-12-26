@@ -1,0 +1,1089 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0ae0901..dbeb827 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -3,6 +3,7 @@
+ ## 2025-12-23
+ - Gitignored `reports/` and removed tracked report outputs so report artifacts stay local-only.
+ - Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
++- Ticket #101: decoupled index GO/NO-GO from macro freshness with explicit scope metadata, index-specific freshness/quality gate configs, and scoped go/no-go artifacts.
+ 
+ ## 2025-12-22
+ - Rebuilt `project_state/` snapshot with generated inventories, symbol index, dependency graph, and navigation index.
+diff --git a/configs/freshness.index.yaml b/configs/freshness.index.yaml
+index 6ae38ff..a53ec42 100644
+--- a/configs/freshness.index.yaml
++++ b/configs/freshness.index.yaml
+@@ -6,4 +6,5 @@ feeds:
+     label: Massive index websocket
+     age_seconds: 10
+     required: true
++    scope: index
+     namespace: polygon_index
+diff --git a/configs/freshness.yaml b/configs/freshness.yaml
+index a9234db..304b8d7 100644
+--- a/configs/freshness.yaml
++++ b/configs/freshness.yaml
+@@ -12,26 +12,33 @@ feeds:
+     label: Massive index websocket
+     age_seconds: 10
+     required: true
++    scope: index
+     namespace: polygon_index
+   bls_cpi.latest_release:
+     age_days: 35
+     required: false
++    scope: macro
+   dol_claims.latest_report:
+     age_days: 8
+     required: false
++    scope: macro
+   treasury_10y.daily:
+     age_business_days: 3
+     expected_maturity: DGS10
+     required: false
++    scope: macro
+   cleveland_nowcast.monthly:
+     age_days: 35
+     required: false
++    scope: macro
+   aaa_gas.daily:
+     age_days: 2
+     price_min: 2.0
+     price_max: 6.0
+     required: false
++    scope: macro
+   nws_daily_climate:
+     age_days: 2
+     active_stations: []
+     required: false
++    scope: macro
+diff --git a/configs/quality_gates.index.yaml b/configs/quality_gates.index.yaml
+index bfd2d8a..0015c56 100644
+--- a/configs/quality_gates.index.yaml
++++ b/configs/quality_gates.index.yaml
+@@ -3,5 +3,6 @@ data_freshness:
+     namespace: polygon_index
+     timestamp_field: snapshot_ts
+     max_age_seconds: 10
++    scope: index
+ monitors:
+   tz_not_et: 0
+diff --git a/configs/quality_gates.yaml b/configs/quality_gates.yaml
+index 811c2f8..ce62c5e 100644
+--- a/configs/quality_gates.yaml
++++ b/configs/quality_gates.yaml
+@@ -21,17 +21,20 @@ data_freshness:
+     timestamp_field: as_of
+     max_age_hours: 24
+     require_et: true
++    scope: macro
+   - name: treasury_yields
+     namespace: treasury_yields/daily
+     timestamp_field: as_of
+     max_age_hours: 72
+     require_et: true
++    scope: macro
+ reconciliation:
+   - name: treasury_10y_vs_dgs10
+     namespace: treasury_yields/daily
+     par_maturity: "10 YR"
+     dgs_maturity: "DGS10"
+     tolerance_bps: 5.0
++    scope: macro
+ monitors:
+   tz_not_et: 0
+   non_monotone_ladders: 0
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index 026ab50..7727c23 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -29,6 +29,9 @@ Note: run logs under `docs/agent_runs/` are local-only (gitignored). Use the per
+ - Ticket #0 — Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251223_062433Z_TICKET-000_main_sync/README.md`
++- Ticket #101 — Decoupled index GO/NO-GO from macro freshness with explicit scope metadata and index-specific freshness/quality gate configs.
++  - Gate status: PAPER
++  - Evidence: agent run log `docs/agent_runs/20251223T063005Z_TICKET-101_index_scope_gates/README.md`
+ 
+ ## 2025-12-21
+ - Ticket #2 — Settlement basis audit: added a reproducible Polygon-vs-Kalshi expiration audit tool, offline fixtures, and report outputs for index ladder windows.
+diff --git a/src/kalshi_alpha/core/gates/quality_gates.py b/src/kalshi_alpha/core/gates/quality_gates.py
+index 831e61e..72fb8b0 100644
+--- a/src/kalshi_alpha/core/gates/quality_gates.py
++++ b/src/kalshi_alpha/core/gates/quality_gates.py
+@@ -34,6 +34,7 @@ class DataFreshnessThreshold:
+     timestamp_field: str = "as_of"
+     max_age: timedelta = timedelta(hours=24)
+     require_et: bool = True
++    scope: str | None = None
+ 
+ 
+ @dataclass(frozen=True)
+@@ -43,6 +44,7 @@ class ReconciliationThreshold:
+     par_maturity: str
+     dgs_maturity: str
+     tolerance_bps: float
++    scope: str | None = None
+ 
+ 
+ @dataclass(frozen=True)
+@@ -125,6 +127,7 @@ def load_quality_gate_config(path: Path | None = None) -> QualityGateConfig:
+                 timestamp_field=str(item.get("timestamp_field", "as_of")),
+                 max_age=max_age,
+                 require_et=bool(item.get("require_et", True)),
++                scope=_normalize_scope(item.get("scope")),
+             )
+         )
+ 
+@@ -151,6 +154,7 @@ def load_quality_gate_config(path: Path | None = None) -> QualityGateConfig:
+                 par_maturity=str(item.get("par_maturity", "10 YR")),
+                 dgs_maturity=str(item.get("dgs_maturity", "DGS10")),
+                 tolerance_bps=tolerance if tolerance is not None else 5.0,
++                scope=_normalize_scope(item.get("scope")),
+             )
+         )
+ 
+@@ -213,24 +217,40 @@ def _filter_quality_gate_config(config: QualityGateConfig, scope: str | None) ->
+         data_freshness = [
+             item
+             for item in config.data_freshness
+-            if _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
++            if (item.scope == "index")
++            or (
++                item.scope is None
++                and _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
++            )
+         ]
+         reconciliations = [
+             item
+             for item in config.reconciliations
+-            if _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
++            if (item.scope == "index")
++            or (
++                item.scope is None
++                and _namespace_prefix(item.namespace) in INDEX_NAMESPACE_PREFIXES
++            )
+         ]
+     elif normalized == "macro":
+         metrics = [item for item in config.metrics if item.series.lower() not in INDEX_SERIES]
+         data_freshness = [
+             item
+             for item in config.data_freshness
+-            if _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
++            if (item.scope == "macro")
++            or (
++                item.scope is None
++                and _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
++            )
+         ]
+         reconciliations = [
+             item
+             for item in config.reconciliations
+-            if _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
++            if (item.scope == "macro")
++            or (
++                item.scope is None
++                and _namespace_prefix(item.namespace) not in INDEX_NAMESPACE_PREFIXES
++            )
+         ]
+     else:
+         return config
+diff --git a/src/kalshi_alpha/exec/collectors/polygon_ws.py b/src/kalshi_alpha/exec/collectors/polygon_ws.py
+index ecdf8f3..eac6e78 100644
+--- a/src/kalshi_alpha/exec/collectors/polygon_ws.py
++++ b/src/kalshi_alpha/exec/collectors/polygon_ws.py
+@@ -31,7 +31,7 @@ CHANNEL_EVENT_ALIASES: dict[str, tuple[str, ...]] = {
+     "AM": ("AM", "XA"),
+     "AS": ("AS", "XS"),
+ }
+-DEFAULT_FRESHNESS_CONFIG = Path("/tmp/index_freshness.yaml")  # noqa: S108
++DEFAULT_FRESHNESS_CONFIG = Path("configs/freshness.index.yaml")
+ DEFAULT_FRESHNESS_OUTPUT = Path("reports/_artifacts/monitors/freshness.json")
+ DEFAULT_PROC_PARQUET = Path("data/proc/polygon_index/snapshot_2025-11-04.parquet")
+ 
+diff --git a/src/kalshi_alpha/exec/gate_utils.py b/src/kalshi_alpha/exec/gate_utils.py
+index e999572..d2a0fd2 100644
+--- a/src/kalshi_alpha/exec/gate_utils.py
++++ b/src/kalshi_alpha/exec/gate_utils.py
+@@ -18,10 +18,23 @@ def resolve_quality_gate_config_path() -> Path:
+     return primary
+ 
+ 
+-def write_go_no_go(result: QualityGateResult) -> Path:
++def write_go_no_go(
++    result: QualityGateResult,
++    *,
++    scope: str | None = None,
++    scoped_blockers: list[str] | None = None,
++    unscoped_blockers: list[str] | None = None,
++    extra: dict[str, object] | None = None,
++) -> Path:
+     artifacts_dir = Path("reports/_artifacts")
+     artifacts_dir.mkdir(parents=True, exist_ok=True)
+-    payload = {"go": bool(result.go), "reasons": list(result.reasons)}
++    payload: dict[str, object] = {"go": bool(result.go), "reasons": list(result.reasons)}
++    if scope:
++        payload["scope"] = scope
++        payload["scoped_blockers"] = list(scoped_blockers or result.reasons)
++        payload["unscoped_blockers"] = list(unscoped_blockers or [])
++    if extra:
++        payload.update(extra)
+     output_path = artifacts_dir / "go_no_go.json"
+     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+     return output_path
+diff --git a/src/kalshi_alpha/exec/monitors/freshness.py b/src/kalshi_alpha/exec/monitors/freshness.py
+index e4739dd..a0aa3ae 100644
+--- a/src/kalshi_alpha/exec/monitors/freshness.py
++++ b/src/kalshi_alpha/exec/monitors/freshness.py
+@@ -32,6 +32,7 @@ class FeedState:
+     age_minutes: float | None
+     ok: bool
+     reason: str | None = None
++    scope: str | None = None
+     details: dict[str, Any] = field(default_factory=dict)
+ 
+     def to_metrics(self) -> dict[str, Any]:
+@@ -43,6 +44,8 @@ class FeedState:
+             "age_minutes": self._round(self.age_minutes),
+             "last_ts": self.last_ts.isoformat() if self.last_ts else None,
+         }
++        if self.scope:
++            payload["scope"] = self.scope
+         if self.reason:
+             payload["reason"] = self.reason
+         if self.details:
+@@ -70,6 +73,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
+             "label": "BLS CPI (latest release)",
+             "age_days": 35.0,
+             "required": True,
++            "scope": "macro",
+             "namespace": ("bls_cpi", "latest_release"),
+             "timestamp_column": "release_datetime",
+         },
+@@ -77,6 +81,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
+             "label": "DOL Claims (ETA-539)",
+             "age_days": 8.0,
+             "required": True,
++            "scope": "macro",
+             "namespace": ("dol_claims", "latest_report"),
+             "timestamp_column": "week_ending",
+         },
+@@ -84,6 +89,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
+             "label": "Treasury 10Y Par Yield",
+             "age_business_days": 3.0,
+             "required": True,
++            "scope": "macro",
+             "namespace": ("treasury_yields", "daily"),
+             "timestamp_column": "as_of",
+             "expected_maturity": "DGS10",
+@@ -92,6 +98,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
+             "label": "Cleveland Fed Nowcast (monthly)",
+             "age_days": 35.0,
+             "required": True,
++            "scope": "macro",
+             "namespace": ("cleveland_nowcast", "monthly"),
+             "timestamp_column": "as_of",
+         },
+@@ -99,6 +106,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
+             "label": "AAA National Gas (daily)",
+             "age_days": 2.0,
+             "required": True,
++            "scope": "macro",
+             "price_min": 2.0,
+             "price_max": 6.0,
+         },
+@@ -106,6 +114,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
+             "label": "NWS Daily Climate (stations)",
+             "age_days": 2.0,
+             "required": True,
++            "scope": "macro",
+             "active_stations": [],
+             "namespace": ("nws_cli", "daily_climate"),
+         },
+@@ -113,6 +122,7 @@ def load_config(path: Path | None = None) -> FreshnessConfig:
+             "label": "Polygon index websocket",
+             "age_seconds": 2.0,
+             "required": True,
++            "scope": "index",
+             "namespace": "polygon_index",
+         },
+     }
+@@ -331,6 +341,9 @@ def _feed_in_scope(feed: Mapping[str, Any], scope: str) -> bool:
+     feed_id = str(feed.get("id") or "").strip().lower()
+     if not feed_id:
+         return False
++    feed_scope = _normalize_scope(feed.get("scope"))
++    if feed_scope is not None:
++        return feed_scope == scope
+     if scope == "index":
+         return feed_id.startswith(_INDEX_FEED_PREFIXES)
+     if scope == "macro":
+@@ -385,6 +398,7 @@ def _evaluate_feed(
+ ) -> FeedState:
+     label = str(cfg.get("label") or feed_id)
+     required = bool(cfg.get("required", True))
++    scope = _normalize_scope(cfg.get("scope"))
+     handlers: dict[str, Callable[[Mapping[str, Any], str, bool, datetime, Path], FeedState]] = {
+         "bls_cpi.latest_release": _evaluate_bls,
+         "dol_claims.latest_report": _evaluate_claims,
+@@ -402,8 +416,20 @@ def _evaluate_feed(
+     }
+     handler = handlers.get(feed_id)
+     if handler is None:
+-        return FeedState(feed_id, label, required, None, None, not required, "UNKNOWN_FEED")
+-    return handler(cfg, label, required, now, proc_root)
++        return FeedState(
++            feed_id=feed_id,
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=not required,
++            reason="UNKNOWN_FEED",
++            scope=scope,
++        )
++    feed_state = handler(cfg, label, required, now, proc_root)
++    if feed_state.scope is None:
++        feed_state.scope = scope
++    return feed_state
+ 
+ 
+ def _evaluate_polygon_ws(
+@@ -417,10 +443,26 @@ def _evaluate_polygon_ws(
+     threshold_seconds = _to_float(cfg.get("age_seconds"), default=2.0)
+     latest_path = _latest_snapshot_path(raw_root, namespace)
+     if latest_path is None:
+-        return FeedState("polygon_index.websocket", label, required, None, None, not required, "NO_SNAPSHOTS")
++        return FeedState(
++            feed_id="polygon_index.websocket",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=not required,
++            reason="NO_SNAPSHOTS",
++        )
+     last_ts = _parse_snapshot_timestamp(latest_path.name)
+     if last_ts is None:
+-        return FeedState("polygon_index.websocket", label, required, None, None, False, "BAD_TIMESTAMP")
++        return FeedState(
++            feed_id="polygon_index.websocket",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="BAD_TIMESTAMP",
++        )
+     age_seconds = max((now - last_ts).total_seconds(), 0.0)
+     age_minutes = age_seconds / 60.0
+     ok = True
+@@ -433,14 +475,14 @@ def _evaluate_polygon_ws(
+         "snapshot_path": str(latest_path),
+     }
+     return FeedState(
+-        "polygon_index.websocket",
+-        label,
+-        required,
+-        last_ts,
+-        age_minutes,
+-        ok or not required,
+-        reason,
+-        details,
++        feed_id="polygon_index.websocket",
++        label=label,
++        required=required,
++        last_ts=last_ts,
++        age_minutes=age_minutes,
++        ok=ok or not required,
++        reason=reason,
++        details=details,
+     )
+ 
+ 
+@@ -456,13 +498,37 @@ def _evaluate_bls(
+     threshold_days = _to_float(cfg.get("age_days"), default=35.0)
+     path = _latest_parquet(proc_root, namespace)
+     if path is None:
+-        return FeedState("bls_cpi.latest_release", label, required, None, None, not required, "MISSING")
++        return FeedState(
++            feed_id="bls_cpi.latest_release",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=not required,
++            reason="MISSING",
++        )
+     frame = pl.read_parquet(path)
+     if timestamp_column not in frame.columns:
+-        return FeedState("bls_cpi.latest_release", label, required, None, None, False, "MISSING_TIMESTAMP")
++        return FeedState(
++            feed_id="bls_cpi.latest_release",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="MISSING_TIMESTAMP",
++        )
+     last_ts = _extract_datetime(frame.select(pl.col(timestamp_column).max()).item())
+     if last_ts is None:
+-        return FeedState("bls_cpi.latest_release", label, required, None, None, False, "NO_DATA")
++        return FeedState(
++            feed_id="bls_cpi.latest_release",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="NO_DATA",
++        )
+     age_minutes = _age_minutes(last_ts, now)
+     age_days = _age_days(last_ts, now)
+     ok = True
+@@ -475,14 +541,14 @@ def _evaluate_bls(
+         "count": frame.height,
+     }
+     return FeedState(
+-        "bls_cpi.latest_release",
+-        label,
+-        required,
+-        last_ts,
+-        age_minutes,
+-        ok or not required,
+-        reason,
+-        details,
++        feed_id="bls_cpi.latest_release",
++        label=label,
++        required=required,
++        last_ts=last_ts,
++        age_minutes=age_minutes,
++        ok=ok or not required,
++        reason=reason,
++        details=details,
+     )
+ 
+ 
+@@ -498,13 +564,37 @@ def _evaluate_claims(
+     threshold_days = _to_float(cfg.get("age_days"), default=8.0)
+     path = _latest_parquet(proc_root, namespace)
+     if path is None:
+-        return FeedState("dol_claims.latest_report", label, required, None, None, not required, "MISSING")
++        return FeedState(
++            feed_id="dol_claims.latest_report",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=not required,
++            reason="MISSING",
++        )
+     frame = pl.read_parquet(path)
+     if timestamp_column not in frame.columns:
+-        return FeedState("dol_claims.latest_report", label, required, None, None, False, "MISSING_TIMESTAMP")
++        return FeedState(
++            feed_id="dol_claims.latest_report",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="MISSING_TIMESTAMP",
++        )
+     last_ts = _extract_date_as_datetime(frame.select(pl.col(timestamp_column).max()).item())
+     if last_ts is None:
+-        return FeedState("dol_claims.latest_report", label, required, None, None, False, "NO_DATA")
++        return FeedState(
++            feed_id="dol_claims.latest_report",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="NO_DATA",
++        )
+     age_minutes = _age_minutes(last_ts, now)
+     age_days = _age_days(last_ts, now)
+     ok = True
+@@ -513,14 +603,14 @@ def _evaluate_claims(
+     reason = None if ok else f"STALE>{threshold_days}d"
+     details = {"age_days": _round(age_days), "threshold_days": threshold_days, "count": frame.height}
+     return FeedState(
+-        "dol_claims.latest_report",
+-        label,
+-        required,
+-        last_ts,
+-        age_minutes,
+-        ok or not required,
+-        reason,
+-        details,
++        feed_id="dol_claims.latest_report",
++        label=label,
++        required=required,
++        last_ts=last_ts,
++        age_minutes=age_minutes,
++        ok=ok or not required,
++        reason=reason,
++        details=details,
+     )
+ 
+ 
+@@ -537,17 +627,49 @@ def _evaluate_treasury(
+     threshold_business_days = _to_float(cfg.get("age_business_days"), default=3.0)
+     path = _latest_parquet(proc_root, namespace)
+     if path is None:
+-        return FeedState("treasury_10y.daily", label, required, None, None, not required, "MISSING")
++        return FeedState(
++            feed_id="treasury_10y.daily",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=not required,
++            reason="MISSING",
++        )
+     frame = pl.read_parquet(path)
+     if timestamp_column not in frame.columns or "maturity" not in frame.columns:
+-        return FeedState("treasury_10y.daily", label, required, None, None, False, "MISSING_COLUMNS")
++        return FeedState(
++            feed_id="treasury_10y.daily",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="MISSING_COLUMNS",
++        )
+     normalized = frame.with_columns(pl.col("maturity").str.to_uppercase())
+     subset = normalized.filter(pl.col("maturity") == expected_maturity)
+     if subset.is_empty():
+-        return FeedState("treasury_10y.daily", label, required, None, None, False, "TENY_SERIES_MISMATCH")
++        return FeedState(
++            feed_id="treasury_10y.daily",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="TENY_SERIES_MISMATCH",
++        )
+     last_ts = _extract_date_as_datetime(subset.select(pl.col(timestamp_column).max()).item())
+     if last_ts is None:
+-        return FeedState("treasury_10y.daily", label, required, None, None, False, "NO_DATA")
++        return FeedState(
++            feed_id="treasury_10y.daily",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="NO_DATA",
++        )
+     age_minutes = _age_minutes(last_ts, now)
+     age_business = _business_days(last_ts.date(), now.date())
+     ok = True
+@@ -560,14 +682,14 @@ def _evaluate_treasury(
+         "count": int(subset.height),
+     }
+     return FeedState(
+-        "treasury_10y.daily",
+-        label,
+-        required,
+-        last_ts,
+-        age_minutes,
+-        ok or not required,
+-        reason,
+-        details,
++        feed_id="treasury_10y.daily",
++        label=label,
++        required=required,
++        last_ts=last_ts,
++        age_minutes=age_minutes,
++        ok=ok or not required,
++        reason=reason,
++        details=details,
+     )
+ 
+ 
+@@ -583,13 +705,37 @@ def _evaluate_cleveland(
+     threshold_days = _to_float(cfg.get("age_days"), default=35.0)
+     path = _latest_parquet(proc_root, namespace)
+     if path is None:
+-        return FeedState("cleveland_nowcast.monthly", label, required, None, None, not required, "MISSING")
++        return FeedState(
++            feed_id="cleveland_nowcast.monthly",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=not required,
++            reason="MISSING",
++        )
+     frame = pl.read_parquet(path)
+     if timestamp_column not in frame.columns:
+-        return FeedState("cleveland_nowcast.monthly", label, required, None, None, False, "MISSING_TIMESTAMP")
++        return FeedState(
++            feed_id="cleveland_nowcast.monthly",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="MISSING_TIMESTAMP",
++        )
+     last_ts = _extract_datetime(frame.select(pl.col(timestamp_column).max()).item())
+     if last_ts is None:
+-        return FeedState("cleveland_nowcast.monthly", label, required, None, None, False, "NO_DATA")
++        return FeedState(
++            feed_id="cleveland_nowcast.monthly",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="NO_DATA",
++        )
+     age_minutes = _age_minutes(last_ts, now)
+     age_days = _age_days(last_ts, now)
+     ok = True
+@@ -598,14 +744,14 @@ def _evaluate_cleveland(
+     reason = None if ok else f"STALE>{threshold_days}d"
+     details = {"age_days": _round(age_days), "threshold_days": threshold_days, "count": frame.height}
+     return FeedState(
+-        "cleveland_nowcast.monthly",
+-        label,
+-        required,
+-        last_ts,
+-        age_minutes,
+-        ok or not required,
+-        reason,
+-        details,
++        feed_id="cleveland_nowcast.monthly",
++        label=label,
++        required=required,
++        last_ts=last_ts,
++        age_minutes=age_minutes,
++        ok=ok or not required,
++        reason=reason,
++        details=details,
+     )
+ 
+ 
+@@ -621,14 +767,38 @@ def _evaluate_aaa(
+     price_max = _to_float(cfg.get("price_max"), default=6.0)
+     daily_path = proc_root / "aaa_daily.parquet"
+     if not daily_path.exists():
+-        return FeedState("aaa_gas.daily", label, required, None, None, not required, "MISSING")
++        return FeedState(
++            feed_id="aaa_gas.daily",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=not required,
++            reason="MISSING",
++        )
+     frame = pl.read_parquet(daily_path)
+     if frame.is_empty() or "date" not in frame.columns or "price" not in frame.columns:
+-        return FeedState("aaa_gas.daily", label, required, None, None, False, "NO_DATA")
++        return FeedState(
++            feed_id="aaa_gas.daily",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="NO_DATA",
++        )
+     idx = frame.select(pl.col("date").max()).to_series().item()
+     last_ts = _extract_date_as_datetime(idx)
+     if last_ts is None:
+-        return FeedState("aaa_gas.daily", label, required, None, None, False, "INVALID_DATE")
++        return FeedState(
++            feed_id="aaa_gas.daily",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="INVALID_DATE",
++        )
+     latest_row = frame.filter(pl.col("date") == idx).sort("date").tail(1)
+     price = float(latest_row["price"][0]) if not latest_row.is_empty() else None
+     age_minutes = _age_minutes(last_ts, now)
+@@ -653,14 +823,14 @@ def _evaluate_aaa(
+         "price_max": price_max,
+     }
+     return FeedState(
+-        "aaa_gas.daily",
+-        label,
+-        required,
+-        last_ts,
+-        age_minutes,
+-        ok or not required,
+-        reason,
+-        details,
++        feed_id="aaa_gas.daily",
++        label=label,
++        required=required,
++        last_ts=last_ts,
++        age_minutes=age_minutes,
++        ok=ok or not required,
++        reason=reason,
++        details=details,
+     )
+ 
+ 
+@@ -677,13 +847,38 @@ def _evaluate_weather(
+     active_stations = sorted({str(item).upper() for item in active_stations_raw if str(item).strip()})
+     if not active_stations:
+         not_required_details = {"stations": [], "note": "not_required"}
+-        return FeedState("nws_daily_climate", label, False, None, None, True, "NOT_REQUIRED", not_required_details)
++        return FeedState(
++            feed_id="nws_daily_climate",
++            label=label,
++            required=False,
++            last_ts=None,
++            age_minutes=None,
++            ok=True,
++            reason="NOT_REQUIRED",
++            details=not_required_details,
++        )
+     path = _latest_parquet(proc_root, namespace)
+     if path is None:
+-        return FeedState("nws_daily_climate", label, required, None, None, False, "MISSING")
++        return FeedState(
++            feed_id="nws_daily_climate",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="MISSING",
++        )
+     frame = pl.read_parquet(path)
+     if frame.is_empty() or "station_id" not in frame.columns or "record_date" not in frame.columns:
+-        return FeedState("nws_daily_climate", label, required, None, None, False, "MISSING_COLUMNS")
++        return FeedState(
++            feed_id="nws_daily_climate",
++            label=label,
++            required=required,
++            last_ts=None,
++            age_minutes=None,
++            ok=False,
++            reason="MISSING_COLUMNS",
++        )
+     frame = frame.with_columns(pl.col("station_id").str.to_uppercase())
+     station_entries: list[dict[str, Any]] = []
+     stale_stations: list[str] = []
+@@ -758,14 +953,14 @@ def _evaluate_weather(
+         "active_station_count": len(active_stations),
+     }
+     return FeedState(
+-        "nws_daily_climate",
+-        label,
+-        required,
+-        last_ts_overall,
+-        worst_age,
+-        ok or not required,
+-        reason,
+-        details,
++        feed_id="nws_daily_climate",
++        label=label,
++        required=required,
++        last_ts=last_ts_overall,
++        age_minutes=worst_age,
++        ok=ok or not required,
++        reason=reason,
++        details=details,
+     )
+ 
+ 
+diff --git a/src/kalshi_alpha/exec/preflight_index.py b/src/kalshi_alpha/exec/preflight_index.py
+index 8176c91..ae60bed 100644
+--- a/src/kalshi_alpha/exec/preflight_index.py
++++ b/src/kalshi_alpha/exec/preflight_index.py
+@@ -31,6 +31,7 @@ SERIES_HORIZONS: tuple[tuple[str, str], ...] = (
+ MAX_CALIBRATION_AGE_DAYS = 14.0
+ POLYGON_PING_URL = "https://api.polygon.io/v1/marketstatus/now"
+ GO_NO_GO_PATH = Path("reports/_artifacts/go_no_go.json")
++FRESHNESS_SCOPE = "index"
+ 
+ 
+ @dataclass(slots=True)
+@@ -136,6 +137,9 @@ def run_preflight(
+     polygon_ping: Callable[[float], bool] | None = None,
+     require_kalshi: bool = True,
+     require_polygon: bool | None = None,
++    freshness_artifact_path: Path | None = None,
++    require_freshness: bool | None = None,
++    freshness_scope: str | None = FRESHNESS_SCOPE,
+ ) -> PreflightResult:
+     """Evaluate GO/NO-GO checks for index ladder windows."""
+ 
+@@ -150,6 +154,8 @@ def run_preflight(
+     env_missing: list[str] = []
+     if require_polygon is None:
+         require_polygon = require_kalshi
++    if require_freshness is None:
++        require_freshness = require_kalshi
+     if require_kalshi:
+         env_missing.extend(_missing_env_vars(["KALSHI_API_KEY_ID", "KALSHI_PRIVATE_KEY_PEM_PATH"]))
+         key_path_raw = os.getenv("KALSHI_PRIVATE_KEY_PEM_PATH", "").strip()
+@@ -185,6 +191,31 @@ def run_preflight(
+         reasons.extend(calib_reasons)
+     details["calibration_age_days"] = calib_ages
+ 
++    # Data freshness --------------------------------------------------------
++    if require_freshness:
++        from kalshi_alpha.exec.monitors import freshness as freshness_monitor
++
++        artifact_path = (
++            Path(freshness_artifact_path)
++            if freshness_artifact_path
++            else freshness_monitor.FRESHNESS_ARTIFACT_PATH
++        )
++        payload = freshness_monitor.load_artifact(artifact_path)
++        summary = freshness_monitor.summarize_artifact(
++            payload,
++            artifact_path=artifact_path,
++            scope=freshness_scope,
++        )
++        details["data_freshness"] = summary
++        if not summary.get("required_feeds_ok", True):
++            reasons.append("STALE_FEEDS")
++            stale_feeds = summary.get("stale_feeds") or []
++            stale_normalized = {str(feed).strip().lower() for feed in stale_feeds if isinstance(feed, str)}
++            if "polygon_index.websocket" in stale_normalized and "polygon_ws_stale" not in reasons:
++                reasons.append("polygon_ws_stale")
++            if summary.get("status") == "MISSING":
++                reasons.append("data_freshness_missing")
++
+     # Polygon connectivity --------------------------------------------------
+     if require_polygon and polygon_key_present:
+         ping_fn = polygon_ping or _polygon_ping
+@@ -234,6 +265,9 @@ def write_go_no_go_artifact(
+     payload = {
+         "go": bool(result.go),
+         "reasons": list(result.reasons),
++        "scope": FRESHNESS_SCOPE,
++        "scoped_blockers": list(result.reasons),
++        "unscoped_blockers": [],
+         "details": dict(result.details),
+         "generated_at": datetime.now(tz=UTC).isoformat(),
+         "source": source,
+diff --git a/src/kalshi_alpha/exec/runners/scan_ladders.py b/src/kalshi_alpha/exec/runners/scan_ladders.py
+index ebaf5fd..707a7cc 100644
+--- a/src/kalshi_alpha/exec/runners/scan_ladders.py
++++ b/src/kalshi_alpha/exec/runners/scan_ladders.py
+@@ -1806,7 +1806,15 @@ def _quality_gate_for_broker(
+             details["ev_honesty"] = ev_payload
+ 
+     combined = QualityGateResult(go=go_flag, reasons=reasons, details=details)
+-    write_go_no_go(combined)
++    if scope == "index":
++        write_go_no_go(
++            combined,
++            scope="index",
++            scoped_blockers=list(reasons),
++            unscoped_blockers=[],
++        )
++    else:
++        write_go_no_go(combined)
+     return combined
+ 
+ 
+diff --git a/src/kalshi_alpha/replay/polygon_index_replay.py b/src/kalshi_alpha/replay/polygon_index_replay.py
+index 3d97631..6d7cd35 100644
+--- a/src/kalshi_alpha/replay/polygon_index_replay.py
++++ b/src/kalshi_alpha/replay/polygon_index_replay.py
+@@ -24,7 +24,7 @@ from kalshi_alpha.exec.collectors.polygon_ws import (
+ from kalshi_alpha.exec.monitors import freshness
+ 
+ ET = ZoneInfo("America/New_York")
+-DEFAULT_FRESHNESS_CONFIG = Path("configs/freshness.yaml")
++DEFAULT_FRESHNESS_CONFIG = Path("configs/freshness.index.yaml")
+ DEFAULT_SUMMARY_PATH = Path("reports/_artifacts/replay/polygon_index_replay.json")
+ 
+ 
+@@ -59,7 +59,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+         "--freshness-config",
+         type=Path,
+         default=DEFAULT_FRESHNESS_CONFIG,
+-        help="Freshness config path (default: configs/freshness.yaml)",
++        help="Freshness config path (default: configs/freshness.index.yaml)",
+     )
+     parser.add_argument(
+         "--freshness-output",
+diff --git a/tests/exec/test_preflight_index.py b/tests/exec/test_preflight_index.py
+index f89bea9..db6e772 100644
+--- a/tests/exec/test_preflight_index.py
++++ b/tests/exec/test_preflight_index.py
+@@ -28,9 +28,61 @@ def _seed_all_params(root: Path, generated_at: datetime) -> None:
+     _write_params(root, "NASDAQ100U", "noon", generated_at)
+ 
+ 
++def _write_freshness_artifact(
++    path: Path,
++    *,
++    polygon_ok: bool = True,
++    macro_ok: bool = True,
++    macro_required: bool = True,
++) -> None:
++    feeds = [
++        {
++            "id": "polygon_index.websocket",
++            "label": "Polygon index websocket",
++            "required": True,
++            "ok": polygon_ok,
++            "age_minutes": 0.001,
++            "scope": "index",
++        }
++    ]
++    required_feeds = ["polygon_index.websocket"]
++    stale_feeds = [] if polygon_ok else ["polygon_index.websocket"]
++
++    if macro_required:
++        feeds.append(
++            {
++                "id": "macro_calendar.latest",
++                "label": "Macro calendar",
++                "required": True,
++                "ok": macro_ok,
++                "age_minutes": 45.0,
++                "scope": "macro",
++            }
++        )
++        required_feeds.append("macro_calendar.latest")
++        if not macro_ok:
++            stale_feeds.append("macro_calendar.latest")
++
++    payload = {
++        "name": "data_freshness",
++        "status": "OK" if not stale_feeds else "ALERT",
++        "generated_at": datetime.now(tz=UTC).isoformat(),
++        "metrics": {
++            "required_feeds_ok": not stale_feeds,
++            "required_feeds": required_feeds,
++            "stale_feeds": stale_feeds,
++            "feeds": feeds,
++        },
++    }
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
++
++
+ def test_missing_env_triggers_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+     now = datetime(2025, 11, 3, 10, 5, tzinfo=ET)
+     _seed_all_params(tmp_path, now)
++    freshness_path = tmp_path / "freshness.json"
++    _write_freshness_artifact(freshness_path)
+     for key in ("KALSHI_API_KEY_ID", "KALSHI_PRIVATE_KEY_PEM_PATH", "POLYGON_API_KEY"):
+         monkeypatch.delenv(key, raising=False)
+ 
+@@ -39,6 +91,7 @@ def test_missing_env_triggers_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPa
+         params_root=tmp_path,
+         kill_switch_file=tmp_path / "kill_switch",
+         polygon_ping=lambda _: True,
++        freshness_artifact_path=freshness_path,
+     )
+ 
+     assert not result.go
+@@ -49,6 +102,8 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
+     now = datetime(2025, 11, 3, 12, 0, tzinfo=ET)
+     stale_ts = now - timedelta(days=MAX_CALIBRATION_AGE_DAYS + 2)
+     _seed_all_params(tmp_path, stale_ts)
++    freshness_path = tmp_path / "freshness.json"
++    _write_freshness_artifact(freshness_path)
+ 
+     key_path = tmp_path / "kalshi.pem"
+     key_path.write_text("dummy", encoding="utf-8")
+@@ -61,6 +116,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
+         params_root=tmp_path,
+         kill_switch_file=tmp_path / "kill_switch",
+         polygon_ping=lambda _: True,
++        freshness_artifact_path=freshness_path,
+     )
+ 
+     assert not result.go
+@@ -70,6 +126,8 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
+ def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+     now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
+     _seed_all_params(tmp_path, now)
++    freshness_path = tmp_path / "freshness.json"
++    _write_freshness_artifact(freshness_path)
+ 
+     key_path = tmp_path / "kalshi.pem"
+     key_path.write_text("dummy", encoding="utf-8")
+@@ -82,6 +140,7 @@ def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
+         params_root=tmp_path,
+         kill_switch_file=tmp_path / "kill_switch",
+         polygon_ping=lambda _: True,
++        freshness_artifact_path=freshness_path,
+     )
+ 
+     assert result.go
+@@ -114,4 +173,32 @@ def test_preflight_cli_emits_summary_and_artifact(
+     assert output_path.exists()
+     payload = json.loads(output_path.read_text(encoding="utf-8"))
+     assert payload.get("go") is True
++    assert payload.get("scope") == "index"
++    assert payload.get("scoped_blockers") == []
++    assert payload.get("unscoped_blockers") == []
+     assert exit_code == 0
++
++
++def test_macro_stale_does_not_block_index_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
++    now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
++    _seed_all_params(tmp_path, now)
++    freshness_path = tmp_path / "freshness.json"
++    _write_freshness_artifact(freshness_path, polygon_ok=True, macro_ok=False, macro_required=True)
++
++    key_path = tmp_path / "kalshi.pem"
++    key_path.write_text("dummy", encoding="utf-8")
++    monkeypatch.setenv("KALSHI_API_KEY_ID", "demo-id")
++    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
++    monkeypatch.setenv("POLYGON_API_KEY", "demo-polygon")
++
++    result = run_preflight(
++        now,
++        params_root=tmp_path,
++        kill_switch_file=tmp_path / "kill_switch",
++        polygon_ping=lambda _: True,
++        freshness_artifact_path=freshness_path,
++    )
++
++    assert result.go
++    assert "STALE_FEEDS" not in result.reasons
++    assert "polygon_ws_stale" not in result.reasons
+diff --git a/tests/test_index_scanner_fixtures.py b/tests/test_index_scanner_fixtures.py
+index 6b7811d..f4a9423 100644
+--- a/tests/test_index_scanner_fixtures.py
++++ b/tests/test_index_scanner_fixtures.py
+@@ -168,9 +168,14 @@ def test_stale_freshness_blocks_execution(
+ 
+     go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
+     assert go_artifact["go"] is False
++    assert go_artifact.get("scope") == "index"
++    assert go_artifact.get("unscoped_blockers") == []
+     reasons = go_artifact.get("reasons", [])
+     assert "STALE_FEEDS" in reasons
+     assert "polygon_ws_stale" in reasons
++    scoped_blockers = go_artifact.get("scoped_blockers", [])
++    assert "STALE_FEEDS" in scoped_blockers
++    assert "polygon_ws_stale" in scoped_blockers
+ 
+     proposals_dir = tmp_path / "exec" / "proposals" / "INXU"
+     proposal_files = sorted(proposals_dir.glob("*.json"))
+@@ -270,6 +275,9 @@ def test_macro_stale_allows_execution_with_index_gates(
+ 
+     go_artifact = json.loads((artifacts_dir / "go_no_go.json").read_text(encoding="utf-8"))
+     assert go_artifact["go"] is True
++    assert go_artifact.get("scope") == "index"
++    assert go_artifact.get("scoped_blockers") == []
++    assert go_artifact.get("unscoped_blockers") == []
+     reasons = go_artifact.get("reasons", [])
+     assert "STALE_FEEDS" not in reasons
+     assert "polygon_ws_stale" not in reasons

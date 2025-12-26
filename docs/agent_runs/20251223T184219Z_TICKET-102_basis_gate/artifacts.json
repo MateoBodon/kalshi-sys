@@ -1,0 +1,8 @@
+{
+  "artifacts": [
+    {
+      "path": "reports/_artifacts/go_no_go.json",
+      "note": "updated by python3 -m kalshi_alpha.exec.preflight_index --offline"
+    }
+  ]
+}

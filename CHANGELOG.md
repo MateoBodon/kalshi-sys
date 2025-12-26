@@ -1,5 +1,9 @@
 # Changelog
 
+## 2025-12-26
+- Freshness monitor now consults Polygon `/v1/marketstatus/now` so closed/extended hours do not flag `polygon_index.websocket` as stale.
+- Added `python -m kalshi_alpha.exec.market_status` CLI for ops to print market status + server time.
+
 ## 2025-12-25
 - Fix: Polygon indices REST snapshot fallback now uses `/v3/snapshot/indices`, parses v3 fields (value/session/last_updated), and fails closed on NOT_ENTITLED responses with updated unit tests.
 - Fix: Polygon WS REST fallback now consults `/v1/marketstatus/now` and skips fallback during closed/extended hours (logs status + serverTime), with new unit coverage.

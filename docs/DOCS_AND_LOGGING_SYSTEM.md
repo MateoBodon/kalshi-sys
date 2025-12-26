@@ -1,6 +1,6 @@
 # DOCS AND LOGGING SYSTEM — Traceability for kalshi-sys
 
-Last updated: 2025-12-23
+Last updated: 2025-12-26
 
 This repo is a high-risk trading system. The primary goal of this document is **auditability**:
 - every run is traceable,
@@ -141,6 +141,8 @@ Suggested subdirs:
 ### 3.3 Market status guardrails
 - The Polygon indices websocket collector checks `/v1/marketstatus/now` before REST fallback.
 - If indices groups are closed/extended-hours, it suppresses fallback and logs `market_status` plus `serverTime` to avoid false stale alarms.
+- Freshness monitor also consults `/v1/marketstatus/now` so closed/extended hours don’t mark `polygon_index.websocket` as stale.
+- Ops CLI: `python -m kalshi_alpha.exec.market_status` (use `--json` for raw payload).
 
 ---
 

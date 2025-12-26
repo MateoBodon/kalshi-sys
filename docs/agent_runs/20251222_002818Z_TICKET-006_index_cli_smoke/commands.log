@@ -1,0 +1,243 @@
+> pytest -q
+ss.....sssssssssssssss.............ssss..ssssssss...........ssssssssssss [  8%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 16%]
+sss...ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 25%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 33%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 41%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 50%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 58%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss.sssss [ 66%]
+ssssssssssssssssssssssssss.............................................. [ 75%]
+.....................ssssssssssssssssssssssssssss..sssssssssssssssssssss [ 83%]
+ssssssssssssss...sssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 92%]
+sssssssssssssss.sssssssssssssssssssssssssssssssss.........ssssssssss     [100%]
+> python -m kalshi_alpha.exec.preflight_index
+/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/.venv/bin/python: Error while finding module specification for 'kalshi_alpha.exec.preflight_index' (ModuleNotFoundError: No module named 'kalshi_alpha')
+> PYTHONPATH=src python -m kalshi_alpha.exec.preflight_index
+PRECHECK index: NO-GO reasons=4 series=INX,NASDAQ100,INXU,NASDAQ100U
+> python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run
+/Users/mateobodon/Documents/Programming/Projects/kalshi-sys/.venv/bin/python: Error while finding module specification for 'kalshi_alpha.exec.supervisor_index' (ModuleNotFoundError: No module named 'kalshi_alpha')
+> PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run
+> PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run
+SUPERVISOR preflight: NO-GO reasons=4 series=INXU (broker=dry)
+> pytest -q
+ss.....sssssssssssssss.............ssss..ssssssss...........ssssssssssss [  8%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 16%]
+sss...ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 25%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 33%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 41%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 50%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 58%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss.sssss [ 66%]
+ssssssssssssssssssssssssss.............................................. [ 75%]
+.....................ssssssssssssssssssssssssssss..sssssssssssssssssssss [ 83%]
+ssssssssssssss...sssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 92%]
+sssssssssssssss.sssssssssssssssssssssssssssssssss.........ssssssssss     [100%]
+> make gpt-bundle TICKET=TICKET-006_index_cli_smoke RUN_NAME="20251222_002818Z_TICKET-006_index_cli_smoke"
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch (deflated 71%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/PROGRESS.md (deflated 58%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/CODEX_SPRINT_TICKETS.md (deflated 62%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/DOCS_AND_LOGGING_SYSTEM.md (deflated 52%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PLAN_OF_RECORD.md (deflated 60%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PROGRESS.md (deflated 58%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/diff.patch (deflated 71%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log (deflated 83%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/prompt.md (deflated 56%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/TESTS.md (stored 0%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md (deflated 52%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/RESULTS.md (deflated 24%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/artifacts.json (deflated 11%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/META.json (deflated 36%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/LAST_COMMIT.txt (stored 0%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/AGENTS.md (deflated 47%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/ (stored 0%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CONFIG_REFERENCE.md (deflated 81%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CURRENT_RESULTS.md (deflated 50%)
+  adding: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/KNOWN_ISSUES.md (deflated 44%)
+FAIL: GPT bundle verification failed.
+- META.json missing end_utc
+make: *** [gpt-bundle] Error 1
+> make gpt-bundle TICKET=TICKET-006_index_cli_smoke RUN_NAME="20251222_002818Z_TICKET-006_index_cli_smoke"
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch (deflated 71%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/CODEX_SPRINT_TICKETS.md (deflated 62%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/DOCS_AND_LOGGING_SYSTEM.md (deflated 52%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PLAN_OF_RECORD.md (deflated 60%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/diff.patch (deflated 71%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log (deflated 85%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/prompt.md (deflated 56%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/TESTS.md (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md (deflated 52%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/RESULTS.md (deflated 24%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/artifacts.json (deflated 11%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/META.json (deflated 39%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/LAST_COMMIT.txt (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/AGENTS.md (deflated 47%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CONFIG_REFERENCE.md (deflated 81%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CURRENT_RESULTS.md (deflated 50%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/KNOWN_ISSUES.md (deflated 44%)
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip
+> make gpt-bundle TICKET=TICKET-006_index_cli_smoke RUN_NAME="20251222_002818Z_TICKET-006_index_cli_smoke"
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch (deflated 71%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/CODEX_SPRINT_TICKETS.md (deflated 62%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/DOCS_AND_LOGGING_SYSTEM.md (deflated 52%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PLAN_OF_RECORD.md (deflated 60%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/diff.patch (deflated 71%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log (deflated 89%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/prompt.md (deflated 56%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/TESTS.md (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md (deflated 51%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/RESULTS.md (deflated 29%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/artifacts.json (deflated 11%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/META.json (deflated 39%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/LAST_COMMIT.txt (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/AGENTS.md (deflated 47%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CONFIG_REFERENCE.md (deflated 81%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CURRENT_RESULTS.md (deflated 50%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/KNOWN_ISSUES.md (deflated 44%)
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip
+> make gpt-bundle TICKET=TICKET-006_index_cli_smoke RUN_NAME="20251222_002818Z_TICKET-006_index_cli_smoke"
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch (deflated 71%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/CODEX_SPRINT_TICKETS.md (deflated 62%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/DOCS_AND_LOGGING_SYSTEM.md (deflated 52%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PLAN_OF_RECORD.md (deflated 60%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/diff.patch (deflated 71%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log (deflated 91%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/prompt.md (deflated 56%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/TESTS.md (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md (deflated 51%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/RESULTS.md (deflated 29%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/artifacts.json (deflated 11%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/META.json (deflated 39%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/LAST_COMMIT.txt (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/AGENTS.md (deflated 47%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CONFIG_REFERENCE.md (deflated 81%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CURRENT_RESULTS.md (deflated 50%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/KNOWN_ISSUES.md (deflated 44%)
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip
+> rm tests/test_gpt_bundle_verifier\ 2.py tools/verify_gpt_bundle\ 2.py
+> git status --short
+> git diff --cached | rg -n "API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook" || true
+> rg -n "API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook" -S docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke
+docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log:147:> git diff --cached | rg -n "API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook" || true
+docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log:148:> rg -n "API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook" -S docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke
+docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/prompt.md:6:- Do NOT add/print/commit secrets (API keys, PEMs, webhooks).
+docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/prompt.md:82:     - `git diff --cached | rg -n "API_KEY|PRIVATE_KEY|Bearer|BEGIN RSA|webhook" || true`
+> rg -n "PRECHECK index:|SUPERVISOR preflight:" -S docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log
+17:PRECHECK index: NO-GO reasons=4 series=INX,NASDAQ100,INXU,NASDAQ100U
+22:SUPERVISOR preflight: NO-GO reasons=4 series=INXU (broker=dry)
+153:> rg -n "PRECHECK index:|SUPERVISOR preflight:" -S docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log
+> python - <<'PY'
+from pathlib import Path
+path = Path('reports/_artifacts/go_no_go.json')
+print(path.exists())
+print(path.read_text(encoding='utf-8')[:200])
+PY
+True
+{
+  "go": false,
+  "reasons": [
+    "calibration_missing:INX:close",
+    "calibration_missing:NASDAQ100:close",
+    "calibration_missing:INXU:noon",
+    "calibration_missing:NASDAQ100U:noon"
+  ],
+  "d
+> cat docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/RESULTS.md
+# Results
+
+- Status: Complete.
+- Summary: Added GO/NO-GO summary lines and artifact writes for index preflight/supervisor CLIs, plus stdout fixture tests; updated PROGRESS/CHANGELOG.
+- Tests: pytest -q
+- Bundle: docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip
+- Verifier summary: PASS (GPT bundle verification OK).
+> unzip -p docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip DIFF.patch | rg -n "^diff --git"
+caution: filename not matched:  DIFF.patch
+> unzip -p docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip DIFF.patch | rg -n "\.\.\."
+caution: filename not matched:  DIFF.patch
+> unzip -l docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip | rg -n "DIFF.patch"
+5:    16571  12-21-2025 19:51   docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch
+> unzip -p docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch | rg -n "^diff --git"
+1:diff --git a/CHANGELOG.md b/CHANGELOG.md
+14:diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+41:diff --git a/src/kalshi_alpha/exec/preflight_index.py b/src/kalshi_alpha/exec/preflight_index.py
+164:diff --git a/src/kalshi_alpha/exec/supervisor_index.py b/src/kalshi_alpha/exec/supervisor_index.py
+295:diff --git a/tests/exec/test_preflight_index.py b/tests/exec/test_preflight_index.py
+340:diff --git a/tests/exec/test_supervisor_index.py b/tests/exec/test_supervisor_index.py
+> unzip -p docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch | rg -n "\.\.\."
+13: - Fixed backtest CLI subprocess tests to inject repo PYTHONPATH so `python -m kalshi_alpha...` resolves in pytest runs.
+60:@@ -28,6 +30,7 @@ SERIES_HORIZONS: tuple[tuple[str, str], ...] = (
+80:+def _series_labels(series_horizons: Sequence[tuple[str, str]] = SERIES_HORIZONS) -> tuple[str, ...]:
+> git checkout main
+Switched to branch 'main'
+Your branch is up to date with 'origin/main'.
+> git merge codex/TICKET-006_index_cli_smoke
+Updating f74dfcc..72c1345
+Fast-forward
+ CHANGELOG.md                              |  3 +
+ docs/PROGRESS.md                          | 11 +++-
+ src/kalshi_alpha/exec/preflight_index.py  | 97 ++++++++++++++++++++++++++++++-
+ src/kalshi_alpha/exec/supervisor_index.py | 46 +++++++++++++--
+ tests/exec/test_preflight_index.py        | 30 ++++++++++
+ tests/exec/test_supervisor_index.py       | 46 +++++++++++++++
+ 6 files changed, 224 insertions(+), 9 deletions(-)
+> git push origin main
+To https://github.com/MateoBodon/kalshi-sys.git
+   f74dfcc..72c1345  main -> main
+> update META.json end_utc
+Updated end_utc to 2025-12-22T01:35:17Z
+> make gpt-bundle TICKET=TICKET-006_index_cli_smoke RUN_NAME="20251222_002818Z_TICKET-006_index_cli_smoke"
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/DIFF.patch (deflated 59%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/CODEX_SPRINT_TICKETS.md (deflated 62%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/DOCS_AND_LOGGING_SYSTEM.md (deflated 52%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PLAN_OF_RECORD.md (deflated 60%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/PROGRESS.md (deflated 58%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/diff.patch (deflated 71%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/commands.log (deflated 89%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/prompt.md (deflated 56%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/TESTS.md (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/README.md (deflated 51%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/RESULTS.md (deflated 29%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/artifacts.json (deflated 11%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/docs/agent_runs/20251222_002818Z_TICKET-006_index_cli_smoke/META.json (deflated 38%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/LAST_COMMIT.txt (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/AGENTS.md (deflated 47%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/ (stored 0%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CONFIG_REFERENCE.md (deflated 81%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/CURRENT_RESULTS.md (deflated 50%)
+updating: docs/gpt_bundles/20251222_002818Z_TICKET-006_index_cli_smoke/project_state/KNOWN_ISSUES.md (deflated 44%)
+PASS: GPT bundle verification OK.
+Wrote docs/gpt_bundles/gpt_bundle_TICKET-006_index_cli_smoke_20251222_002818Z_TICKET-006_index_cli_smoke.zip
+> git status --short

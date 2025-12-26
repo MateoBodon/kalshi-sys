@@ -1,0 +1,9 @@
+{
+  "run_name": "20251222_002818Z_TICKET-006_index_cli_smoke",
+  "ticket_id": "TICKET-006",
+  "branch": "codex/TICKET-006_index_cli_smoke",
+  "start_utc": "2025-12-22T00:29:50Z",
+  "end_utc": "2025-12-22T01:35:17Z",
+  "network_access": "enabled",
+  "web_search_used": false
+}

@@ -1,0 +1,20 @@
+commit b6ac660893203a6abd26da81693f442edbd17459
+Author: Mateo Bodon <<REDACTED_EMAIL>>
+Date:   Sun Dec 21 23:46:34 2025 -0500
+
+    docs: note AWS proof for Ticket #8
+    
+    Tests: pytest -q; PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-22T09:50:00-05:00
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 94c6465..2e5ffd3 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -3,6 +3,7 @@
+ ## 2025-12-22
+ - Ticket #6: `preflight_index` and `supervisor_index` now emit GO/NO-GO summary lines, always write `reports/_artifacts/go_no_go.json`, and have stdout fixture coverage for both CLIs.
+ - Ticket #8: refreshed AWS supervisor dry-run wiring with `--series INXU` in the systemd unit, added CloudWatch journald config + index monitor timer templates, and expanded the AWS runbook with EC2/systemd/CloudWatch copy/paste steps.
++- Ticket #8: captured EC2 systemd + CloudWatch proof for two dry-run windows (sanitized excerpts in run log).
+ 
+ ## 2025-12-21
+ - Added a settlement basis audit CLI for index ladders, offline fixtures + unit tests, and daily report outputs comparing Polygon window values to Kalshi expiration values.

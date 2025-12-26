@@ -1,0 +1,79 @@
+# Commands Log
+
+# Explore
+cat AGENTS.md
+cat docs/CODEX_SPRINT_TICKETS.md
+cat docs/PLAN_OF_RECORD.md
+cat project_state/CONFIG_REFERENCE.md
+cat project_state/KNOWN_ISSUES.md
+rg -n "supervisor_index" -S src/ kalshi_alpha/ || rg -n "exec\.supervisor_index" -S .
+rg -n "os\.getenv\(|environ\.get\(|POLYGON_API|KALSHI_" -S src/
+rg -n "heartbeat|monitors|data_freshness" -S src/ configs/ reports/ project_state/
+rg -n "kill switch|KILL|cancel_all|cancel-all|BROKER|dry-run|paper" -S src/ configs/
+
+# Tests (initial run)
+pytest -q
+# Result:
+# FAILED tests/test_index_scanner_fixtures.py::test_macro_stale_allows_execution_with_index_gates
+# FAILED tests/test_index_scanner_fixtures.py::test_clock_skew_blocks_execution
+# FAILED tests/test_index_scanner_fixtures.py::test_index_rule_mismatch_forces_no_go
+
+pytest tests/test_index_scanner_fixtures.py::test_macro_stale_allows_execution_with_index_gates -q
+# Result:
+# FAILED: proposals empty
+
+pytest tests/test_index_scanner_fixtures.py::test_macro_stale_allows_execution_with_index_gates -s -q
+# Result:
+# FAILED: quality gates NO-GO (polygon_ws_stale, clock_skew_exceeded)
+
+# Tests (after stabilization)
+pytest tests/test_index_scanner_fixtures.py::test_macro_stale_allows_execution_with_index_gates -q
+# Result:
+# PASS
+
+pytest -q
+# Result:
+# 117 passed, 741 skipped
+
+# CLI sanity
+python -m kalshi_alpha.exec.supervisor_index --help
+# Result:
+# ModuleNotFoundError: No module named 'kalshi_alpha'
+
+PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --help
+# Result:
+# Help output printed (includes --series and --dry-run flags)
+
+# Secret scan (diff)
+git diff --cached | rg -n "API_KEY|PRIVATE_KEY|Bearer|KALSHI-ACCESS-"
+# Result:
+# Matches only doc references; no secrets.
+
+# Commit + merge
+
+git commit -m "Ticket #5: AWS supervisor runbook + wiring" -m "Tests: pytest -q; pytest tests/test_index_scanner_fixtures.py::test_macro_stale_allows_execution_with_index_gates -q; python -m kalshi_alpha.exec.supervisor_index --help; PYTHONPATH=src python -m kalshi_alpha.exec.supervisor_index --help"
+
+# Result:
+# Commit f74dfcc
+
+git checkout main
+
+git merge codex/TICKET-005_aws_supervisor_wiring
+
+# Result:
+# Fast-forward
+
+git push origin main
+
+# Bundle
+make gpt-bundle TICKET=TICKET-005_aws_supervisor_wiring RUN_NAME=20251221_223847Z_TICKET-005_aws_supervisor_wiring
+# Result:
+# PASS; bundle written to docs/gpt_bundles/gpt_bundle_TICKET-005_aws_supervisor_wiring_20251221_223847Z_TICKET-005_aws_supervisor_wiring.zip
+
+# Run log diff
+
+git show HEAD > docs/agent_runs/20251221_223847Z_TICKET-005_aws_supervisor_wiring/diff.patch
+
+unzip -l docs/gpt_bundles/gpt_bundle_TICKET-005_aws_supervisor_wiring_20251221_223847Z_TICKET-005_aws_supervisor_wiring.zip | rg -n "DIFF\\.patch|LAST_COMMIT\\.txt|docs/agent_runs/20251221_223847Z_TICKET-005_aws_supervisor_wiring/"
+# Result:
+# Confirmed DIFF.patch, LAST_COMMIT.txt, and run log directory present.

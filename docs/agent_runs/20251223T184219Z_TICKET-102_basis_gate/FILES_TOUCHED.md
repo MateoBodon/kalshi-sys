@@ -1,0 +1,26 @@
+# Files Touched
+
+- tools/settlement_basis_audit.py
+- src/kalshi_alpha/exec/preflight_index.py
+- src/kalshi_alpha/exec/supervisor_index.py
+- tests/tools/test_settlement_basis_audit.py
+- tests/exec/test_preflight_index.py
+- docs/PROGRESS.md
+- CHANGELOG.md
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/PLAN_OF_RECORD.md (gitignored)
+- docs/CODEX_SPRINT_TICKETS.md (gitignored)
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/RUN.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/NOTES.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/COMMANDS.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/TESTS.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/README.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/ARTIFACTS.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/CITATIONS.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/RESULTS.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/prompt.md
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/META.json
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/commands.log
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/artifacts.json
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/diff.patch (case-insensitive filesystem; satisfies DIFF.patch requirement)
+- docs/agent_runs/20251223T184219Z_TICKET-102_basis_gate/FILES_TOUCHED.md

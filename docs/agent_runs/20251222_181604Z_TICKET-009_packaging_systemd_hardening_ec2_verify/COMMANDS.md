@@ -1,0 +1,93 @@
+# Commands
+
+(Commands will be appended during the run.)
+- date -u "+%Y%m%d_%H%M%SZ"
+  - output: 20251222_181604Z
+- mkdir -p docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+- created initial run log stubs (PROMPT.md, COMMANDS.md, RESULTS.md, TESTS.md, META.json, diff.patch, artifacts.json, README.md, commands.log, prompt.md)
+- cat AGENTS.md
+  - output: (see repo AGENTS.md captured for rules)
+- cat docs/CODEX_SPRINT_TICKETS.md
+  - output: (see ticket definitions; Ticket #9 acceptance captured)
+- git status -sb
+  - output: on branch main (clean)
+- git checkout -b codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+  - output: Switched to a new branch 'codex/TICKET-009_packaging_systemd_hardening_ec2_verify'
+- cat deploy/systemd/supervisor_index.service
+  - output: ExecStart uses /opt/kalshi-sys/.venv/bin/python; no PYTHONPATH
+- cat docs/runbooks/aws_supervisor_index.md
+  - output: runbook uses venv + pip install -e ., EnvironmentFile /etc/kalshi/kalshi-supervisor.env
+- rg -n "PYTHONPATH" deploy/systemd docs/runbooks
+  - output: no matches
+- pytest -q
+  - result: 117 passed, 740 skipped
+- apply_patch: updated docs/PROGRESS.md with Ticket #9 RETRY blocked note
+- apply_patch: updated CHANGELOG.md with Ticket #9 RETRY blocked note
+- wrote docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/README.md
+- wrote docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/RESULTS.md (Status: BLOCKED)
+- rewrote docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/prompt.md with full prompt
+- EC2 verification: BLOCKED (no EC2 host/SSH access provided in this run)
+- git status -sb
+  - output: modified CHANGELOG.md, docs/PROGRESS.md
+- git add CHANGELOG.md docs/PROGRESS.md
+- git commit -m "Ticket #9 retry: document EC2 verification blocked" -m "Tests: pytest -q"
+- git show --no-color HEAD > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/diff.patch
+- date -u "+%Y-%m-%dT%H:%M:%SZ"
+  - output: 2025-12-22T18:22:28Z
+- wrote docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/META.json (end_utc populated)
+- make gpt-bundle TICKET=TICKET-009_packaging_systemd_hardening_ec2_verify RUN_NAME=20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+  - output: Usage error (expects TICKET=ticket-XX)
+- make gpt-bundle TICKET=ticket-009 RUN_NAME=20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+  - output: Wrote docs/gpt_bundles/gpt_bundle_ticket-009_20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify.zip
+- updated docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/RESULTS.md with bundle path
+- git status -sb
+  - output: clean working tree
+- cat docs/ACCESS.md
+  - output: contains SSH config host (redacted)
+- ssh -o BatchMode=yes kalshi-aws "whoami"
+  - output: ubuntu
+- git remote get-url origin
+  - output: (repo URL; not logged)
+- git push -u origin codex/TICKET-009_packaging_systemd_hardening_ec2_verify
+  - output: pushed branch to origin
+- ssh kalshi-aws "..." (bootstrap + venv + pip install -e .)
+  - output: checkout failed (branch missing), then PYBIN expansion error (`-m: command not found`)
+- ssh kalshi-aws "REPO_URL=... BRANCH=... bash -s" (bootstrap + venv + pip install -e .)
+  - output: pip install -e . succeeded (wheels installed)
+- rg -n "SSM|Parameter Store|Secrets Manager|kalshi-supervisor.env|KALSHI_API_KEY_ID|POLYGON_API_KEY" -S docs configs
+  - output: matches in runbook and systemd templates (redacted)
+- ssh kalshi-aws "sudo ls -l /etc/kalshi/kalshi-supervisor.env"
+  - output: missing (No such file)
+- ssh kalshi-aws "sudo ls -l /etc/kalshi"
+  - output: empty directory
+- ssh kalshi-aws "sudo mkdir -p /etc/kalshi; sudo tee /etc/kalshi/kalshi-supervisor.env ..."
+  - output: created env file with empty key placeholders (no secrets)
+- ssh kalshi-aws "sudo cp /opt/kalshi-sys/deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service; sudo systemctl daemon-reload"
+- ssh kalshi-aws "sudo systemctl enable --now kalshi-supervisor-index.service"
+- ssh kalshi-aws "sudo systemctl cat kalshi-supervisor-index.service"
+  - output: ExecStart=/opt/kalshi-sys/.venv/bin/python ... (no PYTHONPATH)
+- ssh kalshi-aws "sudo systemctl restart kalshi-supervisor-index.service"
+- ssh kalshi-aws "sudo systemctl status kalshi-supervisor-index.service --no-pager"
+  - output: Active=running, ExecStart uses /opt/kalshi-sys/.venv/bin/python (host redacted)
+- ssh kalshi-aws "sudo systemctl show kalshi-supervisor-index.service -p ExecStart -p FragmentPath -p User --no-pager"
+  - output: ExecStart path /opt/kalshi-sys/.venv/bin/python; User=kalshi
+- ssh kalshi-aws "sudo journalctl -u kalshi-supervisor-index.service -n 200 --no-pager"
+  - output: running/skip lines and dry-run broker (host redacted)
+- ssh kalshi-aws "sudo -u kalshi bash -lc '... PYBIN debug ...'"
+  - output: PYBIN expanded locally; fixed by using here-doc + env
+- apply_patch: updated docs/PROGRESS.md to mark Ticket #9 RETRY DONE
+- apply_patch: updated CHANGELOG.md with EC2 proof captured note
+- updated docs/agent_runs/.../RESULTS.md and README.md (PASS + evidence)
+- git add CHANGELOG.md docs/PROGRESS.md
+- git commit -m "Ticket #9 retry: record EC2 proof" -m "Tests: pytest -q"
+- git push
+  - output: pushed updated commit to origin branch
+- git show --no-color HEAD > docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/diff.patch
+- date -u "+%Y-%m-%dT%H:%M:%SZ"
+  - output: 2025-12-22T18:36:44Z
+- wrote docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/META.json (end_utc updated; environment=AWS/local)
+- make gpt-bundle TICKET=ticket-009 RUN_NAME=20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify
+  - output: Wrote docs/gpt_bundles/gpt_bundle_ticket-009_20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify.zip
+- git status -sb
+  - output: clean working tree
+- wrote docs/agent_runs/20251222_181604Z_TICKET-009_packaging_systemd_hardening_ec2_verify/artifacts.json (bundle path)

@@ -1,0 +1,10 @@
+{
+  "run_name": "20251222_194751Z_TICKET-000_project_state_rebuild",
+  "ticket_id": "TICKET-000",
+  "branch": "codex/TICKET-000_project_state_rebuild",
+  "start_utc": "2025-12-22T19:30:00Z",
+  "end_utc": "2025-12-22T19:59:52Z",
+  "environment": "local",
+  "network_access": "enabled",
+  "web_search_used": false
+}
