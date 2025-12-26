@@ -78,6 +78,1337 @@ index 5822d26..75943ac 100644
  - Ticket #103 follow-up — Freshness monitor now honors Polygon marketstatus for closed/extended hours and ops market-status CLI added.
    - Gate status: PAPER
    - Evidence: agent run log `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md`
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/ARTIFACTS.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/ARTIFACTS.md
+new file mode 100644
+index 0000000..aa46b56
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/ARTIFACTS.md
+@@ -0,0 +1,7 @@
++# ARTIFACTS
++
++- docs/gpt_bundles/gpt_bundle_TICKET-104_20251226T092315Z_TICKET-104_fillcalib_curves.zip
++- data/proc/fillcalib/curves_2025-12-26.json (sha256: a79366368f48b0f11af31d8a9a5556c6b5b2c23e879bdfa45ae486dc7388c936)
++- reports/fillcalib/2025-12-26.md (sha256: 0e62fa717a23351fa00fa6f48ab2fa333b2309653e1b3568bb4a553c2dbc35dd)
++- reports/pilot_ready.json (sha256: 1eeb4ae0f7d385432a2c5f48f6beb4872e2aa9406808f5928571227bc65dac92)
++- reports/pilot_readiness.md (sha256: b1b80b9657b0439736d86c86d42aa819decaf6f4e7e94173c24c26bc1726e518)
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/CITATIONS.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/CITATIONS.md
+new file mode 100644
+index 0000000..99b65a6
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/CITATIONS.md
+@@ -0,0 +1,3 @@
++# CITATIONS
++
++- None.
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md
+new file mode 100644
+index 0000000..6770dda
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md
+@@ -0,0 +1,77 @@
++# COMMANDS
++
++- export TICKET="TICKET-104"; export RUN_NAME_NEXT="20251226T092315Z_TICKET-104_fillcalib_curves"; mkdir -p docs/agent_runs/${RUN_NAME_NEXT}; echo ... (exit 0)
++- git status -sb (exit 0)
++- git checkout -b codex/TICKET-104_fillcalib_curves (exit 0)
++- ls (exit 0)
++- sed -n '1,200p' AGENTS.md (exit 0)
++- rg -n "maker-fill|fill" docs/PLAN_OF_RECORD.md (exit 0)
++- sed -n '150,220p' docs/PLAN_OF_RECORD.md (exit 0)
++- sed -n '1,220p' docs/CODEX_SPRINT_TICKETS.md (exit 0)
++- sed -n '1,200p' docs/DOCS_AND_LOGGING_SYSTEM.md (exit 0)
++- ls -la data/proc/telemetry (exit 0)
++- ls -la data/proc/telemetry/tob (exit 0)
++- python - <<'PY' ... (exit 127; python not found)
++- python3 - <<'PY' ... (tob sample) (exit 0)
++- python3 - <<'PY' ... (quote_intents sample) (exit 0)
++- ls -la data/proc/telemetry/runs | head (exit 0)
++- python3 - <<'PY' ... (runs JSON sample) (exit 0)
++- sed -n '1,240p' tools/build_fillcalib_dataset.py (exit 0)
++- cat tools/build_fillcalib_dataset.py (exit 0)
++- sed -n '1,240p' src/kalshi_alpha/core/execution/fillprob.py (exit 0)
++- sed -n '1,240p' src/kalshi_alpha/core/execution/fillratio.py (exit 0)
++- sed -n '1,240p' src/kalshi_alpha/core/execution/index_models.py (exit 0)
++- sed -n '1,240p' src/kalshi_alpha/replay/fill_model.py (exit 0)
++- rg -n "uncalibrated|fill" src/kalshi_alpha/exec -S (exit 0)
++- rg -n "uncalibrated" src/kalshi_alpha/exec/runners/scan_ladders.py (exit 1)
++- rg -n "uncalibrated" src/kalshi_alpha -S (exit 1)
++- rg -n "calibrat|fillcalib|fill curve|fill_curve|fillcurve" -S src docs tools (exit 0)
++- sed -n '1,200p' tests/test_execution_calibration.py (exit 0)
++- sed -n '1,200p' tests/test_index_calibration_jobs.py (exit 0)
++- ls -la tests/fixtures (exit 0)
++- ls -la tests/fixtures/fillcalib (exit 0)
++- cat tests/fixtures/fillcalib/quote_intents.jsonl (exit 0)
++- rg -n "quote_intent" src/kalshi_alpha/exec/collectors/tob_logger.py (exit 0)
++- sed -n '150,260p' src/kalshi_alpha/exec/collectors/tob_logger.py (exit 0)
++- sed -n '1030,1100p' src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- rg -n "fill_prob" src/kalshi_alpha -S (exit 0)
++- sed -n '1,200p' src/kalshi_alpha/strategies/index/fill_model.py (exit 0)
++- rg -n "Proposal\(" src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- sed -n '3600,3790p' src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- rg -n "model_metadata|uncalibrated" src/kalshi_alpha/exec -S (exit 0)
++- sed -n '2600,2760p' src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- sed -n '820,920p' src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- rg -n "scan_series\(" src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- sed -n '720,790p' src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- sed -n '2790,2940p' src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- sed -n '2500,2560p' src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- sed -n '1,200p' docs/PROGRESS.md (exit 0)
++- sed -n '1,200p' CHANGELOG.md (exit 0)
++- python3 tools/build_fillcalib_dataset.py --help (exit 0)
++- python3 tools/build_fillcalib_dataset.py --series INXU --from 2025-01-01 --to 2025-01-01 --telemetry-root tests/fixtures/telemetry --output-curves <tmp>/curves.json --output-report <tmp>/report.md --output-parquet <tmp>/dataset.parquet --write-parquet (exit 0)
++- pytest -q (exit 0)
++- rg -n "agent_runs" -S .gitignore .git/info/exclude docs (exit 0)
++- git status -sb (exit 0)
++- git add tools/build_fillcalib_dataset.py tests/fixtures/telemetry tests/test_fillcalib_dataset.py (exit 0)
++- git commit -m "Add fillcalib dataset builder and fixtures" -m "Tests: ..." (exit 0)
++- git add src/kalshi_alpha/core/execution/fillprob.py src/kalshi_alpha/exec/runners/scan_ladders.py (exit 0)
++- git commit -m "Wire fill curves into scan defaults" -m "Tests: ..." (exit 0)
++- git add docs/PLAN_OF_RECORD.md docs/DOCS_AND_LOGGING_SYSTEM.md docs/PROGRESS.md CHANGELOG.md docs/CODEX_SPRINT_TICKETS.md (exit 0)
++- git commit -m "Document fillcalib artifacts and ticket status" -m "Tests: pytest -q" (exit 0)
++- git diff origin/main...HEAD > docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch (exit 0)
++- python3 - <<'PY' ... (META.json update) (exit 0)
++- make gpt-bundle TICKET=TICKET-104 RUN_NAME=20251226T092315Z_TICKET-104_fillcalib_curves (exit 2; python not found)
++- rg -n "gpt-bundle" Makefile (exit 0)
++- sed -n '80,180p' Makefile (exit 0)
++- PYTHON=python3 make gpt-bundle TICKET=TICKET-104 RUN_NAME=20251226T092315Z_TICKET-104_fillcalib_curves (exit 2; missing prompt.md)
++- cat > docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/prompt.md (exit 0)
++- PYTHON=python3 make gpt-bundle TICKET=TICKET-104 RUN_NAME=20251226T092315Z_TICKET-104_fillcalib_curves (exit 0)
++- python3 - <<'PY' ... (META.json update, end_utc refresh) (exit 0)
++- PYTHON=python3 make gpt-bundle TICKET=TICKET-104 RUN_NAME=20251226T092315Z_TICKET-104_fillcalib_curves (exit 0)
++- python3 - <<'PY' ... (count quote_intent series) (exit 0)
++- python3 tools/build_fillcalib_dataset.py --series INXU --from 2025-12-23 --to 2025-12-26 --telemetry-root data/proc/telemetry (exit 0)
++- sed -n '1,120p' reports/fillcalib/2025-12-26.md (exit 0)
++- PYTHON=python3 make pilot-readiness (exit 0)
++- rg --files reports | head -n 40 (exit 0)
++- shasum -a 256 data/proc/fillcalib/curves_2025-12-26.json reports/fillcalib/2025-12-26.md reports/pilot_ready.json reports/pilot_readiness.md (exit 0)
++- rg -n "data/proc" .gitignore (exit 0)
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch
+new file mode 100644
+index 0000000..1c4954d
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch
+@@ -0,0 +1,1105 @@
++diff --git a/CHANGELOG.md b/CHANGELOG.md
++index 92eadff..0531e81 100644
++--- a/CHANGELOG.md
+++++ b/CHANGELOG.md
++@@ -1,6 +1,8 @@
++ # Changelog
++ 
++ ## 2025-12-26
+++- Added fill calibration dataset builder that derives conservative maker fill curves from TOB + quote-intent telemetry, with proxy-fill disclaimers and optional parquet output.
+++- Scanner now records fill-curve status (uncalibrated only when curves are missing/invalid) and clamps fill alpha from the latest fillcalib curves.
++ - Freshness monitor now consults Polygon `/v1/marketstatus/now` so closed/extended hours do not flag `polygon_index.websocket` as stale.
++ - Added `python -m kalshi_alpha.exec.market_status` CLI for ops to print market status + server time.
++ - Verified telemetry-only dry-run captures TOB + quote-intent artifacts, wrote ops telemetry volume report, and proved retention pruning with a synthetic old-file deletion.
++diff --git a/docs/CODEX_SPRINT_TICKETS.md b/docs/CODEX_SPRINT_TICKETS.md
++index 3da2f8e..c2ae841 100644
++--- a/docs/CODEX_SPRINT_TICKETS.md
+++++ b/docs/CODEX_SPRINT_TICKETS.md
++@@ -140,6 +140,8 @@ Scope reminder:
++ - `data/proc/fillcalib/curves_<ASOF_DATE>.json`
++ - `reports/fillcalib/<ASOF_DATE>.md`
++ 
+++**Status:** DONE (2025-12-26)
+++
++ ---
++ 
++ ## TICKET-105 — Calibration age visibility: single summary artifact + scoreboard + explicit NO-GO reasons
++diff --git a/docs/DOCS_AND_LOGGING_SYSTEM.md b/docs/DOCS_AND_LOGGING_SYSTEM.md
++index ca3b916..20fe1fc 100644
++--- a/docs/DOCS_AND_LOGGING_SYSTEM.md
+++++ b/docs/DOCS_AND_LOGGING_SYSTEM.md
++@@ -138,6 +138,7 @@ Suggested subdirs:
++ - `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json` (daily basis summary: quantiles, per-window deltas, flip-risk flag)
++ - `data/proc/calibration/` (calibration outputs)
++ - `data/proc/fillcalib/` (fill curves)
+++- `data/proc/fillcalib/dataset_<ASOF_DATE>.parquet` (optional fillcalib dataset if small)
++ 
++ ### 3.3 Market status guardrails
++ - The Polygon indices websocket collector checks `/v1/marketstatus/now` before REST fallback.
++diff --git a/docs/PLAN_OF_RECORD.md b/docs/PLAN_OF_RECORD.md
++index 0ff957d..5c9a70e 100644
++--- a/docs/PLAN_OF_RECORD.md
+++++ b/docs/PLAN_OF_RECORD.md
++@@ -171,7 +171,7 @@ Goal: “We can estimate maker fill probability vs price/time-to-expiry/queue.
++ Commands (expected):
++ - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --record-tob` (writes quote intents + TOB snapshots)
++ - `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --record-tob --telemetry-only` (NO-GO override for telemetry-only runs)
++-- `python tools/build_fillcalib_dataset.py --series INXU --from <DATE> --to <DATE>`
+++- `python tools/build_fillcalib_dataset.py --series INXU --from <DATE> --to <DATE> --telemetry-root data/proc/telemetry --horizon-seconds 30 --min-samples 200 --scaler 0.25`
++ - `make pilot-readiness`
++ 
++ Required artifacts:
++@@ -179,10 +179,14 @@ Required artifacts:
++ - `data/proc/telemetry/quote_intents/<RUN_ID>.jsonl.gz`
++ - `data/proc/telemetry/runs/<RUN_ID>.json`
++ - `data/proc/fillcalib/curves_<ASOF_DATE>.json`
+++- `data/proc/fillcalib/dataset_<ASOF_DATE>.parquet` (optional; small datasets only)
++ - `reports/fillcalib/<ASOF_DATE>.md` (sample counts + conservative curve)
++ - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
++ - Per-ticket GPT bundles should include telemetry artifacts (`data/proc/telemetry/*`) and the ops volume report when generated.
++ 
+++Notes:
+++- Fill curves are proxy estimates based on TOB crossings only (upper bound), not realized fills or queue position.
+++
++ Retention + bounds:
++ - Per-window cap: 256KB per stream (TOB + quote intents).
++ - Per-record caps: TOB 10KB, quote intents 2KB.
++diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
++index 5822d26..75943ac 100644
++--- a/docs/PROGRESS.md
+++++ b/docs/PROGRESS.md
++@@ -23,6 +23,9 @@ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-t
++   - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
++ 
++ ## 2025-12-26
+++- Ticket #104 — Built fill calibration dataset builder, conservative maker fill curves + loader wiring (uncalibrated only when curves missing), and added fixture-based tests.
+++  - Gate status: PAPER
+++  - Evidence: agent run log `docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md`
++ - Ticket #103 follow-up — Freshness monitor now honors Polygon marketstatus for closed/extended hours and ops market-status CLI added.
++   - Gate status: PAPER
++   - Evidence: agent run log `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md`
++diff --git a/src/kalshi_alpha/core/execution/fillprob.py b/src/kalshi_alpha/core/execution/fillprob.py
++index a410e35..48e5fdd 100644
++--- a/src/kalshi_alpha/core/execution/fillprob.py
+++++ b/src/kalshi_alpha/core/execution/fillprob.py
++@@ -3,52 +3,240 @@
++ from __future__ import annotations
++ 
++ import json
+++from dataclasses import dataclass
+++from datetime import date, datetime
++ from functools import lru_cache
++ from pathlib import Path
++ from typing import Mapping
++ 
++ from kalshi_alpha.datastore.paths import PROC_ROOT
++ 
++-FILL_CURVE_PATH = PROC_ROOT / "fill" / "index_fill_curve.json"
+++FILL_CURVE_DIR = PROC_ROOT / "fillcalib"
+++FILL_CURVE_PATH = FILL_CURVE_DIR / "curves_latest.json"
+++LEGACY_FILL_CURVE_PATH = PROC_ROOT / "fill" / "index_fill_curve.json"
+++_CURVE_GLOB = "curves_*.json"
+++
+++
+++@dataclass(frozen=True)
+++class FillCurveStatus:
+++    path: Path | None
+++    uncalibrated: bool
+++    reason: str | None
+++    asof_date: str | None = None
+++    generated_at: str | None = None
+++    version: int | None = None
+++
+++    def as_dict(self) -> dict[str, object]:
+++        return {
+++            "path": str(self.path) if self.path is not None else None,
+++            "uncalibrated": self.uncalibrated,
+++            "reason": self.reason,
+++            "asof_date": self.asof_date,
+++            "generated_at": self.generated_at,
+++            "version": self.version,
+++        }
+++
+++
+++def resolve_curve_path(path: Path | None = None) -> Path | None:
+++    if path is not None:
+++        return Path(path)
+++    if FILL_CURVE_PATH.exists():
+++        return FILL_CURVE_PATH
+++    latest = _latest_curve_path(FILL_CURVE_DIR)
+++    if latest is not None:
+++        return latest
+++    if LEGACY_FILL_CURVE_PATH.exists():
+++        return LEGACY_FILL_CURVE_PATH
+++    return None
++ 
++ 
++ @lru_cache(maxsize=4)
++-def _load_payload(path: str) -> Mapping[str, object]:
++-    resolved = Path(path)
+++def _load_payload(path_str: str) -> tuple[Mapping[str, object] | None, str | None]:
+++    resolved = Path(path_str)
++     if not resolved.exists():
++-        return {}
+++        return None, "missing"
++     try:
++-        return json.loads(resolved.read_text(encoding="utf-8"))
+++        payload = json.loads(resolved.read_text(encoding="utf-8"))
++     except (OSError, json.JSONDecodeError):  # pragma: no cover - corrupted file
++-        return {}
+++        return None, "invalid"
+++    if not isinstance(payload, Mapping):
+++        return None, "invalid"
+++    return payload, None
++ 
++ 
++-def probability(series: str, *, seconds_to_event: float | None = None, path: Path | None = None) -> float | None:
++-    payload = _load_payload(str(path or FILL_CURVE_PATH))
+++def curve_status(path: Path | None = None) -> FillCurveStatus:
+++    resolved = resolve_curve_path(path)
+++    if resolved is None:
+++        return FillCurveStatus(path=None, uncalibrated=True, reason="fill_curve_missing")
+++    payload, error = _load_payload(str(resolved))
+++    if payload is None:
+++        reason = "fill_curve_missing" if error == "missing" else "fill_curve_invalid"
+++        return FillCurveStatus(path=resolved, uncalibrated=True, reason=reason)
+++    return FillCurveStatus(
+++        path=resolved,
+++        uncalibrated=False,
+++        reason=None,
+++        asof_date=_safe_str(payload.get("asof_date")),
+++        generated_at=_safe_str(payload.get("generated_at")),
+++        version=_safe_int(payload.get("version")),
+++    )
+++
+++
+++def probability(
+++    series: str,
+++    *,
+++    seconds_to_event: float | None = None,
+++    window_id: str | None = None,
+++    side: str | None = None,
+++    quote_distance_to_touch_bin: str | None = None,
+++    time_to_expiry_bin: str | None = None,
+++    path: Path | None = None,
+++) -> float:
+++    resolved = resolve_curve_path(path)
+++    if resolved is None:
+++        return 0.0
+++    payload, error = _load_payload(str(resolved))
+++    if payload is None or error is not None:
+++        return 0.0
++     series_block = payload.get("series") if isinstance(payload, Mapping) else None
++     if not isinstance(series_block, Mapping):
++-        return None
++-    entry = series_block.get(series.upper())
+++        return 0.0
+++    entry = series_block.get(series.strip().upper())
++     if not isinstance(entry, Mapping):
++-        return None
++-    late_threshold = float(entry.get("late_threshold_seconds") or 0.0)
+++        return 0.0
+++
+++    if all(
+++        value is not None
+++        for value in (window_id, side, quote_distance_to_touch_bin, time_to_expiry_bin)
+++    ):
+++        buckets = entry.get("buckets")
+++        if isinstance(buckets, list):
+++            target_side = str(side).upper()
+++            for bucket in buckets:
+++                if not isinstance(bucket, Mapping):
+++                    continue
+++                if str(bucket.get("window_id")) != str(window_id):
+++                    continue
+++                if str(bucket.get("side")).upper() != target_side:
+++                    continue
+++                if str(bucket.get("quote_distance_to_touch_bin")) != str(quote_distance_to_touch_bin):
+++                    continue
+++                if str(bucket.get("time_to_expiry_bin")) != str(time_to_expiry_bin):
+++                    continue
+++                return _clamp_probability(bucket.get("p_fill"))
+++        return 0.0
+++
+++    late_threshold = _safe_float(entry.get("late_threshold_seconds")) or 0.0
++     late_prob = entry.get("late_probability")
++     default_prob = entry.get("default_probability")
++     candidate: float | None = None
++     if seconds_to_event is not None and late_prob is not None and seconds_to_event <= late_threshold:
++-        candidate = float(late_prob)
+++        candidate = _safe_float(late_prob)
++     elif default_prob is not None:
++-        candidate = float(default_prob)
++-    if candidate is None or candidate <= 0.0:
++-        return None
++-    return min(1.0, max(0.1, candidate))
+++        candidate = _safe_float(default_prob)
+++    if candidate is None:
+++        return 0.0
+++    return _clamp_probability(candidate)
++ 
++ 
++-def adjust_alpha(series: str, base_alpha: float, *, seconds_to_event: float | None = None, path: Path | None = None) -> float:
++-    clamp = probability(series, seconds_to_event=seconds_to_event, path=path)
++-    if clamp is None:
++-        return base_alpha
+++def adjust_alpha(
+++    series: str,
+++    base_alpha: float,
+++    *,
+++    seconds_to_event: float | None = None,
+++    window_id: str | None = None,
+++    side: str | None = None,
+++    quote_distance_to_touch_bin: str | None = None,
+++    time_to_expiry_bin: str | None = None,
+++    path: Path | None = None,
+++) -> float:
+++    base_alpha = max(0.0, min(1.0, float(base_alpha)))
+++    clamp = probability(
+++        series,
+++        seconds_to_event=seconds_to_event,
+++        window_id=window_id,
+++        side=side,
+++        quote_distance_to_touch_bin=quote_distance_to_touch_bin,
+++        time_to_expiry_bin=time_to_expiry_bin,
+++        path=path,
+++    )
++     return min(base_alpha, clamp)
++ 
++ 
++-__all__ = ["probability", "adjust_alpha", "FILL_CURVE_PATH"]
+++def _latest_curve_path(root: Path) -> Path | None:
+++    if not root.exists():
+++        return None
+++    candidates: list[tuple[date, Path]] = []
+++    fallbacks: list[tuple[float, Path]] = []
+++    for path in root.glob(_CURVE_GLOB):
+++        if not path.is_file():
+++            continue
+++        asof = _parse_asof_date(path.name)
+++        if asof is not None:
+++            candidates.append((asof, path))
+++        else:
+++            try:
+++                fallbacks.append((path.stat().st_mtime, path))
+++            except OSError:
+++                continue
+++    if candidates:
+++        return max(candidates, key=lambda item: item[0])[1]
+++    if fallbacks:
+++        return max(fallbacks, key=lambda item: item[0])[1]
+++    return None
+++
+++
+++def _parse_asof_date(name: str) -> date | None:
+++    if not (name.startswith("curves_") and name.endswith(".json")):
+++        return None
+++    token = name[len("curves_") : -len(".json")]
+++    try:
+++        return date.fromisoformat(token)
+++    except ValueError:
+++        try:
+++            return datetime.strptime(token, "%Y%m%d").date()
+++        except ValueError:
+++            return None
+++
+++
+++def _safe_float(value: object) -> float | None:
+++    if value is None:
+++        return None
+++    try:
+++        return float(value)
+++    except (TypeError, ValueError):
+++        return None
+++
+++
+++def _safe_int(value: object) -> int | None:
+++    if value is None:
+++        return None
+++    try:
+++        return int(value)
+++    except (TypeError, ValueError):
+++        return None
+++
+++
+++def _safe_str(value: object) -> str | None:
+++    if value is None:
+++        return None
+++    return str(value)
+++
+++
+++def _clamp_probability(value: object) -> float:
+++    parsed = _safe_float(value)
+++    if parsed is None:
+++        return 0.0
+++    return max(0.0, min(1.0, parsed))
+++
+++
+++__all__ = [
+++    "FILL_CURVE_DIR",
+++    "FILL_CURVE_PATH",
+++    "LEGACY_FILL_CURVE_PATH",
+++    "FillCurveStatus",
+++    "resolve_curve_path",
+++    "curve_status",
+++    "probability",
+++    "adjust_alpha",
+++]
++diff --git a/src/kalshi_alpha/exec/runners/scan_ladders.py b/src/kalshi_alpha/exec/runners/scan_ladders.py
++index 6402a71..6bc5d9d 100644
++--- a/src/kalshi_alpha/exec/runners/scan_ladders.py
+++++ b/src/kalshi_alpha/exec/runners/scan_ladders.py
++@@ -652,6 +652,8 @@ def main(argv: Sequence[str] | None = None) -> None:
++     driver_fixtures = fixtures_root / "drivers"
++ 
++     client = _build_client(fixtures_root, use_online=args.online)
+++    series_upper = args.series.upper()
+++    fill_curve_status = fillprob.curve_status() if series_upper in INDEX_SERIES else None
++     fill_alpha_value, fill_alpha_auto = _resolve_fill_alpha_arg(args.fill_alpha, args.series)
++     pal_guard = _build_pal_guard(args)
++     risk_manager = _build_risk_manager(args)
++@@ -660,7 +662,6 @@ def main(argv: Sequence[str] | None = None) -> None:
++     correlation_guard = CorrelationAwareLimiter.from_yaml(correlation_config_path)
++     quote_optimizer = QuoteOptimizer()
++     offline_mode = args.offline or not args.online
++-    series_upper = args.series.upper()
++     tob_logger: TobSnapshotLogger | None = None
++     tob_run_id: str | None = None
++     if getattr(args, "record_tob", False):
++@@ -779,6 +780,9 @@ def main(argv: Sequence[str] | None = None) -> None:
++         sniper_threshold=float(getattr(args, "sniper_threshold", 0.05)),
++     )
++ 
+++    if fill_curve_status is not None:
+++        outcome.monitors.setdefault("fill_curve", fill_curve_status.as_dict())
+++
++     if pilot_session:
++         outcome.monitors.setdefault("pilot_session_id", pilot_session.session_id)
++         outcome.monitors.setdefault("pilot_session_started_at", pilot_session.started_at.isoformat())
++diff --git a/tests/fixtures/telemetry/quote_intents/20250101_000000Z.jsonl b/tests/fixtures/telemetry/quote_intents/20250101_000000Z.jsonl
++new file mode 100644
++index 0000000..fd813b0
++--- /dev/null
+++++ b/tests/fixtures/telemetry/quote_intents/20250101_000000Z.jsonl
++@@ -0,0 +1,2 @@
+++{"record_type":"quote_intent","run_id":"TEST_RUN","series":"INXU","window_id":"INXU:hourly-0100@2025-01-01T01:00:00+00:00","window_ts_utc":"2025-01-01T01:00:00+00:00","window_ts_et":"2024-12-31T20:00:00-05:00","market_ticker":"KXINXU-TEST","market_id":"MKT_INXU_TEST","quote_side":"YES","quote_price":0.55,"quote_size":1,"placement_type":"maker_only","tob_ts":"2025-01-01T00:00:00+00:00","ts":"2025-01-01T00:00:00+00:00","ts_utc":"2025-01-01T00:00:00+00:00"}
+++{"record_type":"quote_intent","run_id":"TEST_RUN","series":"INXU","window_id":"INXU:hourly-0100@2025-01-01T01:00:00+00:00","window_ts_utc":"2025-01-01T01:00:00+00:00","window_ts_et":"2024-12-31T20:00:00-05:00","market_ticker":"KXINXU-TEST","market_id":"MKT_INXU_TEST","quote_side":"NO","quote_price":0.65,"quote_size":1,"placement_type":"maker_only","tob_ts":"2025-01-01T00:00:00+00:00","ts":"2025-01-01T00:00:00+00:00","ts_utc":"2025-01-01T00:00:00+00:00"}
++diff --git a/tests/fixtures/telemetry/tob/20250101_000000Z.jsonl b/tests/fixtures/telemetry/tob/20250101_000000Z.jsonl
++new file mode 100644
++index 0000000..c34ae05
++--- /dev/null
+++++ b/tests/fixtures/telemetry/tob/20250101_000000Z.jsonl
++@@ -0,0 +1,2 @@
+++{"record_type":"tob_snapshot","run_id":"TEST_RUN","series":"INXU","market_ticker":"KXINXU-TEST","ts":"2025-01-01T00:00:00+00:00","ts_utc":"2025-01-01T00:00:00+00:00","best_bid_price":0.50,"best_bid_size":10,"best_ask_price":0.60,"best_ask_size":12}
+++{"record_type":"tob_snapshot","run_id":"TEST_RUN","series":"INXU","market_ticker":"KXINXU-TEST","ts":"2025-01-01T00:00:20+00:00","ts_utc":"2025-01-01T00:00:20+00:00","best_bid_price":0.52,"best_bid_size":9,"best_ask_price":0.54,"best_ask_size":11}
++diff --git a/tests/test_fillcalib_dataset.py b/tests/test_fillcalib_dataset.py
++new file mode 100644
++index 0000000..c6dffed
++--- /dev/null
+++++ b/tests/test_fillcalib_dataset.py
++@@ -0,0 +1,50 @@
+++from __future__ import annotations
+++
+++from datetime import date
+++from pathlib import Path
+++
+++from tools import build_fillcalib_dataset as fillcalib
+++
+++
+++def _load_payload(min_samples: int) -> dict[str, object]:
+++    payload, _rows = fillcalib.build_fillcalib_dataset(
+++        series="INXU",
+++        date_from=date(2025, 1, 1),
+++        date_to=date(2025, 1, 1),
+++        telemetry_root=Path("tests/fixtures/telemetry"),
+++        horizon_seconds=30,
+++        min_samples=min_samples,
+++        scaler=0.25,
+++        max_fill=0.25,
+++    )
+++    return payload
+++
+++
+++def _bucket_index(payload: dict[str, object]) -> dict[tuple[str, str], dict[str, object]]:
+++    series_block = payload["series"]["INXU"]
+++    buckets = series_block["buckets"]
+++    by_side = {}
+++    for bucket in buckets:
+++        key = (bucket["side"], bucket["quote_distance_to_touch_bin"])
+++        by_side[key] = bucket
+++    return by_side
+++
+++
+++def test_fillcalib_builds_curves_and_defaults() -> None:
+++    payload = _load_payload(min_samples=1)
+++    assert payload["version"] == 1
+++    assert payload["series"]["INXU"]["buckets"]
+++
+++    buckets = _bucket_index(payload)
+++    yes_bucket = buckets[("YES", "0.00-0.01")]
+++    no_bucket = buckets[("NO", "0.05-0.10")]
+++
+++    assert yes_bucket["proxy_fill_rate"] == 1.0
+++    assert yes_bucket["p_fill"] == 0.25
+++    assert no_bucket["proxy_fill_rate"] == 0.0
+++    assert no_bucket["p_fill"] == 0.0
+++
+++    payload_insufficient = _load_payload(min_samples=2)
+++    for bucket in payload_insufficient["series"]["INXU"]["buckets"]:
+++        assert bucket["p_fill"] == 0.0
+++        assert bucket["reason"] == "insufficient_samples"
++diff --git a/tools/build_fillcalib_dataset.py b/tools/build_fillcalib_dataset.py
++index eb1ae45..b626963 100644
++--- a/tools/build_fillcalib_dataset.py
+++++ b/tools/build_fillcalib_dataset.py
++@@ -1 +1,649 @@
++-...
+++"""Build fill calibration datasets + conservative maker fill curves from telemetry."""
+++
+++from __future__ import annotations
+++
+++import argparse
+++import bisect
+++import gzip
+++import json
+++from dataclasses import dataclass
+++from datetime import UTC, date, datetime, timedelta
+++from pathlib import Path
+++from typing import Iterable, Iterator, Mapping, Sequence
+++
+++try:  # optional dependency for parquet output
+++    import polars as pl
+++except Exception:  # pragma: no cover - optional
+++    pl = None
+++
+++SERIES_CHOICES = ("INXU", "NASDAQ100U")
+++DEFAULT_HORIZON_SECONDS = 30
+++DEFAULT_MIN_SAMPLES = 200
+++DEFAULT_SCALER = 0.25
+++DEFAULT_MAX_FILL = 0.25
+++
+++DISTANCE_BINS = (0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0)
+++TIME_BINS_MINUTES = (0, 5, 15, 30, 60, 120, 240)
+++
+++
+++@dataclass(frozen=True)
+++class TobSnapshot:
+++    ts: datetime
+++    best_bid: float | None
+++    best_ask: float | None
+++
+++
+++@dataclass(frozen=True)
+++class QuoteIntent:
+++    ts: datetime
+++    series: str
+++    window_id: str | None
+++    window_ts_utc: datetime | None
+++    market_ticker: str
+++    side: str
+++    price: float
+++    size: int
+++    tob_ts: datetime | None
+++
+++
+++@dataclass(frozen=True)
+++class BucketKey:
+++    series: str
+++    window_id: str
+++    side: str
+++    distance_bin: str
+++    time_bin: str
+++
+++
+++def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+++    parser = argparse.ArgumentParser(description="Build proxy fill curves from TOB + quote intent telemetry.")
+++    parser.add_argument("--series", required=True, choices=SERIES_CHOICES, help="Series to ingest (INXU/NASDAQ100U).")
+++    parser.add_argument("--from", dest="date_from", required=True, help="Start date (YYYY-MM-DD), inclusive.")
+++    parser.add_argument("--to", dest="date_to", required=True, help="End date (YYYY-MM-DD), inclusive.")
+++    parser.add_argument(
+++        "--telemetry-root",
+++        type=Path,
+++        default=Path("data/proc/telemetry"),
+++        help="Telemetry root directory (default: data/proc/telemetry).",
+++    )
+++    parser.add_argument(
+++        "--output-curves",
+++        type=Path,
+++        default=None,
+++        help="Optional override path for curves JSON output.",
+++    )
+++    parser.add_argument(
+++        "--output-report",
+++        type=Path,
+++        default=None,
+++        help="Optional override path for Markdown report output.",
+++    )
+++    parser.add_argument(
+++        "--output-parquet",
+++        type=Path,
+++        default=None,
+++        help="Optional override path for dataset parquet output.",
+++    )
+++    parser.add_argument(
+++        "--horizon-seconds",
+++        type=int,
+++        default=DEFAULT_HORIZON_SECONDS,
+++        help="Lookahead horizon for TOB crossing proxy (seconds).",
+++    )
+++    parser.add_argument(
+++        "--min-samples",
+++        type=int,
+++        default=DEFAULT_MIN_SAMPLES,
+++        help="Minimum samples per bucket before allowing non-zero p_fill.",
+++    )
+++    parser.add_argument(
+++        "--scaler",
+++        type=float,
+++        default=DEFAULT_SCALER,
+++        help="Conservative scaler applied to proxy fill rates.",
+++    )
+++    parser.add_argument(
+++        "--max-fill",
+++        type=float,
+++        default=DEFAULT_MAX_FILL,
+++        help="Upper cap on conservative p_fill.",
+++    )
+++    parser.add_argument(
+++        "--write-parquet",
+++        action="store_true",
+++        help="Write dataset parquet output (skipped if polars unavailable).",
+++    )
+++    parser.add_argument(
+++        "--max-parquet-rows",
+++        type=int,
+++        default=50000,
+++        help="Only emit parquet if dataset rows <= this threshold.",
+++    )
+++    return parser.parse_args(list(argv) if argv is not None else None)
+++
+++
+++def build_fillcalib_dataset(
+++    *,
+++    series: str,
+++    date_from: date,
+++    date_to: date,
+++    telemetry_root: Path,
+++    horizon_seconds: int = DEFAULT_HORIZON_SECONDS,
+++    min_samples: int = DEFAULT_MIN_SAMPLES,
+++    scaler: float = DEFAULT_SCALER,
+++    max_fill: float = DEFAULT_MAX_FILL,
+++) -> tuple[dict[str, object], list[dict[str, object]]]:
+++    series = series.strip().upper()
+++    if series not in SERIES_CHOICES:
+++        raise ValueError(f"Unsupported series: {series}")
+++    if date_to < date_from:
+++        raise ValueError("--to must be on/after --from")
+++
+++    tob_snapshots, tob_count = _load_tob_snapshots(
+++        telemetry_root=telemetry_root,
+++        series=series,
+++        date_from=date_from,
+++        date_to=date_to,
+++    )
+++    quote_intents = _load_quote_intents(
+++        telemetry_root=telemetry_root,
+++        series=series,
+++        date_from=date_from,
+++        date_to=date_to,
+++    )
+++    if not quote_intents:
+++        raise ValueError("No quote intents found for requested range")
+++
+++    tob_index = _build_tob_index(tob_snapshots)
+++    rows: list[dict[str, object]] = []
+++    buckets: dict[BucketKey, dict[str, object]] = {}
+++
+++    horizon_seconds = max(int(horizon_seconds), 1)
+++    min_samples = max(int(min_samples), 1)
+++    scaler = max(0.0, float(scaler))
+++    max_fill = max(0.0, float(max_fill))
+++
+++    for intent in quote_intents:
+++        if intent.market_ticker not in tob_index:
+++            continue
+++        times, snapshots = tob_index[intent.market_ticker]
+++        proxy_fill = _proxy_fill(intent, times, snapshots, horizon_seconds)
+++        distance = _quote_distance_to_touch(intent, times, snapshots)
+++        distance_bin = _bin_distance(distance)
+++        time_to_expiry_seconds, time_bin = _time_to_expiry(intent)
+++        window_id = intent.window_id or "unknown"
+++        side = intent.side.upper()
+++        row = {
+++            "series": intent.series,
+++            "window_id": window_id,
+++            "market_ticker": intent.market_ticker,
+++            "side": side,
+++            "quote_price": intent.price,
+++            "quote_size": intent.size,
+++            "quote_ts": intent.ts.isoformat(),
+++            "tob_ts": intent.tob_ts.isoformat() if intent.tob_ts is not None else None,
+++            "quote_distance_to_touch": distance,
+++            "quote_distance_to_touch_bin": distance_bin,
+++            "time_to_expiry_seconds": time_to_expiry_seconds,
+++            "time_to_expiry_bin": time_bin,
+++            "proxy_fill": proxy_fill,
+++        }
+++        rows.append(row)
+++
+++        key = BucketKey(series=series, window_id=window_id, side=side, distance_bin=distance_bin, time_bin=time_bin)
+++        bucket = buckets.setdefault(
+++            key,
+++            {
+++                "series": series,
+++                "window_id": window_id,
+++                "side": side,
+++                "quote_distance_to_touch_bin": distance_bin,
+++                "time_to_expiry_bin": time_bin,
+++                "n": 0,
+++                "proxy_fill_count": 0,
+++            },
+++        )
+++        bucket["n"] = int(bucket["n"]) + 1
+++        bucket["proxy_fill_count"] = int(bucket["proxy_fill_count"]) + int(proxy_fill)
+++
+++    bucket_list: list[dict[str, object]] = []
+++    total_samples = 0
+++    total_proxy_fills = 0
+++    weighted_p_fill = 0.0
+++    for bucket in buckets.values():
+++        n = int(bucket["n"])
+++        proxy_fills = int(bucket["proxy_fill_count"])
+++        total_samples += n
+++        total_proxy_fills += proxy_fills
+++        proxy_rate = (proxy_fills / n) if n > 0 else 0.0
+++        if n < min_samples:
+++            p_fill = 0.0
+++            reason = "insufficient_samples"
+++        else:
+++            p_fill = min(max(proxy_rate * scaler, 0.0), max_fill)
+++            reason = "scaled" if p_fill > 0.0 else "zero"
+++        bucket.update(
+++            {
+++                "proxy_fill_rate": round(proxy_rate, 6),
+++                "p_fill": round(p_fill, 6),
+++                "min_samples": min_samples,
+++                "scaler": round(scaler, 6),
+++                "cap": round(max_fill, 6),
+++                "reason": reason,
+++            }
+++        )
+++        bucket_list.append(bucket)
+++        weighted_p_fill += p_fill * n
+++
+++    default_probability = (weighted_p_fill / total_samples) if total_samples > 0 else 0.0
+++    proxy_fill_rate = (total_proxy_fills / total_samples) if total_samples > 0 else 0.0
+++
+++    payload = {
+++        "version": 1,
+++        "generated_at": datetime.now(tz=UTC).isoformat(),
+++        "asof_date": date_to.isoformat(),
+++        "series": {
+++            series: {
+++                "data_window": {
+++                    "from": date_from.isoformat(),
+++                    "to": date_to.isoformat(),
+++                },
+++                "params": {
+++                    "horizon_seconds": horizon_seconds,
+++                    "min_samples": min_samples,
+++                    "conservative_scaler": round(scaler, 6),
+++                    "max_fill_probability": round(max_fill, 6),
+++                    "distance_bins": list(DISTANCE_BINS),
+++                    "time_to_expiry_bins_minutes": list(TIME_BINS_MINUTES),
+++                    "proxy_method": "tob_crossing",
+++                },
+++                "summary": {
+++                    "quote_intents": len(rows),
+++                    "tob_snapshots": tob_count,
+++                    "buckets": len(bucket_list),
+++                    "proxy_fill_rate": round(proxy_fill_rate, 6),
+++                },
+++                "default_probability": round(default_probability, 6),
+++                "buckets": sorted(
+++                    bucket_list,
+++                    key=lambda entry: (
+++                        str(entry.get("window_id")),
+++                        str(entry.get("side")),
+++                        str(entry.get("quote_distance_to_touch_bin")),
+++                        str(entry.get("time_to_expiry_bin")),
+++                    ),
+++                ),
+++            }
+++        },
+++        "notes": {
+++            "proxy_disclaimer": (
+++                "Proxy fill indicator derived from TOB crossings (not actual fills). "
+++                "No queue position or cancel/replace latency modeling."
+++            )
+++        },
+++    }
+++    return payload, rows
+++
+++
+++def write_outputs(
+++    *,
+++    payload: Mapping[str, object],
+++    rows: Sequence[Mapping[str, object]],
+++    series: str,
+++    date_to: date,
+++    output_curves: Path | None,
+++    output_report: Path | None,
+++    output_parquet: Path | None,
+++    write_parquet: bool,
+++    max_parquet_rows: int,
+++) -> dict[str, Path | None]:
+++    series = series.strip().upper()
+++    asof = date_to.isoformat()
+++    default_curves = Path("data/proc/fillcalib") / f"curves_{asof}.json"
+++    default_report = Path("reports/fillcalib") / f"{asof}.md"
+++    default_parquet = Path("data/proc/fillcalib") / f"dataset_{asof}.parquet"
+++
+++    curves_path = output_curves or default_curves
+++    report_path = output_report or default_report
+++    parquet_path = output_parquet or default_parquet
+++
+++    curves_path.parent.mkdir(parents=True, exist_ok=True)
+++    curves_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+++
+++    report_path.parent.mkdir(parents=True, exist_ok=True)
+++    report_path.write_text(_render_report(payload, rows, series=series), encoding="utf-8")
+++
+++    parquet_written: Path | None = None
+++    if write_parquet and rows and len(rows) <= max_parquet_rows and pl is not None:
+++        parquet_path.parent.mkdir(parents=True, exist_ok=True)
+++        frame = pl.DataFrame(list(rows))
+++        frame.write_parquet(parquet_path)
+++        parquet_written = parquet_path
+++
+++    return {
+++        "curves": curves_path,
+++        "report": report_path,
+++        "parquet": parquet_written,
+++    }
+++
+++
+++def _render_report(payload: Mapping[str, object], rows: Sequence[Mapping[str, object]], *, series: str) -> str:
+++    series_block = payload.get("series", {}).get(series, {}) if isinstance(payload.get("series"), Mapping) else {}
+++    params = series_block.get("params", {}) if isinstance(series_block, Mapping) else {}
+++    summary = series_block.get("summary", {}) if isinstance(series_block, Mapping) else {}
+++    data_window = series_block.get("data_window", {}) if isinstance(series_block, Mapping) else {}
+++    buckets = series_block.get("buckets", []) if isinstance(series_block, Mapping) else []
+++    lines = [
+++        f"# Fill Calibration Report — {series}",
+++        "",
+++        "## Summary",
+++        f"- Asof date: {payload.get('asof_date')}",
+++        f"- Data window: {data_window.get('from')} → {data_window.get('to')}",
+++        f"- Quote intents: {summary.get('quote_intents')}",
+++        f"- TOB snapshots: {summary.get('tob_snapshots')}",
+++        f"- Buckets: {summary.get('buckets')}",
+++        f"- Proxy fill rate: {summary.get('proxy_fill_rate')}",
+++        f"- Horizon seconds: {params.get('horizon_seconds')}",
+++        f"- Min samples: {params.get('min_samples')}",
+++        f"- Conservative scaler: {params.get('conservative_scaler')}",
+++        f"- Max fill prob: {params.get('max_fill_probability')}",
+++        "",
+++        "## Proxy disclaimer",
+++        "- Proxy fill indicator is derived from TOB crossings only (upper bound).",
+++        "- No queue position, cancel/replace latency, or partial fill realism is modeled.",
+++        "",
+++        "## Bucket summary (top 50 by samples)",
+++        "| window_id | side | distance_bin | time_bin | n | proxy_fill_rate | p_fill | reason |",
+++        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+++    ]
+++
+++    bucket_rows = sorted(
+++        (bucket for bucket in buckets if isinstance(bucket, Mapping)),
+++        key=lambda entry: int(entry.get("n", 0)),
+++        reverse=True,
+++    )
+++    for bucket in bucket_rows[:50]:
+++        lines.append(
+++            "| {window_id} | {side} | {distance_bin} | {time_bin} | {n} | {proxy} | {p_fill} | {reason} |".format(
+++                window_id=bucket.get("window_id"),
+++                side=bucket.get("side"),
+++                distance_bin=bucket.get("quote_distance_to_touch_bin"),
+++                time_bin=bucket.get("time_to_expiry_bin"),
+++                n=bucket.get("n"),
+++                proxy=bucket.get("proxy_fill_rate"),
+++                p_fill=bucket.get("p_fill"),
+++                reason=bucket.get("reason"),
+++            )
+++        )
+++    if len(bucket_rows) > 50:
+++        lines.append("")
+++        lines.append(f"- Truncated {len(bucket_rows) - 50} buckets; see curves JSON for full list.")
+++
+++    if not rows:
+++        lines.append("")
+++        lines.append("- No dataset rows produced.")
+++
+++    return "\n".join(lines)
+++
+++
+++def _load_tob_snapshots(
+++    *,
+++    telemetry_root: Path,
+++    series: str,
+++    date_from: date,
+++    date_to: date,
+++) -> tuple[dict[str, list[TobSnapshot]], int]:
+++    tob_dir = telemetry_root / "tob"
+++    snapshots: dict[str, list[TobSnapshot]] = {}
+++    count = 0
+++    if not tob_dir.exists():
+++        return snapshots, count
+++    for path in _iter_paths(tob_dir):
+++        for record in _iter_json_lines(path):
+++            if not _record_type_ok(record, "tob_snapshot"):
+++                continue
+++            if str(record.get("series") or "").upper() != series:
+++                continue
+++            ts = _parse_ts(record.get("ts_utc") or record.get("ts"))
+++            if ts is None or not _within_range(ts, date_from, date_to):
+++                continue
+++            ticker = str(record.get("market_ticker") or "").strip()
+++            if not ticker:
+++                continue
+++            bid = _safe_float(record.get("best_bid_price") or record.get("bid_price"))
+++            ask = _safe_float(record.get("best_ask_price") or record.get("ask_price"))
+++            snapshots.setdefault(ticker, []).append(TobSnapshot(ts=ts, best_bid=bid, best_ask=ask))
+++            count += 1
+++    return snapshots, count
+++
+++
+++def _load_quote_intents(
+++    *,
+++    telemetry_root: Path,
+++    series: str,
+++    date_from: date,
+++    date_to: date,
+++) -> list[QuoteIntent]:
+++    intents: list[QuoteIntent] = []
+++    intent_dir = telemetry_root / "quote_intents"
+++    if not intent_dir.exists():
+++        return intents
+++    for path in _iter_paths(intent_dir):
+++        for record in _iter_json_lines(path):
+++            if not _record_type_ok(record, "quote_intent"):
+++                continue
+++            if str(record.get("series") or "").upper() != series:
+++                continue
+++            ts = _parse_ts(record.get("ts_utc") or record.get("ts"))
+++            if ts is None or not _within_range(ts, date_from, date_to):
+++                continue
+++            ticker = str(record.get("market_ticker") or "").strip()
+++            if not ticker:
+++                continue
+++            side = str(record.get("quote_side") or "").upper().strip() or "UNKNOWN"
+++            price = _safe_float(record.get("quote_price"))
+++            if price is None:
+++                continue
+++            size = int(record.get("quote_size") or 0)
+++            window_id = str(record.get("window_id") or "").strip() or None
+++            window_ts_utc = _parse_ts(record.get("window_ts_utc"))
+++            tob_ts = _parse_ts(record.get("tob_ts"))
+++            intents.append(
+++                QuoteIntent(
+++                    ts=ts,
+++                    series=series,
+++                    window_id=window_id,
+++                    window_ts_utc=window_ts_utc,
+++                    market_ticker=ticker,
+++                    side=side,
+++                    price=float(price),
+++                    size=size,
+++                    tob_ts=tob_ts,
+++                )
+++            )
+++    return intents
+++
+++
+++def _build_tob_index(tob_snapshots: Mapping[str, Sequence[TobSnapshot]]) -> dict[str, tuple[list[datetime], list[TobSnapshot]]]:
+++    index: dict[str, tuple[list[datetime], list[TobSnapshot]]] = {}
+++    for ticker, snapshots in tob_snapshots.items():
+++        ordered = sorted(snapshots, key=lambda snap: snap.ts)
+++        times = [snap.ts for snap in ordered]
+++        index[ticker] = (times, ordered)
+++    return index
+++
+++
+++def _proxy_fill(
+++    intent: QuoteIntent,
+++    times: Sequence[datetime],
+++    snapshots: Sequence[TobSnapshot],
+++    horizon_seconds: int,
+++) -> int:
+++    if not times:
+++        return 0
+++    start = intent.ts
+++    end = start + timedelta(seconds=horizon_seconds)
+++    idx = bisect.bisect_left(times, start)
+++    side = intent.side.upper()
+++    for snap in snapshots[idx:]:
+++        if snap.ts > end:
+++            break
+++        if side == "YES":
+++            if snap.best_ask is not None and snap.best_ask <= intent.price:
+++                return 1
+++        elif side == "NO":
+++            if snap.best_bid is not None and snap.best_bid >= intent.price:
+++                return 1
+++    return 0
+++
+++
+++def _quote_distance_to_touch(
+++    intent: QuoteIntent,
+++    times: Sequence[datetime],
+++    snapshots: Sequence[TobSnapshot],
+++) -> float | None:
+++    if not times:
+++        return None
+++    target = intent.tob_ts or intent.ts
+++    idx = bisect.bisect_right(times, target) - 1
+++    if idx < 0:
+++        return None
+++    snap = snapshots[idx]
+++    side = intent.side.upper()
+++    if side == "YES":
+++        if snap.best_bid is None:
+++            return None
+++        return max(0.0, float(snap.best_bid) - intent.price)
+++    if side == "NO":
+++        if snap.best_ask is None:
+++            return None
+++        return max(0.0, intent.price - float(snap.best_ask))
+++    return None
+++
+++
+++def _time_to_expiry(intent: QuoteIntent) -> tuple[float | None, str]:
+++    if intent.window_ts_utc is None:
+++        return None, "unknown"
+++    seconds = max((intent.window_ts_utc - intent.ts).total_seconds(), 0.0)
+++    minutes = seconds / 60.0
+++    return seconds, _bin_time(minutes)
+++
+++
+++def _bin_distance(distance: float | None) -> str:
+++    if distance is None:
+++        return "unknown"
+++    value = max(0.0, float(distance))
+++    for low, high in zip(DISTANCE_BINS, DISTANCE_BINS[1:]):
+++        if value < high:
+++            return f"{low:.2f}-{high:.2f}"
+++    return f">={DISTANCE_BINS[-1]:.2f}"
+++
+++
+++def _bin_time(minutes: float | None) -> str:
+++    if minutes is None:
+++        return "unknown"
+++    value = max(0.0, float(minutes))
+++    for low, high in zip(TIME_BINS_MINUTES, TIME_BINS_MINUTES[1:]):
+++        if value < high:
+++            return f"{int(low)}-{int(high)}m"
+++    return f">={int(TIME_BINS_MINUTES[-1])}m"
+++
+++
+++def _iter_paths(root: Path) -> Iterable[Path]:
+++    return sorted([path for path in root.glob("*.jsonl*") if path.is_file()])
+++
+++
+++def _iter_json_lines(path: Path) -> Iterator[dict[str, object]]:
+++    opener = gzip.open if path.suffix == ".gz" else open
+++    try:
+++        with opener(path, "rt", encoding="utf-8") as handle:
+++            for line in handle:
+++                line = line.strip()
+++                if not line:
+++                    continue
+++                try:
+++                    record = json.loads(line)
+++                except json.JSONDecodeError:
+++                    continue
+++                if isinstance(record, dict):
+++                    yield record
+++    except OSError:
+++        return
+++
+++
+++def _record_type_ok(record: Mapping[str, object], expected: str) -> bool:
+++    record_type = record.get("record_type")
+++    if record_type is None:
+++        return True
+++    return str(record_type) == expected
+++
+++
+++def _parse_ts(value: object) -> datetime | None:
+++    if not value:
+++        return None
+++    if isinstance(value, datetime):
+++        ts = value
+++    elif isinstance(value, (int, float)):
+++        try:
+++            ts = datetime.fromtimestamp(float(value), tz=UTC)
+++        except (OSError, ValueError):
+++            return None
+++    elif isinstance(value, str):
+++        try:
+++            ts = datetime.fromisoformat(value)
+++        except ValueError:
+++            return None
+++    else:
+++        return None
+++    if ts.tzinfo is None:
+++        ts = ts.replace(tzinfo=UTC)
+++    return ts
+++
+++
+++def _safe_float(value: object) -> float | None:
+++    if value is None:
+++        return None
+++    try:
+++        return float(value)
+++    except (TypeError, ValueError):
+++        return None
+++
+++
+++def _within_range(ts: datetime, date_from: date, date_to: date) -> bool:
+++    ts_date = ts.date()
+++    return date_from <= ts_date <= date_to
+++
+++
+++def main(argv: Sequence[str] | None = None) -> None:
+++    args = parse_args(argv)
+++    date_from = date.fromisoformat(str(args.date_from))
+++    date_to = date.fromisoformat(str(args.date_to))
+++    payload, rows = build_fillcalib_dataset(
+++        series=args.series,
+++        date_from=date_from,
+++        date_to=date_to,
+++        telemetry_root=args.telemetry_root,
+++        horizon_seconds=args.horizon_seconds,
+++        min_samples=args.min_samples,
+++        scaler=args.scaler,
+++        max_fill=args.max_fill,
+++    )
+++    outputs = write_outputs(
+++        payload=payload,
+++        rows=rows,
+++        series=args.series,
+++        date_to=date_to,
+++        output_curves=args.output_curves,
+++        output_report=args.output_report,
+++        output_parquet=args.output_parquet,
+++        write_parquet=args.write_parquet,
+++        max_parquet_rows=args.max_parquet_rows,
+++    )
+++    print(f"[fillcalib] wrote curves: {outputs['curves']}")
+++    print(f"[fillcalib] wrote report: {outputs['report']}")
+++    if outputs["parquet"]:
+++        print(f"[fillcalib] wrote parquet: {outputs['parquet']}")
+++
+++
+++if __name__ == "__main__":  # pragma: no cover
+++    main()
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/FILES_TOUCHED.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/FILES_TOUCHED.md
+new file mode 100644
+index 0000000..cf99b23
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/FILES_TOUCHED.md
+@@ -0,0 +1,24 @@
++# FILES TOUCHED
++
++- CHANGELOG.md
++- docs/CODEX_SPRINT_TICKETS.md
++- docs/DOCS_AND_LOGGING_SYSTEM.md
++- docs/PLAN_OF_RECORD.md
++- docs/PROGRESS.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/ARTIFACTS.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/COMMANDS.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/FILES_TOUCHED.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/NOTES.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RESULTS.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/TESTS.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/CITATIONS.md
++- docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/prompt.md
++- src/kalshi_alpha/core/execution/fillprob.py
++- src/kalshi_alpha/exec/runners/scan_ladders.py
++- tests/fixtures/telemetry/quote_intents/20250101_000000Z.jsonl
++- tests/fixtures/telemetry/tob/20250101_000000Z.jsonl
++- tests/test_fillcalib_dataset.py
++- tools/build_fillcalib_dataset.py
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json
+new file mode 100644
+index 0000000..237d2d1
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/META.json
+@@ -0,0 +1,8 @@
++{
++  "ticket": "TICKET-104",
++  "run_name": "20251226T092315Z_TICKET-104_fillcalib_curves",
++  "start_utc": "2025-12-26T09:23:15Z",
++  "end_utc": "2025-12-26T17:21:36Z",
++  "git_sha_start": "00ff4c697c8c2dac171149f844e819a0fbf70f3d",
++  "git_sha_end": "273f95325bedc9f96086d9512f4ef2cf6a03281b"
++}
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/NOTES.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/NOTES.md
+new file mode 100644
+index 0000000..629df39
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/NOTES.md
+@@ -0,0 +1,7 @@
++# NOTES
++
++## Exploration
++- Telemetry format: TOB snapshots include `record_type`, `run_id`, `series`, `market_ticker`, `best_bid_price`, `best_ask_price`, `ts_utc`, `window_id` (gzipped JSONL under `data/proc/telemetry/tob/`).
++- Quote intents include `record_type`, `series`, `market_ticker`, `quote_side`, `quote_price`, `quote_size`, `tob_ts`, `window_ts_utc`, `window_id` (gzipped JSONL under `data/proc/telemetry/quote_intents/`).
++- Existing fill tooling: `tools/build_fillcalib_dataset.py` was a placeholder; `replay/fill_model.py` writes legacy `data/proc/fill/index_fill_curve.json` with series-level probabilities.
++- Runtime usage: `fillprob.adjust_alpha` clamps fill alpha in `scan_ladders`; no existing `uncalibrated` flag in scanner output.
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RESULTS.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RESULTS.md
+new file mode 100644
+index 0000000..605ebdf
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RESULTS.md
+@@ -0,0 +1,3 @@
++# RESULTS
++
++- Bundle: docs/gpt_bundles/gpt_bundle_TICKET-104_20251226T092315Z_TICKET-104_fillcalib_curves.zip
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md
+new file mode 100644
+index 0000000..86b3d38
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md
+@@ -0,0 +1,16 @@
++# RUN — TICKET-104
++
++- Goal: Build fill calibration dataset + conservative maker fill curves + wire into defaults.
++- Approach: Implement fillcalib dataset builder + report, add fill curve loader/status in execution, add fixture-based tests, update docs and run logs.
++
++## Decisions
++- Proxy fills are computed from TOB crossings within a 30s horizon; p_fill = clamp(proxy_rate * 0.25, 0, 0.25) with min_samples=200.
++- Missing/invalid curves fail closed: fill alpha clamps to 0 and scanner reports `fill_curve.uncalibrated=true` with a single reason code.
++- Series default probability is computed as a sample-weighted average of bucket p_fill values for use when bucket metadata is unavailable.
++
++## Risks
++- Proxy fills are an upper bound (no queue position/cancel latency), so curves may still be optimistic even after scaling.
++- If curves are missing or stale, fill alpha collapses to zero; paper fill metrics will be conservative and may suppress diagnostics.
++
++## Follow-up
++- Generated real curves from telemetry for INXU (2025-12-23 → 2025-12-26) and ran `make pilot-readiness` to refresh readiness artifacts.
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/TESTS.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/TESTS.md
+new file mode 100644
+index 0000000..a96d883
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/TESTS.md
+@@ -0,0 +1,9 @@
++# TESTS
++
++- python3 tools/build_fillcalib_dataset.py --help (exit 0)
++- python3 tools/build_fillcalib_dataset.py --series INXU --from 2025-01-01 --to 2025-01-01 --telemetry-root tests/fixtures/telemetry --output-curves <tmp>/curves.json --output-report <tmp>/report.md --output-parquet <tmp>/dataset.parquet --write-parquet (exit 0)
++- pytest -q (exit 0; 124 passed, 742 skipped)
++- PYTHON=python3 make pilot-readiness (exit 0; NO_GO due to ledger_stale + monitors_stale)
++
++Not run:
++- make pilot-readiness (initial ticket run; executed later as requested)
+diff --git a/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/prompt.md b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/prompt.md
+new file mode 100644
+index 0000000..57cb13b
+--- /dev/null
++++ b/docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/prompt.md
+@@ -0,0 +1,6 @@
++# Prompt
++
++- Date (UTC): 2025-12-26
++- Ticket: TICKET-104
++- Summary: Build fill calibration dataset + conservative maker fill curves and wire into defaults; update tests/docs; produce GPT bundle.
++- External sources: None.
 diff --git a/src/kalshi_alpha/core/execution/fillprob.py b/src/kalshi_alpha/core/execution/fillprob.py
 index a410e35..48e5fdd 100644
 --- a/src/kalshi_alpha/core/execution/fillprob.py

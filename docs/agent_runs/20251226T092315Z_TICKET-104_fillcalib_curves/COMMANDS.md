@@ -75,3 +75,5 @@
 - rg --files reports | head -n 40 (exit 0)
 - shasum -a 256 data/proc/fillcalib/curves_2025-12-26.json reports/fillcalib/2025-12-26.md reports/pilot_ready.json reports/pilot_readiness.md (exit 0)
 - rg -n "data/proc" .gitignore (exit 0)
+- git diff origin/main...HEAD > docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/DIFF.patch (exit 0)
+- PYTHON=python3 make gpt-bundle TICKET=TICKET-104 RUN_NAME=20251226T092315Z_TICKET-104_fillcalib_curves (exit 0)
