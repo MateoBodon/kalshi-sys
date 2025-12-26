@@ -2,7 +2,7 @@
   "ticket": "TICKET-104",
   "run_name": "20251226T092315Z_TICKET-104_fillcalib_curves",
   "start_utc": "2025-12-26T09:23:15Z",
-  "end_utc": "2025-12-26T17:37:03Z",
+  "end_utc": "2025-12-26T17:55:12Z",
   "git_sha_start": "00ff4c697c8c2dac171149f844e819a0fbf70f3d",
-  "git_sha_end": "19f60b08f77e50510ffd5694ab21d8e6d8ba35bf"
+  "git_sha_end": "0f7cf85f939fc0d6849f843b69132bcbdce7ffc4"
 }

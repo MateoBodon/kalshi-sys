@@ -15,3 +15,11 @@
 ## Follow-up
 - Market status check (2025-12-26T12:29:06-05:00): market open (NYSE/Nasdaq open).
 - Generated real curves from telemetry for INXU + NASDAQ100U (2025-12-23 → 2025-12-26) and refreshed readiness artifacts with `make pilot-readiness`.
+
+## Checklist verification
+- Safety: no live trading enablement; paper-only defaults unchanged.
+- Honesty: report labels TOB-crossing proxy and notes non-queue-realistic fills; horizon/scaler/min-samples explicit.
+- Conservatism: buckets under min_samples → p_fill=0; cap enforced.
+- Runtime wiring: uncalibrated only when curves missing/invalid; low-sample buckets fall back conservatively.
+- Tests: pytest -q passes; fixture asserts p_fill math.
+- Secrets: rg scan on changed files found only policy mentions/variable names; fixtures are 2 lines each.
