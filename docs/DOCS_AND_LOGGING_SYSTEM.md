@@ -138,6 +138,10 @@ Suggested subdirs:
 - `data/proc/calibration/` (calibration outputs)
 - `data/proc/fillcalib/` (fill curves)
 
+### 3.3 Market status guardrails
+- The Polygon indices websocket collector checks `/v1/marketstatus/now` before REST fallback.
+- If indices groups are closed/extended-hours, it suppresses fallback and logs `market_status` plus `serverTime` to avoid false stale alarms.
+
 ---
 
 ## 4) Redaction policy (secrets + PII)

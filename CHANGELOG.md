@@ -1,5 +1,9 @@
 # Changelog
 
+## 2025-12-25
+- Fix: Polygon indices REST snapshot fallback now uses `/v3/snapshot/indices`, parses v3 fields (value/session/last_updated), and fails closed on NOT_ENTITLED responses with updated unit tests.
+- Fix: Polygon WS REST fallback now consults `/v1/marketstatus/now` and skips fallback during closed/extended hours (logs status + serverTime), with new unit coverage.
+
 ## 2025-12-23
 - Gitignored `reports/` and removed tracked report outputs so report artifacts stay local-only.
 - Updated `AGENTS.md` and `docs/DOCS_AND_LOGGING_SYSTEM.md` policy docs (scope/safety/logging refresh).
