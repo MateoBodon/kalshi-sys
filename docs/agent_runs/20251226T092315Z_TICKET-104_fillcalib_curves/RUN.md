@@ -13,4 +13,5 @@
 - If curves are missing or stale, fill alpha collapses to zero; paper fill metrics will be conservative and may suppress diagnostics.
 
 ## Follow-up
-- Generated real curves from telemetry for INXU (2025-12-23 → 2025-12-26) and ran `make pilot-readiness` to refresh readiness artifacts.
+- Market status check (2025-12-26T12:29:06-05:00): market open (NYSE/Nasdaq open).
+- Generated real curves from telemetry for INXU + NASDAQ100U (2025-12-23 → 2025-12-26) and refreshed readiness artifacts with `make pilot-readiness`.
