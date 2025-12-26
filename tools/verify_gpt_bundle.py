@@ -102,7 +102,18 @@ def verify_bundle(bundle_path: Path) -> list[str]:
         if root_placeholder:
             errors.append("root DIFF.patch contains placeholder markers")
 
-        required_files = [
+        new_required = [
+            "RUN.md",
+            "NOTES.md",
+            "COMMANDS.md",
+            "TESTS.md",
+            "RESULTS.md",
+            "META.json",
+            "ARTIFACTS.md",
+            "FILES_TOUCHED.md",
+            "DIFF.patch",
+        ]
+        legacy_required = [
             "README.md",
             "RESULTS.md",
             "META.json",
@@ -110,10 +121,15 @@ def verify_bundle(bundle_path: Path) -> list[str]:
             "artifacts.json",
             "diff.patch",
         ]
-        for filename in required_files:
-            target = run_log_prefix + filename
-            if target not in paths:
-                errors.append(f"missing run log file: {filename}")
+        has_new = all((run_log_prefix + name) in paths for name in new_required)
+        has_legacy = all((run_log_prefix + name) in paths for name in legacy_required)
+        if not has_new and not has_legacy:
+            for filename in new_required:
+                if (run_log_prefix + filename) not in paths:
+                    errors.append(f"missing run log file: {filename}")
+            for filename in legacy_required:
+                if (run_log_prefix + filename) not in paths:
+                    errors.append(f"missing run log file: {filename}")
 
         prompt_candidates = [run_log_prefix + "prompt.md", run_log_prefix + "PROMPT.md"]
         if not any(candidate in paths for candidate in prompt_candidates):
@@ -122,22 +138,24 @@ def verify_bundle(bundle_path: Path) -> list[str]:
         if errors:
             return errors
 
-        readme_content = _read_text(zf, run_log_prefix + "README.md")
+        readme_name = "RUN.md" if has_new else "README.md"
+        readme_content = _read_text(zf, run_log_prefix + readme_name)
         if _is_empty_or_pending(readme_content):
-            errors.append("README.md is empty or placeholder")
+            errors.append(f"{readme_name} is empty or placeholder")
 
         results_content = _read_text(zf, run_log_prefix + "RESULTS.md")
         if _is_empty_or_pending(results_content):
             errors.append("RESULTS.md is empty or placeholder")
 
-        diff_content = _read_text(zf, run_log_prefix + "diff.patch")
+        diff_name = "DIFF.patch" if has_new else "diff.patch"
+        diff_content = _read_text(zf, run_log_prefix + diff_name)
         if not diff_content.strip():
-            errors.append("run log diff.patch is empty")
+            errors.append(f"run log {diff_name} is empty")
         if not _has_patch_hunks(diff_content):
-            errors.append("run log diff.patch missing patch hunks")
+            errors.append(f"run log {diff_name} missing patch hunks")
         diff_placeholder = _placeholder_lines(diff_content)
         if diff_placeholder:
-            errors.append("run log diff.patch contains placeholder markers")
+            errors.append(f"run log {diff_name} contains placeholder markers")
 
         meta_raw = _read_text(zf, run_log_prefix + "META.json")
         try:
