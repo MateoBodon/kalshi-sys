@@ -57,6 +57,74 @@ def _has_patch_hunks(content: str) -> bool:
     return "diff --git " in content and ("+++ b/" in content or "+++ b\\" in content)
 
 
+def _extract_artifact_paths(content: str) -> list[str]:
+    paths: list[str] = []
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped[:1] not in {"-", "*"}:
+            continue
+        entry = stripped[1:].strip()
+        if not entry:
+            continue
+        if "`" in entry:
+            first = entry.find("`")
+            second = entry.find("`", first + 1)
+            if second != -1:
+                entry = entry[first + 1 : second]
+            else:
+                entry = entry.replace("`", "")
+        entry = entry.strip()
+        if not entry:
+            continue
+        if " " in entry:
+            entry = entry.split()[0]
+        if entry.endswith(":"):
+            entry = entry[:-1]
+        if entry:
+            paths.append(entry)
+    seen: set[str] = set()
+    unique: list[str] = []
+    for item in paths:
+        if item not in seen:
+            seen.add(item)
+            unique.append(item)
+    return unique
+
+
+def _missing_artifacts_from_bundle(
+    artifacts_content: str,
+    bundle_paths: list[str],
+    bundle_root_prefix: str,
+    workspace_root: Path,
+) -> list[str]:
+    missing: list[str] = []
+    for raw_path in _extract_artifact_paths(artifacts_content):
+        rel_path = Path(raw_path)
+        if rel_path.is_absolute():
+            try:
+                rel_path = rel_path.relative_to(workspace_root)
+            except ValueError:
+                continue
+        if not rel_path.parts:
+            continue
+        if rel_path.parts[0] == "..":
+            continue
+        disk_path = workspace_root / rel_path
+        if not disk_path.exists():
+            continue
+        expected = f"{bundle_root_prefix}{rel_path.as_posix()}"
+        if disk_path.is_dir():
+            prefix = expected.rstrip("/") + "/"
+            present = any(path.startswith(prefix) or path == expected.rstrip("/") for path in bundle_paths)
+        else:
+            present = expected in bundle_paths
+        if not present:
+            missing.append(rel_path.as_posix())
+    return missing
+
+
 def verify_bundle(bundle_path: Path) -> list[str]:
     errors: list[str] = []
     if not bundle_path.exists():
@@ -84,6 +152,7 @@ def verify_bundle(bundle_path: Path) -> list[str]:
         if run_log_prefix is None:
             errors.append(f"run log path not found for {run_name}")
             return errors
+        bundle_root_prefix = run_log_prefix.split("docs/agent_runs/")[0]
 
         root_diff_candidates = [
             path
@@ -166,6 +235,18 @@ def verify_bundle(bundle_path: Path) -> list[str]:
             end_utc = meta.get("end_utc")
             if not end_utc or not str(end_utc).strip():
                 errors.append("META.json missing end_utc")
+
+        if has_new:
+            artifacts_content = _read_text(zf, run_log_prefix + "ARTIFACTS.md")
+            missing_artifacts = _missing_artifacts_from_bundle(
+                artifacts_content,
+                paths,
+                bundle_root_prefix,
+                Path.cwd(),
+            )
+            if missing_artifacts:
+                for missing in missing_artifacts:
+                    errors.append(f"missing from bundle (listed in ARTIFACTS.md): {missing}")
 
     return errors
 
