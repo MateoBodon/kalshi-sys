@@ -1,0 +1,22 @@
+# Files Touched
+
+- Makefile
+- data/proc/calib/index/ndx/close/params.json
+- data/proc/calib/index/ndx/hourly/params.json
+- data/proc/calib/index/spx/close/params.json
+- data/proc/calib/index/spx/hourly/params.json
+- CHANGELOG.md
+- docs/PROGRESS.md
+- docs/CODEX_SPRINT_TICKETS.md
+- docs/prompts/20251229_TICKET-105_calibration_age_visibility_calibrate_index_fix.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/ARTIFACTS.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/CITATIONS.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/COMMANDS.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/DIFF.patch
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/FILES_TOUCHED.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/META.json
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/NOTES.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/RESULTS.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/RUN.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/TESTS.md
+- docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/prompt.md
