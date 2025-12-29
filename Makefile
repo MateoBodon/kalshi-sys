@@ -134,8 +134,8 @@ ingest-index:
 	$(PYTHON) -m kalshi_alpha.exec.ingest.polygon_index --start $(START) --end $(END) --symbols I:SPX I:NDX
 
 calibrate-index:
-	$(PYTHON) -m kalshi_alpha.jobs.calibrate_hourly --series INXU NASDAQ100U
-	$(PYTHON) -m kalshi_alpha.jobs.calibrate_close --series INX NASDAQ100
+	PYTHONPATH=src $(PYTHON) -m jobs.calibrate_hourly --series INXU NASDAQ100U
+	PYTHONPATH=src $(PYTHON) -m jobs.calibrate_close --series INX NASDAQ100
 
 scan-index-noon:
 	$(PYTHON) -m kalshi_alpha.exec.scanners.scan_index_noon --series INXU NASDAQ100U --offline --fixtures-root tests/data_fixtures
