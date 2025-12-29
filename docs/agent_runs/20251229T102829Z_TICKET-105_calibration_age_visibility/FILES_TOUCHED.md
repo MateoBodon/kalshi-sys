@@ -1,0 +1,25 @@
+# Files Touched
+
+- CHANGELOG.md
+- docs/CODEX_SPRINT_TICKETS.md
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/PLAN_OF_RECORD.md
+- docs/PROGRESS.md
+- docs/prompts/20251229_TICKET-105_calibration_age_visibility.md
+- src/kalshi_alpha/exec/calibration_ages.py
+- src/kalshi_alpha/exec/pilot_readiness.py
+- src/kalshi_alpha/exec/preflight_index.py
+- src/kalshi_alpha/exec/reports/ramp.py
+- src/kalshi_alpha/exec/scoreboard.py
+- tests/exec/test_preflight_index.py
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/prompt.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/NOTES.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/COMMANDS.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/TESTS.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RESULTS.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/FILES_TOUCHED.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/ARTIFACTS.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/CITATIONS.md
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/META.json
+- docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/DIFF.patch
