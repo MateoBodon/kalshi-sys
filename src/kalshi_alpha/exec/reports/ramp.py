@@ -7,9 +7,10 @@ import json
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import polars as pl
 import yaml
@@ -38,12 +39,15 @@ from kalshi_alpha.exec.monitors.summary import (
     MONITOR_ARTIFACTS_DIR,
     summarize_monitor_artifacts,
 )
+from kalshi_alpha.exec import calibration_ages
 from kalshi_alpha.exec.policy.freeze import FreezeEvaluation, evaluate_freeze_for_series
 
 LEDGER_PATH = Path("data/proc/ledger_all.parquet")
 GO_NO_GO_DIR = Path("reports/_artifacts")
 JSON_OUTPUT = Path("reports/pilot_ready.json")
 MARKDOWN_OUTPUT = Path("reports/pilot_readiness.md")
+
+ET = ZoneInfo("America/New_York")
 
 
 @dataclass(slots=True)
@@ -79,6 +83,12 @@ def compute_ramp_policy(
 ) -> dict[str, Any]:
     cfg = config or RampPolicyConfig()
     moment = _ensure_utc(now or datetime.now(tz=UTC))
+    calibration_results = calibration_ages.inspect_calibration_ages(now=moment)
+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
+    calibration_asof = moment.astimezone(ET).date()
+    calibration_report_path = (
+        Path("reports/calibration") / f"calibration_ages_{calibration_asof.isoformat()}.md"
+    )
 
     ledger = _load_ledger(ledger_path)
     panic_window = max(cfg.panic_alert_window_minutes, 0)
@@ -315,6 +325,11 @@ def compute_ramp_policy(
         "decision": "GO" if decision_go else "NO_GO",
     }
 
+    calibration_summary_payload = {
+        series: summary.as_dict() for series, summary in calibration_summary.items()
+    }
+    calibration_entries_payload = [entry.as_dict() for entry in calibration_results]
+
     policy = {
         "generated_at": moment.isoformat(),
         "criteria": {
@@ -342,6 +357,10 @@ def compute_ramp_policy(
         },
         "data_freshness": data_freshness_summary,
         "freshness": freshness_summary,
+        "calibration_asof_date": calibration_asof.isoformat(),
+        "calibration_report_path": calibration_report_path.as_posix(),
+        "calibration_summary": calibration_summary_payload,
+        "calibration_ages": calibration_entries_payload,
         "monitors_summary": monitors_summary,
         "series": results,
         "overall": overall_summary,
@@ -372,6 +391,35 @@ def write_ramp_outputs(
 ) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(policy, indent=2, sort_keys=True), encoding="utf-8")
+
+    calibration_entries = policy.get("calibration_ages") or []
+    calibration_asof = policy.get("calibration_asof_date")
+    calibration_report_path = policy.get("calibration_report_path")
+    generated_at = _parse_timestamp(policy.get("generated_at")) or datetime.now(tz=UTC)
+    calibration_results: list[calibration_ages.CalibrationAgeResult] = []
+    for entry in calibration_entries:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            calibration_results.append(calibration_ages.CalibrationAgeResult(**entry))
+        except TypeError:
+            continue
+    if calibration_results and calibration_asof:
+        try:
+            asof_date = date.fromisoformat(str(calibration_asof))
+        except ValueError:
+            asof_date = generated_at.astimezone(ET).date()
+        report_path = (
+            Path(calibration_report_path)
+            if calibration_report_path
+            else Path("reports/calibration") / f"calibration_ages_{asof_date.isoformat()}.md"
+        )
+        calibration_ages.write_report(
+            calibration_results,
+            asof_date=asof_date,
+            output_path=report_path,
+            generated_at=generated_at,
+        )
 
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     lines: list[str] = ["# Pilot Ramp Readiness", ""]
@@ -440,6 +488,24 @@ def write_ramp_outputs(
                 lines.append(
                     f"| {feed_label} | {required_flag} | {ok_flag} | {age_str} | {reason_str} |"
                 )
+        lines.append("")
+
+    calibration_summary = policy.get("calibration_summary", {})
+    if isinstance(calibration_summary, dict) and calibration_summary:
+        lines.append("**Calibration Ages**")
+        if calibration_report_path:
+            lines.append(f"- Report: {calibration_report_path}")
+        lines.append("| Series | Status | Age (hours) |")
+        lines.append("| --- | --- | --- |")
+        for series in calibration_ages.SERIES_ORDER:
+            entry = calibration_summary.get(series)
+            if not isinstance(entry, dict):
+                lines.append(f"| {series} | MISSING | n/a |")
+                continue
+            age_hours = entry.get("age_hours")
+            age_value = _format_number_for_markdown(age_hours) if age_hours is not None else "n/a"
+            status = entry.get("status", "MISSING")
+            lines.append(f"| {series} | {status} | {age_value} |")
         lines.append("")
 
     sequential_triggers = (

@@ -14,6 +14,7 @@ from pathlib import Path
 import polars as pl
 
 from kalshi_alpha.utils.family import resolve_family
+from kalshi_alpha.exec import calibration_ages
 from kalshi_alpha.exec import slo
 from kalshi_alpha.core.execution import defaults as execution_defaults
 from kalshi_alpha.core.execution.index_models import (
@@ -161,6 +162,8 @@ def main(argv: list[str] | None = None) -> None:
     ledger = _load_ledger()
     calibrations = _load_calibrations()
     alpha_state = _load_alpha_state()
+    calibration_results = calibration_ages.inspect_calibration_ages(now=now)
+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
     windows = {int(max(days, 1)) for days in args.window}
     reports_dir = Path("reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -169,7 +172,13 @@ def main(argv: list[str] | None = None) -> None:
     cw_window = max(windows) if windows else None
     cw_metrics: dict[str, slo.SLOSeriesMetrics] | None = None
     for window in sorted(windows):
-        summary = _build_summary(ledger, calibrations, alpha_state, window)
+        summary = _build_summary(
+            ledger,
+            calibrations,
+            alpha_state,
+            window,
+            calibration_summary=calibration_summary,
+        )
         slo_metrics = slo.collect_metrics(
             summary,
             reports_root=reports_dir,
@@ -186,6 +195,7 @@ def main(argv: list[str] | None = None) -> None:
             freshness_reasons=freshness_reasons,
             freshness_summary=freshness_summary,
             slo_metrics=slo_metrics,
+            calibration_summary=calibration_summary,
         )
         print(f"[scoreboard] wrote {output}")
         go_count = sum(1 for row in summary if row.get("go"))
@@ -291,6 +301,8 @@ def _build_summary(  # noqa: PLR0912, PLR0915
     calibrations: pl.DataFrame,
     alpha_state: dict[str, float],
     window_days: int,
+    *,
+    calibration_summary: Mapping[str, calibration_ages.CalibrationSeriesSummary] | None = None,
 ) -> list[dict[str, object]]:
     now = datetime.now(tz=UTC)
     window_start = now - timedelta(days=window_days)
@@ -372,7 +384,10 @@ def _build_summary(  # noqa: PLR0912, PLR0915
             fill_minus_alpha = fill_ratio - float(avg_alpha)
         subset = frames_by_series.get(series)
         fills_value = _series_fills(subset)
-        calib_age = pilot_readiness.calibration_age_days(series, now)
+        calib_summary = (calibration_summary or {}).get(series)
+        calib_age_days = calib_summary.age_days if calib_summary else None
+        calib_age_hours = calib_summary.age_hours if calib_summary else None
+        calib_status = calib_summary.status if calib_summary else "MISSING"
         metrics = {
             "series": series,
             "ev_after_fees": row.get("ev_after_fees", 0.0),
@@ -394,7 +409,9 @@ def _build_summary(  # noqa: PLR0912, PLR0915
             "confidence_badge": badge,
             "ev_plot_lines": ev_plot_lines,
             "fills_contracts": fills_value,
-            "calibration_age_days": calib_age,
+            "calibration_status": calib_status,
+            "calibration_age_hours": calib_age_hours,
+            "calibration_age_days": calib_age_days,
         }
         structure_info = _load_structure_artifact(series)
         if structure_info:
@@ -456,11 +473,11 @@ def _build_summary(  # noqa: PLR0912, PLR0915
             reasons.append(
                 f"honesty clamp {float(honesty['clamp']):.2f} < 0.75"
             )
-        if calib_age is None:
+        if calib_status == "MISSING":
             reasons.append("calibration_missing")
-        elif calib_age > pilot_readiness.MAX_CALIBRATION_AGE_DAYS:
+        elif calib_status == "STALE" and calib_age_days is not None:
             reasons.append(
-                f"calibration_age {calib_age:.1f}d > {pilot_readiness.MAX_CALIBRATION_AGE_DAYS:.0f}d"
+                f"calibration_age {calib_age_days:.1f}d > {pilot_readiness.MAX_CALIBRATION_AGE_DAYS:.0f}d"
             )
         metrics["go"] = not reasons
         metrics["go_reasons"] = reasons
@@ -551,6 +568,7 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
     freshness_reasons: Sequence[str] | None = None,
     freshness_summary: dict[str, object] | None = None,
     slo_metrics: Mapping[str, slo.SLOSeriesMetrics] | None = None,
+    calibration_summary: Mapping[str, calibration_ages.CalibrationSeriesSummary] | None = None,
 ) -> None:
     lines: list[str] = []
     lines.append(f"# Scoreboard ({window_days}-day)")
@@ -566,6 +584,22 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
         lines.append("- Freshness Metrics:")
         lines.extend(f"  - {line}" for line in metric_lines)
     lines.append("")
+    if calibration_summary:
+        lines.append("Calibration Ages:")
+        lines.append("| Series | Status | Age (hours) |")
+        lines.append("| --- | --- | --- |")
+        for series in INDEX_SERIES_ORDER:
+            summary_entry = calibration_summary.get(series)
+            if summary_entry is None:
+                lines.append(f"| {series} | MISSING | n/a |")
+                continue
+            age_value = (
+                "n/a"
+                if summary_entry.age_hours is None
+                else f"{summary_entry.age_hours:.1f}"
+            )
+            lines.append(f"| {series} | {summary_entry.status} | {age_value} |")
+        lines.append("")
     if not summary:
         lines.append("_No ledger data available for this window._")
     for row in summary:
@@ -638,12 +672,10 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
         lines.append(f"- Avg α: {alpha_text}")
         if row.get("fills_contracts") is not None:
             lines.append(f"- Fills (contracts): {row['fills_contracts']:.0f}")
-        if row.get("calibration_age_days") is not None:
-            lines.append(
-                f"- Calibration Age (days): {row['calibration_age_days']:.1f}"
-            )
-        else:
-            lines.append("- Calibration Age (days): n/a")
+        calib_status = row.get("calibration_status", "MISSING")
+        calib_hours = row.get("calibration_age_hours")
+        calib_age_text = "n/a" if calib_hours is None else f"{float(calib_hours):.1f}"
+        lines.append(f"- Calibration Status: {calib_status} (age {calib_age_text}h)")
         if not row.get("go", True):
             reasons = row.get("go_reasons") or []
             if reasons:

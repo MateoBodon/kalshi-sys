@@ -175,13 +175,15 @@ def _calibration_check(
     for series, horizon in SERIES_HORIZONS:
         path = params_path(series, horizon, root=params_root)
         if not path.exists():
-            reasons.append(f"calibration_missing:{series}:{horizon}")
+            reasons.append(f"calibration_missing:{series}:{horizon}:{path.as_posix()}")
             continue
         age = _file_age_days(path, now)
         if age is not None:
             ages[f"{series}:{horizon}"] = age
             if age > max_age_days:
-                reasons.append(f"calibration_stale:{series}:{horizon}:{age:.1f}d")
+                reasons.append(
+                    f"calibration_stale:{series}:{horizon}:{age:.1f}d:{path.as_posix()}"
+                )
     return not reasons, reasons, ages
 
 

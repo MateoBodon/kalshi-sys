@@ -130,6 +130,7 @@ Commands (expected):
 Required artifacts:
 - `data/proc/calibration/index/<SERIES>/<ASOF_DATE>.json` (or parquet)
 - `reports/calibration/index_summary_<ASOF_DATE>.md`
+- `reports/calibration/calibration_ages_<ASOF_DATE>.md`
 - `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration age flags
 
 ### 2.3 Fees: correctness + drift watch

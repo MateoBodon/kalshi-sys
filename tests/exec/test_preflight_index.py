@@ -136,6 +136,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
     now = datetime(2025, 11, 3, 12, 0, tzinfo=ET)
     stale_ts = now - timedelta(days=MAX_CALIBRATION_AGE_DAYS + 2)
     _seed_all_params(tmp_path, stale_ts)
+    expected_path = (tmp_path / "INX" / "close" / "params.json").as_posix()
     freshness_path = tmp_path / "freshness.json"
     _write_freshness_artifact(freshness_path)
     basis_root = tmp_path / "basis"
@@ -158,6 +159,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
     assert not result.go
     assert any(reason.startswith("calibration_stale:") for reason in result.reasons)
+    assert any(expected_path in reason for reason in result.reasons)
 
 
 def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

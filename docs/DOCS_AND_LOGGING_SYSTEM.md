@@ -125,7 +125,7 @@ Otherwise, per-ticket bundles are sufficient.
   - `reports/live/<YYYY-MM-DD>/...`
   - `reports/basis/<SERIES>/<YYYY-MM-DD>.md`
   - `reports/fillcalib/<ASOF_DATE>.md`
-  - `reports/calibration/<ASOF_DATE>.md`
+  - `reports/calibration/calibration_ages_<ASOF_DATE>.md`
   - `reports/ops/<ASOF_DATE>.md`
   - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
   - `reports/fees/<ASOF_DATE>.md`

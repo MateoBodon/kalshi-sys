@@ -1,5 +1,10 @@
 # Changelog
 
+## 2025-12-29
+- Added calibration-age inspector + CLI report (`reports/calibration/calibration_ages_<ASOF_DATE>.md`) and surfaced calibration status in pilot readiness + scoreboard outputs.
+- Preflight calibration NO-GO reasons now include explicit params file paths for stale/missing calibration artifacts.
+- Pilot readiness JSON/markdown now includes calibration age summaries and writes the calibration ages report during `make pilot-readiness`.
+
 ## 2025-12-26
 - Added fill calibration dataset builder that derives conservative maker fill curves from TOB + quote-intent telemetry, with proxy-fill disclaimers and optional parquet output.
 - Scanner now records fill-curve status (uncalibrated only when curves are missing/invalid) and clamps fill alpha from the latest fillcalib curves.

@@ -170,6 +170,8 @@ Scope reminder:
 - `reports/calibration/calibration_ages_<ASOF_DATE>.md`
 - `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration block
 
+**Status:** DONE (2025-12-29)
+
 ---
 
 ## TICKET-106 — AWS supervisor wiring proof (PAPER): systemd + CloudWatch + crash recovery drill artifact
