@@ -17,3 +17,8 @@ Risks / Notes:
 - Calibration age now reflects file mtime (not generated_at), which could differ if files are copied.
 - Scoreboard/readiness statuses are based on worst-case hourly horizon; this is stricter than a min-age approach.
 - Credential check: `.env.local` contains required env var names (`KALSHI_API_KEY_ID`, `KALSHI_PRIVATE_KEY_PEM_PATH`, `POLYGON_API_KEY`). Values not logged.
+
+Additional actions:
+- Confirmed credentials in `.env.local` (names only).
+- `make calibrate-index` failed due to missing `kalshi_alpha.jobs` module; ran equivalent `python -m jobs.calibrate_hourly/close` with `PYTHONPATH=src` instead.
+- Re-ran `make pilot-readiness` to refresh calibration age report.

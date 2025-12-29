@@ -5,3 +5,4 @@
 - Scoreboard and pilot readiness previously only showed a single calibration age value; no consolidated report existed.
 - `make calibrate-index` runs `jobs.calibrate_hourly` and `jobs.calibrate_close`, which use Polygon data (API key needed).
 - `.env.local` contains the required credential variable names (values not logged).
+- `make calibrate-index` currently invokes `python -m kalshi_alpha.jobs...` which fails because `kalshi_alpha.jobs` is not a module; manual `python -m jobs.calibrate_*` with `PYTHONPATH=src` succeeds.
