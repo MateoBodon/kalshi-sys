@@ -1,944 +1,976 @@
-diff --git a/CHANGELOG.md b/CHANGELOG.md
-index bac258e..1953ac2 100644
---- a/CHANGELOG.md
-+++ b/CHANGELOG.md
-@@ -1,5 +1,10 @@
- # Changelog
- 
-+## 2025-12-29
-+- Added calibration-age inspector + CLI report (`reports/calibration/calibration_ages_<ASOF_DATE>.md`) and surfaced calibration status in pilot readiness + scoreboard outputs.
-+- Preflight calibration NO-GO reasons now include explicit params file paths for stale/missing calibration artifacts.
-+- Pilot readiness JSON/markdown now includes calibration age summaries and writes the calibration ages report during `make pilot-readiness`.
-+
- ## 2025-12-26
- - Added fill calibration dataset builder that derives conservative maker fill curves from TOB + quote-intent telemetry, with proxy-fill disclaimers and optional parquet output.
- - Scanner now records fill-curve status (uncalibrated only when curves are missing/invalid) and clamps fill alpha from the latest fillcalib curves.
-diff --git a/docs/CODEX_SPRINT_TICKETS.md b/docs/CODEX_SPRINT_TICKETS.md
-index 26a221c..f41cdb6 100644
---- a/docs/CODEX_SPRINT_TICKETS.md
-+++ b/docs/CODEX_SPRINT_TICKETS.md
-@@ -170,6 +170,8 @@ Scope reminder:
- - `reports/calibration/calibration_ages_<ASOF_DATE>.md`
- - `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration block
- 
-+**Status:** DONE (2025-12-29)
-+
- ---
- 
- ## TICKET-106 — AWS supervisor wiring proof (PAPER): systemd + CloudWatch + crash recovery drill artifact
-diff --git a/docs/DOCS_AND_LOGGING_SYSTEM.md b/docs/DOCS_AND_LOGGING_SYSTEM.md
-index a1e0f59..06b5786 100644
---- a/docs/DOCS_AND_LOGGING_SYSTEM.md
-+++ b/docs/DOCS_AND_LOGGING_SYSTEM.md
-@@ -125,7 +125,7 @@ Otherwise, per-ticket bundles are sufficient.
-   - `reports/live/<YYYY-MM-DD>/...`
-   - `reports/basis/<SERIES>/<YYYY-MM-DD>.md`
-   - `reports/fillcalib/<ASOF_DATE>.md`
--  - `reports/calibration/<ASOF_DATE>.md`
-+  - `reports/calibration/calibration_ages_<ASOF_DATE>.md`
-   - `reports/ops/<ASOF_DATE>.md`
-   - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
-   - `reports/fees/<ASOF_DATE>.md`
-diff --git a/docs/PLAN_OF_RECORD.md b/docs/PLAN_OF_RECORD.md
-index 208d3e9..1e5d171 100644
---- a/docs/PLAN_OF_RECORD.md
-+++ b/docs/PLAN_OF_RECORD.md
-@@ -130,6 +130,7 @@ Commands (expected):
- Required artifacts:
- - `data/proc/calibration/index/<SERIES>/<ASOF_DATE>.json` (or parquet)
- - `reports/calibration/index_summary_<ASOF_DATE>.md`
-+- `reports/calibration/calibration_ages_<ASOF_DATE>.md`
- - `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration age flags
- 
- ### 2.3 Fees: correctness + drift watch
-diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
-index 5de7770..1b64723 100644
---- a/docs/PROGRESS.md
-+++ b/docs/PROGRESS.md
-@@ -2,6 +2,11 @@
- 
- Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
- 
-+## 2025-12-29
-+- Ticket #105 — Added calibration-age inspector + report, surfaced calibration status in readiness/scoreboard, and expanded preflight reasons with explicit calibration file paths.
-+  - Gate status: PAPER
-+  - Evidence: agent run log `docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md`
-+
- ## 2025-12-22
- - Ticket #0 — Project_state rebuild: refreshed `project_state/` docs with generated inventories, symbol index, dependency graph, and navigation; bundled snapshot zip created.
-   - Gate status: PAPER
-diff --git a/src/kalshi_alpha/exec/calibration_ages.py b/src/kalshi_alpha/exec/calibration_ages.py
-new file mode 100644
-index 0000000..de47e93
---- /dev/null
-+++ b/src/kalshi_alpha/exec/calibration_ages.py
-@@ -0,0 +1,376 @@
-+"""Calibration age inspection and reporting for index ladders."""
-+
-+from __future__ import annotations
-+
-+import argparse
-+from dataclasses import dataclass
-+from datetime import UTC, date, datetime
-+from pathlib import Path
-+from typing import Iterable, Sequence
-+from zoneinfo import ZoneInfo
-+
-+ET = ZoneInfo("America/New_York")
-+
-+CALIBRATION_ROOT = Path("data/proc/calib/index")
-+DEFAULT_MAX_AGE_DAYS = 14.0
-+DEFAULT_HOURLY_HOURS = (10, 11, 12, 13, 14, 15, 16)
-+
-+SERIES_SLUGS = {
-+    "INXU": "spx",
-+    "INX": "spx",
-+    "NASDAQ100U": "ndx",
-+    "NASDAQ100": "ndx",
-+}
-+
-+HOURLY_SERIES = ("INXU", "NASDAQ100U")
-+CLOSE_SERIES = ("INX", "NASDAQ100")
-+SERIES_ORDER = ("INXU", "NASDAQ100U", "INX", "NASDAQ100")
-+
-+
-+@dataclass(slots=True)
-+class CalibrationAgeResult:
-+    series: str
-+    horizon: str
-+    file_path: str
-+    mtime_iso: str | None
-+    age_hours: float | None
-+    status: str
-+    reason: str | None = None
-+
-+    def as_dict(self) -> dict[str, object]:
-+        return {
-+            "series": self.series,
-+            "horizon": self.horizon,
-+            "file_path": self.file_path,
-+            "mtime_iso": self.mtime_iso,
-+            "age_hours": self.age_hours,
-+            "status": self.status,
-+            "reason": self.reason,
-+        }
-+
-+
-+@dataclass(slots=True)
-+class CalibrationSeriesSummary:
-+    series: str
-+    status: str
-+    age_hours: float | None
-+    age_days: float | None
-+    reason: str | None
-+
-+    def as_dict(self) -> dict[str, object]:
-+        return {
-+            "series": self.series,
-+            "status": self.status,
-+            "age_hours": self.age_hours,
-+            "age_days": self.age_days,
-+            "reason": self.reason,
-+        }
-+
-+
-+def _ensure_utc(moment: datetime | None) -> datetime:
-+    if moment is None:
-+        return datetime.now(tz=UTC)
-+    return moment.astimezone(UTC) if moment.tzinfo else moment.replace(tzinfo=UTC)
-+
-+
-+def _format_age(age_hours: float | None) -> str:
-+    return "n/a" if age_hours is None else f"{age_hours:.1f}"
-+
-+
-+def _format_timestamp(value: str | None) -> str:
-+    return value or "n/a"
-+
-+
-+def _hourly_candidates(root: Path, slug: str, hour: int) -> list[Path]:
-+    variant = root / slug / "hourly" / f"{hour:02d}00" / "params.json"
-+    aggregate = root / slug / "hourly" / "params.json"
-+    legacy = root / slug / "noon" / "params.json"
-+    return [variant, aggregate, legacy]
-+
-+
-+def _close_candidates(root: Path, slug: str) -> list[Path]:
-+    return [root / slug / "close" / "params.json"]
-+
-+
-+def _age_from_mtime(path: Path, now_utc: datetime) -> tuple[float | None, str | None]:
-+    try:
-+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
-+    except OSError:
-+        return None, None
-+    age_seconds = (now_utc - mtime).total_seconds()
-+    age_hours = max(age_seconds, 0.0) / 3600.0
-+    return age_hours, mtime.isoformat()
-+
-+
-+def _evaluate_candidates(
-+    *,
-+    series: str,
-+    horizon: str,
-+    candidates: Sequence[Path],
-+    now_utc: datetime,
-+    max_age_hours: float,
-+) -> CalibrationAgeResult:
-+    primary = candidates[0]
-+    chosen: Path | None = None
-+    chosen_index = 0
-+    missing_primary: list[str] = []
-+    for idx, candidate in enumerate(candidates):
-+        if candidate.exists():
-+            chosen = candidate
-+            chosen_index = idx
-+            break
-+        missing_primary.append(candidate.as_posix())
-+
-+    file_path = (chosen or primary).as_posix()
-+    if chosen is None:
-+        reason = "missing: " + ", ".join(missing_primary)
-+        return CalibrationAgeResult(
-+            series=series,
-+            horizon=horizon,
-+            file_path=file_path,
-+            mtime_iso=None,
-+            age_hours=None,
-+            status="MISSING",
-+            reason=reason,
-+        )
-+
-+    age_hours, mtime_iso = _age_from_mtime(chosen, now_utc)
-+    if age_hours is None:
-+        return CalibrationAgeResult(
-+            series=series,
-+            horizon=horizon,
-+            file_path=file_path,
-+            mtime_iso=None,
-+            age_hours=None,
-+            status="MISSING",
-+            reason="mtime_unavailable",
-+        )
-+
-+    reason_parts: list[str] = []
-+    if chosen_index > 0 and missing_primary:
-+        reason_parts.append("fallback_used: " + chosen.as_posix())
-+        reason_parts.append("missing_primary: " + ", ".join(missing_primary))
-+
-+    status = "OK"
-+    if age_hours > max_age_hours:
-+        status = "STALE"
-+        reason_parts.append(f"age_hours {age_hours:.1f} > {max_age_hours:.1f}")
-+
-+    reason = "; ".join(reason_parts) if reason_parts else None
-+    return CalibrationAgeResult(
-+        series=series,
-+        horizon=horizon,
-+        file_path=file_path,
-+        mtime_iso=mtime_iso,
-+        age_hours=age_hours,
-+        status=status,
-+        reason=reason,
-+    )
-+
-+
-+def inspect_calibration_ages(
-+    *,
-+    now: datetime | None = None,
-+    root: Path = CALIBRATION_ROOT,
-+    max_age_days: float = DEFAULT_MAX_AGE_DAYS,
-+    series: Sequence[str] | None = None,
-+    hourly_hours: Sequence[int] = DEFAULT_HOURLY_HOURS,
-+) -> list[CalibrationAgeResult]:
-+    now_utc = _ensure_utc(now)
-+    max_age_hours = max_age_days * 24.0
-+    series_list = [s.upper() for s in (series or SERIES_ORDER)]
-+    results: list[CalibrationAgeResult] = []
-+
-+    for entry in series_list:
-+        slug = SERIES_SLUGS.get(entry)
-+        if not slug:
-+            continue
-+        if entry in HOURLY_SERIES:
-+            for hour in hourly_hours:
-+                horizon = f"hourly-{int(hour):02d}00"
-+                candidates = _hourly_candidates(root, slug, int(hour))
-+                results.append(
-+                    _evaluate_candidates(
-+                        series=entry,
-+                        horizon=horizon,
-+                        candidates=candidates,
-+                        now_utc=now_utc,
-+                        max_age_hours=max_age_hours,
-+                    )
-+                )
-+        else:
-+            candidates = _close_candidates(root, slug)
-+            results.append(
-+                _evaluate_candidates(
-+                    series=entry,
-+                    horizon="close",
-+                    candidates=candidates,
-+                    now_utc=now_utc,
-+                    max_age_hours=max_age_hours,
-+                )
-+            )
-+    return results
-+
-+
-+def summarize_by_series(
-+    results: Iterable[CalibrationAgeResult],
-+) -> dict[str, CalibrationSeriesSummary]:
-+    grouped: dict[str, list[CalibrationAgeResult]] = {}
-+    for entry in results:
-+        grouped.setdefault(entry.series, []).append(entry)
-+
-+    summaries: dict[str, CalibrationSeriesSummary] = {}
-+    for series, entries in grouped.items():
-+        missing = [item for item in entries if item.status == "MISSING"]
-+        stale = [item for item in entries if item.status == "STALE"]
-+        ok = [item for item in entries if item.status == "OK"]
-+        if missing:
-+            reason = "missing: " + ", ".join(item.file_path for item in missing)
-+            summaries[series] = CalibrationSeriesSummary(
-+                series=series,
-+                status="MISSING",
-+                age_hours=None,
-+                age_days=None,
-+                reason=reason,
-+            )
-+            continue
-+        if stale:
-+            age_hours = max(item.age_hours or 0.0 for item in stale)
-+            reason = "stale: " + ", ".join(item.file_path for item in stale)
-+            summaries[series] = CalibrationSeriesSummary(
-+                series=series,
-+                status="STALE",
-+                age_hours=age_hours,
-+                age_days=age_hours / 24.0 if age_hours is not None else None,
-+                reason=reason,
-+            )
-+            continue
-+        age_hours = max((item.age_hours or 0.0) for item in ok) if ok else None
-+        summaries[series] = CalibrationSeriesSummary(
-+            series=series,
-+            status="OK",
-+            age_hours=age_hours,
-+            age_days=age_hours / 24.0 if age_hours is not None else None,
-+            reason=None,
-+        )
-+    return summaries
-+
-+
-+def render_markdown(
-+    results: Sequence[CalibrationAgeResult],
-+    *,
-+    asof_date: date,
-+    generated_at: datetime,
-+) -> str:
-+    lines = [
-+        f"# Calibration Ages ({asof_date.isoformat()})",
-+        "",
-+        f"Generated at (UTC): {generated_at.astimezone(UTC).isoformat()}",
-+        "",
-+        "| Series | Horizon | File | MTime (UTC) | Age (hours) | Status | Reason |",
-+        "| --- | --- | --- | --- | --- | --- | --- |",
-+    ]
-+    for entry in results:
-+        lines.append(
-+            "| {series} | {horizon} | {file_path} | {mtime} | {age} | {status} | {reason} |".format(
-+                series=entry.series,
-+                horizon=entry.horizon,
-+                file_path=entry.file_path,
-+                mtime=_format_timestamp(entry.mtime_iso),
-+                age=_format_age(entry.age_hours),
-+                status=entry.status,
-+                reason=entry.reason or "",
-+            )
-+        )
-+    return "\n".join(lines) + "\n"
-+
-+
-+def write_report(
-+    results: Sequence[CalibrationAgeResult],
-+    *,
-+    asof_date: date,
-+    output_path: Path,
-+    generated_at: datetime,
-+) -> Path:
-+    output_path.parent.mkdir(parents=True, exist_ok=True)
-+    output_path.write_text(
-+        render_markdown(results, asof_date=asof_date, generated_at=generated_at),
-+        encoding="utf-8",
-+    )
-+    return output_path
-+
-+
-+def _parse_date(value: str | None, *, now_et: datetime) -> date:
-+    if value:
-+        return date.fromisoformat(value)
-+    return now_et.date()
-+
-+
-+def _build_parser() -> argparse.ArgumentParser:
-+    parser = argparse.ArgumentParser(description="Report calibration ages for index ladders.")
-+    parser.add_argument("--asof-date", help="Override as-of date (YYYY-MM-DD).")
-+    parser.add_argument("--root", type=Path, default=CALIBRATION_ROOT, help="Calibration root directory.")
-+    parser.add_argument("--output", type=Path, default=None, help="Override output markdown path.")
-+    parser.add_argument(
-+        "--max-age-days",
-+        type=float,
-+        default=DEFAULT_MAX_AGE_DAYS,
-+        help="Staleness threshold in days (default: %(default)s).",
-+    )
-+    parser.add_argument(
-+        "--series",
-+        nargs="+",
-+        default=None,
-+        help="Restrict to series (INXU, NASDAQ100U, INX, NASDAQ100).",
-+    )
-+    parser.add_argument(
-+        "--hourly-hours",
-+        nargs="+",
-+        type=int,
-+        default=list(DEFAULT_HOURLY_HOURS),
-+        help="Hourly target hours to check (default: 10 11 12 13 14 15 16).",
-+    )
-+    return parser
-+
-+
-+def main(argv: Sequence[str] | None = None) -> int:
-+    args = _build_parser().parse_args(list(argv) if argv is not None else None)
-+    now_utc = datetime.now(tz=UTC)
-+    now_et = now_utc.astimezone(ET)
-+    asof = _parse_date(args.asof_date, now_et=now_et)
-+    output = (
-+        Path(args.output)
-+        if args.output is not None
-+        else Path("reports/calibration") / f"calibration_ages_{asof.isoformat()}.md"
-+    )
-+    results = inspect_calibration_ages(
-+        now=now_utc,
-+        root=Path(args.root),
-+        max_age_days=float(args.max_age_days),
-+        series=args.series,
-+        hourly_hours=tuple(args.hourly_hours),
-+    )
-+    write_report(results, asof_date=asof, output_path=output, generated_at=now_utc)
-+    print(f"[calibration_ages] wrote {output}")
-+    return 0
-+
-+
-+__all__ = [
-+    "CALIBRATION_ROOT",
-+    "CalibrationAgeResult",
-+    "CalibrationSeriesSummary",
-+    "DEFAULT_HOURLY_HOURS",
-+    "DEFAULT_MAX_AGE_DAYS",
-+    "HOURLY_SERIES",
-+    "SERIES_ORDER",
-+    "SERIES_SLUGS",
-+    "inspect_calibration_ages",
-+    "main",
-+    "render_markdown",
-+    "summarize_by_series",
-+    "write_report",
-+]
-+
-+
-+if __name__ == "__main__":  # pragma: no cover
-+    raise SystemExit(main())
-diff --git a/src/kalshi_alpha/exec/pilot_readiness.py b/src/kalshi_alpha/exec/pilot_readiness.py
-index 20d5cc6..92e347b 100644
---- a/src/kalshi_alpha/exec/pilot_readiness.py
-+++ b/src/kalshi_alpha/exec/pilot_readiness.py
-@@ -3,15 +3,16 @@
- from __future__ import annotations
- 
- import argparse
--import json
- import math
--from collections.abc import Iterable
-+from collections.abc import Iterable, Sequence
- from dataclasses import dataclass
- from datetime import UTC, datetime, timedelta
- from pathlib import Path
- 
- import polars as pl
- 
-+from kalshi_alpha.exec import calibration_ages
-+
- from kalshi_alpha.exec.monitors.freshness import (
-     FRESHNESS_ARTIFACT_PATH,
- )
-@@ -33,14 +34,6 @@ MIN_T_STAT = 2.0
- MAX_ALPHA_GAP = 0.05
- MAX_CALIBRATION_AGE_DAYS = 14.0
- 
--CALIBRATION_ROOT = Path("data/proc/calib/index")
--CALIBRATION_TARGETS: dict[str, tuple[str, tuple[str, ...]]] = {
--    "INXU": ("spx", ("hourly", "noon")),
--    "NASDAQ100U": ("ndx", ("hourly", "noon")),
--    "INX": ("spx", ("close",)),
--    "NASDAQ100": ("ndx", ("close",)),
--}
--
- 
- @dataclass(slots=True)
- class SeriesReadiness:
-@@ -117,48 +110,11 @@ def _alpha_gap_mean(subset: pl.DataFrame) -> float:
-     return float(diff.mean()) if diff.len() else 0.0
- 
- 
--def _file_age_days(path: Path, now: datetime) -> float | None:
--    try:
--        payload = json.loads(path.read_text(encoding="utf-8"))
--        generated_at = payload.get("generated_at")
--        if isinstance(generated_at, str) and generated_at:
--            generated_dt = datetime.fromisoformat(generated_at)
--            if generated_dt.tzinfo is None:
--                generated_dt = generated_dt.replace(tzinfo=UTC)
--            age_seconds = (now.astimezone(UTC) - generated_dt.astimezone(UTC)).total_seconds()
--            if age_seconds >= 0:
--                return age_seconds / 86400.0
--    except (json.JSONDecodeError, ValueError):
--        pass
--    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
--    age_seconds = (now.astimezone(UTC) - mtime).total_seconds()
--    return age_seconds / 86400.0 if age_seconds >= 0 else 0.0
--
--
- def calibration_age_days(series: str, now: datetime) -> float | None:
--    target = CALIBRATION_TARGETS.get(series.upper())
--    if target is None:
--        return None
--    slug, horizons = target
--    ages: list[float] = []
--    for horizon in horizons:
--        base_dir = CALIBRATION_ROOT / slug / horizon
--        candidate_paths: list[Path] = []
--        aggregated = base_dir / "params.json"
--        candidate_paths.append(aggregated)
--        if horizon == "hourly" and base_dir.exists():
--            for child in base_dir.iterdir():
--                if child.is_dir():
--                    candidate_paths.append(child / "params.json")
--        for path in candidate_paths:
--            if not path.exists():
--                continue
--            age = _file_age_days(path, now)
--            if age is not None:
--                ages.append(age)
--    if ages:
--        return min(ages)
--    return None
-+    summary = calibration_ages.summarize_by_series(
-+        calibration_ages.inspect_calibration_ages(now=now, series=[series])
-+    ).get(series.upper())
-+    return summary.age_days if summary else None
- 
- 
- def freshness_status() -> tuple[bool, list[str]]:
-@@ -186,6 +142,7 @@ def evaluate_readiness(
-     *,
-     now: datetime | None = None,
-     window_days: int = WINDOW_DAYS_DEFAULT,
-+    calibration_summary: dict[str, calibration_ages.CalibrationSeriesSummary] | None = None,
- ) -> list[SeriesReadiness]:
-     now = now or datetime.now(tz=UTC)
-     window_start = now - timedelta(days=max(window_days, 1))
-@@ -193,6 +150,10 @@ def evaluate_readiness(
-     if "timestamp_et" in filtered.columns:
-         filtered = filtered.filter(pl.col("timestamp_et") >= window_start)
- 
-+    if calibration_summary is None:
-+        calibration_results = calibration_ages.inspect_calibration_ages(now=now)
-+        calibration_summary = calibration_ages.summarize_by_series(calibration_results)
-+
-     results: list[SeriesReadiness] = []
-     for series in INDEX_SERIES:
-         subset = filtered.filter(pl.col("series") == series)
-@@ -228,10 +189,11 @@ def evaluate_readiness(
-             reasons.append(f"t-stat {t_stat:.2f} < {MIN_T_STAT}")
-         if abs(alpha_gap) > MAX_ALPHA_GAP:
-             reasons.append(f"fill-α gap {alpha_gap:+.3f} exceeds {MAX_ALPHA_GAP}")
--        calib_age = calibration_age_days(series, now)
--        if calib_age is None:
-+        calib_summary = calibration_summary.get(series)
-+        calib_age = calib_summary.age_days if calib_summary else None
-+        if calib_summary is None or calib_summary.status == "MISSING":
-             reasons.append("calibration_missing")
--        elif calib_age > MAX_CALIBRATION_AGE_DAYS:
-+        elif calib_summary.status == "STALE" and calib_age is not None:
-             reasons.append(f"calibration_age {calib_age:.1f}d > {MAX_CALIBRATION_AGE_DAYS:.0f}d")
- 
-         results.append(
-@@ -254,6 +216,7 @@ def render_markdown(
-     window_days: int = WINDOW_DAYS_DEFAULT,
-     freshness_ok: bool = True,
-     freshness_reasons: Iterable[str] | None = None,
-+    calibration_results: Sequence[calibration_ages.CalibrationAgeResult] | None = None,
- ) -> str:
-     lines: list[str] = [f"# Pilot Readiness ({window_days}-day)", ""]
-     go_count = sum(1 for entry in results if entry.go)
-@@ -266,6 +229,23 @@ def render_markdown(
-         for item in reasons_iter:
-             lines.append(f"  - {item}")
-     lines.append("")
-+    if calibration_results:
-+        lines.append("**Calibration Ages**")
-+        lines.append("| Series | Horizon | File | MTime (UTC) | Age (hours) | Status | Reason |")
-+        lines.append("| --- | --- | --- | --- | --- | --- | --- |")
-+        for entry in calibration_results:
-+            lines.append(
-+                "| {series} | {horizon} | {file_path} | {mtime} | {age} | {status} | {reason} |".format(
-+                    series=entry.series,
-+                    horizon=entry.horizon,
-+                    file_path=entry.file_path,
-+                    mtime=entry.mtime_iso or "n/a",
-+                    age="n/a" if entry.age_hours is None else f"{entry.age_hours:.1f}",
-+                    status=entry.status,
-+                    reason=entry.reason or "",
-+                )
-+            )
-+        lines.append("")
-     for entry in results:
-         status = "GO" if entry.go else "NO-GO"
-         lines.append(f"## {entry.series} — {status}")
-@@ -292,7 +272,15 @@ def generate_report(
-     now: datetime | None = None,
- ) -> list[SeriesReadiness]:
-     ledger = _load_ledger(ledger_path)
--    results = evaluate_readiness(ledger, now=now, window_days=window_days)
-+    now = now or datetime.now(tz=UTC)
-+    calibration_results = calibration_ages.inspect_calibration_ages(now=now)
-+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
-+    results = evaluate_readiness(
-+        ledger,
-+        now=now,
-+        window_days=window_days,
-+        calibration_summary=calibration_summary,
-+    )
-     freshness_ok, freshness_reasons = freshness_status()
-     output_path.parent.mkdir(parents=True, exist_ok=True)
-     output_path.write_text(
-@@ -301,6 +289,7 @@ def generate_report(
-             window_days=window_days,
-             freshness_ok=freshness_ok,
-             freshness_reasons=freshness_reasons,
-+            calibration_results=calibration_results,
-         ),
-         encoding="utf-8",
-     )
-diff --git a/src/kalshi_alpha/exec/preflight_index.py b/src/kalshi_alpha/exec/preflight_index.py
-index 903a050..6b55c80 100644
---- a/src/kalshi_alpha/exec/preflight_index.py
-+++ b/src/kalshi_alpha/exec/preflight_index.py
-@@ -175,13 +175,15 @@ def _calibration_check(
-     for series, horizon in SERIES_HORIZONS:
-         path = params_path(series, horizon, root=params_root)
-         if not path.exists():
--            reasons.append(f"calibration_missing:{series}:{horizon}")
-+            reasons.append(f"calibration_missing:{series}:{horizon}:{path.as_posix()}")
-             continue
-         age = _file_age_days(path, now)
-         if age is not None:
-             ages[f"{series}:{horizon}"] = age
-             if age > max_age_days:
--                reasons.append(f"calibration_stale:{series}:{horizon}:{age:.1f}d")
-+                reasons.append(
-+                    f"calibration_stale:{series}:{horizon}:{age:.1f}d:{path.as_posix()}"
-+                )
-     return not reasons, reasons, ages
- 
- 
-diff --git a/src/kalshi_alpha/exec/reports/ramp.py b/src/kalshi_alpha/exec/reports/ramp.py
-index 226d0d5..eff502c 100644
---- a/src/kalshi_alpha/exec/reports/ramp.py
-+++ b/src/kalshi_alpha/exec/reports/ramp.py
-@@ -7,9 +7,10 @@ import json
- import math
- from collections.abc import Sequence
- from dataclasses import dataclass
--from datetime import UTC, datetime, timedelta
-+from datetime import UTC, date, datetime, timedelta
- from pathlib import Path
- from typing import Any
-+from zoneinfo import ZoneInfo
- 
- import polars as pl
- import yaml
-@@ -38,6 +39,7 @@ from kalshi_alpha.exec.monitors.summary import (
-     MONITOR_ARTIFACTS_DIR,
-     summarize_monitor_artifacts,
- )
-+from kalshi_alpha.exec import calibration_ages
- from kalshi_alpha.exec.policy.freeze import FreezeEvaluation, evaluate_freeze_for_series
- 
- LEDGER_PATH = Path("data/proc/ledger_all.parquet")
-@@ -45,6 +47,8 @@ GO_NO_GO_DIR = Path("reports/_artifacts")
- JSON_OUTPUT = Path("reports/pilot_ready.json")
- MARKDOWN_OUTPUT = Path("reports/pilot_readiness.md")
- 
-+ET = ZoneInfo("America/New_York")
-+
- 
- @dataclass(slots=True)
- class RampPolicyConfig:
-@@ -79,6 +83,12 @@ def compute_ramp_policy(
- ) -> dict[str, Any]:
-     cfg = config or RampPolicyConfig()
-     moment = _ensure_utc(now or datetime.now(tz=UTC))
-+    calibration_results = calibration_ages.inspect_calibration_ages(now=moment)
-+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
-+    calibration_asof = moment.astimezone(ET).date()
-+    calibration_report_path = (
-+        Path("reports/calibration") / f"calibration_ages_{calibration_asof.isoformat()}.md"
-+    )
- 
-     ledger = _load_ledger(ledger_path)
-     panic_window = max(cfg.panic_alert_window_minutes, 0)
-@@ -315,6 +325,11 @@ def compute_ramp_policy(
-         "decision": "GO" if decision_go else "NO_GO",
-     }
- 
-+    calibration_summary_payload = {
-+        series: summary.as_dict() for series, summary in calibration_summary.items()
-+    }
-+    calibration_entries_payload = [entry.as_dict() for entry in calibration_results]
-+
-     policy = {
-         "generated_at": moment.isoformat(),
-         "criteria": {
-@@ -342,6 +357,10 @@ def compute_ramp_policy(
-         },
-         "data_freshness": data_freshness_summary,
-         "freshness": freshness_summary,
-+        "calibration_asof_date": calibration_asof.isoformat(),
-+        "calibration_report_path": calibration_report_path.as_posix(),
-+        "calibration_summary": calibration_summary_payload,
-+        "calibration_ages": calibration_entries_payload,
-         "monitors_summary": monitors_summary,
-         "series": results,
-         "overall": overall_summary,
-@@ -373,6 +392,35 @@ def write_ramp_outputs(
-     json_path.parent.mkdir(parents=True, exist_ok=True)
-     json_path.write_text(json.dumps(policy, indent=2, sort_keys=True), encoding="utf-8")
- 
-+    calibration_entries = policy.get("calibration_ages") or []
-+    calibration_asof = policy.get("calibration_asof_date")
-+    calibration_report_path = policy.get("calibration_report_path")
-+    generated_at = _parse_timestamp(policy.get("generated_at")) or datetime.now(tz=UTC)
-+    calibration_results: list[calibration_ages.CalibrationAgeResult] = []
-+    for entry in calibration_entries:
-+        if not isinstance(entry, dict):
-+            continue
-+        try:
-+            calibration_results.append(calibration_ages.CalibrationAgeResult(**entry))
-+        except TypeError:
-+            continue
-+    if calibration_results and calibration_asof:
-+        try:
-+            asof_date = date.fromisoformat(str(calibration_asof))
-+        except ValueError:
-+            asof_date = generated_at.astimezone(ET).date()
-+        report_path = (
-+            Path(calibration_report_path)
-+            if calibration_report_path
-+            else Path("reports/calibration") / f"calibration_ages_{asof_date.isoformat()}.md"
-+        )
-+        calibration_ages.write_report(
-+            calibration_results,
-+            asof_date=asof_date,
-+            output_path=report_path,
-+            generated_at=generated_at,
-+        )
-+
-     markdown_path.parent.mkdir(parents=True, exist_ok=True)
-     lines: list[str] = ["# Pilot Ramp Readiness", ""]
-     generated = policy.get("generated_at")
-@@ -442,6 +490,24 @@ def write_ramp_outputs(
-                 )
-         lines.append("")
- 
-+    calibration_summary = policy.get("calibration_summary", {})
-+    if isinstance(calibration_summary, dict) and calibration_summary:
-+        lines.append("**Calibration Ages**")
-+        if calibration_report_path:
-+            lines.append(f"- Report: {calibration_report_path}")
-+        lines.append("| Series | Status | Age (hours) |")
-+        lines.append("| --- | --- | --- |")
-+        for series in calibration_ages.SERIES_ORDER:
-+            entry = calibration_summary.get(series)
-+            if not isinstance(entry, dict):
-+                lines.append(f"| {series} | MISSING | n/a |")
-+                continue
-+            age_hours = entry.get("age_hours")
-+            age_value = _format_number_for_markdown(age_hours) if age_hours is not None else "n/a"
-+            status = entry.get("status", "MISSING")
-+            lines.append(f"| {series} | {status} | {age_value} |")
-+        lines.append("")
-+
-     sequential_triggers = (
-         policy.get("monitors_summary", {}).get("sequential_triggers") or []
-     )
-diff --git a/src/kalshi_alpha/exec/scoreboard.py b/src/kalshi_alpha/exec/scoreboard.py
-index 444325a..eec62aa 100644
---- a/src/kalshi_alpha/exec/scoreboard.py
-+++ b/src/kalshi_alpha/exec/scoreboard.py
-@@ -14,6 +14,7 @@ from pathlib import Path
- import polars as pl
- 
- from kalshi_alpha.utils.family import resolve_family
-+from kalshi_alpha.exec import calibration_ages
- from kalshi_alpha.exec import slo
- from kalshi_alpha.core.execution import defaults as execution_defaults
- from kalshi_alpha.core.execution.index_models import (
-@@ -161,6 +162,8 @@ def main(argv: list[str] | None = None) -> None:
-     ledger = _load_ledger()
-     calibrations = _load_calibrations()
-     alpha_state = _load_alpha_state()
-+    calibration_results = calibration_ages.inspect_calibration_ages(now=now)
-+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
-     windows = {int(max(days, 1)) for days in args.window}
-     reports_dir = Path("reports")
-     reports_dir.mkdir(parents=True, exist_ok=True)
-@@ -169,7 +172,13 @@ def main(argv: list[str] | None = None) -> None:
-     cw_window = max(windows) if windows else None
-     cw_metrics: dict[str, slo.SLOSeriesMetrics] | None = None
-     for window in sorted(windows):
--        summary = _build_summary(ledger, calibrations, alpha_state, window)
-+        summary = _build_summary(
-+            ledger,
-+            calibrations,
-+            alpha_state,
-+            window,
-+            calibration_summary=calibration_summary,
-+        )
-         slo_metrics = slo.collect_metrics(
-             summary,
-             reports_root=reports_dir,
-@@ -186,6 +195,7 @@ def main(argv: list[str] | None = None) -> None:
-             freshness_reasons=freshness_reasons,
-             freshness_summary=freshness_summary,
-             slo_metrics=slo_metrics,
-+            calibration_summary=calibration_summary,
-         )
-         print(f"[scoreboard] wrote {output}")
-         go_count = sum(1 for row in summary if row.get("go"))
-@@ -291,6 +301,8 @@ def _build_summary(  # noqa: PLR0912, PLR0915
-     calibrations: pl.DataFrame,
-     alpha_state: dict[str, float],
-     window_days: int,
-+    *,
-+    calibration_summary: Mapping[str, calibration_ages.CalibrationSeriesSummary] | None = None,
- ) -> list[dict[str, object]]:
-     now = datetime.now(tz=UTC)
-     window_start = now - timedelta(days=window_days)
-@@ -372,7 +384,10 @@ def _build_summary(  # noqa: PLR0912, PLR0915
-             fill_minus_alpha = fill_ratio - float(avg_alpha)
-         subset = frames_by_series.get(series)
-         fills_value = _series_fills(subset)
--        calib_age = pilot_readiness.calibration_age_days(series, now)
-+        calib_summary = (calibration_summary or {}).get(series)
-+        calib_age_days = calib_summary.age_days if calib_summary else None
-+        calib_age_hours = calib_summary.age_hours if calib_summary else None
-+        calib_status = calib_summary.status if calib_summary else "MISSING"
-         metrics = {
-             "series": series,
-             "ev_after_fees": row.get("ev_after_fees", 0.0),
-@@ -394,7 +409,9 @@ def _build_summary(  # noqa: PLR0912, PLR0915
-             "confidence_badge": badge,
-             "ev_plot_lines": ev_plot_lines,
-             "fills_contracts": fills_value,
--            "calibration_age_days": calib_age,
-+            "calibration_status": calib_status,
-+            "calibration_age_hours": calib_age_hours,
-+            "calibration_age_days": calib_age_days,
-         }
-         structure_info = _load_structure_artifact(series)
-         if structure_info:
-@@ -456,11 +473,11 @@ def _build_summary(  # noqa: PLR0912, PLR0915
-             reasons.append(
-                 f"honesty clamp {float(honesty['clamp']):.2f} < 0.75"
-             )
--        if calib_age is None:
-+        if calib_status == "MISSING":
-             reasons.append("calibration_missing")
--        elif calib_age > pilot_readiness.MAX_CALIBRATION_AGE_DAYS:
-+        elif calib_status == "STALE" and calib_age_days is not None:
-             reasons.append(
--                f"calibration_age {calib_age:.1f}d > {pilot_readiness.MAX_CALIBRATION_AGE_DAYS:.0f}d"
-+                f"calibration_age {calib_age_days:.1f}d > {pilot_readiness.MAX_CALIBRATION_AGE_DAYS:.0f}d"
-             )
-         metrics["go"] = not reasons
-         metrics["go_reasons"] = reasons
-@@ -551,6 +568,7 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
-     freshness_reasons: Sequence[str] | None = None,
-     freshness_summary: dict[str, object] | None = None,
-     slo_metrics: Mapping[str, slo.SLOSeriesMetrics] | None = None,
-+    calibration_summary: Mapping[str, calibration_ages.CalibrationSeriesSummary] | None = None,
- ) -> None:
-     lines: list[str] = []
-     lines.append(f"# Scoreboard ({window_days}-day)")
-@@ -566,6 +584,22 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
-         lines.append("- Freshness Metrics:")
-         lines.extend(f"  - {line}" for line in metric_lines)
-     lines.append("")
-+    if calibration_summary:
-+        lines.append("Calibration Ages:")
-+        lines.append("| Series | Status | Age (hours) |")
-+        lines.append("| --- | --- | --- |")
-+        for series in INDEX_SERIES_ORDER:
-+            summary_entry = calibration_summary.get(series)
-+            if summary_entry is None:
-+                lines.append(f"| {series} | MISSING | n/a |")
-+                continue
-+            age_value = (
-+                "n/a"
-+                if summary_entry.age_hours is None
-+                else f"{summary_entry.age_hours:.1f}"
-+            )
-+            lines.append(f"| {series} | {summary_entry.status} | {age_value} |")
-+        lines.append("")
-     if not summary:
-         lines.append("_No ledger data available for this window._")
-     for row in summary:
-@@ -638,12 +672,10 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
-         lines.append(f"- Avg α: {alpha_text}")
-         if row.get("fills_contracts") is not None:
-             lines.append(f"- Fills (contracts): {row['fills_contracts']:.0f}")
--        if row.get("calibration_age_days") is not None:
--            lines.append(
--                f"- Calibration Age (days): {row['calibration_age_days']:.1f}"
--            )
--        else:
--            lines.append("- Calibration Age (days): n/a")
-+        calib_status = row.get("calibration_status", "MISSING")
-+        calib_hours = row.get("calibration_age_hours")
-+        calib_age_text = "n/a" if calib_hours is None else f"{float(calib_hours):.1f}"
-+        lines.append(f"- Calibration Status: {calib_status} (age {calib_age_text}h)")
-         if not row.get("go", True):
-             reasons = row.get("go_reasons") or []
-             if reasons:
-diff --git a/tests/exec/test_preflight_index.py b/tests/exec/test_preflight_index.py
-index a34758c..9a5579e 100644
---- a/tests/exec/test_preflight_index.py
-+++ b/tests/exec/test_preflight_index.py
-@@ -136,6 +136,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
-     now = datetime(2025, 11, 3, 12, 0, tzinfo=ET)
-     stale_ts = now - timedelta(days=MAX_CALIBRATION_AGE_DAYS + 2)
-     _seed_all_params(tmp_path, stale_ts)
-+    expected_path = (tmp_path / "INX" / "close" / "params.json").as_posix()
-     freshness_path = tmp_path / "freshness.json"
-     _write_freshness_artifact(freshness_path)
-     basis_root = tmp_path / "basis"
-@@ -158,6 +159,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
- 
-     assert not result.go
-     assert any(reason.startswith("calibration_stale:") for reason in result.reasons)
-+    assert any(expected_path in reason for reason in result.reasons)
- 
- 
- def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+diff --git a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/COMMANDS.md b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/COMMANDS.md
+index 2a196ff..cf7c2b7 100644
+--- a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/COMMANDS.md
++++ b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/COMMANDS.md
+@@ -37,3 +37,4 @@
+ - `git diff > docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/DIFF.patch` (exit 0)
+ - `PYTHON=python3 make gpt-bundle TICKET=TICKET-105 RUN_NAME=20251229T102829Z_TICKET-105_calibration_age_visibility` (exit 0)
+ - `unzip -l docs/gpt_bundles/gpt_bundle_TICKET-105_20251229T102829Z_TICKET-105_calibration_age_visibility.zip | rg "calibration_ages_2025-12-29.md"` (exit 0)
++- `python3 - <<'PY' ... PY` (exit 0) — listed env var names in .env.local without values
+diff --git a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/DIFF.patch b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/DIFF.patch
+index ae1d71b..e69de29 100644
+--- a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/DIFF.patch
++++ b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/DIFF.patch
+@@ -1,944 +0,0 @@
+-diff --git a/CHANGELOG.md b/CHANGELOG.md
+-index bac258e..1953ac2 100644
+---- a/CHANGELOG.md
+-+++ b/CHANGELOG.md
+-@@ -1,5 +1,10 @@
+- # Changelog
+- 
+-+## 2025-12-29
+-+- Added calibration-age inspector + CLI report (`reports/calibration/calibration_ages_<ASOF_DATE>.md`) and surfaced calibration status in pilot readiness + scoreboard outputs.
+-+- Preflight calibration NO-GO reasons now include explicit params file paths for stale/missing calibration artifacts.
+-+- Pilot readiness JSON/markdown now includes calibration age summaries and writes the calibration ages report during `make pilot-readiness`.
+-+
+- ## 2025-12-26
+- - Added fill calibration dataset builder that derives conservative maker fill curves from TOB + quote-intent telemetry, with proxy-fill disclaimers and optional parquet output.
+- - Scanner now records fill-curve status (uncalibrated only when curves are missing/invalid) and clamps fill alpha from the latest fillcalib curves.
+-diff --git a/docs/CODEX_SPRINT_TICKETS.md b/docs/CODEX_SPRINT_TICKETS.md
+-index 26a221c..f41cdb6 100644
+---- a/docs/CODEX_SPRINT_TICKETS.md
+-+++ b/docs/CODEX_SPRINT_TICKETS.md
+-@@ -170,6 +170,8 @@ Scope reminder:
+- - `reports/calibration/calibration_ages_<ASOF_DATE>.md`
+- - `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration block
+- 
+-+**Status:** DONE (2025-12-29)
+-+
+- ---
+- 
+- ## TICKET-106 — AWS supervisor wiring proof (PAPER): systemd + CloudWatch + crash recovery drill artifact
+-diff --git a/docs/DOCS_AND_LOGGING_SYSTEM.md b/docs/DOCS_AND_LOGGING_SYSTEM.md
+-index a1e0f59..06b5786 100644
+---- a/docs/DOCS_AND_LOGGING_SYSTEM.md
+-+++ b/docs/DOCS_AND_LOGGING_SYSTEM.md
+-@@ -125,7 +125,7 @@ Otherwise, per-ticket bundles are sufficient.
+-   - `reports/live/<YYYY-MM-DD>/...`
+-   - `reports/basis/<SERIES>/<YYYY-MM-DD>.md`
+-   - `reports/fillcalib/<ASOF_DATE>.md`
+--  - `reports/calibration/<ASOF_DATE>.md`
+-+  - `reports/calibration/calibration_ages_<ASOF_DATE>.md`
+-   - `reports/ops/<ASOF_DATE>.md`
+-   - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
+-   - `reports/fees/<ASOF_DATE>.md`
+-diff --git a/docs/PLAN_OF_RECORD.md b/docs/PLAN_OF_RECORD.md
+-index 208d3e9..1e5d171 100644
+---- a/docs/PLAN_OF_RECORD.md
+-+++ b/docs/PLAN_OF_RECORD.md
+-@@ -130,6 +130,7 @@ Commands (expected):
+- Required artifacts:
+- - `data/proc/calibration/index/<SERIES>/<ASOF_DATE>.json` (or parquet)
+- - `reports/calibration/index_summary_<ASOF_DATE>.md`
+-+- `reports/calibration/calibration_ages_<ASOF_DATE>.md`
+- - `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration age flags
+- 
+- ### 2.3 Fees: correctness + drift watch
+-diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+-index 5de7770..1b64723 100644
+---- a/docs/PROGRESS.md
+-+++ b/docs/PROGRESS.md
+-@@ -2,6 +2,11 @@
+- 
+- Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
+- 
+-+## 2025-12-29
+-+- Ticket #105 — Added calibration-age inspector + report, surfaced calibration status in readiness/scoreboard, and expanded preflight reasons with explicit calibration file paths.
+-+  - Gate status: PAPER
+-+  - Evidence: agent run log `docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md`
+-+
+- ## 2025-12-22
+- - Ticket #0 — Project_state rebuild: refreshed `project_state/` docs with generated inventories, symbol index, dependency graph, and navigation; bundled snapshot zip created.
+-   - Gate status: PAPER
+-diff --git a/src/kalshi_alpha/exec/calibration_ages.py b/src/kalshi_alpha/exec/calibration_ages.py
+-new file mode 100644
+-index 0000000..de47e93
+---- /dev/null
+-+++ b/src/kalshi_alpha/exec/calibration_ages.py
+-@@ -0,0 +1,376 @@
+-+"""Calibration age inspection and reporting for index ladders."""
+-+
+-+from __future__ import annotations
+-+
+-+import argparse
+-+from dataclasses import dataclass
+-+from datetime import UTC, date, datetime
+-+from pathlib import Path
+-+from typing import Iterable, Sequence
+-+from zoneinfo import ZoneInfo
+-+
+-+ET = ZoneInfo("America/New_York")
+-+
+-+CALIBRATION_ROOT = Path("data/proc/calib/index")
+-+DEFAULT_MAX_AGE_DAYS = 14.0
+-+DEFAULT_HOURLY_HOURS = (10, 11, 12, 13, 14, 15, 16)
+-+
+-+SERIES_SLUGS = {
+-+    "INXU": "spx",
+-+    "INX": "spx",
+-+    "NASDAQ100U": "ndx",
+-+    "NASDAQ100": "ndx",
+-+}
+-+
+-+HOURLY_SERIES = ("INXU", "NASDAQ100U")
+-+CLOSE_SERIES = ("INX", "NASDAQ100")
+-+SERIES_ORDER = ("INXU", "NASDAQ100U", "INX", "NASDAQ100")
+-+
+-+
+-+@dataclass(slots=True)
+-+class CalibrationAgeResult:
+-+    series: str
+-+    horizon: str
+-+    file_path: str
+-+    mtime_iso: str | None
+-+    age_hours: float | None
+-+    status: str
+-+    reason: str | None = None
+-+
+-+    def as_dict(self) -> dict[str, object]:
+-+        return {
+-+            "series": self.series,
+-+            "horizon": self.horizon,
+-+            "file_path": self.file_path,
+-+            "mtime_iso": self.mtime_iso,
+-+            "age_hours": self.age_hours,
+-+            "status": self.status,
+-+            "reason": self.reason,
+-+        }
+-+
+-+
+-+@dataclass(slots=True)
+-+class CalibrationSeriesSummary:
+-+    series: str
+-+    status: str
+-+    age_hours: float | None
+-+    age_days: float | None
+-+    reason: str | None
+-+
+-+    def as_dict(self) -> dict[str, object]:
+-+        return {
+-+            "series": self.series,
+-+            "status": self.status,
+-+            "age_hours": self.age_hours,
+-+            "age_days": self.age_days,
+-+            "reason": self.reason,
+-+        }
+-+
+-+
+-+def _ensure_utc(moment: datetime | None) -> datetime:
+-+    if moment is None:
+-+        return datetime.now(tz=UTC)
+-+    return moment.astimezone(UTC) if moment.tzinfo else moment.replace(tzinfo=UTC)
+-+
+-+
+-+def _format_age(age_hours: float | None) -> str:
+-+    return "n/a" if age_hours is None else f"{age_hours:.1f}"
+-+
+-+
+-+def _format_timestamp(value: str | None) -> str:
+-+    return value or "n/a"
+-+
+-+
+-+def _hourly_candidates(root: Path, slug: str, hour: int) -> list[Path]:
+-+    variant = root / slug / "hourly" / f"{hour:02d}00" / "params.json"
+-+    aggregate = root / slug / "hourly" / "params.json"
+-+    legacy = root / slug / "noon" / "params.json"
+-+    return [variant, aggregate, legacy]
+-+
+-+
+-+def _close_candidates(root: Path, slug: str) -> list[Path]:
+-+    return [root / slug / "close" / "params.json"]
+-+
+-+
+-+def _age_from_mtime(path: Path, now_utc: datetime) -> tuple[float | None, str | None]:
+-+    try:
+-+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+-+    except OSError:
+-+        return None, None
+-+    age_seconds = (now_utc - mtime).total_seconds()
+-+    age_hours = max(age_seconds, 0.0) / 3600.0
+-+    return age_hours, mtime.isoformat()
+-+
+-+
+-+def _evaluate_candidates(
+-+    *,
+-+    series: str,
+-+    horizon: str,
+-+    candidates: Sequence[Path],
+-+    now_utc: datetime,
+-+    max_age_hours: float,
+-+) -> CalibrationAgeResult:
+-+    primary = candidates[0]
+-+    chosen: Path | None = None
+-+    chosen_index = 0
+-+    missing_primary: list[str] = []
+-+    for idx, candidate in enumerate(candidates):
+-+        if candidate.exists():
+-+            chosen = candidate
+-+            chosen_index = idx
+-+            break
+-+        missing_primary.append(candidate.as_posix())
+-+
+-+    file_path = (chosen or primary).as_posix()
+-+    if chosen is None:
+-+        reason = "missing: " + ", ".join(missing_primary)
+-+        return CalibrationAgeResult(
+-+            series=series,
+-+            horizon=horizon,
+-+            file_path=file_path,
+-+            mtime_iso=None,
+-+            age_hours=None,
+-+            status="MISSING",
+-+            reason=reason,
+-+        )
+-+
+-+    age_hours, mtime_iso = _age_from_mtime(chosen, now_utc)
+-+    if age_hours is None:
+-+        return CalibrationAgeResult(
+-+            series=series,
+-+            horizon=horizon,
+-+            file_path=file_path,
+-+            mtime_iso=None,
+-+            age_hours=None,
+-+            status="MISSING",
+-+            reason="mtime_unavailable",
+-+        )
+-+
+-+    reason_parts: list[str] = []
+-+    if chosen_index > 0 and missing_primary:
+-+        reason_parts.append("fallback_used: " + chosen.as_posix())
+-+        reason_parts.append("missing_primary: " + ", ".join(missing_primary))
+-+
+-+    status = "OK"
+-+    if age_hours > max_age_hours:
+-+        status = "STALE"
+-+        reason_parts.append(f"age_hours {age_hours:.1f} > {max_age_hours:.1f}")
+-+
+-+    reason = "; ".join(reason_parts) if reason_parts else None
+-+    return CalibrationAgeResult(
+-+        series=series,
+-+        horizon=horizon,
+-+        file_path=file_path,
+-+        mtime_iso=mtime_iso,
+-+        age_hours=age_hours,
+-+        status=status,
+-+        reason=reason,
+-+    )
+-+
+-+
+-+def inspect_calibration_ages(
+-+    *,
+-+    now: datetime | None = None,
+-+    root: Path = CALIBRATION_ROOT,
+-+    max_age_days: float = DEFAULT_MAX_AGE_DAYS,
+-+    series: Sequence[str] | None = None,
+-+    hourly_hours: Sequence[int] = DEFAULT_HOURLY_HOURS,
+-+) -> list[CalibrationAgeResult]:
+-+    now_utc = _ensure_utc(now)
+-+    max_age_hours = max_age_days * 24.0
+-+    series_list = [s.upper() for s in (series or SERIES_ORDER)]
+-+    results: list[CalibrationAgeResult] = []
+-+
+-+    for entry in series_list:
+-+        slug = SERIES_SLUGS.get(entry)
+-+        if not slug:
+-+            continue
+-+        if entry in HOURLY_SERIES:
+-+            for hour in hourly_hours:
+-+                horizon = f"hourly-{int(hour):02d}00"
+-+                candidates = _hourly_candidates(root, slug, int(hour))
+-+                results.append(
+-+                    _evaluate_candidates(
+-+                        series=entry,
+-+                        horizon=horizon,
+-+                        candidates=candidates,
+-+                        now_utc=now_utc,
+-+                        max_age_hours=max_age_hours,
+-+                    )
+-+                )
+-+        else:
+-+            candidates = _close_candidates(root, slug)
+-+            results.append(
+-+                _evaluate_candidates(
+-+                    series=entry,
+-+                    horizon="close",
+-+                    candidates=candidates,
+-+                    now_utc=now_utc,
+-+                    max_age_hours=max_age_hours,
+-+                )
+-+            )
+-+    return results
+-+
+-+
+-+def summarize_by_series(
+-+    results: Iterable[CalibrationAgeResult],
+-+) -> dict[str, CalibrationSeriesSummary]:
+-+    grouped: dict[str, list[CalibrationAgeResult]] = {}
+-+    for entry in results:
+-+        grouped.setdefault(entry.series, []).append(entry)
+-+
+-+    summaries: dict[str, CalibrationSeriesSummary] = {}
+-+    for series, entries in grouped.items():
+-+        missing = [item for item in entries if item.status == "MISSING"]
+-+        stale = [item for item in entries if item.status == "STALE"]
+-+        ok = [item for item in entries if item.status == "OK"]
+-+        if missing:
+-+            reason = "missing: " + ", ".join(item.file_path for item in missing)
+-+            summaries[series] = CalibrationSeriesSummary(
+-+                series=series,
+-+                status="MISSING",
+-+                age_hours=None,
+-+                age_days=None,
+-+                reason=reason,
+-+            )
+-+            continue
+-+        if stale:
+-+            age_hours = max(item.age_hours or 0.0 for item in stale)
+-+            reason = "stale: " + ", ".join(item.file_path for item in stale)
+-+            summaries[series] = CalibrationSeriesSummary(
+-+                series=series,
+-+                status="STALE",
+-+                age_hours=age_hours,
+-+                age_days=age_hours / 24.0 if age_hours is not None else None,
+-+                reason=reason,
+-+            )
+-+            continue
+-+        age_hours = max((item.age_hours or 0.0) for item in ok) if ok else None
+-+        summaries[series] = CalibrationSeriesSummary(
+-+            series=series,
+-+            status="OK",
+-+            age_hours=age_hours,
+-+            age_days=age_hours / 24.0 if age_hours is not None else None,
+-+            reason=None,
+-+        )
+-+    return summaries
+-+
+-+
+-+def render_markdown(
+-+    results: Sequence[CalibrationAgeResult],
+-+    *,
+-+    asof_date: date,
+-+    generated_at: datetime,
+-+) -> str:
+-+    lines = [
+-+        f"# Calibration Ages ({asof_date.isoformat()})",
+-+        "",
+-+        f"Generated at (UTC): {generated_at.astimezone(UTC).isoformat()}",
+-+        "",
+-+        "| Series | Horizon | File | MTime (UTC) | Age (hours) | Status | Reason |",
+-+        "| --- | --- | --- | --- | --- | --- | --- |",
+-+    ]
+-+    for entry in results:
+-+        lines.append(
+-+            "| {series} | {horizon} | {file_path} | {mtime} | {age} | {status} | {reason} |".format(
+-+                series=entry.series,
+-+                horizon=entry.horizon,
+-+                file_path=entry.file_path,
+-+                mtime=_format_timestamp(entry.mtime_iso),
+-+                age=_format_age(entry.age_hours),
+-+                status=entry.status,
+-+                reason=entry.reason or "",
+-+            )
+-+        )
+-+    return "\n".join(lines) + "\n"
+-+
+-+
+-+def write_report(
+-+    results: Sequence[CalibrationAgeResult],
+-+    *,
+-+    asof_date: date,
+-+    output_path: Path,
+-+    generated_at: datetime,
+-+) -> Path:
+-+    output_path.parent.mkdir(parents=True, exist_ok=True)
+-+    output_path.write_text(
+-+        render_markdown(results, asof_date=asof_date, generated_at=generated_at),
+-+        encoding="utf-8",
+-+    )
+-+    return output_path
+-+
+-+
+-+def _parse_date(value: str | None, *, now_et: datetime) -> date:
+-+    if value:
+-+        return date.fromisoformat(value)
+-+    return now_et.date()
+-+
+-+
+-+def _build_parser() -> argparse.ArgumentParser:
+-+    parser = argparse.ArgumentParser(description="Report calibration ages for index ladders.")
+-+    parser.add_argument("--asof-date", help="Override as-of date (YYYY-MM-DD).")
+-+    parser.add_argument("--root", type=Path, default=CALIBRATION_ROOT, help="Calibration root directory.")
+-+    parser.add_argument("--output", type=Path, default=None, help="Override output markdown path.")
+-+    parser.add_argument(
+-+        "--max-age-days",
+-+        type=float,
+-+        default=DEFAULT_MAX_AGE_DAYS,
+-+        help="Staleness threshold in days (default: %(default)s).",
+-+    )
+-+    parser.add_argument(
+-+        "--series",
+-+        nargs="+",
+-+        default=None,
+-+        help="Restrict to series (INXU, NASDAQ100U, INX, NASDAQ100).",
+-+    )
+-+    parser.add_argument(
+-+        "--hourly-hours",
+-+        nargs="+",
+-+        type=int,
+-+        default=list(DEFAULT_HOURLY_HOURS),
+-+        help="Hourly target hours to check (default: 10 11 12 13 14 15 16).",
+-+    )
+-+    return parser
+-+
+-+
+-+def main(argv: Sequence[str] | None = None) -> int:
+-+    args = _build_parser().parse_args(list(argv) if argv is not None else None)
+-+    now_utc = datetime.now(tz=UTC)
+-+    now_et = now_utc.astimezone(ET)
+-+    asof = _parse_date(args.asof_date, now_et=now_et)
+-+    output = (
+-+        Path(args.output)
+-+        if args.output is not None
+-+        else Path("reports/calibration") / f"calibration_ages_{asof.isoformat()}.md"
+-+    )
+-+    results = inspect_calibration_ages(
+-+        now=now_utc,
+-+        root=Path(args.root),
+-+        max_age_days=float(args.max_age_days),
+-+        series=args.series,
+-+        hourly_hours=tuple(args.hourly_hours),
+-+    )
+-+    write_report(results, asof_date=asof, output_path=output, generated_at=now_utc)
+-+    print(f"[calibration_ages] wrote {output}")
+-+    return 0
+-+
+-+
+-+__all__ = [
+-+    "CALIBRATION_ROOT",
+-+    "CalibrationAgeResult",
+-+    "CalibrationSeriesSummary",
+-+    "DEFAULT_HOURLY_HOURS",
+-+    "DEFAULT_MAX_AGE_DAYS",
+-+    "HOURLY_SERIES",
+-+    "SERIES_ORDER",
+-+    "SERIES_SLUGS",
+-+    "inspect_calibration_ages",
+-+    "main",
+-+    "render_markdown",
+-+    "summarize_by_series",
+-+    "write_report",
+-+]
+-+
+-+
+-+if __name__ == "__main__":  # pragma: no cover
+-+    raise SystemExit(main())
+-diff --git a/src/kalshi_alpha/exec/pilot_readiness.py b/src/kalshi_alpha/exec/pilot_readiness.py
+-index 20d5cc6..92e347b 100644
+---- a/src/kalshi_alpha/exec/pilot_readiness.py
+-+++ b/src/kalshi_alpha/exec/pilot_readiness.py
+-@@ -3,15 +3,16 @@
+- from __future__ import annotations
+- 
+- import argparse
+--import json
+- import math
+--from collections.abc import Iterable
+-+from collections.abc import Iterable, Sequence
+- from dataclasses import dataclass
+- from datetime import UTC, datetime, timedelta
+- from pathlib import Path
+- 
+- import polars as pl
+- 
+-+from kalshi_alpha.exec import calibration_ages
+-+
+- from kalshi_alpha.exec.monitors.freshness import (
+-     FRESHNESS_ARTIFACT_PATH,
+- )
+-@@ -33,14 +34,6 @@ MIN_T_STAT = 2.0
+- MAX_ALPHA_GAP = 0.05
+- MAX_CALIBRATION_AGE_DAYS = 14.0
+- 
+--CALIBRATION_ROOT = Path("data/proc/calib/index")
+--CALIBRATION_TARGETS: dict[str, tuple[str, tuple[str, ...]]] = {
+--    "INXU": ("spx", ("hourly", "noon")),
+--    "NASDAQ100U": ("ndx", ("hourly", "noon")),
+--    "INX": ("spx", ("close",)),
+--    "NASDAQ100": ("ndx", ("close",)),
+--}
+--
+- 
+- @dataclass(slots=True)
+- class SeriesReadiness:
+-@@ -117,48 +110,11 @@ def _alpha_gap_mean(subset: pl.DataFrame) -> float:
+-     return float(diff.mean()) if diff.len() else 0.0
+- 
+- 
+--def _file_age_days(path: Path, now: datetime) -> float | None:
+--    try:
+--        payload = json.loads(path.read_text(encoding="utf-8"))
+--        generated_at = payload.get("generated_at")
+--        if isinstance(generated_at, str) and generated_at:
+--            generated_dt = datetime.fromisoformat(generated_at)
+--            if generated_dt.tzinfo is None:
+--                generated_dt = generated_dt.replace(tzinfo=UTC)
+--            age_seconds = (now.astimezone(UTC) - generated_dt.astimezone(UTC)).total_seconds()
+--            if age_seconds >= 0:
+--                return age_seconds / 86400.0
+--    except (json.JSONDecodeError, ValueError):
+--        pass
+--    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+--    age_seconds = (now.astimezone(UTC) - mtime).total_seconds()
+--    return age_seconds / 86400.0 if age_seconds >= 0 else 0.0
+--
+--
+- def calibration_age_days(series: str, now: datetime) -> float | None:
+--    target = CALIBRATION_TARGETS.get(series.upper())
+--    if target is None:
+--        return None
+--    slug, horizons = target
+--    ages: list[float] = []
+--    for horizon in horizons:
+--        base_dir = CALIBRATION_ROOT / slug / horizon
+--        candidate_paths: list[Path] = []
+--        aggregated = base_dir / "params.json"
+--        candidate_paths.append(aggregated)
+--        if horizon == "hourly" and base_dir.exists():
+--            for child in base_dir.iterdir():
+--                if child.is_dir():
+--                    candidate_paths.append(child / "params.json")
+--        for path in candidate_paths:
+--            if not path.exists():
+--                continue
+--            age = _file_age_days(path, now)
+--            if age is not None:
+--                ages.append(age)
+--    if ages:
+--        return min(ages)
+--    return None
+-+    summary = calibration_ages.summarize_by_series(
+-+        calibration_ages.inspect_calibration_ages(now=now, series=[series])
+-+    ).get(series.upper())
+-+    return summary.age_days if summary else None
+- 
+- 
+- def freshness_status() -> tuple[bool, list[str]]:
+-@@ -186,6 +142,7 @@ def evaluate_readiness(
+-     *,
+-     now: datetime | None = None,
+-     window_days: int = WINDOW_DAYS_DEFAULT,
+-+    calibration_summary: dict[str, calibration_ages.CalibrationSeriesSummary] | None = None,
+- ) -> list[SeriesReadiness]:
+-     now = now or datetime.now(tz=UTC)
+-     window_start = now - timedelta(days=max(window_days, 1))
+-@@ -193,6 +150,10 @@ def evaluate_readiness(
+-     if "timestamp_et" in filtered.columns:
+-         filtered = filtered.filter(pl.col("timestamp_et") >= window_start)
+- 
+-+    if calibration_summary is None:
+-+        calibration_results = calibration_ages.inspect_calibration_ages(now=now)
+-+        calibration_summary = calibration_ages.summarize_by_series(calibration_results)
+-+
+-     results: list[SeriesReadiness] = []
+-     for series in INDEX_SERIES:
+-         subset = filtered.filter(pl.col("series") == series)
+-@@ -228,10 +189,11 @@ def evaluate_readiness(
+-             reasons.append(f"t-stat {t_stat:.2f} < {MIN_T_STAT}")
+-         if abs(alpha_gap) > MAX_ALPHA_GAP:
+-             reasons.append(f"fill-α gap {alpha_gap:+.3f} exceeds {MAX_ALPHA_GAP}")
+--        calib_age = calibration_age_days(series, now)
+--        if calib_age is None:
+-+        calib_summary = calibration_summary.get(series)
+-+        calib_age = calib_summary.age_days if calib_summary else None
+-+        if calib_summary is None or calib_summary.status == "MISSING":
+-             reasons.append("calibration_missing")
+--        elif calib_age > MAX_CALIBRATION_AGE_DAYS:
+-+        elif calib_summary.status == "STALE" and calib_age is not None:
+-             reasons.append(f"calibration_age {calib_age:.1f}d > {MAX_CALIBRATION_AGE_DAYS:.0f}d")
+- 
+-         results.append(
+-@@ -254,6 +216,7 @@ def render_markdown(
+-     window_days: int = WINDOW_DAYS_DEFAULT,
+-     freshness_ok: bool = True,
+-     freshness_reasons: Iterable[str] | None = None,
+-+    calibration_results: Sequence[calibration_ages.CalibrationAgeResult] | None = None,
+- ) -> str:
+-     lines: list[str] = [f"# Pilot Readiness ({window_days}-day)", ""]
+-     go_count = sum(1 for entry in results if entry.go)
+-@@ -266,6 +229,23 @@ def render_markdown(
+-         for item in reasons_iter:
+-             lines.append(f"  - {item}")
+-     lines.append("")
+-+    if calibration_results:
+-+        lines.append("**Calibration Ages**")
+-+        lines.append("| Series | Horizon | File | MTime (UTC) | Age (hours) | Status | Reason |")
+-+        lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+-+        for entry in calibration_results:
+-+            lines.append(
+-+                "| {series} | {horizon} | {file_path} | {mtime} | {age} | {status} | {reason} |".format(
+-+                    series=entry.series,
+-+                    horizon=entry.horizon,
+-+                    file_path=entry.file_path,
+-+                    mtime=entry.mtime_iso or "n/a",
+-+                    age="n/a" if entry.age_hours is None else f"{entry.age_hours:.1f}",
+-+                    status=entry.status,
+-+                    reason=entry.reason or "",
+-+                )
+-+            )
+-+        lines.append("")
+-     for entry in results:
+-         status = "GO" if entry.go else "NO-GO"
+-         lines.append(f"## {entry.series} — {status}")
+-@@ -292,7 +272,15 @@ def generate_report(
+-     now: datetime | None = None,
+- ) -> list[SeriesReadiness]:
+-     ledger = _load_ledger(ledger_path)
+--    results = evaluate_readiness(ledger, now=now, window_days=window_days)
+-+    now = now or datetime.now(tz=UTC)
+-+    calibration_results = calibration_ages.inspect_calibration_ages(now=now)
+-+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
+-+    results = evaluate_readiness(
+-+        ledger,
+-+        now=now,
+-+        window_days=window_days,
+-+        calibration_summary=calibration_summary,
+-+    )
+-     freshness_ok, freshness_reasons = freshness_status()
+-     output_path.parent.mkdir(parents=True, exist_ok=True)
+-     output_path.write_text(
+-@@ -301,6 +289,7 @@ def generate_report(
+-             window_days=window_days,
+-             freshness_ok=freshness_ok,
+-             freshness_reasons=freshness_reasons,
+-+            calibration_results=calibration_results,
+-         ),
+-         encoding="utf-8",
+-     )
+-diff --git a/src/kalshi_alpha/exec/preflight_index.py b/src/kalshi_alpha/exec/preflight_index.py
+-index 903a050..6b55c80 100644
+---- a/src/kalshi_alpha/exec/preflight_index.py
+-+++ b/src/kalshi_alpha/exec/preflight_index.py
+-@@ -175,13 +175,15 @@ def _calibration_check(
+-     for series, horizon in SERIES_HORIZONS:
+-         path = params_path(series, horizon, root=params_root)
+-         if not path.exists():
+--            reasons.append(f"calibration_missing:{series}:{horizon}")
+-+            reasons.append(f"calibration_missing:{series}:{horizon}:{path.as_posix()}")
+-             continue
+-         age = _file_age_days(path, now)
+-         if age is not None:
+-             ages[f"{series}:{horizon}"] = age
+-             if age > max_age_days:
+--                reasons.append(f"calibration_stale:{series}:{horizon}:{age:.1f}d")
+-+                reasons.append(
+-+                    f"calibration_stale:{series}:{horizon}:{age:.1f}d:{path.as_posix()}"
+-+                )
+-     return not reasons, reasons, ages
+- 
+- 
+-diff --git a/src/kalshi_alpha/exec/reports/ramp.py b/src/kalshi_alpha/exec/reports/ramp.py
+-index 226d0d5..eff502c 100644
+---- a/src/kalshi_alpha/exec/reports/ramp.py
+-+++ b/src/kalshi_alpha/exec/reports/ramp.py
+-@@ -7,9 +7,10 @@ import json
+- import math
+- from collections.abc import Sequence
+- from dataclasses import dataclass
+--from datetime import UTC, datetime, timedelta
+-+from datetime import UTC, date, datetime, timedelta
+- from pathlib import Path
+- from typing import Any
+-+from zoneinfo import ZoneInfo
+- 
+- import polars as pl
+- import yaml
+-@@ -38,6 +39,7 @@ from kalshi_alpha.exec.monitors.summary import (
+-     MONITOR_ARTIFACTS_DIR,
+-     summarize_monitor_artifacts,
+- )
+-+from kalshi_alpha.exec import calibration_ages
+- from kalshi_alpha.exec.policy.freeze import FreezeEvaluation, evaluate_freeze_for_series
+- 
+- LEDGER_PATH = Path("data/proc/ledger_all.parquet")
+-@@ -45,6 +47,8 @@ GO_NO_GO_DIR = Path("reports/_artifacts")
+- JSON_OUTPUT = Path("reports/pilot_ready.json")
+- MARKDOWN_OUTPUT = Path("reports/pilot_readiness.md")
+- 
+-+ET = ZoneInfo("America/New_York")
+-+
+- 
+- @dataclass(slots=True)
+- class RampPolicyConfig:
+-@@ -79,6 +83,12 @@ def compute_ramp_policy(
+- ) -> dict[str, Any]:
+-     cfg = config or RampPolicyConfig()
+-     moment = _ensure_utc(now or datetime.now(tz=UTC))
+-+    calibration_results = calibration_ages.inspect_calibration_ages(now=moment)
+-+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
+-+    calibration_asof = moment.astimezone(ET).date()
+-+    calibration_report_path = (
+-+        Path("reports/calibration") / f"calibration_ages_{calibration_asof.isoformat()}.md"
+-+    )
+- 
+-     ledger = _load_ledger(ledger_path)
+-     panic_window = max(cfg.panic_alert_window_minutes, 0)
+-@@ -315,6 +325,11 @@ def compute_ramp_policy(
+-         "decision": "GO" if decision_go else "NO_GO",
+-     }
+- 
+-+    calibration_summary_payload = {
+-+        series: summary.as_dict() for series, summary in calibration_summary.items()
+-+    }
+-+    calibration_entries_payload = [entry.as_dict() for entry in calibration_results]
+-+
+-     policy = {
+-         "generated_at": moment.isoformat(),
+-         "criteria": {
+-@@ -342,6 +357,10 @@ def compute_ramp_policy(
+-         },
+-         "data_freshness": data_freshness_summary,
+-         "freshness": freshness_summary,
+-+        "calibration_asof_date": calibration_asof.isoformat(),
+-+        "calibration_report_path": calibration_report_path.as_posix(),
+-+        "calibration_summary": calibration_summary_payload,
+-+        "calibration_ages": calibration_entries_payload,
+-         "monitors_summary": monitors_summary,
+-         "series": results,
+-         "overall": overall_summary,
+-@@ -373,6 +392,35 @@ def write_ramp_outputs(
+-     json_path.parent.mkdir(parents=True, exist_ok=True)
+-     json_path.write_text(json.dumps(policy, indent=2, sort_keys=True), encoding="utf-8")
+- 
+-+    calibration_entries = policy.get("calibration_ages") or []
+-+    calibration_asof = policy.get("calibration_asof_date")
+-+    calibration_report_path = policy.get("calibration_report_path")
+-+    generated_at = _parse_timestamp(policy.get("generated_at")) or datetime.now(tz=UTC)
+-+    calibration_results: list[calibration_ages.CalibrationAgeResult] = []
+-+    for entry in calibration_entries:
+-+        if not isinstance(entry, dict):
+-+            continue
+-+        try:
+-+            calibration_results.append(calibration_ages.CalibrationAgeResult(**entry))
+-+        except TypeError:
+-+            continue
+-+    if calibration_results and calibration_asof:
+-+        try:
+-+            asof_date = date.fromisoformat(str(calibration_asof))
+-+        except ValueError:
+-+            asof_date = generated_at.astimezone(ET).date()
+-+        report_path = (
+-+            Path(calibration_report_path)
+-+            if calibration_report_path
+-+            else Path("reports/calibration") / f"calibration_ages_{asof_date.isoformat()}.md"
+-+        )
+-+        calibration_ages.write_report(
+-+            calibration_results,
+-+            asof_date=asof_date,
+-+            output_path=report_path,
+-+            generated_at=generated_at,
+-+        )
+-+
+-     markdown_path.parent.mkdir(parents=True, exist_ok=True)
+-     lines: list[str] = ["# Pilot Ramp Readiness", ""]
+-     generated = policy.get("generated_at")
+-@@ -442,6 +490,24 @@ def write_ramp_outputs(
+-                 )
+-         lines.append("")
+- 
+-+    calibration_summary = policy.get("calibration_summary", {})
+-+    if isinstance(calibration_summary, dict) and calibration_summary:
+-+        lines.append("**Calibration Ages**")
+-+        if calibration_report_path:
+-+            lines.append(f"- Report: {calibration_report_path}")
+-+        lines.append("| Series | Status | Age (hours) |")
+-+        lines.append("| --- | --- | --- |")
+-+        for series in calibration_ages.SERIES_ORDER:
+-+            entry = calibration_summary.get(series)
+-+            if not isinstance(entry, dict):
+-+                lines.append(f"| {series} | MISSING | n/a |")
+-+                continue
+-+            age_hours = entry.get("age_hours")
+-+            age_value = _format_number_for_markdown(age_hours) if age_hours is not None else "n/a"
+-+            status = entry.get("status", "MISSING")
+-+            lines.append(f"| {series} | {status} | {age_value} |")
+-+        lines.append("")
+-+
+-     sequential_triggers = (
+-         policy.get("monitors_summary", {}).get("sequential_triggers") or []
+-     )
+-diff --git a/src/kalshi_alpha/exec/scoreboard.py b/src/kalshi_alpha/exec/scoreboard.py
+-index 444325a..eec62aa 100644
+---- a/src/kalshi_alpha/exec/scoreboard.py
+-+++ b/src/kalshi_alpha/exec/scoreboard.py
+-@@ -14,6 +14,7 @@ from pathlib import Path
+- import polars as pl
+- 
+- from kalshi_alpha.utils.family import resolve_family
+-+from kalshi_alpha.exec import calibration_ages
+- from kalshi_alpha.exec import slo
+- from kalshi_alpha.core.execution import defaults as execution_defaults
+- from kalshi_alpha.core.execution.index_models import (
+-@@ -161,6 +162,8 @@ def main(argv: list[str] | None = None) -> None:
+-     ledger = _load_ledger()
+-     calibrations = _load_calibrations()
+-     alpha_state = _load_alpha_state()
+-+    calibration_results = calibration_ages.inspect_calibration_ages(now=now)
+-+    calibration_summary = calibration_ages.summarize_by_series(calibration_results)
+-     windows = {int(max(days, 1)) for days in args.window}
+-     reports_dir = Path("reports")
+-     reports_dir.mkdir(parents=True, exist_ok=True)
+-@@ -169,7 +172,13 @@ def main(argv: list[str] | None = None) -> None:
+-     cw_window = max(windows) if windows else None
+-     cw_metrics: dict[str, slo.SLOSeriesMetrics] | None = None
+-     for window in sorted(windows):
+--        summary = _build_summary(ledger, calibrations, alpha_state, window)
+-+        summary = _build_summary(
+-+            ledger,
+-+            calibrations,
+-+            alpha_state,
+-+            window,
+-+            calibration_summary=calibration_summary,
+-+        )
+-         slo_metrics = slo.collect_metrics(
+-             summary,
+-             reports_root=reports_dir,
+-@@ -186,6 +195,7 @@ def main(argv: list[str] | None = None) -> None:
+-             freshness_reasons=freshness_reasons,
+-             freshness_summary=freshness_summary,
+-             slo_metrics=slo_metrics,
+-+            calibration_summary=calibration_summary,
+-         )
+-         print(f"[scoreboard] wrote {output}")
+-         go_count = sum(1 for row in summary if row.get("go"))
+-@@ -291,6 +301,8 @@ def _build_summary(  # noqa: PLR0912, PLR0915
+-     calibrations: pl.DataFrame,
+-     alpha_state: dict[str, float],
+-     window_days: int,
+-+    *,
+-+    calibration_summary: Mapping[str, calibration_ages.CalibrationSeriesSummary] | None = None,
+- ) -> list[dict[str, object]]:
+-     now = datetime.now(tz=UTC)
+-     window_start = now - timedelta(days=window_days)
+-@@ -372,7 +384,10 @@ def _build_summary(  # noqa: PLR0912, PLR0915
+-             fill_minus_alpha = fill_ratio - float(avg_alpha)
+-         subset = frames_by_series.get(series)
+-         fills_value = _series_fills(subset)
+--        calib_age = pilot_readiness.calibration_age_days(series, now)
+-+        calib_summary = (calibration_summary or {}).get(series)
+-+        calib_age_days = calib_summary.age_days if calib_summary else None
+-+        calib_age_hours = calib_summary.age_hours if calib_summary else None
+-+        calib_status = calib_summary.status if calib_summary else "MISSING"
+-         metrics = {
+-             "series": series,
+-             "ev_after_fees": row.get("ev_after_fees", 0.0),
+-@@ -394,7 +409,9 @@ def _build_summary(  # noqa: PLR0912, PLR0915
+-             "confidence_badge": badge,
+-             "ev_plot_lines": ev_plot_lines,
+-             "fills_contracts": fills_value,
+--            "calibration_age_days": calib_age,
+-+            "calibration_status": calib_status,
+-+            "calibration_age_hours": calib_age_hours,
+-+            "calibration_age_days": calib_age_days,
+-         }
+-         structure_info = _load_structure_artifact(series)
+-         if structure_info:
+-@@ -456,11 +473,11 @@ def _build_summary(  # noqa: PLR0912, PLR0915
+-             reasons.append(
+-                 f"honesty clamp {float(honesty['clamp']):.2f} < 0.75"
+-             )
+--        if calib_age is None:
+-+        if calib_status == "MISSING":
+-             reasons.append("calibration_missing")
+--        elif calib_age > pilot_readiness.MAX_CALIBRATION_AGE_DAYS:
+-+        elif calib_status == "STALE" and calib_age_days is not None:
+-             reasons.append(
+--                f"calibration_age {calib_age:.1f}d > {pilot_readiness.MAX_CALIBRATION_AGE_DAYS:.0f}d"
+-+                f"calibration_age {calib_age_days:.1f}d > {pilot_readiness.MAX_CALIBRATION_AGE_DAYS:.0f}d"
+-             )
+-         metrics["go"] = not reasons
+-         metrics["go_reasons"] = reasons
+-@@ -551,6 +568,7 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
+-     freshness_reasons: Sequence[str] | None = None,
+-     freshness_summary: dict[str, object] | None = None,
+-     slo_metrics: Mapping[str, slo.SLOSeriesMetrics] | None = None,
+-+    calibration_summary: Mapping[str, calibration_ages.CalibrationSeriesSummary] | None = None,
+- ) -> None:
+-     lines: list[str] = []
+-     lines.append(f"# Scoreboard ({window_days}-day)")
+-@@ -566,6 +584,22 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
+-         lines.append("- Freshness Metrics:")
+-         lines.extend(f"  - {line}" for line in metric_lines)
+-     lines.append("")
+-+    if calibration_summary:
+-+        lines.append("Calibration Ages:")
+-+        lines.append("| Series | Status | Age (hours) |")
+-+        lines.append("| --- | --- | --- |")
+-+        for series in INDEX_SERIES_ORDER:
+-+            summary_entry = calibration_summary.get(series)
+-+            if summary_entry is None:
+-+                lines.append(f"| {series} | MISSING | n/a |")
+-+                continue
+-+            age_value = (
+-+                "n/a"
+-+                if summary_entry.age_hours is None
+-+                else f"{summary_entry.age_hours:.1f}"
+-+            )
+-+            lines.append(f"| {series} | {summary_entry.status} | {age_value} |")
+-+        lines.append("")
+-     if not summary:
+-         lines.append("_No ledger data available for this window._")
+-     for row in summary:
+-@@ -638,12 +672,10 @@ def _write_markdown(  # noqa: PLR0912, PLR0915
+-         lines.append(f"- Avg α: {alpha_text}")
+-         if row.get("fills_contracts") is not None:
+-             lines.append(f"- Fills (contracts): {row['fills_contracts']:.0f}")
+--        if row.get("calibration_age_days") is not None:
+--            lines.append(
+--                f"- Calibration Age (days): {row['calibration_age_days']:.1f}"
+--            )
+--        else:
+--            lines.append("- Calibration Age (days): n/a")
+-+        calib_status = row.get("calibration_status", "MISSING")
+-+        calib_hours = row.get("calibration_age_hours")
+-+        calib_age_text = "n/a" if calib_hours is None else f"{float(calib_hours):.1f}"
+-+        lines.append(f"- Calibration Status: {calib_status} (age {calib_age_text}h)")
+-         if not row.get("go", True):
+-             reasons = row.get("go_reasons") or []
+-             if reasons:
+-diff --git a/tests/exec/test_preflight_index.py b/tests/exec/test_preflight_index.py
+-index a34758c..9a5579e 100644
+---- a/tests/exec/test_preflight_index.py
+-+++ b/tests/exec/test_preflight_index.py
+-@@ -136,6 +136,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
+-     now = datetime(2025, 11, 3, 12, 0, tzinfo=ET)
+-     stale_ts = now - timedelta(days=MAX_CALIBRATION_AGE_DAYS + 2)
+-     _seed_all_params(tmp_path, stale_ts)
+-+    expected_path = (tmp_path / "INX" / "close" / "params.json").as_posix()
+-     freshness_path = tmp_path / "freshness.json"
+-     _write_freshness_artifact(freshness_path)
+-     basis_root = tmp_path / "basis"
+-@@ -158,6 +159,7 @@ def test_stale_calibration_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyP
+- 
+-     assert not result.go
+-     assert any(reason.startswith("calibration_stale:") for reason in result.reasons)
+-+    assert any(expected_path in reason for reason in result.reasons)
+- 
+- 
+- def test_all_checks_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+diff --git a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/NOTES.md b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/NOTES.md
+index 7ad5006..d519cff 100644
+--- a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/NOTES.md
++++ b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/NOTES.md
+@@ -4,3 +4,4 @@
+ - Strategy calibration files used by index ladders live under `data/proc/calib/index/{spx,ndx}/` with hourly variants (`hourly/<HH00>/params.json`) and close params (`close/params.json`).
+ - Scoreboard and pilot readiness previously only showed a single calibration age value; no consolidated report existed.
+ - `make calibrate-index` runs `jobs.calibrate_hourly` and `jobs.calibrate_close`, which use Polygon data (API key needed).
++- `.env.local` contains the required credential variable names (values not logged).
+diff --git a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md
+index 9136026..2ce204b 100644
+--- a/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md
++++ b/docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md
+@@ -16,3 +16,4 @@ Key Decisions:
+ Risks / Notes:
+ - Calibration age now reflects file mtime (not generated_at), which could differ if files are copied.
+ - Scoreboard/readiness statuses are based on worst-case hourly horizon; this is stricter than a min-age approach.
++- Credential check: `.env.local` contains required env var names (`KALSHI_API_KEY_ID`, `KALSHI_PRIVATE_KEY_PEM_PATH`, `POLYGON_API_KEY`). Values not logged.

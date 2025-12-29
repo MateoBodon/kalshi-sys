@@ -37,3 +37,4 @@
 - `git diff > docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/DIFF.patch` (exit 0)
 - `PYTHON=python3 make gpt-bundle TICKET=TICKET-105 RUN_NAME=20251229T102829Z_TICKET-105_calibration_age_visibility` (exit 0)
 - `unzip -l docs/gpt_bundles/gpt_bundle_TICKET-105_20251229T102829Z_TICKET-105_calibration_age_visibility.zip | rg "calibration_ages_2025-12-29.md"` (exit 0)
+- `python3 - <<'PY' ... PY` (exit 0) — listed env var names in .env.local without values

@@ -16,3 +16,4 @@ Key Decisions:
 Risks / Notes:
 - Calibration age now reflects file mtime (not generated_at), which could differ if files are copied.
 - Scoreboard/readiness statuses are based on worst-case hourly horizon; this is stricter than a min-age approach.
+- Credential check: `.env.local` contains required env var names (`KALSHI_API_KEY_ID`, `KALSHI_PRIVATE_KEY_PEM_PATH`, `POLYGON_API_KEY`). Values not logged.
