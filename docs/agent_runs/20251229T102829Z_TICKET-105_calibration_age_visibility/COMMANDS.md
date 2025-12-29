@@ -43,3 +43,5 @@
 - `set -a; source .env.local; set +a; PYTHONPATH=src python3 -m jobs.calibrate_hourly --series INXU NASDAQ100U` (exit 0)
 - `set -a; source .env.local; set +a; PYTHONPATH=src python3 -m jobs.calibrate_close --series INX NASDAQ100` (exit 0)
 - `PYTHON=python3 make pilot-readiness` (exit 0)
+- `PYTHON=python3 make gpt-bundle TICKET=TICKET-105 RUN_NAME=20251229T102829Z_TICKET-105_calibration_age_visibility` (exit 2; bundle missing calibration params listed in ARTIFACTS.md)
+- `PYTHON=python3 make gpt-bundle TICKET=TICKET-105 RUN_NAME=20251229T102829Z_TICKET-105_calibration_age_visibility` (exit 0)
