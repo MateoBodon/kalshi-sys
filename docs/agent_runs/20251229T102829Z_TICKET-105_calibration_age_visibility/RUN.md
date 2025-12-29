@@ -22,3 +22,4 @@ Additional actions:
 - Confirmed credentials in `.env.local` (names only).
 - `make calibrate-index` failed due to missing `kalshi_alpha.jobs` module; ran equivalent `python -m jobs.calibrate_hourly/close` with `PYTHONPATH=src` instead.
 - Re-ran `make pilot-readiness` to refresh calibration age report.
+- Calibration params refreshed under `data/proc/calib/index/{spx,ndx}/...` (tracked in git).
