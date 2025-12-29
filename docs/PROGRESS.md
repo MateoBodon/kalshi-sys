@@ -6,6 +6,9 @@ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-t
 - Ticket #105 — Added calibration-age inspector + report, surfaced calibration status in readiness/scoreboard, and expanded preflight reasons with explicit calibration file paths.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251229T102829Z_TICKET-105_calibration_age_visibility/RUN.md`
+- Ticket #105 follow-up — Fixed `make calibrate-index` to invoke the jobs modules correctly and refreshed calibration params from live Polygon data.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20251229T173740Z_TICKET-105_calibration_age_visibility/RUN.md`
 
 ## 2025-12-22
 - Ticket #0 — Project_state rebuild: refreshed `project_state/` docs with generated inventories, symbol index, dependency graph, and navigation; bundled snapshot zip created.

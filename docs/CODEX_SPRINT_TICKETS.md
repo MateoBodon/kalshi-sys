@@ -171,6 +171,7 @@ Scope reminder:
 - `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration block
 
 **Status:** DONE (2025-12-29)
+**Follow-up:** 2025-12-29 — fixed `make calibrate-index` to call the `jobs` calibration modules with `PYTHONPATH=src` and refreshed calibration params.
 
 ---
 
