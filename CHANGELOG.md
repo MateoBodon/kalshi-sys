@@ -5,6 +5,9 @@
 - Supervisor index now emits a 60s heartbeat log line and writes heartbeat artifacts during dry-run supervision.
 - Updated AWS/on-call runbooks for the new service name, CloudWatch log group, and crash-recovery drill steps.
 - GPT bundle staging now includes `reports/ops/aws_supervisor_dryrun_*.md` (and legacy supervisor dry-run reports) when present.
+- GPT bundle staging now includes the AWS supervisor systemd unit, CloudWatch config, and on-call/runbook docs for deploy review.
+- Documented ops deploy artifacts in bundle policy + plan of record for AWS supervisor readiness.
+- Marked TICKET-106 as FAIL pending committed unit + bundle reviewability; tracked remediation under TICKET-110.
 - Queued TICKET-109 to refresh project_state docs/bundle after ops wiring changes.
 
 ## 2025-12-29

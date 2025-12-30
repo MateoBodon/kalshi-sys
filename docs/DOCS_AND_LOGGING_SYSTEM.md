@@ -99,6 +99,12 @@ B) **Per-ticket bundles** (small, fast)
     - `reports/pilot_ready.json`
     - `reports/pilot_readiness.md`
     - `reports/calibration/**` (calibration age reports, including nested markdown)
+  - ops deploy review artifacts when relevant:
+    - `configs/systemd/kalshi-index-supervisor-paper.service`
+    - `configs/cloudwatch/kalshi-supervisor-index.json`
+    - `docs/runbooks/aws_supervisor_index.md`
+    - `docs/runbooks/oncall_checks.md`
+    - `reports/ops/aws_supervisor_dryrun_*.md`
 - Should also include a zip:
   - `docs/gpt_bundles/ticket_<...>.zip`
 

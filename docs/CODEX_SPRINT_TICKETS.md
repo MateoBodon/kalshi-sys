@@ -229,7 +229,7 @@ Scope reminder:
 - `reports/ops/aws_supervisor_dryrun_<DATE>.md`
 - `docs/agent_runs/<RUN_NAME>/` includes screenshots/log excerpts (redacted)
 
-**Status:** DONE (2025-12-30) — AWS systemd + CloudWatch evidence captured; crash recovery drill documented.
+**Status:** FAIL (2025-12-30) — unit/bundle reviewability gaps; systemd unit not committed in-repo + bundle missing deploy/runbook files (fixed in TICKET-110).
 
 ---
 
@@ -288,3 +288,42 @@ Scope reminder:
 - `docs/agent_runs/<RUN_NAME>/` updated with bundle evidence
 
 **Status:** DONE (2025-12-26)
+
+---
+
+## TICKET-110 — Finalize AWS PAPER supervisor artifacts (commit + bundle completeness)
+
+**Goal (1 sentence):** Make AWS PAPER supervisor deploys reproducible and reviewable by committing the systemd unit, bundling deploy/runbook artifacts, and updating ticket status docs.
+
+**Likely files/modules:**
+- `configs/systemd/kalshi-index-supervisor-paper.service`
+- `configs/cloudwatch/kalshi-supervisor-index.json`
+- `tools/gpt_bundle_builder.py`
+- `docs/runbooks/aws_supervisor_index.md`
+- `docs/runbooks/oncall_checks.md`
+- `docs/CODEX_SPRINT_TICKETS.md`
+- `docs/PROGRESS.md`
+- `CHANGELOG.md`
+
+**Acceptance criteria:**
+- Systemd unit is committed and remains paper-only (`--dry-run`, explicit index series, heartbeat cadence).
+- Unit uses a non-root service user and an EnvironmentFile path not committed to git.
+- GPT bundle includes deploy/runbook artifacts:
+  - `configs/systemd/kalshi-index-supervisor-paper.service`
+  - `configs/cloudwatch/kalshi-supervisor-index.json`
+  - `docs/runbooks/aws_supervisor_index.md`
+  - `docs/runbooks/oncall_checks.md`
+  - `reports/ops/aws_supervisor_dryrun_2025-12-30.md`
+- TICKET-106 marked FAIL until this is complete; TICKET-110 status tracked.
+- New bundle created for review.
+
+**Minimal tests/commands:**
+- `pytest -q`
+- `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-30T10:50:00-05:00`
+- `PYTHON=python3 make gpt-bundle TICKET=TICKET-110 RUN_NAME=<RUN_NAME>`
+
+**Expected artifacts:**
+- `docs/gpt_bundles/gpt_bundle_TICKET-110_<RUN_NAME>.zip`
+- `docs/agent_runs/<RUN_NAME>/` run log with bundle verification
+
+**Status:** IN PROGRESS (2025-12-30)

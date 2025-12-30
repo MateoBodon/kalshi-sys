@@ -220,6 +220,11 @@ Required artifacts:
 - `reports/ops/aws_supervisor_dryrun_<DATE>.md` (start/stop times, restarts, incident notes)
 - Heartbeat artifacts in `data/proc/state/` (supervisor_index updates ~60s cadence)
 - CloudWatch log group receiving supervisor logs (AWS evidence recorded in run logs)
+- Per-ticket GPT bundles include the systemd unit, CloudWatch config, and runbooks for review:
+  - `configs/systemd/kalshi-index-supervisor-paper.service`
+  - `configs/cloudwatch/kalshi-supervisor-index.json`
+  - `docs/runbooks/aws_supervisor_index.md`
+  - `docs/runbooks/oncall_checks.md`
 
 ---
 
