@@ -6,7 +6,8 @@ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-t
 - Ticket #106 — AWS supervisor wiring proof (PAPER): **FAIL** (unit/bundle reviewability gaps; systemd unit not committed in-repo + deploy/runbook files missing from bundles before TICKET-110).
   - Gate status: PAPER (blocked)
   - Evidence: report `reports/ops/aws_supervisor_dryrun_2025-12-30.md`; agent run log `docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/RUN.md`
-- Ticket #110 — Finalize AWS PAPER supervisor artifacts: IN PROGRESS (commit paper-only unit, bundle deploy/runbook files, update ticket status docs, produce new bundle).
+- Ticket #110 — Finalize AWS PAPER supervisor artifacts: DONE (paper-only unit annotated, deploy/runbook artifacts bundled, ticket statuses corrected, review bundle produced).
+  - Evidence: agent run log `docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RUN.md`; bundle `docs/gpt_bundles/gpt_bundle_TICKET-110_20251230T105711Z_TICKET-110_ops_bundle_finalize.zip`
 - Project_state drift noted; queued TICKET-109 to refresh project_state docs/bundle after ops wiring updates.
 
 ## 2025-12-29
