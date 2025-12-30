@@ -132,6 +132,522 @@ index 1719484..d9e8f21 100644
  - Project_state drift noted; queued TICKET-109 to refresh project_state docs/bundle after ops wiring updates.
  
  ## 2025-12-29
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/ARTIFACTS.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/ARTIFACTS.md
+new file mode 100644
+index 0000000..b7bbab6
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/ARTIFACTS.md
+@@ -0,0 +1,7 @@
++# ARTIFACTS
++
++- configs/systemd/kalshi-index-supervisor-paper.service
++- configs/cloudwatch/kalshi-supervisor-index.json
++- docs/runbooks/aws_supervisor_index.md
++- docs/runbooks/oncall_checks.md
++- reports/ops/aws_supervisor_dryrun_2025-12-30.md
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/COMMANDS.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/COMMANDS.md
+new file mode 100644
+index 0000000..51b261a
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/COMMANDS.md
+@@ -0,0 +1,52 @@
++# Commands (with exit codes)
++
++- `ls` (exit 0)
++- `cat AGENTS.md` (exit 0)
++- `sed -n '1,220p' docs/CODEX_SPRINT_TICKETS.md` (exit 0)
++- `sed -n '220,520p' docs/CODEX_SPRINT_TICKETS.md` (exit 0)
++- `sed -n '1,200p' docs/PROGRESS.md` (exit 0)
++- `ls -la configs/systemd` (exit 0)
++- `ls -la configs/cloudwatch` (exit 0)
++- `git status -sb` (exit 0)
++- `git ls-files configs/systemd/kalshi-index-supervisor-paper.service configs/cloudwatch/kalshi-supervisor-index.json` (exit 0)
++- `cat configs/systemd/kalshi-index-supervisor-paper.service` (exit 0)
++- `git checkout -b codex/TICKET-110_ops_bundle_finalize` (exit 0)
++- `sed -n '1,200p' docs/runbooks/aws_supervisor_index.md` (exit 0)
++- `sed -n '200,400p' docs/runbooks/aws_supervisor_index.md` (exit 0)
++- `sed -n '1,200p' docs/runbooks/oncall_checks.md` (exit 0)
++- `sed -n '1,240p' tools/gpt_bundle_builder.py` (exit 0)
++- `sed -n '240,520p' tools/gpt_bundle_builder.py` (exit 0)
++- `ls -la reports/ops | head` (exit 0)
++- `git ls-files reports/ops/aws_supervisor_dryrun_2025-12-30.md` (exit 0)
++- `rg -n "bundle" docs/DOCS_AND_LOGGING_SYSTEM.md` (exit 0)
++- `sed -n '60,140p' docs/DOCS_AND_LOGGING_SYSTEM.md` (exit 0)
++- `rg -n "bundle|artifact|systemd|cloudwatch" docs/PLAN_OF_RECORD.md` (exit 0)
++- `sed -n '160,220p' docs/PLAN_OF_RECORD.md` (exit 0)
++- `sed -n '220,320p' docs/PLAN_OF_RECORD.md` (exit 0)
++- `rg -n "gpt_bundle_builder|bundle" tests` (exit 0)
++- `sed -n '1,200p' tests/test_gpt_bundle_builder.py` (exit 0)
++- `pytest -q` (exit 0)
++- `python3 -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-30T10:50:00-05:00` (exit 0)
++- `date -u +%Y%m%dT%H%M%SZ` (exit 0)
++- `mkdir -p docs/agent_runs/$RUN_NAME` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/RUN.md <<'EOF' ... EOF` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/NOTES.md <<'EOF' ... EOF` (exit 0)
++- `rg -n "gpt-bundle" Makefile` (exit 0)
++- `sed -n '80,140p' Makefile` (exit 0)
++- `rg -n "_is_empty_or_pending" -n tools/verify_gpt_bundle.py` (exit 0)
++- `sed -n '1,200p' tools/verify_gpt_bundle.py` (exit 0)
++- `sed -n '200,260p' tools/verify_gpt_bundle.py` (exit 0)
++- `rg -n "agent_runs" -S .gitignore **/.gitignore` (exit 0)
++- `git status -sb` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/prompt.md <<'EOF' ... EOF` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/META.json <<'EOF' ... EOF` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/RESULTS.md <<'EOF' ... EOF` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/ARTIFACTS.md <<'EOF' ... EOF` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/FILES_TOUCHED.md <<'EOF' ... EOF` (exit 0)
++- `cat > docs/agent_runs/$RUN_NAME/TESTS.md <<'EOF' ... EOF` (exit 0)
++- `git diff --stat` (exit 0)
++- `git add configs/systemd/kalshi-index-supervisor-paper.service tools/gpt_bundle_builder.py tests/test_gpt_bundle_builder.py` (exit 0)
++- `git commit -m "Bundle AWS supervisor deploy artifacts" -m "Tests: pytest -q; python3 -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-30T10:50:00-05:00"` (exit 0)
++- `git add docs/CODEX_SPRINT_TICKETS.md docs/PROGRESS.md docs/DOCS_AND_LOGGING_SYSTEM.md docs/PLAN_OF_RECORD.md CHANGELOG.md` (exit 0)
++- `git commit -m "Update ticket status and bundle docs" -m "Tests: pytest -q; python3 -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-30T10:50:00-05:00"` (exit 0)
++- `git diff --patch --binary origin/main..HEAD > docs/agent_runs/$RUN_NAME/DIFF.patch` (exit 0)
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/DIFF.patch b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/DIFF.patch
+new file mode 100644
+index 0000000..ff0211c
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/DIFF.patch
+@@ -0,0 +1,248 @@
++diff --git a/CHANGELOG.md b/CHANGELOG.md
++index 6ca6161..d0312d8 100644
++--- a/CHANGELOG.md
+++++ b/CHANGELOG.md
++@@ -5,6 +5,9 @@
++ - Supervisor index now emits a 60s heartbeat log line and writes heartbeat artifacts during dry-run supervision.
++ - Updated AWS/on-call runbooks for the new service name, CloudWatch log group, and crash-recovery drill steps.
++ - GPT bundle staging now includes `reports/ops/aws_supervisor_dryrun_*.md` (and legacy supervisor dry-run reports) when present.
+++- GPT bundle staging now includes the AWS supervisor systemd unit, CloudWatch config, and on-call/runbook docs for deploy review.
+++- Documented ops deploy artifacts in bundle policy + plan of record for AWS supervisor readiness.
+++- Marked TICKET-106 as FAIL pending committed unit + bundle reviewability; tracked remediation under TICKET-110.
++ - Queued TICKET-109 to refresh project_state docs/bundle after ops wiring changes.
++ 
++ ## 2025-12-29
++diff --git a/configs/systemd/kalshi-index-supervisor-paper.service b/configs/systemd/kalshi-index-supervisor-paper.service
++index 958e1d3..d706d69 100644
++--- a/configs/systemd/kalshi-index-supervisor-paper.service
+++++ b/configs/systemd/kalshi-index-supervisor-paper.service
++@@ -9,7 +9,9 @@ Type=simple
++ WorkingDirectory=/opt/kalshi-sys
++ User=kalshi
++ Group=kalshi
+++# PAPER-ONLY: keep EnvironmentFile out of git; never store secrets in repo.
++ EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+++# PAPER-ONLY: do not remove --dry-run or expand series scope without explicit approval.
++ ExecStart=/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --heartbeat-seconds 60 --series INXU NASDAQ100U INX NASDAQ100 --dry-run
++ Restart=always
++ RestartSec=15
++diff --git a/docs/CODEX_SPRINT_TICKETS.md b/docs/CODEX_SPRINT_TICKETS.md
++index 8a943e4..745af39 100644
++--- a/docs/CODEX_SPRINT_TICKETS.md
+++++ b/docs/CODEX_SPRINT_TICKETS.md
++@@ -229,7 +229,7 @@ Scope reminder:
++ - `reports/ops/aws_supervisor_dryrun_<DATE>.md`
++ - `docs/agent_runs/<RUN_NAME>/` includes screenshots/log excerpts (redacted)
++ 
++-**Status:** DONE (2025-12-30) — AWS systemd + CloudWatch evidence captured; crash recovery drill documented.
+++**Status:** FAIL (2025-12-30) — unit/bundle reviewability gaps; systemd unit not committed in-repo + bundle missing deploy/runbook files (fixed in TICKET-110).
++ 
++ ---
++ 
++@@ -288,3 +288,42 @@ Scope reminder:
++ - `docs/agent_runs/<RUN_NAME>/` updated with bundle evidence
++ 
++ **Status:** DONE (2025-12-26)
+++
+++---
+++
+++## TICKET-110 — Finalize AWS PAPER supervisor artifacts (commit + bundle completeness)
+++
+++**Goal (1 sentence):** Make AWS PAPER supervisor deploys reproducible and reviewable by committing the systemd unit, bundling deploy/runbook artifacts, and updating ticket status docs.
+++
+++**Likely files/modules:**
+++- `configs/systemd/kalshi-index-supervisor-paper.service`
+++- `configs/cloudwatch/kalshi-supervisor-index.json`
+++- `tools/gpt_bundle_builder.py`
+++- `docs/runbooks/aws_supervisor_index.md`
+++- `docs/runbooks/oncall_checks.md`
+++- `docs/CODEX_SPRINT_TICKETS.md`
+++- `docs/PROGRESS.md`
+++- `CHANGELOG.md`
+++
+++**Acceptance criteria:**
+++- Systemd unit is committed and remains paper-only (`--dry-run`, explicit index series, heartbeat cadence).
+++- Unit uses a non-root service user and an EnvironmentFile path not committed to git.
+++- GPT bundle includes deploy/runbook artifacts:
+++  - `configs/systemd/kalshi-index-supervisor-paper.service`
+++  - `configs/cloudwatch/kalshi-supervisor-index.json`
+++  - `docs/runbooks/aws_supervisor_index.md`
+++  - `docs/runbooks/oncall_checks.md`
+++  - `reports/ops/aws_supervisor_dryrun_2025-12-30.md`
+++- TICKET-106 marked FAIL until this is complete; TICKET-110 status tracked.
+++- New bundle created for review.
+++
+++**Minimal tests/commands:**
+++- `pytest -q`
+++- `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-30T10:50:00-05:00`
+++- `PYTHON=python3 make gpt-bundle TICKET=TICKET-110 RUN_NAME=<RUN_NAME>`
+++
+++**Expected artifacts:**
+++- `docs/gpt_bundles/gpt_bundle_TICKET-110_<RUN_NAME>.zip`
+++- `docs/agent_runs/<RUN_NAME>/` run log with bundle verification
+++
+++**Status:** IN PROGRESS (2025-12-30)
++diff --git a/docs/DOCS_AND_LOGGING_SYSTEM.md b/docs/DOCS_AND_LOGGING_SYSTEM.md
++index a468f54..39beeee 100644
++--- a/docs/DOCS_AND_LOGGING_SYSTEM.md
+++++ b/docs/DOCS_AND_LOGGING_SYSTEM.md
++@@ -99,6 +99,12 @@ B) **Per-ticket bundles** (small, fast)
++     - `reports/pilot_ready.json`
++     - `reports/pilot_readiness.md`
++     - `reports/calibration/**` (calibration age reports, including nested markdown)
+++  - ops deploy review artifacts when relevant:
+++    - `configs/systemd/kalshi-index-supervisor-paper.service`
+++    - `configs/cloudwatch/kalshi-supervisor-index.json`
+++    - `docs/runbooks/aws_supervisor_index.md`
+++    - `docs/runbooks/oncall_checks.md`
+++    - `reports/ops/aws_supervisor_dryrun_*.md`
++ - Should also include a zip:
++   - `docs/gpt_bundles/ticket_<...>.zip`
++ 
++diff --git a/docs/PLAN_OF_RECORD.md b/docs/PLAN_OF_RECORD.md
++index 2c08271..38b7499 100644
++--- a/docs/PLAN_OF_RECORD.md
+++++ b/docs/PLAN_OF_RECORD.md
++@@ -220,6 +220,11 @@ Required artifacts:
++ - `reports/ops/aws_supervisor_dryrun_<DATE>.md` (start/stop times, restarts, incident notes)
++ - Heartbeat artifacts in `data/proc/state/` (supervisor_index updates ~60s cadence)
++ - CloudWatch log group receiving supervisor logs (AWS evidence recorded in run logs)
+++- Per-ticket GPT bundles include the systemd unit, CloudWatch config, and runbooks for review:
+++  - `configs/systemd/kalshi-index-supervisor-paper.service`
+++  - `configs/cloudwatch/kalshi-supervisor-index.json`
+++  - `docs/runbooks/aws_supervisor_index.md`
+++  - `docs/runbooks/oncall_checks.md`
++ 
++ ---
++ 
++diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
++index 1719484..d9e8f21 100644
++--- a/docs/PROGRESS.md
+++++ b/docs/PROGRESS.md
++@@ -3,9 +3,10 @@
++ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
++ 
++ ## 2025-12-30
++-- Ticket #106 — AWS supervisor wiring proof (PAPER): added paper supervisor systemd unit + CloudWatch log template, added supervisor_index heartbeat cadence/logging, updated AWS/on-call runbooks, and captured AWS systemd + CloudWatch evidence with crash recovery drill.
++-  - Gate status: PAPER
+++- Ticket #106 — AWS supervisor wiring proof (PAPER): **FAIL** (unit/bundle reviewability gaps; systemd unit not committed in-repo + deploy/runbook files missing from bundles before TICKET-110).
+++  - Gate status: PAPER (blocked)
++   - Evidence: report `reports/ops/aws_supervisor_dryrun_2025-12-30.md`; agent run log `docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/RUN.md`
+++- Ticket #110 — Finalize AWS PAPER supervisor artifacts: IN PROGRESS (commit paper-only unit, bundle deploy/runbook files, update ticket status docs, produce new bundle).
++ - Project_state drift noted; queued TICKET-109 to refresh project_state docs/bundle after ops wiring updates.
++ 
++ ## 2025-12-29
++diff --git a/tests/test_gpt_bundle_builder.py b/tests/test_gpt_bundle_builder.py
++index 5d91d52..93dbe53 100644
++--- a/tests/test_gpt_bundle_builder.py
+++++ b/tests/test_gpt_bundle_builder.py
++@@ -36,9 +36,22 @@ def _write_required_files(root: Path) -> None:
++     _write_text(root / "docs" / "DOCS_AND_LOGGING_SYSTEM.md", "docs\n")
++     _write_text(root / "docs" / "CODEX_SPRINT_TICKETS.md", "tickets\n")
++     _write_text(root / "docs" / "PROGRESS.md", "progress\n")
+++    _write_text(
+++        root / "docs" / "runbooks" / "aws_supervisor_index.md",
+++        "aws runbook\n",
+++    )
+++    _write_text(root / "docs" / "runbooks" / "oncall_checks.md", "oncall\n")
++     _write_text(root / "project_state" / "CURRENT_RESULTS.md", "results\n")
++     _write_text(root / "project_state" / "KNOWN_ISSUES.md", "issues\n")
++     _write_text(root / "project_state" / "CONFIG_REFERENCE.md", "config\n")
+++    _write_text(
+++        root / "configs" / "systemd" / "kalshi-index-supervisor-paper.service",
+++        "[Service]\nExecStart=/bin/true\n",
+++    )
+++    _write_text(
+++        root / "configs" / "cloudwatch" / "kalshi-supervisor-index.json",
+++        "{\n  \"logs\": {}\n}\n",
+++    )
++ 
++ 
++ def _write_zip_from_staging(zip_path: Path, staging_root: Path, workspace_root: Path) -> None:
++@@ -78,6 +91,19 @@ def test_stage_bundle_includes_fillcalib_and_readiness_artifacts(tmp_path: Path)
++     _write_zip_from_staging(zip_path, staging_root, tmp_path)
++     with zipfile.ZipFile(zip_path) as zf:
++         names = set(zf.namelist())
+++        assert (
+++            f"docs/gpt_bundles/{run_name}/configs/systemd/kalshi-index-supervisor-paper.service"
+++            in names
+++        )
+++        assert (
+++            f"docs/gpt_bundles/{run_name}/configs/cloudwatch/kalshi-supervisor-index.json"
+++            in names
+++        )
+++        assert (
+++            f"docs/gpt_bundles/{run_name}/docs/runbooks/aws_supervisor_index.md"
+++            in names
+++        )
+++        assert f"docs/gpt_bundles/{run_name}/docs/runbooks/oncall_checks.md" in names
++         assert f"docs/gpt_bundles/{run_name}/data/proc/fillcalib/curves_SMOKE.json" in names
++         assert f"docs/gpt_bundles/{run_name}/reports/fillcalib/SMOKE.md" in names
++         assert f"docs/gpt_bundles/{run_name}/reports/pilot_ready.json" in names
++diff --git a/tools/gpt_bundle_builder.py b/tools/gpt_bundle_builder.py
++index 62c52f8..8ab209c 100644
++--- a/tools/gpt_bundle_builder.py
+++++ b/tools/gpt_bundle_builder.py
++@@ -76,6 +76,20 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
++     docs_dir = workspace_root / "docs"
++     project_state_dir = workspace_root / "project_state"
++     run_log_dir = docs_dir / "agent_runs" / run_name
+++    systemd_unit = (
+++        workspace_root
+++        / "configs"
+++        / "systemd"
+++        / "kalshi-index-supervisor-paper.service"
+++    )
+++    cloudwatch_config = (
+++        workspace_root
+++        / "configs"
+++        / "cloudwatch"
+++        / "kalshi-supervisor-index.json"
+++    )
+++    aws_runbook = docs_dir / "runbooks" / "aws_supervisor_index.md"
+++    oncall_runbook = docs_dir / "runbooks" / "oncall_checks.md"
++ 
++     _require_path(workspace_root / "AGENTS.md", "file")
++     _require_path(docs_dir / "PLAN_OF_RECORD.md", "file")
++@@ -86,6 +100,10 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
++     _require_path(project_state_dir / "KNOWN_ISSUES.md", "file")
++     _require_path(project_state_dir / "CONFIG_REFERENCE.md", "file")
++     _require_path(run_log_dir, "run log directory")
+++    _require_path(systemd_unit, "file")
+++    _require_path(cloudwatch_config, "file")
+++    _require_path(aws_runbook, "file")
+++    _require_path(oncall_runbook, "file")
++ 
++     _copy_file(
++         workspace_root / "AGENTS.md",
++@@ -141,6 +159,30 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
++         staging_root,
++         staged_files,
++     )
+++    _copy_file(
+++        systemd_unit,
+++        staging_root / "configs" / "systemd" / systemd_unit.name,
+++        staging_root,
+++        staged_files,
+++    )
+++    _copy_file(
+++        cloudwatch_config,
+++        staging_root / "configs" / "cloudwatch" / cloudwatch_config.name,
+++        staging_root,
+++        staged_files,
+++    )
+++    _copy_file(
+++        aws_runbook,
+++        staging_root / "docs" / "runbooks" / aws_runbook.name,
+++        staging_root,
+++        staged_files,
+++    )
+++    _copy_file(
+++        oncall_runbook,
+++        staging_root / "docs" / "runbooks" / oncall_runbook.name,
+++        staging_root,
+++        staged_files,
+++    )
++ 
++     _copy_tree(
++         run_log_dir,
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/FILES_TOUCHED.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/FILES_TOUCHED.md
+new file mode 100644
+index 0000000..da529bf
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/FILES_TOUCHED.md
+@@ -0,0 +1,20 @@
++# Files Touched
++
++- CHANGELOG.md
++- configs/systemd/kalshi-index-supervisor-paper.service
++- docs/CODEX_SPRINT_TICKETS.md
++- docs/DOCS_AND_LOGGING_SYSTEM.md
++- docs/PLAN_OF_RECORD.md
++- docs/PROGRESS.md
++- tests/test_gpt_bundle_builder.py
++- tools/gpt_bundle_builder.py
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RUN.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/NOTES.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/COMMANDS.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/TESTS.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/FILES_TOUCHED.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/ARTIFACTS.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RESULTS.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/DIFF.patch
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/prompt.md
++- docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/META.json
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/META.json b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/META.json
+new file mode 100644
+index 0000000..1ef89f2
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/META.json
+@@ -0,0 +1,7 @@
++{
++  "run_name": "20251230T105711Z_TICKET-110_ops_bundle_finalize",
++  "ticket": "TICKET-110",
++  "branch": "codex/TICKET-110_ops_bundle_finalize",
++  "timestamp_utc": "2025-12-30T10:57:11Z",
++  "end_utc": "2025-12-30T10:57:11Z"
++}
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/NOTES.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/NOTES.md
+new file mode 100644
+index 0000000..b7c1c6d
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/NOTES.md
+@@ -0,0 +1,8 @@
++# Notes
++
++Exploration:
++- Verified systemd + CloudWatch configs under `configs/systemd` and `configs/cloudwatch`.
++- Confirmed `configs/systemd/kalshi-index-supervisor-paper.service` is tracked and paper-only.
++- Reviewed `tools/gpt_bundle_builder.py` bundle staging rules.
++- Checked AWS supervisor runbooks (`docs/runbooks/aws_supervisor_index.md`, `docs/runbooks/oncall_checks.md`).
++- Reviewed ticket/status docs (`docs/CODEX_SPRINT_TICKETS.md`, `docs/PROGRESS.md`) and bundle policy docs.
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RESULTS.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RESULTS.md
+new file mode 100644
+index 0000000..4a35821
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RESULTS.md
+@@ -0,0 +1,3 @@
++# Results
++
++- Bundle path: docs/gpt_bundles/gpt_bundle_TICKET-110_20251230T105711Z_TICKET-110_ops_bundle_finalize.zip
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RUN.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RUN.md
+new file mode 100644
+index 0000000..0eabc47
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RUN.md
+@@ -0,0 +1,16 @@
++# Run Summary
++
++Goal: finalize AWS PAPER supervisor deploy artifacts and bundle completeness for TICKET-110.
++
++Changes:
++- Annotated the PAPER-only systemd unit to make dry-run + env file posture explicit.
++- Staged AWS supervisor deploy artifacts (systemd unit, CloudWatch config, runbooks) into GPT bundles.
++- Updated bundle policy docs and plan-of-record to reflect ops deploy artifacts.
++- Marked TICKET-106 as FAIL pending bundle/unit reviewability; added TICKET-110 tracking and progress entry.
++- Added bundle staging regression coverage for the new deploy artifacts.
++
++Decisions:
++- Require the AWS supervisor deploy/runbook files to exist during bundle staging (fail closed if missing).
++
++Risks/Follow-ups:
++- Bundle staging now fails if the deploy/runbook files are missing; ensure they remain tracked.
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/TESTS.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/TESTS.md
+new file mode 100644
+index 0000000..24ee031
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/TESTS.md
+@@ -0,0 +1,4 @@
++# Tests
++
++- `pytest -q` (pass; 124 passed, 746 skipped)
++- `python3 -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-30T10:50:00-05:00` (pass; dry-run/offline smoke)
+diff --git a/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/prompt.md b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/prompt.md
+new file mode 100644
+index 0000000..034103e
+--- /dev/null
++++ b/docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/prompt.md
+@@ -0,0 +1,91 @@
++You are operating under AGENTS.md (binding). Do NOT write a long upfront plan. Follow: explore → implement → test → document.
++
++Ticket: TICKET-110 — Finalize AWS PAPER supervisor artifacts (commit + bundle completeness)
++
++GOAL:
++Make the AWS PAPER supervisor deployment reproducible + reviewable by:
++1) ensuring the systemd unit file is committed in-repo,
++2) ensuring gpt-bundles include the critical deploy/config/runbook files for audit,
++3) cleaning up ticket statuses (TICKET-106 should be FAIL until this is done),
++4) producing a new bundle for review.
++
++CONSTRAINTS / STOP-THE-LINE:
++- Do not make live trading possible by default. Default posture must remain PAPER/dry-run.
++- Never log secrets. Never print env var values, tokens, keys, auth headers.
++- No “fake fixes” (don’t disable the supervisor or hardcode outputs). We want real auditability.
++
++WORKFLOW REQUIREMENTS (from AGENTS.md):
++- Create a feature branch: codex/TICKET-110_ops_bundle_finalize
++- Make 2–6 small commits. Each commit body MUST include: "Tests: <commands>"
++- End with a clean git status.
++
++STEP 1 — EXPLORE
++- Read: AGENTS.md, docs/CODEX_SPRINT_TICKETS.md, docs/PROGRESS.md
++- Inspect current repo state:
++  - ls configs/systemd and configs/cloudwatch
++  - confirm whether configs/systemd/kalshi-index-supervisor-paper.service exists and is tracked by git
++  - inspect tools/gpt_bundle_builder.py to see what is currently staged into bundles
++  - confirm which runbooks were updated for AWS supervisor (docs/runbooks/aws_supervisor_index.md, docs/runbooks/oncall_checks.md)
++
++STEP 2 — IMPLEMENT (make repo reproducible + bundle reviewable)
++A) Systemd unit file (must be committed)
++- Ensure configs/systemd/kalshi-index-supervisor-paper.service exists in-repo and is committed.
++- The unit MUST be paper-only. Require hard args like:
++  - --dry-run
++  - explicit --series INXU NASDAQ100U INX NASDAQ100 (or equivalent strict scope)
++  - set a heartbeat cadence (e.g., --heartbeat-seconds 60) if supported
++- Ensure unit uses a non-root service user (e.g., kalshi) and an EnvironmentFile path that is NOT committed (e.g., /etc/kalshi/kalshi-supervisor.env).
++- Add/adjust comments in the unit to make the “paper-only” posture obvious.
++
++B) Bundle completeness for ops deploy review
++- Update tools/gpt_bundle_builder.py staging so the gpt bundle includes:
++  - configs/systemd/kalshi-index-supervisor-paper.service
++  - configs/cloudwatch/kalshi-supervisor-index.json
++  - docs/runbooks/aws_supervisor_index.md
++  - docs/runbooks/oncall_checks.md
++  - reports/ops/aws_supervisor_dryrun_2025-12-30.md (already staged by recent change; keep it)
++- Keep the bundle minimal: include only these targeted files/patterns (don’t zip the entire repo).
++
++C) Update ticket status docs
++- In docs/CODEX_SPRINT_TICKETS.md:
++  - mark TICKET-106 as FAIL with a one-line reason (missing committed unit/bundle reviewability)
++  - add a new TICKET-110 entry at the bottom with the acceptance criteria above
++- In docs/PROGRESS.md: record TICKET-106 FAIL + TICKET-110 in progress.
++- Update CHANGELOG.md for TICKET-110 once complete.
++
++STEP 3 — TEST
++- Run: pytest -q
++- Run a local paper smoke to validate CLI wiring (no secrets):
++  - python3 -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run --offline --now 2025-12-30T10:50:00-05:00
++  (If args differ, use the correct paper-safe equivalent.)
++- Ensure git status is clean after commits.
++
++STEP 4 — DOCUMENT (run log + reproducibility proof)
++- Create run log dir: docs/agent_runs/<RUN_NAME_NEXT>/ where RUN_NAME_NEXT = $(date -u +%Y%m%dT%H%M%SZ)_TICKET-110_ops_bundle_finalize
++- Write/Update required run log files:
++  - prompt.md (this prompt)
++  - RUN.md (what changed + why)
++  - NOTES.md (what you inspected; key findings)
++  - COMMANDS.md (commands + exit codes)
++  - TESTS.md (tests run + results)
++  - FILES_TOUCHED.md
++  - ARTIFACTS.md (list the bundle + any reports)
++  - META.json (minimal metadata: run_name, ticket, branch, timestamp_utc)
++
++STEP 5 — BUNDLE FOR REVIEW (required)
++- Generate bundle:
++  - PYTHON=python3 make gpt-bundle TICKET=TICKET-110 RUN_NAME=<RUN_NAME_NEXT>
++- Verify the zip contains the critical review files:
++  - unzip -l docs/gpt_bundles/gpt_bundle_TICKET-110_*.zip | rg "configs/systemd/kalshi-index-supervisor-paper.service|configs/cloudwatch/kalshi-supervisor-index.json|docs/runbooks/aws_supervisor_index.md|docs/runbooks/oncall_checks.md|reports/ops/aws_supervisor_dryrun_2025-12-30.md"
++- Record the final bundle path in:
++  - docs/agent_runs/<RUN_NAME_NEXT>/RESULTS.md
++
++Deliverable: a clean PR-ready branch with commits, tests, updated docs, and a reviewable gpt bundle.
++
++<environment_context>
++  <cwd>/Users/mateobodon/Documents/Programming/Projects/kalshi-sys</cwd>
++  <approval_policy>never</approval_policy>
++  <sandbox_mode>danger-full-access</sandbox_mode>
++  <network_access>enabled</network_access>
++  <shell>zsh</shell>
++</environment_context>
 diff --git a/tests/test_gpt_bundle_builder.py b/tests/test_gpt_bundle_builder.py
 index 5d91d52..93dbe53 100644
 --- a/tests/test_gpt_bundle_builder.py
