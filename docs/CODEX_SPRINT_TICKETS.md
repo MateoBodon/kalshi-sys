@@ -144,6 +144,33 @@ Scope reminder:
 
 ---
 
+## TICKET-109 — Project_state refresh after ops wiring changes
+
+**Goal (1 sentence):** Regenerate project_state docs/bundle so summaries match current ops wiring and runbook updates.
+
+**Likely files/modules:**
+- `project_state/CONFIG_REFERENCE.md`
+- `project_state/CURRENT_RESULTS.md`
+- `project_state/KNOWN_ISSUES.md`
+- `docs/DOCS_AND_LOGGING_SYSTEM.md`
+- `docs/PROGRESS.md`
+
+**Acceptance criteria:**
+- project_state bundle rebuilt with up-to-date systemd/CloudWatch references.
+- Summary docs acknowledge latest AWS supervisor wiring proof.
+- Any new/changed ops artifacts reflected in CONFIG_REFERENCE.
+
+**Minimal tests/commands:**
+- `PYTHON=python3 make gpt-bundle TICKET=TICKET-109 RUN_NAME=<RUN_NAME>`
+
+**Expected artifacts:**
+- `docs/gpt_bundles/gpt_bundle_TICKET-109_<RUN_NAME>.zip`
+- Updated `project_state/` docs
+
+**Status:** TODO (queued 2025-12-30)
+
+---
+
 ## TICKET-105 — Calibration age visibility: single summary artifact + scoreboard + explicit NO-GO reasons
 
 **Goal (1 sentence):** Make it impossible to ignore stale calibration by surfacing ages in a single committed artifact and in readiness/scoreboard outputs.
@@ -201,6 +228,8 @@ Scope reminder:
 **Expected artifacts:**
 - `reports/ops/aws_supervisor_dryrun_<DATE>.md`
 - `docs/agent_runs/<RUN_NAME>/` includes screenshots/log excerpts (redacted)
+
+**Status:** DONE (2025-12-30) — AWS systemd + CloudWatch evidence captured; crash recovery drill documented.
 
 ---
 

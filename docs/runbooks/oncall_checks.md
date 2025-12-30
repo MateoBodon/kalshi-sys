@@ -1,12 +1,12 @@
 # On-Call Checks (supervisor_index)
 
-Last updated: 2025-12-21
+Last updated: 2025-12-30
 
-## Quick triage (0-5 minutes)
+## Quick triage (0-5 minutes: “is it alive?”)
 - Check service status:
-  - `systemctl status kalshi-supervisor-index.service`
-- Check recent logs for NO-GO / WS stale:
-  - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
+  - `systemctl status kalshi-index-supervisor-paper.service`
+- Check recent logs for NO-GO / WS stale / heartbeat:
+  - `journalctl -u kalshi-index-supervisor-paper.service --since "15 min ago"`
 - Check heartbeat age:
   - `data/proc/state/heartbeat.json` should be updated within 5 minutes.
 - Check monitor artifacts:
@@ -36,6 +36,21 @@ Last updated: 2025-12-21
   - Validate EnvironmentFile content and permissions.
 - Crash loop:
   - `systemctl status` for exit code; check recent deploys.
+
+## Common failure modes (triage hints)
+- Stale data:
+  - `reports/_artifacts/monitors/freshness.json` shows stale Polygon WS.
+- Stale calibration:
+  - `reports/calibration/calibration_ages_<DATE>.md` flags stale files.
+- Clock skew:
+  - Monitor artifacts or logs show time alignment warnings; verify NTP/chrony.
+
+## Safe restart procedure
+1) Confirm no live mode is enabled (paper-only unit).
+2) Restart the service:
+   - `sudo systemctl restart kalshi-index-supervisor-paper.service`
+3) Confirm logs show new `[heartbeat] updated` lines and no duplicate window runs.
+4) Re-check heartbeat + monitors freshness.
 
 ## Break-glass (only if necessary)
 - Kill switch:

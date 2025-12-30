@@ -3,7 +3,7 @@
 This runbook describes an AWS-ready, fail-closed deployment for the 24/7
 `kalshi_alpha.exec.supervisor_index` loop. Default posture is PAPER/dry-run.
 
-Last updated: 2025-12-21
+Last updated: 2025-12-30
 
 ## AWS access (SSH)
 - Quick connect: `ssh kalshi-aws`
@@ -14,9 +14,10 @@ Last updated: 2025-12-21
 - Default broker: dry (paper). Live must be explicitly armed and is out of scope
   for this runbook unless a separate approval ticket exists.
 - Optional: `--series` can restrict the supervisor to a subset for smoke checks.
-- Canonical systemd unit: `deploy/systemd/supervisor_index.service` (paper-only default).
-  - The template pins `--series INXU` for dry-run verification; adjust only with
-    explicit approval and updated verification evidence.
+- Canonical systemd unit: `configs/systemd/kalshi-index-supervisor-paper.service`
+  (paper-only default).
+  - The template pins `--series INXU NASDAQ100U INX NASDAQ100` for index-only
+    scope; adjust only with explicit approval and updated verification evidence.
 
 ## Prerequisites
 - Repo installed or checked out on the host (example: `/opt/kalshi-sys`).
@@ -53,15 +54,15 @@ KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
 EOF
 sudo chmod 600 /etc/kalshi/kalshi-supervisor.env
 
-sudo cp /opt/kalshi-sys/deploy/systemd/supervisor_index.service \
-  /etc/systemd/system/kalshi-supervisor-index.service
+sudo cp /opt/kalshi-sys/configs/systemd/kalshi-index-supervisor-paper.service \
+  /etc/systemd/system/kalshi-index-supervisor-paper.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now kalshi-supervisor-index.service
+sudo systemctl enable --now kalshi-index-supervisor-paper.service
 
 # Status + (optional) stop/start checks
-sudo systemctl status kalshi-supervisor-index.service
-sudo systemctl stop kalshi-supervisor-index.service
-sudo systemctl start kalshi-supervisor-index.service
+sudo systemctl status kalshi-index-supervisor-paper.service
+sudo systemctl stop kalshi-index-supervisor-paper.service
+sudo systemctl start kalshi-index-supervisor-paper.service
 ```
 
 Notes:
@@ -83,8 +84,9 @@ Required for online supervisor (preflight + discovery):
 
 Optional / ops:
 - `SUPERVISOR_BROKER`
-  - Used by `deploy/systemd/supervisor_index.service` to set broker mode.
-  - Default is `dry`; override only with explicit approval.
+  - Optional compatibility flag; paper supervisor is pinned to `--dry-run` in
+    `configs/systemd/kalshi-index-supervisor-paper.service` and ignores live
+    overrides unless the unit is explicitly edited.
 - `KALSHI_MONITOR_SLACK_WEBHOOK`
   - Used by `kalshi_alpha.exec.monitors.cli` for Slack alerts.
 - `KALSHI_INDEX_PAPER_LEDGER_PATH`
@@ -107,17 +109,17 @@ Runtime artifacts:
 
 ## Deployment (systemd on EC2)
 1) Copy the systemd unit template:
-   - `deploy/systemd/supervisor_index.service`
+   - `configs/systemd/kalshi-index-supervisor-paper.service`
 2) Set WorkingDirectory + User/Group placeholders in the unit file.
 3) Create an EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
    - Include `SUPERVISOR_BROKER=dry` (default) and any required keys.
 4) Install and enable the service:
-   - `sudo cp deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service`
+   - `sudo cp configs/systemd/kalshi-index-supervisor-paper.service /etc/systemd/system/kalshi-index-supervisor-paper.service`
    - `sudo systemctl daemon-reload`
-   - `sudo systemctl enable --now kalshi-supervisor-index.service`
+   - `sudo systemctl enable --now kalshi-index-supervisor-paper.service`
 5) Verify status + logs:
-   - `systemctl status kalshi-supervisor-index.service`
-   - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
+   - `systemctl status kalshi-index-supervisor-paper.service`
+   - `journalctl -u kalshi-index-supervisor-paper.service --since "15 min ago"`
 
 Watchdog behavior:
 - The service uses `Restart=always` and will self-heal after failures.
@@ -140,7 +142,7 @@ Monitoring jobs (recommended):
 ## Log routing (syslog -> CloudWatch)
 On Ubuntu, systemd unit logs are forwarded to `/var/log/syslog` by default.
 The CloudWatch Agent config in this repo tails that file and ships entries
-to the `kalshi-supervisor-index` log group/stream.
+to the index supervisor log group/stream.
 
 ```bash
 sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json \
@@ -150,8 +152,8 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
 ```
 
 CloudWatch destinations (default template):
-- Log group: `/kalshi/kalshi-supervisor-index`
-- Log stream: `{instance_id}`
+- Log group: `/kalshi/kalshi-index-supervisor-paper`
+- Log stream: `{instance_id}/kalshi-index-supervisor-paper`
 
 Example signals to index in CloudWatch:
 - `NO-GO` lines from supervisor logs.
@@ -171,6 +173,8 @@ Heartbeat:
 - Threshold: 5 minutes (see `heartbeat_stale(threshold=timedelta(minutes=5))` in
   `src/kalshi_alpha/exec/runners/scan_ladders.py`).
 - Alarm if last heartbeat is older than 5 minutes.
+- Supervisor logs `[heartbeat] updated` every ~60s (configurable via
+  `--heartbeat-seconds` in the systemd unit).
 
 Monitor artifacts:
 - Path: `reports/_artifacts/monitors/*.json`
@@ -203,6 +207,28 @@ Preflight calibration freshness:
 - Supervisor logs contain `NO-GO` or `polygon_ws_stale` for more than 2 windows.
 - systemd restarts > 3 within 10 minutes (crash loop).
 
+## Crash recovery drill (PAPER)
+Goal: prove systemd restart + safe reconciliation for the paper supervisor.
+
+1) Pick a window that has completed and is past the cancel buffer.
+2) Stop the service (or kill the process) and confirm it is down:
+   - `sudo systemctl stop kalshi-index-supervisor-paper.service`
+3) Start the service and confirm it restarts:
+   - `sudo systemctl start kalshi-index-supervisor-paper.service`
+4) Verify recent logs:
+   - `journalctl -u kalshi-index-supervisor-paper.service --since "10 min ago"`
+   - Expect new `[heartbeat] updated` lines after restart.
+5) Confirm no duplicate window execution:
+   - After restart, logs should show either `skip <window>: past cancel buffer`
+     or only one `running window ...` per window.
+6) Confirm heartbeat artifact advances:
+   - `data/proc/state/heartbeat.json` has a newer timestamp.
+
+Safe reconciliation (PAPER) means:
+- No live orders are placed (systemd unit pins `--dry-run`).
+- Completed windows are not re-executed after the cancel buffer.
+- No stale state reuse: the supervisor recomputes window state from current time.
+
 ## Break-glass procedures
 Kill switch (immediate halt):
 1) Create the sentinel file: `touch data/proc/state/kill_switch`.
@@ -210,8 +236,8 @@ Kill switch (immediate halt):
 3) Remove file to resume (after incident review).
 
 Stop/disable the service:
-- `sudo systemctl stop kalshi-supervisor-index.service`
-- `sudo systemctl disable kalshi-supervisor-index.service`
+- `sudo systemctl stop kalshi-index-supervisor-paper.service`
+- `sudo systemctl disable kalshi-index-supervisor-paper.service`
 
 Cancel-all (safe cleanup):
 - The kill switch triggers `cancel_all` intent in `data/proc/state/orders.json`.
@@ -221,7 +247,7 @@ Cancel-all (safe cleanup):
 Disable live broker quickly:
 - If running with a live override, set broker back to dry in the EnvironmentFile
   (for example, `SUPERVISOR_BROKER=dry`), then restart the service:
-  - `sudo systemctl restart kalshi-supervisor-index.service`
+  - `sudo systemctl restart kalshi-index-supervisor-paper.service`
 - Live should never be enabled without explicit approval and acknowledgment.
 
 ## Local smoke commands

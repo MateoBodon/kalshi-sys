@@ -6,7 +6,7 @@ import argparse
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Callable, Sequence
 from zoneinfo import ZoneInfo
@@ -29,6 +29,7 @@ from kalshi_alpha.exec.preflight_index import (
     run_preflight,
     write_go_no_go_artifact,
 )
+from kalshi_alpha.exec.heartbeat import resolve_kill_switch_path, write_heartbeat
 from kalshi_alpha.exec.runners import micro_index
 from kalshi_alpha.sched import TradingWindow, next_windows, windows_for_day
 
@@ -37,6 +38,7 @@ ET = ZoneInfo("America/New_York")
 DEFAULT_WS_SOFT_MS = 1500.0
 DEFAULT_WS_STRICT_MS = 800.0
 DEFAULT_SLEEP_SECONDS = 20.0
+DEFAULT_HEARTBEAT_SECONDS = 60.0
 
 
 @dataclass(slots=True)
@@ -61,6 +63,7 @@ class SupervisorIndexConfig:
     max_runtime_seconds: float | None = None
     skip_preflight: bool = False
     series_filter: tuple[str, ...] | None = None
+    heartbeat_seconds: float = DEFAULT_HEARTBEAT_SECONDS
 
     def normalized_broker(self) -> str:
         return (self.broker or "dry").strip().lower()
@@ -126,6 +129,36 @@ def _log(message: str, *, quiet: bool = False) -> None:
         return
     stamp = datetime.now(tz=UTC).isoformat(timespec="seconds")
     print(f"[supervisor_index] {stamp} {message}", flush=True)
+
+
+def _write_heartbeat(
+    config: SupervisorIndexConfig,
+    *,
+    now_utc: datetime,
+    now_et: datetime,
+    ws_age_ms: float | None,
+) -> None:
+    kill_switch_path = resolve_kill_switch_path(config.kill_switch_file)
+    monitors = {
+        "ws_age_ms": ws_age_ms,
+        "ws_soft_ms": config.ws_soft_ms,
+        "ws_strict_ms": config.ws_strict_ms,
+        "ws_listen": config.listen_ws,
+        "kill_switch_path": kill_switch_path.as_posix(),
+        "kill_switch_engaged": kill_switch_path.exists(),
+    }
+    extra = {
+        "broker": config.normalized_broker(),
+        "series_filter": list(config.series_filter or ()),
+        "loop": config.loop,
+    }
+    write_heartbeat(mode="supervisor_index", monitors=monitors, extra=extra, now=now_utc)
+    ws_age_desc = "unknown" if ws_age_ms is None else f"{ws_age_ms:.0f}ms"
+    _log(
+        f"[heartbeat] updated et={now_et.isoformat(timespec='seconds')} "
+        f"ws_age={ws_age_desc} kill={kill_switch_path.exists()}",
+        quiet=config.quiet,
+    )
 
 
 def _emit_preflight_summary(result: PreflightResult, *, config: SupervisorIndexConfig) -> None:
@@ -316,6 +349,9 @@ async def _run_once(
             preflight_observer=None if preflight_override else preflight_observer,
             preflight_override=preflight_override,
         )
+        now_utc = datetime.now(tz=UTC)
+        _, ws_age_ms = ws_listener.freshness(strict=False, now=now_utc)
+        _write_heartbeat(config, now_utc=now_utc, now_et=now_utc.astimezone(ET), ws_age_ms=ws_age_ms)
     finally:
         await ws_listener.stop()
 
@@ -332,6 +368,8 @@ async def _run_loop(
     await ws_listener.start()
     try:
         start_time = datetime.now(tz=UTC)
+        heartbeat_interval = max(1.0, float(config.heartbeat_seconds))
+        last_heartbeat = start_time - timedelta(seconds=heartbeat_interval)
         current_day = None
         completed: set[tuple[str, datetime.date]] = set()
         while True:
@@ -376,6 +414,16 @@ async def _run_loop(
             last_target = windows_today[-1].target_et
             if len(completed) >= len(windows_today) and now_et > last_target:
                 break
+            now_utc = datetime.now(tz=UTC)
+            if (now_utc - last_heartbeat).total_seconds() >= heartbeat_interval:
+                _, ws_age_ms = ws_listener.freshness(strict=False, now=now_utc)
+                _write_heartbeat(
+                    config,
+                    now_utc=now_utc,
+                    now_et=now_utc.astimezone(ET),
+                    ws_age_ms=ws_age_ms,
+                )
+                last_heartbeat = now_utc
             await asyncio.sleep(max(config.sleep_seconds, 1.0))
     finally:
         await ws_listener.stop()
@@ -443,6 +491,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Maximum runtime for loop mode (0 disables).",
     )
     parser.add_argument(
+        "--heartbeat-seconds",
+        type=float,
+        default=DEFAULT_HEARTBEAT_SECONDS,
+        help="Heartbeat cadence for logs/artifacts (seconds).",
+    )
+    parser.add_argument(
         "--skip-preflight",
         action="store_true",
         help="Skip preflight checks (offline/dry-run only; default: off).",
@@ -489,6 +543,7 @@ def _build_config(args: argparse.Namespace) -> SupervisorIndexConfig:
         max_runtime_seconds=float(args.max_runtime_seconds) if args.max_runtime_seconds else None,
         skip_preflight=bool(args.skip_preflight),
         series_filter=series_filter,
+        heartbeat_seconds=max(1.0, float(args.heartbeat_seconds)),
     )
     if config.record_tob and not config.tob_run_id:
         config.tob_run_id = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%SZ")

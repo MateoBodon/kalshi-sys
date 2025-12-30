@@ -1,5 +1,12 @@
 # Changelog
 
+## 2025-12-30
+- Added paper-only systemd unit for the index supervisor (`configs/systemd/kalshi-index-supervisor-paper.service`) with explicit INX/NDX series scope and venv ExecStart.
+- Supervisor index now emits a 60s heartbeat log line and writes heartbeat artifacts during dry-run supervision.
+- Updated AWS/on-call runbooks for the new service name, CloudWatch log group, and crash-recovery drill steps.
+- GPT bundle staging now includes `reports/ops/aws_supervisor_dryrun_*.md` (and legacy supervisor dry-run reports) when present.
+- Queued TICKET-109 to refresh project_state docs/bundle after ops wiring changes.
+
 ## 2025-12-29
 - Added calibration-age inspector + CLI report (`reports/calibration/calibration_ages_<ASOF_DATE>.md`) and surfaced calibration status in pilot readiness + scoreboard outputs.
 - Preflight calibration NO-GO reasons now include explicit params file paths for stale/missing calibration artifacts.

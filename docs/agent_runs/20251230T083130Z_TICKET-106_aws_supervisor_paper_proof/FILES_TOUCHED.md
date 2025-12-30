@@ -1,0 +1,24 @@
+# Files Touched
+
+- CHANGELOG.md
+- configs/cloudwatch/kalshi-supervisor-index.json
+- configs/systemd/kalshi-index-supervisor-paper.service
+- docs/CODEX_SPRINT_TICKETS.md
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/PLAN_OF_RECORD.md
+- docs/PROGRESS.md
+- docs/runbooks/aws_supervisor_index.md
+- docs/runbooks/oncall_checks.md
+- reports/ops/aws_supervisor_dryrun_2025-12-30.md
+- src/kalshi_alpha/exec/supervisor_index.py
+- tools/gpt_bundle_builder.py
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/prompt.md
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/RUN.md
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/NOTES.md
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/COMMANDS.md
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/TESTS.md
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/FILES_TOUCHED.md
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/ARTIFACTS.md
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/META.json
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/DIFF.patch
+- docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/RESULTS.md
