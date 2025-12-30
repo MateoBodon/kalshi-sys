@@ -9,7 +9,9 @@ Type=simple
 WorkingDirectory=/opt/kalshi-sys
 User=kalshi
 Group=kalshi
+# PAPER-ONLY: keep EnvironmentFile out of git; never store secrets in repo.
 EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+# PAPER-ONLY: do not remove --dry-run or expand series scope without explicit approval.
 ExecStart=/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --heartbeat-seconds 60 --series INXU NASDAQ100U INX NASDAQ100 --dry-run
 Restart=always
 RestartSec=15

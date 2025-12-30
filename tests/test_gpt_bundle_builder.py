@@ -36,9 +36,22 @@ def _write_required_files(root: Path) -> None:
     _write_text(root / "docs" / "DOCS_AND_LOGGING_SYSTEM.md", "docs\n")
     _write_text(root / "docs" / "CODEX_SPRINT_TICKETS.md", "tickets\n")
     _write_text(root / "docs" / "PROGRESS.md", "progress\n")
+    _write_text(
+        root / "docs" / "runbooks" / "aws_supervisor_index.md",
+        "aws runbook\n",
+    )
+    _write_text(root / "docs" / "runbooks" / "oncall_checks.md", "oncall\n")
     _write_text(root / "project_state" / "CURRENT_RESULTS.md", "results\n")
     _write_text(root / "project_state" / "KNOWN_ISSUES.md", "issues\n")
     _write_text(root / "project_state" / "CONFIG_REFERENCE.md", "config\n")
+    _write_text(
+        root / "configs" / "systemd" / "kalshi-index-supervisor-paper.service",
+        "[Service]\nExecStart=/bin/true\n",
+    )
+    _write_text(
+        root / "configs" / "cloudwatch" / "kalshi-supervisor-index.json",
+        "{\n  \"logs\": {}\n}\n",
+    )
 
 
 def _write_zip_from_staging(zip_path: Path, staging_root: Path, workspace_root: Path) -> None:
@@ -78,6 +91,19 @@ def test_stage_bundle_includes_fillcalib_and_readiness_artifacts(tmp_path: Path)
     _write_zip_from_staging(zip_path, staging_root, tmp_path)
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
+        assert (
+            f"docs/gpt_bundles/{run_name}/configs/systemd/kalshi-index-supervisor-paper.service"
+            in names
+        )
+        assert (
+            f"docs/gpt_bundles/{run_name}/configs/cloudwatch/kalshi-supervisor-index.json"
+            in names
+        )
+        assert (
+            f"docs/gpt_bundles/{run_name}/docs/runbooks/aws_supervisor_index.md"
+            in names
+        )
+        assert f"docs/gpt_bundles/{run_name}/docs/runbooks/oncall_checks.md" in names
         assert f"docs/gpt_bundles/{run_name}/data/proc/fillcalib/curves_SMOKE.json" in names
         assert f"docs/gpt_bundles/{run_name}/reports/fillcalib/SMOKE.md" in names
         assert f"docs/gpt_bundles/{run_name}/reports/pilot_ready.json" in names

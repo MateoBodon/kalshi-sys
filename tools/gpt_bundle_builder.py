@@ -76,6 +76,20 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
     docs_dir = workspace_root / "docs"
     project_state_dir = workspace_root / "project_state"
     run_log_dir = docs_dir / "agent_runs" / run_name
+    systemd_unit = (
+        workspace_root
+        / "configs"
+        / "systemd"
+        / "kalshi-index-supervisor-paper.service"
+    )
+    cloudwatch_config = (
+        workspace_root
+        / "configs"
+        / "cloudwatch"
+        / "kalshi-supervisor-index.json"
+    )
+    aws_runbook = docs_dir / "runbooks" / "aws_supervisor_index.md"
+    oncall_runbook = docs_dir / "runbooks" / "oncall_checks.md"
 
     _require_path(workspace_root / "AGENTS.md", "file")
     _require_path(docs_dir / "PLAN_OF_RECORD.md", "file")
@@ -86,6 +100,10 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
     _require_path(project_state_dir / "KNOWN_ISSUES.md", "file")
     _require_path(project_state_dir / "CONFIG_REFERENCE.md", "file")
     _require_path(run_log_dir, "run log directory")
+    _require_path(systemd_unit, "file")
+    _require_path(cloudwatch_config, "file")
+    _require_path(aws_runbook, "file")
+    _require_path(oncall_runbook, "file")
 
     _copy_file(
         workspace_root / "AGENTS.md",
@@ -138,6 +156,30 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
     _copy_file(
         project_state_dir / "CONFIG_REFERENCE.md",
         staging_root / "project_state" / "CONFIG_REFERENCE.md",
+        staging_root,
+        staged_files,
+    )
+    _copy_file(
+        systemd_unit,
+        staging_root / "configs" / "systemd" / systemd_unit.name,
+        staging_root,
+        staged_files,
+    )
+    _copy_file(
+        cloudwatch_config,
+        staging_root / "configs" / "cloudwatch" / cloudwatch_config.name,
+        staging_root,
+        staged_files,
+    )
+    _copy_file(
+        aws_runbook,
+        staging_root / "docs" / "runbooks" / aws_runbook.name,
+        staging_root,
+        staged_files,
+    )
+    _copy_file(
+        oncall_runbook,
+        staging_root / "docs" / "runbooks" / oncall_runbook.name,
         staging_root,
         staged_files,
     )
