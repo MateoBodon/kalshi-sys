@@ -6,7 +6,7 @@ Changes:
 - Annotated the PAPER-only systemd unit to make dry-run + env file posture explicit.
 - Staged AWS supervisor deploy artifacts (systemd unit, CloudWatch config, runbooks) into GPT bundles.
 - Updated bundle policy docs and plan-of-record to reflect ops deploy artifacts.
-- Marked TICKET-106 as FAIL pending bundle/unit reviewability; added TICKET-110 tracking and progress entry.
+- Marked TICKET-106 as FAIL pending bundle/unit reviewability; added TICKET-110 tracking, then updated status to DONE with evidence links.
 - Added bundle staging regression coverage for the new deploy artifacts.
 
 Decisions:
