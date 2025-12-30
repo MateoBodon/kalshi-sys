@@ -1,0 +1,486 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index cdfcb35..6ca6161 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,12 @@
+ # Changelog
+ 
++## 2025-12-30
++- Added paper-only systemd unit for the index supervisor (`configs/systemd/kalshi-index-supervisor-paper.service`) with explicit INX/NDX series scope and venv ExecStart.
++- Supervisor index now emits a 60s heartbeat log line and writes heartbeat artifacts during dry-run supervision.
++- Updated AWS/on-call runbooks for the new service name, CloudWatch log group, and crash-recovery drill steps.
++- GPT bundle staging now includes `reports/ops/aws_supervisor_dryrun_*.md` (and legacy supervisor dry-run reports) when present.
++- Queued TICKET-109 to refresh project_state docs/bundle after ops wiring changes.
++
+ ## 2025-12-29
+ - Added calibration-age inspector + CLI report (`reports/calibration/calibration_ages_<ASOF_DATE>.md`) and surfaced calibration status in pilot readiness + scoreboard outputs.
+ - Preflight calibration NO-GO reasons now include explicit params file paths for stale/missing calibration artifacts.
+diff --git a/configs/cloudwatch/kalshi-supervisor-index.json b/configs/cloudwatch/kalshi-supervisor-index.json
+index 9d68215..729931d 100644
+--- a/configs/cloudwatch/kalshi-supervisor-index.json
++++ b/configs/cloudwatch/kalshi-supervisor-index.json
+@@ -5,8 +5,8 @@
+         "collect_list": [
+           {
+             "file_path": "/var/log/syslog",
+-            "log_group_name": "/kalshi/kalshi-supervisor-index",
+-            "log_stream_name": "{instance_id}",
++            "log_group_name": "/kalshi/kalshi-index-supervisor-paper",
++            "log_stream_name": "{instance_id}/kalshi-index-supervisor-paper",
+             "timezone": "UTC"
+           }
+         ]
+diff --git a/docs/CODEX_SPRINT_TICKETS.md b/docs/CODEX_SPRINT_TICKETS.md
+index 0b4dfc7..8a943e4 100644
+--- a/docs/CODEX_SPRINT_TICKETS.md
++++ b/docs/CODEX_SPRINT_TICKETS.md
+@@ -144,6 +144,33 @@ Scope reminder:
+ 
+ ---
+ 
++## TICKET-109 — Project_state refresh after ops wiring changes
++
++**Goal (1 sentence):** Regenerate project_state docs/bundle so summaries match current ops wiring and runbook updates.
++
++**Likely files/modules:**
++- `project_state/CONFIG_REFERENCE.md`
++- `project_state/CURRENT_RESULTS.md`
++- `project_state/KNOWN_ISSUES.md`
++- `docs/DOCS_AND_LOGGING_SYSTEM.md`
++- `docs/PROGRESS.md`
++
++**Acceptance criteria:**
++- project_state bundle rebuilt with up-to-date systemd/CloudWatch references.
++- Summary docs acknowledge latest AWS supervisor wiring proof.
++- Any new/changed ops artifacts reflected in CONFIG_REFERENCE.
++
++**Minimal tests/commands:**
++- `PYTHON=python3 make gpt-bundle TICKET=TICKET-109 RUN_NAME=<RUN_NAME>`
++
++**Expected artifacts:**
++- `docs/gpt_bundles/gpt_bundle_TICKET-109_<RUN_NAME>.zip`
++- Updated `project_state/` docs
++
++**Status:** TODO (queued 2025-12-30)
++
++---
++
+ ## TICKET-105 — Calibration age visibility: single summary artifact + scoreboard + explicit NO-GO reasons
+ 
+ **Goal (1 sentence):** Make it impossible to ignore stale calibration by surfacing ages in a single committed artifact and in readiness/scoreboard outputs.
+@@ -202,6 +229,8 @@ Scope reminder:
+ - `reports/ops/aws_supervisor_dryrun_<DATE>.md`
+ - `docs/agent_runs/<RUN_NAME>/` includes screenshots/log excerpts (redacted)
+ 
++**Status:** DONE (2025-12-30) — AWS systemd + CloudWatch evidence captured; crash recovery drill documented.
++
+ ---
+ 
+ ## TICKET-107 — Harden broker boundary: fail-closed enforcement for pilot caps + maker-only + kill switch (independent of strategy logic)
+diff --git a/docs/DOCS_AND_LOGGING_SYSTEM.md b/docs/DOCS_AND_LOGGING_SYSTEM.md
+index 06b5786..a468f54 100644
+--- a/docs/DOCS_AND_LOGGING_SYSTEM.md
++++ b/docs/DOCS_AND_LOGGING_SYSTEM.md
+@@ -133,7 +133,7 @@ Otherwise, per-ticket bundles are sufficient.
+ ### 3.2 Machine-readable artifacts
+ - `data/proc/` is the canonical store for machine-readable artifacts.
+ Suggested subdirs:
+-- `data/proc/state/` (kill switch, heartbeats, supervisor status)
++- `data/proc/state/` (kill switch, `heartbeat.json`, supervisor status)
+ - `data/proc/runs/<RUN_ID>/` (go/no-go, proposals, monitor events)
+ - `data/proc/telemetry/`
+   - `tob/<RUN_ID>.jsonl.gz` (bounded TOB snapshots)
+diff --git a/docs/PLAN_OF_RECORD.md b/docs/PLAN_OF_RECORD.md
+index 1e5d171..2c08271 100644
+--- a/docs/PLAN_OF_RECORD.md
++++ b/docs/PLAN_OF_RECORD.md
+@@ -217,8 +217,8 @@ Commands (expected):
+ - `make monitors`
+ 
+ Required artifacts:
+-- `reports/ops/supervisor_dryrun_<DATE>.md` (start/stop times, restarts, incident notes)
+-- Heartbeat artifacts in `data/proc/state/`
++- `reports/ops/aws_supervisor_dryrun_<DATE>.md` (start/stop times, restarts, incident notes)
++- Heartbeat artifacts in `data/proc/state/` (supervisor_index updates ~60s cadence)
+ - CloudWatch log group receiving supervisor logs (AWS evidence recorded in run logs)
+ 
+ ---
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index b20c7c4..1719484 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -2,6 +2,12 @@
+ 
+ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
+ 
++## 2025-12-30
++- Ticket #106 — AWS supervisor wiring proof (PAPER): added paper supervisor systemd unit + CloudWatch log template, added supervisor_index heartbeat cadence/logging, updated AWS/on-call runbooks, and captured AWS systemd + CloudWatch evidence with crash recovery drill.
++  - Gate status: PAPER
++  - Evidence: report `reports/ops/aws_supervisor_dryrun_2025-12-30.md`; agent run log `docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/RUN.md`
++- Project_state drift noted; queued TICKET-109 to refresh project_state docs/bundle after ops wiring updates.
++
+ ## 2025-12-29
+ - Ticket #105 — Added calibration-age inspector + report, surfaced calibration status in readiness/scoreboard, and expanded preflight reasons with explicit calibration file paths.
+   - Gate status: PAPER
+diff --git a/docs/runbooks/aws_supervisor_index.md b/docs/runbooks/aws_supervisor_index.md
+index 5c832f6..e242d95 100644
+--- a/docs/runbooks/aws_supervisor_index.md
++++ b/docs/runbooks/aws_supervisor_index.md
+@@ -3,7 +3,7 @@
+ This runbook describes an AWS-ready, fail-closed deployment for the 24/7
+ `kalshi_alpha.exec.supervisor_index` loop. Default posture is PAPER/dry-run.
+ 
+-Last updated: 2025-12-21
++Last updated: 2025-12-30
+ 
+ ## AWS access (SSH)
+ - Quick connect: `ssh kalshi-aws`
+@@ -14,9 +14,10 @@ Last updated: 2025-12-21
+ - Default broker: dry (paper). Live must be explicitly armed and is out of scope
+   for this runbook unless a separate approval ticket exists.
+ - Optional: `--series` can restrict the supervisor to a subset for smoke checks.
+-- Canonical systemd unit: `deploy/systemd/supervisor_index.service` (paper-only default).
+-  - The template pins `--series INXU` for dry-run verification; adjust only with
+-    explicit approval and updated verification evidence.
++- Canonical systemd unit: `configs/systemd/kalshi-index-supervisor-paper.service`
++  (paper-only default).
++  - The template pins `--series INXU NASDAQ100U INX NASDAQ100` for index-only
++    scope; adjust only with explicit approval and updated verification evidence.
+ 
+ ## Prerequisites
+ - Repo installed or checked out on the host (example: `/opt/kalshi-sys`).
+@@ -53,15 +54,15 @@ KALSHI_PRIVATE_KEY_PEM_PATH=/etc/kalshi/kalshi.pem
+ EOF
+ sudo chmod 600 /etc/kalshi/kalshi-supervisor.env
+ 
+-sudo cp /opt/kalshi-sys/deploy/systemd/supervisor_index.service \
+-  /etc/systemd/system/kalshi-supervisor-index.service
++sudo cp /opt/kalshi-sys/configs/systemd/kalshi-index-supervisor-paper.service \
++  /etc/systemd/system/kalshi-index-supervisor-paper.service
+ sudo systemctl daemon-reload
+-sudo systemctl enable --now kalshi-supervisor-index.service
++sudo systemctl enable --now kalshi-index-supervisor-paper.service
+ 
+ # Status + (optional) stop/start checks
+-sudo systemctl status kalshi-supervisor-index.service
+-sudo systemctl stop kalshi-supervisor-index.service
+-sudo systemctl start kalshi-supervisor-index.service
++sudo systemctl status kalshi-index-supervisor-paper.service
++sudo systemctl stop kalshi-index-supervisor-paper.service
++sudo systemctl start kalshi-index-supervisor-paper.service
+ ```
+ 
+ Notes:
+@@ -83,8 +84,9 @@ Required for online supervisor (preflight + discovery):
+ 
+ Optional / ops:
+ - `SUPERVISOR_BROKER`
+-  - Used by `deploy/systemd/supervisor_index.service` to set broker mode.
+-  - Default is `dry`; override only with explicit approval.
++  - Optional compatibility flag; paper supervisor is pinned to `--dry-run` in
++    `configs/systemd/kalshi-index-supervisor-paper.service` and ignores live
++    overrides unless the unit is explicitly edited.
+ - `KALSHI_MONITOR_SLACK_WEBHOOK`
+   - Used by `kalshi_alpha.exec.monitors.cli` for Slack alerts.
+ - `KALSHI_INDEX_PAPER_LEDGER_PATH`
+@@ -107,17 +109,17 @@ Runtime artifacts:
+ 
+ ## Deployment (systemd on EC2)
+ 1) Copy the systemd unit template:
+-   - `deploy/systemd/supervisor_index.service`
++   - `configs/systemd/kalshi-index-supervisor-paper.service`
+ 2) Set WorkingDirectory + User/Group placeholders in the unit file.
+ 3) Create an EnvironmentFile (example: `/etc/kalshi/kalshi-supervisor.env`).
+    - Include `SUPERVISOR_BROKER=dry` (default) and any required keys.
+ 4) Install and enable the service:
+-   - `sudo cp deploy/systemd/supervisor_index.service /etc/systemd/system/kalshi-supervisor-index.service`
++   - `sudo cp configs/systemd/kalshi-index-supervisor-paper.service /etc/systemd/system/kalshi-index-supervisor-paper.service`
+    - `sudo systemctl daemon-reload`
+-   - `sudo systemctl enable --now kalshi-supervisor-index.service`
++   - `sudo systemctl enable --now kalshi-index-supervisor-paper.service`
+ 5) Verify status + logs:
+-   - `systemctl status kalshi-supervisor-index.service`
+-   - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
++   - `systemctl status kalshi-index-supervisor-paper.service`
++   - `journalctl -u kalshi-index-supervisor-paper.service --since "15 min ago"`
+ 
+ Watchdog behavior:
+ - The service uses `Restart=always` and will self-heal after failures.
+@@ -140,7 +142,7 @@ Monitoring jobs (recommended):
+ ## Log routing (syslog -> CloudWatch)
+ On Ubuntu, systemd unit logs are forwarded to `/var/log/syslog` by default.
+ The CloudWatch Agent config in this repo tails that file and ships entries
+-to the `kalshi-supervisor-index` log group/stream.
++to the index supervisor log group/stream.
+ 
+ ```bash
+ sudo cp /opt/kalshi-sys/configs/cloudwatch/kalshi-supervisor-index.json \
+@@ -150,8 +152,8 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+ ```
+ 
+ CloudWatch destinations (default template):
+-- Log group: `/kalshi/kalshi-supervisor-index`
+-- Log stream: `{instance_id}`
++- Log group: `/kalshi/kalshi-index-supervisor-paper`
++- Log stream: `{instance_id}/kalshi-index-supervisor-paper`
+ 
+ Example signals to index in CloudWatch:
+ - `NO-GO` lines from supervisor logs.
+@@ -171,6 +173,8 @@ Heartbeat:
+ - Threshold: 5 minutes (see `heartbeat_stale(threshold=timedelta(minutes=5))` in
+   `src/kalshi_alpha/exec/runners/scan_ladders.py`).
+ - Alarm if last heartbeat is older than 5 minutes.
++- Supervisor logs `[heartbeat] updated` every ~60s (configurable via
++  `--heartbeat-seconds` in the systemd unit).
+ 
+ Monitor artifacts:
+ - Path: `reports/_artifacts/monitors/*.json`
+@@ -203,6 +207,28 @@ Preflight calibration freshness:
+ - Supervisor logs contain `NO-GO` or `polygon_ws_stale` for more than 2 windows.
+ - systemd restarts > 3 within 10 minutes (crash loop).
+ 
++## Crash recovery drill (PAPER)
++Goal: prove systemd restart + safe reconciliation for the paper supervisor.
++
++1) Pick a window that has completed and is past the cancel buffer.
++2) Stop the service (or kill the process) and confirm it is down:
++   - `sudo systemctl stop kalshi-index-supervisor-paper.service`
++3) Start the service and confirm it restarts:
++   - `sudo systemctl start kalshi-index-supervisor-paper.service`
++4) Verify recent logs:
++   - `journalctl -u kalshi-index-supervisor-paper.service --since "10 min ago"`
++   - Expect new `[heartbeat] updated` lines after restart.
++5) Confirm no duplicate window execution:
++   - After restart, logs should show either `skip <window>: past cancel buffer`
++     or only one `running window ...` per window.
++6) Confirm heartbeat artifact advances:
++   - `data/proc/state/heartbeat.json` has a newer timestamp.
++
++Safe reconciliation (PAPER) means:
++- No live orders are placed (systemd unit pins `--dry-run`).
++- Completed windows are not re-executed after the cancel buffer.
++- No stale state reuse: the supervisor recomputes window state from current time.
++
+ ## Break-glass procedures
+ Kill switch (immediate halt):
+ 1) Create the sentinel file: `touch data/proc/state/kill_switch`.
+@@ -210,8 +236,8 @@ Kill switch (immediate halt):
+ 3) Remove file to resume (after incident review).
+ 
+ Stop/disable the service:
+-- `sudo systemctl stop kalshi-supervisor-index.service`
+-- `sudo systemctl disable kalshi-supervisor-index.service`
++- `sudo systemctl stop kalshi-index-supervisor-paper.service`
++- `sudo systemctl disable kalshi-index-supervisor-paper.service`
+ 
+ Cancel-all (safe cleanup):
+ - The kill switch triggers `cancel_all` intent in `data/proc/state/orders.json`.
+@@ -221,7 +247,7 @@ Cancel-all (safe cleanup):
+ Disable live broker quickly:
+ - If running with a live override, set broker back to dry in the EnvironmentFile
+   (for example, `SUPERVISOR_BROKER=dry`), then restart the service:
+-  - `sudo systemctl restart kalshi-supervisor-index.service`
++  - `sudo systemctl restart kalshi-index-supervisor-paper.service`
+ - Live should never be enabled without explicit approval and acknowledgment.
+ 
+ ## Local smoke commands
+diff --git a/docs/runbooks/oncall_checks.md b/docs/runbooks/oncall_checks.md
+index 01d55a1..dbd7025 100644
+--- a/docs/runbooks/oncall_checks.md
++++ b/docs/runbooks/oncall_checks.md
+@@ -1,12 +1,12 @@
+ # On-Call Checks (supervisor_index)
+ 
+-Last updated: 2025-12-21
++Last updated: 2025-12-30
+ 
+-## Quick triage (0-5 minutes)
++## Quick triage (0-5 minutes: “is it alive?”)
+ - Check service status:
+-  - `systemctl status kalshi-supervisor-index.service`
+-- Check recent logs for NO-GO / WS stale:
+-  - `journalctl -u kalshi-supervisor-index.service --since "15 min ago"`
++  - `systemctl status kalshi-index-supervisor-paper.service`
++- Check recent logs for NO-GO / WS stale / heartbeat:
++  - `journalctl -u kalshi-index-supervisor-paper.service --since "15 min ago"`
+ - Check heartbeat age:
+   - `data/proc/state/heartbeat.json` should be updated within 5 minutes.
+ - Check monitor artifacts:
+@@ -37,6 +37,21 @@ Last updated: 2025-12-21
+ - Crash loop:
+   - `systemctl status` for exit code; check recent deploys.
+ 
++## Common failure modes (triage hints)
++- Stale data:
++  - `reports/_artifacts/monitors/freshness.json` shows stale Polygon WS.
++- Stale calibration:
++  - `reports/calibration/calibration_ages_<DATE>.md` flags stale files.
++- Clock skew:
++  - Monitor artifacts or logs show time alignment warnings; verify NTP/chrony.
++
++## Safe restart procedure
++1) Confirm no live mode is enabled (paper-only unit).
++2) Restart the service:
++   - `sudo systemctl restart kalshi-index-supervisor-paper.service`
++3) Confirm logs show new `[heartbeat] updated` lines and no duplicate window runs.
++4) Re-check heartbeat + monitors freshness.
++
+ ## Break-glass (only if necessary)
+ - Kill switch:
+   - `touch data/proc/state/kill_switch` and restart supervisor.
+diff --git a/src/kalshi_alpha/exec/supervisor_index.py b/src/kalshi_alpha/exec/supervisor_index.py
+index 9d0fe6c..ab0352d 100644
+--- a/src/kalshi_alpha/exec/supervisor_index.py
++++ b/src/kalshi_alpha/exec/supervisor_index.py
+@@ -6,7 +6,7 @@ import argparse
+ import asyncio
+ from contextlib import suppress
+ from dataclasses import dataclass, field
+-from datetime import UTC, datetime
++from datetime import UTC, datetime, timedelta
+ from pathlib import Path
+ from typing import Callable, Sequence
+ from zoneinfo import ZoneInfo
+@@ -29,6 +29,7 @@ from kalshi_alpha.exec.preflight_index import (
+     run_preflight,
+     write_go_no_go_artifact,
+ )
++from kalshi_alpha.exec.heartbeat import resolve_kill_switch_path, write_heartbeat
+ from kalshi_alpha.exec.runners import micro_index
+ from kalshi_alpha.sched import TradingWindow, next_windows, windows_for_day
+ 
+@@ -37,6 +38,7 @@ ET = ZoneInfo("America/New_York")
+ DEFAULT_WS_SOFT_MS = 1500.0
+ DEFAULT_WS_STRICT_MS = 800.0
+ DEFAULT_SLEEP_SECONDS = 20.0
++DEFAULT_HEARTBEAT_SECONDS = 60.0
+ 
+ 
+ @dataclass(slots=True)
+@@ -61,6 +63,7 @@ class SupervisorIndexConfig:
+     max_runtime_seconds: float | None = None
+     skip_preflight: bool = False
+     series_filter: tuple[str, ...] | None = None
++    heartbeat_seconds: float = DEFAULT_HEARTBEAT_SECONDS
+ 
+     def normalized_broker(self) -> str:
+         return (self.broker or "dry").strip().lower()
+@@ -128,6 +131,36 @@ def _log(message: str, *, quiet: bool = False) -> None:
+     print(f"[supervisor_index] {stamp} {message}", flush=True)
+ 
+ 
++def _write_heartbeat(
++    config: SupervisorIndexConfig,
++    *,
++    now_utc: datetime,
++    now_et: datetime,
++    ws_age_ms: float | None,
++) -> None:
++    kill_switch_path = resolve_kill_switch_path(config.kill_switch_file)
++    monitors = {
++        "ws_age_ms": ws_age_ms,
++        "ws_soft_ms": config.ws_soft_ms,
++        "ws_strict_ms": config.ws_strict_ms,
++        "ws_listen": config.listen_ws,
++        "kill_switch_path": kill_switch_path.as_posix(),
++        "kill_switch_engaged": kill_switch_path.exists(),
++    }
++    extra = {
++        "broker": config.normalized_broker(),
++        "series_filter": list(config.series_filter or ()),
++        "loop": config.loop,
++    }
++    write_heartbeat(mode="supervisor_index", monitors=monitors, extra=extra, now=now_utc)
++    ws_age_desc = "unknown" if ws_age_ms is None else f"{ws_age_ms:.0f}ms"
++    _log(
++        f"[heartbeat] updated et={now_et.isoformat(timespec='seconds')} "
++        f"ws_age={ws_age_desc} kill={kill_switch_path.exists()}",
++        quiet=config.quiet,
++    )
++
++
+ def _emit_preflight_summary(result: PreflightResult, *, config: SupervisorIndexConfig) -> None:
+     write_go_no_go_artifact(result, source="supervisor_index")
+     summary = format_preflight_summary(
+@@ -316,6 +349,9 @@ async def _run_once(
+             preflight_observer=None if preflight_override else preflight_observer,
+             preflight_override=preflight_override,
+         )
++        now_utc = datetime.now(tz=UTC)
++        _, ws_age_ms = ws_listener.freshness(strict=False, now=now_utc)
++        _write_heartbeat(config, now_utc=now_utc, now_et=now_utc.astimezone(ET), ws_age_ms=ws_age_ms)
+     finally:
+         await ws_listener.stop()
+ 
+@@ -332,6 +368,8 @@ async def _run_loop(
+     await ws_listener.start()
+     try:
+         start_time = datetime.now(tz=UTC)
++        heartbeat_interval = max(1.0, float(config.heartbeat_seconds))
++        last_heartbeat = start_time - timedelta(seconds=heartbeat_interval)
+         current_day = None
+         completed: set[tuple[str, datetime.date]] = set()
+         while True:
+@@ -376,6 +414,16 @@ async def _run_loop(
+             last_target = windows_today[-1].target_et
+             if len(completed) >= len(windows_today) and now_et > last_target:
+                 break
++            now_utc = datetime.now(tz=UTC)
++            if (now_utc - last_heartbeat).total_seconds() >= heartbeat_interval:
++                _, ws_age_ms = ws_listener.freshness(strict=False, now=now_utc)
++                _write_heartbeat(
++                    config,
++                    now_utc=now_utc,
++                    now_et=now_utc.astimezone(ET),
++                    ws_age_ms=ws_age_ms,
++                )
++                last_heartbeat = now_utc
+             await asyncio.sleep(max(config.sleep_seconds, 1.0))
+     finally:
+         await ws_listener.stop()
+@@ -442,6 +490,12 @@ def _build_parser() -> argparse.ArgumentParser:
+         default=0.0,
+         help="Maximum runtime for loop mode (0 disables).",
+     )
++    parser.add_argument(
++        "--heartbeat-seconds",
++        type=float,
++        default=DEFAULT_HEARTBEAT_SECONDS,
++        help="Heartbeat cadence for logs/artifacts (seconds).",
++    )
+     parser.add_argument(
+         "--skip-preflight",
+         action="store_true",
+@@ -489,6 +543,7 @@ def _build_config(args: argparse.Namespace) -> SupervisorIndexConfig:
+         max_runtime_seconds=float(args.max_runtime_seconds) if args.max_runtime_seconds else None,
+         skip_preflight=bool(args.skip_preflight),
+         series_filter=series_filter,
++        heartbeat_seconds=max(1.0, float(args.heartbeat_seconds)),
+     )
+     if config.record_tob and not config.tob_run_id:
+         config.tob_run_id = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%SZ")
+diff --git a/tools/gpt_bundle_builder.py b/tools/gpt_bundle_builder.py
+index abe5c62..62c52f8 100644
+--- a/tools/gpt_bundle_builder.py
++++ b/tools/gpt_bundle_builder.py
+@@ -177,6 +177,20 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
+                 staging_root,
+                 staged_files,
+             )
++        for path in ops_reports.glob("aws_supervisor_dryrun_*.md"):
++            _copy_file(
++                path,
++                staging_root / "reports" / "ops" / path.name,
++                staging_root,
++                staged_files,
++            )
++        for path in ops_reports.glob("supervisor_dryrun_*.md"):
++            _copy_file(
++                path,
++                staging_root / "reports" / "ops" / path.name,
++                staging_root,
++                staged_files,
++            )
+ 
+     fillcalib_reports = workspace_root / "reports" / "fillcalib"
+     if fillcalib_reports.exists():
