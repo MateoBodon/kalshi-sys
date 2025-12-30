@@ -177,6 +177,20 @@ def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set
                 staging_root,
                 staged_files,
             )
+        for path in ops_reports.glob("aws_supervisor_dryrun_*.md"):
+            _copy_file(
+                path,
+                staging_root / "reports" / "ops" / path.name,
+                staging_root,
+                staged_files,
+            )
+        for path in ops_reports.glob("supervisor_dryrun_*.md"):
+            _copy_file(
+                path,
+                staging_root / "reports" / "ops" / path.name,
+                staging_root,
+                staged_files,
+            )
 
     fillcalib_reports = workspace_root / "reports" / "fillcalib"
     if fillcalib_reports.exists():

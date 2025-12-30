@@ -133,7 +133,7 @@ Otherwise, per-ticket bundles are sufficient.
 ### 3.2 Machine-readable artifacts
 - `data/proc/` is the canonical store for machine-readable artifacts.
 Suggested subdirs:
-- `data/proc/state/` (kill switch, heartbeats, supervisor status)
+- `data/proc/state/` (kill switch, `heartbeat.json`, supervisor status)
 - `data/proc/runs/<RUN_ID>/` (go/no-go, proposals, monitor events)
 - `data/proc/telemetry/`
   - `tob/<RUN_ID>.jsonl.gz` (bounded TOB snapshots)

@@ -1,0 +1,19 @@
+[Unit]
+Description=Kalshi Index Supervisor (paper-only)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kalshi-sys
+User=kalshi
+Group=kalshi
+EnvironmentFile=/etc/kalshi/kalshi-supervisor.env
+ExecStart=/opt/kalshi-sys/.venv/bin/python -m kalshi_alpha.exec.supervisor_index --loop --sleep-seconds 20 --heartbeat-seconds 60 --series INXU NASDAQ100U INX NASDAQ100 --dry-run
+Restart=always
+RestartSec=15
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
