@@ -1,5 +1,5 @@
 {
-  "generated_at": "2025-12-22T19:58:14+00:00",
+  "generated_at": "2026-01-10T11:41:11+00:00",
   "root": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys",
   "adjacency": {
     "src/kalshi_alpha/__init__.py": [],
@@ -284,6 +284,7 @@
     ],
     "src/kalshi_alpha/exec/brokers/__init__.py": [],
     "src/kalshi_alpha/exec/brokers/kalshi/__init__.py": [],
+    "src/kalshi_alpha/exec/calibration_ages.py": [],
     "src/kalshi_alpha/exec/collectors/__init__.py": [
       "src/kalshi_alpha/exec/collectors/polygon_ws.py"
     ],
@@ -300,7 +301,8 @@
     ],
     "src/kalshi_alpha/exec/collectors/tob_logger.py": [
       "src/kalshi_alpha/core/kalshi_api/__init__.py",
-      "src/kalshi_alpha/datastore/paths.py"
+      "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/exec/telemetry/sink.py"
     ],
     "src/kalshi_alpha/exec/fees.py": [],
     "src/kalshi_alpha/exec/gate_utils.py": [
@@ -337,6 +339,9 @@
       "src/kalshi_alpha/brokers/kalshi/http_client.py",
       "src/kalshi_alpha/exec/state/orders.py"
     ],
+    "src/kalshi_alpha/exec/market_status.py": [
+      "src/kalshi_alpha/drivers/polygon_index/client.py"
+    ],
     "src/kalshi_alpha/exec/monitors/__init__.py": [
       "src/kalshi_alpha/exec/monitors/runtime.py"
     ],
@@ -349,6 +354,7 @@
     ],
     "src/kalshi_alpha/exec/monitors/freshness.py": [
       "src/kalshi_alpha/datastore/paths.py",
+      "src/kalshi_alpha/drivers/polygon_index/client.py",
       "src/kalshi_alpha/exec/monitors/summary.py"
     ],
     "src/kalshi_alpha/exec/monitors/runtime.py": [
@@ -374,6 +380,8 @@
     ],
     "src/kalshi_alpha/exec/pilot_bundle.py": [],
     "src/kalshi_alpha/exec/pilot_readiness.py": [
+      "src/kalshi_alpha/exec/__init__.py",
+      "src/kalshi_alpha/exec/calibration_ages.py",
       "src/kalshi_alpha/exec/monitors/freshness.py"
     ],
     "src/kalshi_alpha/exec/pipelines/calendar.py": [
@@ -433,6 +441,8 @@
     "src/kalshi_alpha/exec/preflight_index.py": [
       "src/kalshi_alpha/datastore/paths.py",
       "src/kalshi_alpha/exec/heartbeat.py",
+      "src/kalshi_alpha/exec/monitors/__init__.py",
+      "src/kalshi_alpha/exec/monitors/freshness.py",
       "src/kalshi_alpha/strategies/index/model_polygon.py",
       "src/kalshi_alpha/utils/env.py",
       "src/kalshi_alpha/utils/keys.py"
@@ -451,10 +461,17 @@
     "src/kalshi_alpha/exec/reports/ramp.py": [
       "src/kalshi_alpha/core/risk/__init__.py",
       "src/kalshi_alpha/core/risk/drawdown.py",
+      "src/kalshi_alpha/exec/__init__.py",
+      "src/kalshi_alpha/exec/calibration_ages.py",
       "src/kalshi_alpha/exec/monitors/freshness.py",
       "src/kalshi_alpha/exec/monitors/sequential.py",
       "src/kalshi_alpha/exec/monitors/summary.py",
       "src/kalshi_alpha/exec/policy/freeze.py"
+    ],
+    "src/kalshi_alpha/exec/reports/telemetry_volume.py": [
+      "src/kalshi_alpha/exec/collectors/tob_logger.py",
+      "src/kalshi_alpha/exec/housekeep.py",
+      "src/kalshi_alpha/exec/telemetry/sink.py"
     ],
     "src/kalshi_alpha/exec/runners/__init__.py": [],
     "src/kalshi_alpha/exec/runners/micro_index.py": [
@@ -609,6 +626,7 @@
       "src/kalshi_alpha/core/execution/defaults.py",
       "src/kalshi_alpha/core/execution/index_models.py",
       "src/kalshi_alpha/exec/__init__.py",
+      "src/kalshi_alpha/exec/calibration_ages.py",
       "src/kalshi_alpha/exec/monitors/freshness.py",
       "src/kalshi_alpha/exec/pilot_readiness.py",
       "src/kalshi_alpha/exec/slo.py",
@@ -643,16 +661,23 @@
       "src/kalshi_alpha/data/__init__.py",
       "src/kalshi_alpha/drivers/polygon_index_ws.py",
       "src/kalshi_alpha/exec/collectors/tob_logger.py",
+      "src/kalshi_alpha/exec/heartbeat.py",
       "src/kalshi_alpha/exec/preflight_index.py",
       "src/kalshi_alpha/exec/runners/__init__.py",
       "src/kalshi_alpha/exec/runners/micro_index.py",
+      "src/kalshi_alpha/exec/telemetry/run_metadata.py",
       "src/kalshi_alpha/sched/__init__.py"
     ],
     "src/kalshi_alpha/exec/telemetry/__init__.py": [
       "src/kalshi_alpha/exec/telemetry/sink.py"
     ],
+    "src/kalshi_alpha/exec/telemetry/run_metadata.py": [
+      "src/kalshi_alpha/exec/collectors/tob_logger.py"
+    ],
     "src/kalshi_alpha/exec/telemetry/shipper.py": [],
-    "src/kalshi_alpha/exec/telemetry/sink.py": [],
+    "src/kalshi_alpha/exec/telemetry/sink.py": [
+      "src/kalshi_alpha/datastore/paths.py"
+    ],
     "src/kalshi_alpha/exec/window_guard.py": [
       "src/kalshi_alpha/sched/__init__.py"
     ],
@@ -814,9 +839,15 @@
     ],
     "src/kalshi_alpha/utils/secrets.py": [],
     "tools/__init__.py": [],
+    "tools/agentic/gpt_bundle.py": [],
+    "tools/agentic/project_state_refresh.py": [],
+    "tools/agentic/repo_snapshot.py": [],
     "tools/build_fillcalib_dataset.py": [],
     "tools/failover_smoke.py": [
       "src/kalshi_alpha/data/failover.py"
+    ],
+    "tools/gpt_bundle_builder.py": [
+      "tools/verify_gpt_bundle.py"
     ],
     "tools/project_state_build.py": [],
     "tools/replay.py": [
@@ -824,13 +855,16 @@
       "src/kalshi_alpha/risk/var_index.py"
     ],
     "tools/settlement_basis_audit.py": [
+      "src/kalshi_alpha/brokers/kalshi/http_client.py",
       "src/kalshi_alpha/core/kalshi_api/__init__.py",
       "src/kalshi_alpha/datastore/paths.py",
       "src/kalshi_alpha/drivers/polygon_index/client.py",
       "src/kalshi_alpha/drivers/polygon_index/symbols.py",
       "src/kalshi_alpha/markets/discovery.py",
-      "src/kalshi_alpha/sched/windows.py"
+      "src/kalshi_alpha/sched/windows.py",
+      "src/kalshi_alpha/utils/env.py"
     ],
+    "tools/sync_vendor_docs.py": [],
     "tools/verify_gpt_bundle.py": []
   },
   "unresolved_imports": {
@@ -1034,6 +1068,8 @@
     ],
     "src/kalshi_alpha/core/execution/fillprob.py": [
       "from __future__",
+      "from dataclasses",
+      "from datetime",
       "from functools",
       "from pathlib",
       "from typing",
@@ -1437,6 +1473,15 @@
     ],
     "src/kalshi_alpha/exec/brokers/__init__.py": [],
     "src/kalshi_alpha/exec/brokers/kalshi/__init__.py": [],
+    "src/kalshi_alpha/exec/calibration_ages.py": [
+      "argparse",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "from zoneinfo"
+    ],
     "src/kalshi_alpha/exec/collectors/__init__.py": [],
     "src/kalshi_alpha/exec/collectors/kalshi_tob.py": [
       "argparse",
@@ -1470,8 +1515,7 @@
       "from datetime",
       "from pathlib",
       "from typing",
-      "json",
-      "threading"
+      "json"
     ],
     "src/kalshi_alpha/exec/fees.py": [
       "from __future__",
@@ -1558,6 +1602,12 @@
       "from zoneinfo",
       "json",
       "sys"
+    ],
+    "src/kalshi_alpha/exec/market_status.py": [
+      "argparse",
+      "from __future__",
+      "from typing",
+      "json"
     ],
     "src/kalshi_alpha/exec/monitors/__init__.py": [],
     "src/kalshi_alpha/exec/monitors/cli.py": [
@@ -1660,7 +1710,6 @@
       "from dataclasses",
       "from datetime",
       "from pathlib",
-      "json",
       "math",
       "polars"
     ],
@@ -1757,10 +1806,20 @@
       "from datetime",
       "from pathlib",
       "from typing",
+      "from zoneinfo",
       "json",
       "math",
       "polars",
       "yaml"
+    ],
+    "src/kalshi_alpha/exec/reports/telemetry_volume.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "gzip",
+      "json"
     ],
     "src/kalshi_alpha/exec/runners/__init__.py": [],
     "src/kalshi_alpha/exec/runners/micro_index.py": [
@@ -1940,6 +1999,13 @@
       "from zoneinfo"
     ],
     "src/kalshi_alpha/exec/telemetry/__init__.py": [],
+    "src/kalshi_alpha/exec/telemetry/run_metadata.py": [
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "json"
+    ],
     "src/kalshi_alpha/exec/telemetry/shipper.py": [
       "argparse",
       "from __future__",
@@ -1955,6 +2021,7 @@
       "from datetime",
       "from pathlib",
       "from typing",
+      "gzip",
       "json",
       "threading"
     ],
@@ -2207,12 +2274,64 @@
       "re"
     ],
     "tools/__init__.py": [],
-    "tools/build_fillcalib_dataset.py": [],
+    "tools/agentic/gpt_bundle.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "os",
+      "subprocess",
+      "sys",
+      "zipfile"
+    ],
+    "tools/agentic/project_state_refresh.py": [
+      "argparse",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "os",
+      "subprocess",
+      "sys",
+      "zipfile"
+    ],
+    "tools/agentic/repo_snapshot.py": [
+      "argparse",
+      "collections",
+      "from __future__",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "os",
+      "subprocess",
+      "sys",
+      "textwrap"
+    ],
+    "tools/build_fillcalib_dataset.py": [
+      "argparse",
+      "bisect",
+      "from __future__",
+      "from dataclasses",
+      "from datetime",
+      "from pathlib",
+      "from typing",
+      "gzip",
+      "json",
+      "polars"
+    ],
     "tools/failover_smoke.py": [
       "argparse",
       "from __future__",
       "from datetime",
       "from typing"
+    ],
+    "tools/gpt_bundle_builder.py": [
+      "argparse",
+      "from __future__",
+      "from pathlib",
+      "shutil",
+      "sys"
     ],
     "tools/project_state_build.py": [
       "argparse",
@@ -2251,9 +2370,22 @@
       "json",
       "math",
       "polars",
+      "re",
       "shlex",
+      "statistics",
       "subprocess",
       "sys"
+    ],
+    "tools/sync_vendor_docs.py": [
+      "from __future__",
+      "from dataclasses",
+      "from pathlib",
+      "from typing",
+      "hashlib",
+      "json",
+      "os",
+      "requests",
+      "time"
     ],
     "tools/verify_gpt_bundle.py": [
       "argparse",
