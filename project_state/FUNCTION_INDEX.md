@@ -1,10 +1,10 @@
 # Function Index
 
 ## Metadata
-- Generated: 2025-12-22T19:42:20Z
-- Git SHA: a907a2eed87531d8178c3dc183d6f070182f9ebe
-- Branch: codex/TICKET-000_project_state_rebuild
-- Commands: `python tools/project_state_build.py`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Generated: 2026-01-10T11:43:04Z
+- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+- Branch: codex/TICKET-111_project_state_refresh
+- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
 
 ## Legend
 - Paths are repo-relative.
@@ -259,10 +259,20 @@ Functions:
 
 ## src/kalshi_alpha/core/execution/fillprob.py
 Module doc: Load conservative fill probability curves derived from TOB snapshots.
+Classes:
+- `FillCurveStatus()`
 Functions:
-- `_load_payload(path) -> Mapping[str, object]`
-- `probability(series, *, seconds_to_event=None, path=None) -> float | None`
-- `adjust_alpha(series, base_alpha, *, seconds_to_event=None, path=None) -> float`
+- `resolve_curve_path(path=None) -> Path | None`
+- `_load_payload(path_str) -> tuple[Mapping[str, object] | None, str | None]`
+- `curve_status(path=None) -> FillCurveStatus`
+- `probability(series, *, seconds_to_event=None, window_id=None, side=None, quote_distance_to_touch_bin=None, time_to_expiry_bin=None, path=None) -> float`
+- `adjust_alpha(series, base_alpha, *, seconds_to_event=None, window_id=None, side=None, quote_distance_to_touch_bin=None, time_to_expiry_bin=None, path=None) -> float`
+- `_latest_curve_path(root) -> Path | None`
+- `_parse_asof_date(name) -> date | None`
+- `_safe_float(value) -> float | None`
+- `_safe_int(value) -> int | None`
+- `_safe_str(value) -> str | None`
+- `_clamp_probability(value) -> float`
 
 ## src/kalshi_alpha/core/execution/fillratio.py
 Module doc: Estimate expected fills using simple visible-depth heuristics.
@@ -720,6 +730,7 @@ Classes:
 - `PolygonIndicesClient()` — REST + websocket client for Massive (Polygon) index data.
 Functions:
 - `_safe_float(value) -> float | None`
+- `_parse_snapshot_timestamp(value) -> datetime | None`
 
 ## src/kalshi_alpha/drivers/polygon_index/snapshots.py
 Module doc: Snapshot helpers for Polygon index data.
@@ -812,6 +823,27 @@ No top-level functions or classes.
 Module doc: Placeholder for future authenticated Kalshi broker integration.
 No top-level functions or classes.
 
+## src/kalshi_alpha/exec/calibration_ages.py
+Module doc: Calibration age inspection and reporting for index ladders.
+Classes:
+- `CalibrationAgeResult()`
+- `CalibrationSeriesSummary()`
+Functions:
+- `_ensure_utc(moment) -> datetime`
+- `_format_age(age_hours) -> str`
+- `_format_timestamp(value) -> str`
+- `_hourly_candidates(root, slug, hour) -> list[Path]`
+- `_close_candidates(root, slug) -> list[Path]`
+- `_age_from_mtime(path, now_utc) -> tuple[float | None, str | None]`
+- `_evaluate_candidates(*, series, horizon, candidates, now_utc, max_age_hours) -> CalibrationAgeResult`
+- `inspect_calibration_ages(*, now=None, root=CALIBRATION_ROOT, max_age_days=DEFAULT_MAX_AGE_DAYS, series=None, hourly_hours=DEFAULT_HOURLY_HOURS) -> list[CalibrationAgeResult]`
+- `summarize_by_series(results) -> dict[str, CalibrationSeriesSummary]`
+- `render_markdown(results, *, asof_date, generated_at) -> str`
+- `write_report(results, *, asof_date, output_path, generated_at) -> Path`
+- `_parse_date(value, *, now_et) -> date`
+- `_build_parser() -> argparse.ArgumentParser`
+- `main(argv=None) -> int`
+
 ## src/kalshi_alpha/exec/collectors/__init__.py
 Module doc: Collectors for external data feeds.
 No top-level functions or classes.
@@ -833,6 +865,10 @@ Classes:
 - `CadenceTracker()`
 - `TooManyConnectionsError(RuntimeError)` — Raised when Massive websocket rejects the connection due to max_connections.
 Functions:
+- `_normalize_status(value) -> str | None`
+- `_format_text(value) -> str | None`
+- `_market_status_for_symbol(payload, symbol) -> str | None`
+- `_inactive_symbols(payload, symbols) -> tuple[list[str], dict[str, str]]`
 - `_resolved_aliases(raw) -> AliasMap`
 - `_parse_args(argv=None) -> CollectorConfig`
 - `_normalize_entries(payload) -> Iterable[dict[str, Any]]`
@@ -850,9 +886,10 @@ Classes:
 - `TobSnapshotLogger()`
 Functions:
 - `build_tob_snapshot(*, run_id, ts_utc, series, window_label, window_ts_utc, window_ts_et, market_ticker, market_id, orderbook, depth=DEFAULT_TOB_DEPTH, max_bytes=DEFAULT_TOB_MAX_BYTES) -> dict[str, Any] | None`
+- `build_quote_intent(*, run_id, ts_utc, series, window_label, window_ts_utc, window_ts_et, market_ticker, market_id, side, price, size, tob_ts=None, max_bytes=DEFAULT_INTENT_MAX_BYTES) -> dict[str, Any] | None`
 - `enforce_snapshot_bounds(snapshot, *, max_bytes=DEFAULT_TOB_MAX_BYTES) -> dict[str, Any] | None`
 - `_trim_levels(levels) -> list[dict[str, Any]] | None`
-- `_append_jsonl(path, payload) -> None`
+- `_window_id(series, window_label, window_ts_utc, fallback_ts) -> str`
 - `_top_levels(orderbook, *, depth) -> tuple[list[dict[str, Any]], tuple[float | None, float | None], tuple[float | None, float | None]]`
 - `_sorted_levels(entries, *, descending) -> list[tuple[float, float]]`
 - `_safe_float(value) -> float | None`
@@ -875,7 +912,7 @@ Functions:
 Module doc: Shared helpers for quality gate configuration and artifacts.
 Functions:
 - `resolve_quality_gate_config_path() -> Path`
-- `write_go_no_go(result) -> Path`
+- `write_go_no_go(result, *, scope=None, scoped_blockers=None, unscoped_blockers=None, extra=None) -> Path`
 
 ## src/kalshi_alpha/exec/heartbeat.py
 Module doc: Heartbeat and kill-switch utilities for execution pipelines.
@@ -969,6 +1006,11 @@ Functions:
 - `run_smoke(base_url=None) -> tuple[int, dict[str, Any]]`
 - `main(argv=None) -> None`
 
+## src/kalshi_alpha/exec/market_status.py
+Module doc: Print Polygon/Massive market status for ops checks.
+Functions:
+- `main(argv=None) -> int`
+
 ## src/kalshi_alpha/exec/monitors/__init__.py
 Module doc: Runtime monitoring entry points.
 No top-level functions or classes.
@@ -1000,6 +1042,9 @@ Functions:
 - `summarize_artifact(payload, *, artifact_path, scope=None) -> dict[str, Any]` — Normalize the freshness artifact into a ramp-friendly summary.
 - `_apply_scope_to_summary(summary, scope) -> dict[str, Any]`
 - `_normalize_scope(scope) -> str | None`
+- `_fetch_market_status() -> dict[str, Any] | None`
+- `_market_status_summary(payload) -> dict[str, Any]`
+- `_inactive_market_reason(payload) -> str | None`
 - `_feed_in_scope(feed, scope) -> bool`
 - `main(argv=None) -> int`
 - `_evaluate_feed(feed_id, cfg, now, proc_root, raw_root) -> FeedState`
@@ -1121,11 +1166,10 @@ Functions:
 - `_series_fills(subset) -> float`
 - `_delta_stats(subset) -> tuple[float, float]`
 - `_alpha_gap_mean(subset) -> float`
-- `_file_age_days(path, now) -> float | None`
 - `calibration_age_days(series, now) -> float | None`
 - `freshness_status() -> tuple[bool, list[str]]`
-- `evaluate_readiness(frame, *, now=None, window_days=WINDOW_DAYS_DEFAULT) -> list[SeriesReadiness]`
-- `render_markdown(results, *, window_days=WINDOW_DAYS_DEFAULT, freshness_ok=True, freshness_reasons=None) -> str`
+- `evaluate_readiness(frame, *, now=None, window_days=WINDOW_DAYS_DEFAULT, calibration_summary=None) -> list[SeriesReadiness]`
+- `render_markdown(results, *, window_days=WINDOW_DAYS_DEFAULT, freshness_ok=True, freshness_reasons=None, calibration_results=None) -> str`
 - `generate_report(*, ledger_path=LEDGER_PATH, output_path=REPORT_PATH, window_days=WINDOW_DAYS_DEFAULT, now=None) -> list[SeriesReadiness]`
 - `main(argv=None) -> None`
 
@@ -1227,10 +1271,13 @@ Classes:
 Functions:
 - `_ensure_et(moment) -> datetime`
 - `_file_age_days(path, now) -> float | None` — Return age in days using generated_at when present, else mtime.
+- `_parse_timestamp(value) -> datetime | None`
+- `_basis_audit_path(root, series, asof) -> Path`
+- `_check_basis_audit(*, series, asof, now_utc, root) -> tuple[bool, list[str], dict[str, object]]`
 - `_calibration_check(*, now, params_root, max_age_days) -> tuple[bool, list[str], dict[str, float]]`
 - `_polygon_ping(timeout) -> bool`
 - `_missing_env_vars(vars_to_check) -> list[str]`
-- `run_preflight(now_et, *, params_root=None, kill_switch_file=None, polygon_timeout=2.0, polygon_ping=None, require_kalshi=True, require_polygon=None) -> PreflightResult` — Evaluate GO/NO-GO checks for index ladder windows.
+- `run_preflight(now_et, *, params_root=None, kill_switch_file=None, polygon_timeout=2.0, polygon_ping=None, require_kalshi=True, require_polygon=None, require_basis_audit=None, basis_root=None, series=None, freshness_artifact_path=None, require_freshness=None, freshness_scope=FRESHNESS_SCOPE) -> PreflightResult` — Evaluate GO/NO-GO checks for index ladder windows.
 - `_parse_now(value) -> datetime | None`
 - `_series_labels(series_horizons=SERIES_HORIZONS) -> tuple[str, ...]`
 - `format_preflight_summary(result, *, label, series=None, broker=None) -> str`
@@ -1290,6 +1337,17 @@ Functions:
 - `_load_guardrail_events(artifacts_dir, *, since) -> dict[str, int]`
 - `_parse_timestamp(value) -> datetime | None`
 - `_ensure_utc(moment) -> datetime`
+
+## src/kalshi_alpha/exec/reports/telemetry_volume.py
+Module doc: Generate ops telemetry volume report for bounded TOB + quote-intent streams.
+Functions:
+- `_parse_args(argv=None) -> argparse.Namespace`
+- `_parse_date(value) -> date`
+- `_utc_today() -> date`
+- `_stream_path(root, stream, run_id) -> Path`
+- `_count_lines(path) -> tuple[int, int, int, int]`
+- `_format_stream(*, name, path, stats) -> list[str]`
+- `main(argv=None) -> Path`
 
 ## src/kalshi_alpha/exec/runners/__init__.py
 Module doc: Command-line runners for ladder scanning workflows.
@@ -1515,12 +1573,12 @@ Functions:
 - `_load_alpha_state() -> dict[str, float]`
 - `_load_freshness_summary() -> dict[str, object]`
 - `_format_freshness_metrics(summary) -> list[str]`
-- `_build_summary(ledger, calibrations, alpha_state, window_days) -> list[dict[str, object]]`
+- `_build_summary(ledger, calibrations, alpha_state, window_days, *, calibration_summary=None) -> list[dict[str, object]]`
 - `_load_gate_metrics(window_days) -> dict[str, dict[str, int]]`
 - `_load_honesty_metrics(window_days) -> dict[str, dict[str, object]]`
 - `_confidence_badge(sample_size, t_stat) -> str`
 - `_ev_plot_lines(expected, realized) -> list[str]`
-- `_write_markdown(summary, window_days, output, *, freshness_ok=True, freshness_reasons=None, freshness_summary=None, slo_metrics=None) -> None`
+- `_write_markdown(summary, window_days, output, *, freshness_ok=True, freshness_reasons=None, freshness_summary=None, slo_metrics=None, calibration_summary=None) -> None`
 - `_slo_markdown_lines(entry, *, window_days) -> list[str]`
 - `_load_structure_artifact(series) -> dict[str, object] | None`
 
@@ -1589,6 +1647,7 @@ Classes:
 - `WSListener()` — Lightweight index websocket listener feeding a freshness sentry.
 Functions:
 - `_log(message, *, quiet=False) -> None`
+- `_write_heartbeat(config, *, now_utc, now_et, ws_age_ms) -> None`
 - `_emit_preflight_summary(result, *, config) -> None`
 - `_pick_window(now_et) -> TradingWindow | None` — Return the active window or the next upcoming window.
 - `_series_to_run(window, *, series_filter=None) -> tuple[str, ...]`
@@ -1607,6 +1666,11 @@ Functions:
 Module doc: Telemetry utilities for execution flows.
 No top-level functions or classes.
 
+## src/kalshi_alpha/exec/telemetry/run_metadata.py
+Module doc: Telemetry run metadata writer for bounded TOB/quote-intent runs.
+Functions:
+- `write_telemetry_run_metadata(*, run_id, output_dir, status, broker, telemetry_only, series=None, window=None, preflight=None, tob_path=None, quote_intents_path=None, max_bytes_per_window=DEFAULT_TOB_WINDOW_MAX_BYTES, max_tob_bytes=DEFAULT_TOB_MAX_BYTES, max_intent_bytes=DEFAULT_INTENT_MAX_BYTES) -> Path` — Write a run metadata JSON describing the telemetry capture context.
+
 ## src/kalshi_alpha/exec/telemetry/shipper.py
 Module doc: Utility to bundle telemetry JSONL into artifacts for shipping.
 Functions:
@@ -1620,6 +1684,7 @@ Module doc: Append-only telemetry sink for live execution events.
 Classes:
 - `TelemetryEvent()` — Serializable telemetry event payload.
 - `TelemetrySink()` — Durable JSONL telemetry sink with daily rotation.
+- `TelemetryJsonlSink()` — Append-only JSONL telemetry sink with run-based rotation + bounds.
 Functions:
 - `sanitize_book_snapshot(snapshot, *, depth=DEFAULT_BOOK_DEPTH) -> dict[str, Any] | list[dict[str, Any]] | None` — Return a depth-limited, JSON-serialisable book snapshot.
 - `_sanitize_book_levels(levels, *, depth) -> list[dict[str, Any]]`
@@ -2026,8 +2091,61 @@ Functions:
 Module doc: Utility scripts for kalshi-sys tooling.
 No top-level functions or classes.
 
+## tools/agentic/gpt_bundle.py
+Module doc: gpt_bundle.py
+Functions:
+- `run(cmd, cwd=None) -> Tuple[int, str]`
+- `git_root(start) -> Optional[Path]`
+- `ensure_repo_snapshot(repo) -> Optional[Path]`
+- `list_changed_files(repo) -> list[str]`
+- `add_file_if_small(z, repo, rel_path, max_bytes=120000) -> None`
+- `main() -> int`
+
+## tools/agentic/project_state_refresh.py
+Module doc: project_state_refresh.py
+Functions:
+- `run(cmd, cwd=None) -> Tuple[int, str]`
+- `git_root(start) -> Optional[Path]`
+- `ensure_templates(project_state_dir) -> None`
+- `write_generated(repo, project_state_dir) -> None`
+- `zip_project_state(repo, project_state_dir, out_zip) -> Path`
+- `main() -> int`
+
+## tools/agentic/repo_snapshot.py
+Module doc: Create a deterministic, lightweight repo snapshot for GPT review.
+Functions:
+- `run(cmd, cwd=None) -> Tuple[int, str]`
+- `git_root(start) -> Optional[Path]`
+- `git_ls_files(repo) -> list[str]`
+- `guess_language_counts(paths) -> dict[str, int]`
+- `main() -> int`
+
 ## tools/build_fillcalib_dataset.py
-No top-level functions or classes.
+Module doc: Build fill calibration datasets + conservative maker fill curves from telemetry.
+Classes:
+- `TobSnapshot()`
+- `QuoteIntent()`
+- `BucketKey()`
+Functions:
+- `parse_args(argv=None) -> argparse.Namespace`
+- `build_fillcalib_dataset(*, series, date_from, date_to, telemetry_root, horizon_seconds=DEFAULT_HORIZON_SECONDS, min_samples=DEFAULT_MIN_SAMPLES, scaler=DEFAULT_SCALER, max_fill=DEFAULT_MAX_FILL) -> tuple[dict[str, object], list[dict[str, object]]]`
+- `write_outputs(*, payload, rows, series, date_to, output_curves, output_report, output_parquet, write_parquet, max_parquet_rows) -> dict[str, Path | None]`
+- `_render_report(payload, rows, *, series) -> str`
+- `_load_tob_snapshots(*, telemetry_root, series, date_from, date_to) -> tuple[dict[str, list[TobSnapshot]], int]`
+- `_load_quote_intents(*, telemetry_root, series, date_from, date_to) -> list[QuoteIntent]`
+- `_build_tob_index(tob_snapshots) -> dict[str, tuple[list[datetime], list[TobSnapshot]]]`
+- `_proxy_fill(intent, times, snapshots, horizon_seconds) -> int`
+- `_quote_distance_to_touch(intent, times, snapshots) -> float | None`
+- `_time_to_expiry(intent) -> tuple[float | None, str]`
+- `_bin_distance(distance) -> str`
+- `_bin_time(minutes) -> str`
+- `_iter_paths(root) -> Iterable[Path]`
+- `_iter_json_lines(path) -> Iterator[dict[str, object]]`
+- `_record_type_ok(record, expected) -> bool`
+- `_parse_ts(value) -> datetime | None`
+- `_safe_float(value) -> float | None`
+- `_within_range(ts, date_from, date_to) -> bool`
+- `main(argv=None) -> None`
 
 ## tools/failover_smoke.py
 Module doc: CLI smoke test for DualFeedFailover (synthetic timeline).
@@ -2036,6 +2154,19 @@ Functions:
 - `_synthetic_feed(name, *, interval_ms, outage_start, outage_duration_ms, duration_seconds) -> list[FeedSample[int]]`
 - `_merge_samples(primary, secondary) -> Iterator[FeedSample[int]]`
 - `main(argv=None) -> None`
+
+## tools/gpt_bundle_builder.py
+Module doc: Stage GPT bundle contents with fail-closed artifact checks.
+Classes:
+- `BundleBuildError(RuntimeError)`
+Functions:
+- `_copy_file(src, dest, staging_root, staged_files) -> None`
+- `_copy_tree(src_dir, dest_dir, staging_root, staged_files) -> None`
+- `_require_path(path, label) -> None`
+- `_missing_artifacts_from_stage(artifacts_content, staged_files, workspace_root) -> list[str]`
+- `stage_bundle(workspace_root, run_name, staging_root) -> set[str]`
+- `_parse_args(argv=None) -> argparse.Namespace`
+- `main(argv=None) -> int`
 
 ## tools/project_state_build.py
 Module doc: Generate project_state/_generated artifacts (inventory, symbols, imports, make targets).
@@ -2083,10 +2214,14 @@ Module doc: Settlement basis audit for index ladder windows (Polygon vs Kalshi e
 Classes:
 - `PolygonWindowValue()`
 - `KalshiSettlementValue()`
+- `_KalshiAuthenticatedClient()` — Adapter for Kalshi trade-api/v2 using the KalshiHttpClient interface.
 Functions:
+- `_kalshi_series_ticker(series) -> str | None`
+- `_close_time_from_ticker(ticker) -> datetime | None`
+- `_normalize_market_payload(payload, *, series_ticker) -> dict[str, Any]`
 - `_parse_day(value) -> date`
 - `_parse_args(argv=None) -> argparse.Namespace`
-- `_resolve_paths(day, series, *, out_report, out_data) -> tuple[Path, Path]`
+- `_resolve_paths(day, series, *, out_report, out_data, out_json) -> tuple[Path, Path, Path]`
 - `_parse_iso(value) -> datetime | None`
 - `_safe_float(value) -> float | None`
 - `_load_polygon_offline_values(fixtures_root, *, day, series) -> dict[str, PolygonWindowValue]`
@@ -2095,16 +2230,31 @@ Functions:
 - `_extract_kalshi_value(payload) -> KalshiSettlementValue | None`
 - `_collect_strikes(client, event_id) -> list[float]`
 - `_nearest_strike(value, strikes) -> tuple[float | None, float | None]`
+- `_median_spacing(strikes) -> float | None`
 - `_load_frame(path) -> pl.DataFrame`
 - `_write_frame(frame, path) -> None`
 - `_git_sha() -> str`
 - `_format_float(value) -> str`
 - `_series_stats(series) -> dict[str, float | None]`
-- `_render_report(frame, *, day, series, dataset_path, command) -> str`
+- `_quantiles(series, quantiles) -> dict[str, float | None]`
+- `_normalize_float(value) -> float | None`
+- `_load_quote_distance(series) -> tuple[float | None, str | None]`
+- `_build_per_window_deltas(frame) -> list[dict[str, object]]`
+- `_compute_flip_risk(*, series, basis_series, strike_spacings) -> dict[str, object]`
+- `_build_summary(frame, *, day, series) -> dict[str, object]`
+- `_render_report(frame, *, day, series, dataset_path, command, summary) -> str`
 - `_windows_for_series(day, series) -> list[TradingWindow]`
 - `_discover_markets(client, *, day, series) -> tuple[dict[str, DiscoveredMarket], dict[str, WindowDiscovery]]`
+- `_discover_markets_authenticated(client, *, day, series) -> tuple[dict[str, DiscoveredMarket], dict[str, WindowDiscovery]]`
 - `_build_dataset(*, day, series, offline_fixtures) -> pl.DataFrame`
 - `main(argv=None) -> None`
+
+## tools/sync_vendor_docs.py
+Classes:
+- `Source()`
+Functions:
+- `sha256_bytes(b) -> str`
+- `main() -> None`
 
 ## tools/verify_gpt_bundle.py
 Module doc: Verify GPT bundle completeness and diff hygiene.
@@ -2116,6 +2266,8 @@ Functions:
 - `_placeholder_lines(content) -> list[str]`
 - `_is_empty_or_pending(content) -> bool`
 - `_has_patch_hunks(content) -> bool`
+- `_extract_artifact_paths(content) -> list[str]`
+- `_missing_artifacts_from_bundle(artifacts_content, bundle_paths, bundle_root_prefix, workspace_root) -> list[str]`
 - `verify_bundle(bundle_path) -> list[str]`
 - `_parse_args(argv=None) -> argparse.Namespace`
 - `main(argv=None) -> int`

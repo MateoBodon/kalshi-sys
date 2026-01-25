@@ -1,10 +1,10 @@
 # Dependency Graph
 
 ## Metadata
-- Generated: 2025-12-22T19:42:20Z
-- Git SHA: a907a2eed87531d8178c3dc183d6f070182f9ebe
-- Branch: codex/TICKET-000_project_state_rebuild
-- Commands: `python tools/project_state_build.py`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Generated: 2026-01-10T11:43:04Z
+- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+- Branch: codex/TICKET-111_project_state_refresh
+- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
 
 ## Source
 - Internal import adjacency list in `project_state/_generated/import_graph.json`.
@@ -14,18 +14,18 @@
 - `src/kalshi_alpha/exec/runners/scan_ladders.py` — 63 internal deps
 - `src/kalshi_alpha/exec/pipelines/daily.py` — 26 internal deps
 - `src/kalshi_alpha/core/archive/replay.py` — 15 internal deps
-- `src/kalshi_alpha/exec/supervisor.py` — 11 internal deps
-- `src/kalshi_alpha/datastore/ingest.py` — 11 internal deps
 - `src/kalshi_alpha/brokers/kalshi/live.py` — 11 internal deps
-- `src/kalshi_alpha/exec/scanners/index_scan_common.py` — 10 internal deps
+- `src/kalshi_alpha/datastore/ingest.py` — 11 internal deps
+- `src/kalshi_alpha/exec/supervisor.py` — 11 internal deps
 - `src/kalshi_alpha/exec/runners/micro_index.py` — 10 internal deps
-- `src/kalshi_alpha/exec/scanners/scan_index_hourly.py` — 9 internal deps
+- `src/kalshi_alpha/exec/scanners/index_scan_common.py` — 10 internal deps
 - `src/kalshi_alpha/exec/scanners/scan_index_close.py` — 9 internal deps
-- `src/kalshi_alpha/replay/polygon_index_replay.py` — 8 internal deps
+- `src/kalshi_alpha/exec/scanners/scan_index_hourly.py` — 9 internal deps
+- `src/kalshi_alpha/exec/supervisor_index.py` — 9 internal deps
 - `src/kalshi_alpha/exec/ledger/__init__.py` — 8 internal deps
-- `src/kalshi_alpha/strategies/teny/__init__.py` — 7 internal deps
-- `src/kalshi_alpha/strategies/index/backtest_polygon.py` — 7 internal deps
-- `src/kalshi_alpha/strategies/cpi/__init__.py` — 7 internal deps
+- `src/kalshi_alpha/exec/reports/ramp.py` — 8 internal deps
+- `src/kalshi_alpha/exec/scoreboard.py` — 8 internal deps
+- `src/kalshi_alpha/replay/polygon_index_replay.py` — 8 internal deps
 
 ## Core entrypoints and their internal dependencies
 ### src/kalshi_alpha/exec/runners/scan_ladders.py
@@ -97,14 +97,18 @@
 - `src/kalshi_alpha/data/__init__.py`
 - `src/kalshi_alpha/drivers/polygon_index_ws.py`
 - `src/kalshi_alpha/exec/collectors/tob_logger.py`
+- `src/kalshi_alpha/exec/heartbeat.py`
 - `src/kalshi_alpha/exec/preflight_index.py`
 - `src/kalshi_alpha/exec/runners/__init__.py`
 - `src/kalshi_alpha/exec/runners/micro_index.py`
+- `src/kalshi_alpha/exec/telemetry/run_metadata.py`
 - `src/kalshi_alpha/sched/__init__.py`
 
 ### src/kalshi_alpha/exec/preflight_index.py
 - `src/kalshi_alpha/datastore/paths.py`
 - `src/kalshi_alpha/exec/heartbeat.py`
+- `src/kalshi_alpha/exec/monitors/__init__.py`
+- `src/kalshi_alpha/exec/monitors/freshness.py`
 - `src/kalshi_alpha/strategies/index/model_polygon.py`
 - `src/kalshi_alpha/utils/env.py`
 - `src/kalshi_alpha/utils/keys.py`
@@ -156,6 +160,7 @@
 - `src/kalshi_alpha/core/execution/defaults.py`
 - `src/kalshi_alpha/core/execution/index_models.py`
 - `src/kalshi_alpha/exec/__init__.py`
+- `src/kalshi_alpha/exec/calibration_ages.py`
 - `src/kalshi_alpha/exec/monitors/freshness.py`
 - `src/kalshi_alpha/exec/pilot_readiness.py`
 - `src/kalshi_alpha/exec/slo.py`

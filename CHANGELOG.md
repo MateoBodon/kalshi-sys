@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-01-25
+- Committed and pushed the current repo state for a server migration (captured existing changes as-is).
+- Added an agent run log and documentation updates for the migration snapshot.
+
+## 2026-01-10
+- Installed the Agentic System scaffold (PROJECT.md, tools/agentic scripts, docs templates).
+- Restored repo-specific AGENTS guidance, Makefile, and plan-of-record content after bootstrap.
+- Generated a fresh project_state bundle via tools/agentic.
+- Refreshed the project_state snapshot (module/function/dependency indices + metadata) and emitted new bundles.
+
 ## 2025-12-30
 - Added paper-only systemd unit for the index supervisor (`configs/systemd/kalshi-index-supervisor-paper.service`) with explicit INX/NDX series scope and venv ExecStart.
 - Supervisor index now emits a 60s heartbeat log line and writes heartbeat artifacts during dry-run supervision.

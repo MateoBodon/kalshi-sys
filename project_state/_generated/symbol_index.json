@@ -1,5 +1,5 @@
 {
-  "generated_at": "2025-12-22T19:58:14+00:00",
+  "generated_at": "2026-01-10T11:41:11+00:00",
   "root": "/Users/mateobodon/Documents/Programming/Projects/kalshi-sys",
   "files": {
     "src/kalshi_alpha/__init__.py": {
@@ -828,22 +828,68 @@
       "module_doc": "Load conservative fill probability curves derived from TOB snapshots.",
       "functions": [
         {
+          "name": "resolve_curve_path",
+          "signature": "(path=None) -> Path | None",
+          "doc": ""
+        },
+        {
           "name": "_load_payload",
-          "signature": "(path) -> Mapping[str, object]",
+          "signature": "(path_str) -> tuple[Mapping[str, object] | None, str | None]",
+          "doc": ""
+        },
+        {
+          "name": "curve_status",
+          "signature": "(path=None) -> FillCurveStatus",
           "doc": ""
         },
         {
           "name": "probability",
-          "signature": "(series, *, seconds_to_event=None, path=None) -> float | None",
+          "signature": "(series, *, seconds_to_event=None, window_id=None, side=None, quote_distance_to_touch_bin=None, time_to_expiry_bin=None, path=None) -> float",
           "doc": ""
         },
         {
           "name": "adjust_alpha",
-          "signature": "(series, base_alpha, *, seconds_to_event=None, path=None) -> float",
+          "signature": "(series, base_alpha, *, seconds_to_event=None, window_id=None, side=None, quote_distance_to_touch_bin=None, time_to_expiry_bin=None, path=None) -> float",
+          "doc": ""
+        },
+        {
+          "name": "_latest_curve_path",
+          "signature": "(root) -> Path | None",
+          "doc": ""
+        },
+        {
+          "name": "_parse_asof_date",
+          "signature": "(name) -> date | None",
+          "doc": ""
+        },
+        {
+          "name": "_safe_float",
+          "signature": "(value) -> float | None",
+          "doc": ""
+        },
+        {
+          "name": "_safe_int",
+          "signature": "(value) -> int | None",
+          "doc": ""
+        },
+        {
+          "name": "_safe_str",
+          "signature": "(value) -> str | None",
+          "doc": ""
+        },
+        {
+          "name": "_clamp_probability",
+          "signature": "(value) -> float",
           "doc": ""
         }
       ],
-      "classes": [],
+      "classes": [
+        {
+          "name": "FillCurveStatus",
+          "signature": "()",
+          "doc": ""
+        }
+      ],
       "errors": []
     },
     "src/kalshi_alpha/core/execution/fillratio.py": {
@@ -2399,6 +2445,11 @@
           "name": "_safe_float",
           "signature": "(value) -> float | None",
           "doc": ""
+        },
+        {
+          "name": "_parse_snapshot_timestamp",
+          "signature": "(value) -> datetime | None",
+          "doc": ""
         }
       ],
       "classes": [
@@ -2744,6 +2795,94 @@
       "classes": [],
       "errors": []
     },
+    "src/kalshi_alpha/exec/calibration_ages.py": {
+      "module_doc": "Calibration age inspection and reporting for index ladders.",
+      "functions": [
+        {
+          "name": "_ensure_utc",
+          "signature": "(moment) -> datetime",
+          "doc": ""
+        },
+        {
+          "name": "_format_age",
+          "signature": "(age_hours) -> str",
+          "doc": ""
+        },
+        {
+          "name": "_format_timestamp",
+          "signature": "(value) -> str",
+          "doc": ""
+        },
+        {
+          "name": "_hourly_candidates",
+          "signature": "(root, slug, hour) -> list[Path]",
+          "doc": ""
+        },
+        {
+          "name": "_close_candidates",
+          "signature": "(root, slug) -> list[Path]",
+          "doc": ""
+        },
+        {
+          "name": "_age_from_mtime",
+          "signature": "(path, now_utc) -> tuple[float | None, str | None]",
+          "doc": ""
+        },
+        {
+          "name": "_evaluate_candidates",
+          "signature": "(*, series, horizon, candidates, now_utc, max_age_hours) -> CalibrationAgeResult",
+          "doc": ""
+        },
+        {
+          "name": "inspect_calibration_ages",
+          "signature": "(*, now=None, root=CALIBRATION_ROOT, max_age_days=DEFAULT_MAX_AGE_DAYS, series=None, hourly_hours=DEFAULT_HOURLY_HOURS) -> list[CalibrationAgeResult]",
+          "doc": ""
+        },
+        {
+          "name": "summarize_by_series",
+          "signature": "(results) -> dict[str, CalibrationSeriesSummary]",
+          "doc": ""
+        },
+        {
+          "name": "render_markdown",
+          "signature": "(results, *, asof_date, generated_at) -> str",
+          "doc": ""
+        },
+        {
+          "name": "write_report",
+          "signature": "(results, *, asof_date, output_path, generated_at) -> Path",
+          "doc": ""
+        },
+        {
+          "name": "_parse_date",
+          "signature": "(value, *, now_et) -> date",
+          "doc": ""
+        },
+        {
+          "name": "_build_parser",
+          "signature": "() -> argparse.ArgumentParser",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "(argv=None) -> int",
+          "doc": ""
+        }
+      ],
+      "classes": [
+        {
+          "name": "CalibrationAgeResult",
+          "signature": "()",
+          "doc": ""
+        },
+        {
+          "name": "CalibrationSeriesSummary",
+          "signature": "()",
+          "doc": ""
+        }
+      ],
+      "errors": []
+    },
     "src/kalshi_alpha/exec/collectors/__init__.py": {
       "module_doc": "Collectors for external data feeds.",
       "functions": [],
@@ -2790,6 +2929,26 @@
     "src/kalshi_alpha/exec/collectors/polygon_ws.py": {
       "module_doc": "Massive (Polygon) websocket collector for index ladders.",
       "functions": [
+        {
+          "name": "_normalize_status",
+          "signature": "(value) -> str | None",
+          "doc": ""
+        },
+        {
+          "name": "_format_text",
+          "signature": "(value) -> str | None",
+          "doc": ""
+        },
+        {
+          "name": "_market_status_for_symbol",
+          "signature": "(payload, symbol) -> str | None",
+          "doc": ""
+        },
+        {
+          "name": "_inactive_symbols",
+          "signature": "(payload, symbols) -> tuple[list[str], dict[str, str]]",
+          "doc": ""
+        },
         {
           "name": "_resolved_aliases",
           "signature": "(raw) -> AliasMap",
@@ -2869,6 +3028,11 @@
           "doc": ""
         },
         {
+          "name": "build_quote_intent",
+          "signature": "(*, run_id, ts_utc, series, window_label, window_ts_utc, window_ts_et, market_ticker, market_id, side, price, size, tob_ts=None, max_bytes=DEFAULT_INTENT_MAX_BYTES) -> dict[str, Any] | None",
+          "doc": ""
+        },
+        {
           "name": "enforce_snapshot_bounds",
           "signature": "(snapshot, *, max_bytes=DEFAULT_TOB_MAX_BYTES) -> dict[str, Any] | None",
           "doc": ""
@@ -2879,8 +3043,8 @@
           "doc": ""
         },
         {
-          "name": "_append_jsonl",
-          "signature": "(path, payload) -> None",
+          "name": "_window_id",
+          "signature": "(series, window_label, window_ts_utc, fallback_ts) -> str",
           "doc": ""
         },
         {
@@ -2971,7 +3135,7 @@
         },
         {
           "name": "write_go_no_go",
-          "signature": "(result) -> Path",
+          "signature": "(result, *, scope=None, scoped_blockers=None, unscoped_blockers=None, extra=None) -> Path",
           "doc": ""
         }
       ],
@@ -3309,6 +3473,18 @@
       ],
       "errors": []
     },
+    "src/kalshi_alpha/exec/market_status.py": {
+      "module_doc": "Print Polygon/Massive market status for ops checks.",
+      "functions": [
+        {
+          "name": "main",
+          "signature": "(argv=None) -> int",
+          "doc": ""
+        }
+      ],
+      "classes": [],
+      "errors": []
+    },
     "src/kalshi_alpha/exec/monitors/__init__.py": {
       "module_doc": "Runtime monitoring entry points.",
       "functions": [],
@@ -3395,6 +3571,21 @@
         {
           "name": "_normalize_scope",
           "signature": "(scope) -> str | None",
+          "doc": ""
+        },
+        {
+          "name": "_fetch_market_status",
+          "signature": "() -> dict[str, Any] | None",
+          "doc": ""
+        },
+        {
+          "name": "_market_status_summary",
+          "signature": "(payload) -> dict[str, Any]",
+          "doc": ""
+        },
+        {
+          "name": "_inactive_market_reason",
+          "signature": "(payload) -> str | None",
           "doc": ""
         },
         {
@@ -3862,11 +4053,6 @@
           "doc": ""
         },
         {
-          "name": "_file_age_days",
-          "signature": "(path, now) -> float | None",
-          "doc": ""
-        },
-        {
           "name": "calibration_age_days",
           "signature": "(series, now) -> float | None",
           "doc": ""
@@ -3878,12 +4064,12 @@
         },
         {
           "name": "evaluate_readiness",
-          "signature": "(frame, *, now=None, window_days=WINDOW_DAYS_DEFAULT) -> list[SeriesReadiness]",
+          "signature": "(frame, *, now=None, window_days=WINDOW_DAYS_DEFAULT, calibration_summary=None) -> list[SeriesReadiness]",
           "doc": ""
         },
         {
           "name": "render_markdown",
-          "signature": "(results, *, window_days=WINDOW_DAYS_DEFAULT, freshness_ok=True, freshness_reasons=None) -> str",
+          "signature": "(results, *, window_days=WINDOW_DAYS_DEFAULT, freshness_ok=True, freshness_reasons=None, calibration_results=None) -> str",
           "doc": ""
         },
         {
@@ -4281,6 +4467,21 @@
           "doc": "Return age in days using generated_at when present, else mtime."
         },
         {
+          "name": "_parse_timestamp",
+          "signature": "(value) -> datetime | None",
+          "doc": ""
+        },
+        {
+          "name": "_basis_audit_path",
+          "signature": "(root, series, asof) -> Path",
+          "doc": ""
+        },
+        {
+          "name": "_check_basis_audit",
+          "signature": "(*, series, asof, now_utc, root) -> tuple[bool, list[str], dict[str, object]]",
+          "doc": ""
+        },
+        {
           "name": "_calibration_check",
           "signature": "(*, now, params_root, max_age_days) -> tuple[bool, list[str], dict[str, float]]",
           "doc": ""
@@ -4297,7 +4498,7 @@
         },
         {
           "name": "run_preflight",
-          "signature": "(now_et, *, params_root=None, kill_switch_file=None, polygon_timeout=2.0, polygon_ping=None, require_kalshi=True, require_polygon=None) -> PreflightResult",
+          "signature": "(now_et, *, params_root=None, kill_switch_file=None, polygon_timeout=2.0, polygon_ping=None, require_kalshi=True, require_polygon=None, require_basis_audit=None, basis_root=None, series=None, freshness_artifact_path=None, require_freshness=None, freshness_scope=FRESHNESS_SCOPE) -> PreflightResult",
           "doc": "Evaluate GO/NO-GO checks for index ladder windows."
         },
         {
@@ -4543,6 +4744,48 @@
           "doc": ""
         }
       ],
+      "errors": []
+    },
+    "src/kalshi_alpha/exec/reports/telemetry_volume.py": {
+      "module_doc": "Generate ops telemetry volume report for bounded TOB + quote-intent streams.",
+      "functions": [
+        {
+          "name": "_parse_args",
+          "signature": "(argv=None) -> argparse.Namespace",
+          "doc": ""
+        },
+        {
+          "name": "_parse_date",
+          "signature": "(value) -> date",
+          "doc": ""
+        },
+        {
+          "name": "_utc_today",
+          "signature": "() -> date",
+          "doc": ""
+        },
+        {
+          "name": "_stream_path",
+          "signature": "(root, stream, run_id) -> Path",
+          "doc": ""
+        },
+        {
+          "name": "_count_lines",
+          "signature": "(path) -> tuple[int, int, int, int]",
+          "doc": ""
+        },
+        {
+          "name": "_format_stream",
+          "signature": "(*, name, path, stats) -> list[str]",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "(argv=None) -> Path",
+          "doc": ""
+        }
+      ],
+      "classes": [],
       "errors": []
     },
     "src/kalshi_alpha/exec/runners/__init__.py": {
@@ -5429,7 +5672,7 @@
         },
         {
           "name": "_build_summary",
-          "signature": "(ledger, calibrations, alpha_state, window_days) -> list[dict[str, object]]",
+          "signature": "(ledger, calibrations, alpha_state, window_days, *, calibration_summary=None) -> list[dict[str, object]]",
           "doc": ""
         },
         {
@@ -5454,7 +5697,7 @@
         },
         {
           "name": "_write_markdown",
-          "signature": "(summary, window_days, output, *, freshness_ok=True, freshness_reasons=None, freshness_summary=None, slo_metrics=None) -> None",
+          "signature": "(summary, window_days, output, *, freshness_ok=True, freshness_reasons=None, freshness_summary=None, slo_metrics=None, calibration_summary=None) -> None",
           "doc": ""
         },
         {
@@ -5702,6 +5945,11 @@
           "doc": ""
         },
         {
+          "name": "_write_heartbeat",
+          "signature": "(config, *, now_utc, now_et, ws_age_ms) -> None",
+          "doc": ""
+        },
+        {
           "name": "_emit_preflight_summary",
           "signature": "(result, *, config) -> None",
           "doc": ""
@@ -5787,6 +6035,18 @@
       "classes": [],
       "errors": []
     },
+    "src/kalshi_alpha/exec/telemetry/run_metadata.py": {
+      "module_doc": "Telemetry run metadata writer for bounded TOB/quote-intent runs.",
+      "functions": [
+        {
+          "name": "write_telemetry_run_metadata",
+          "signature": "(*, run_id, output_dir, status, broker, telemetry_only, series=None, window=None, preflight=None, tob_path=None, quote_intents_path=None, max_bytes_per_window=DEFAULT_TOB_WINDOW_MAX_BYTES, max_tob_bytes=DEFAULT_TOB_MAX_BYTES, max_intent_bytes=DEFAULT_INTENT_MAX_BYTES) -> Path",
+          "doc": "Write a run metadata JSON describing the telemetry capture context."
+        }
+      ],
+      "classes": [],
+      "errors": []
+    },
     "src/kalshi_alpha/exec/telemetry/shipper.py": {
       "module_doc": "Utility to bundle telemetry JSONL into artifacts for shipping.",
       "functions": [
@@ -5868,6 +6128,11 @@
           "name": "TelemetrySink",
           "signature": "()",
           "doc": "Durable JSONL telemetry sink with daily rotation."
+        },
+        {
+          "name": "TelemetryJsonlSink",
+          "signature": "()",
+          "doc": "Append-only JSONL telemetry sink with run-based rotation + bounds."
         }
       ],
       "errors": []
@@ -7251,10 +7516,228 @@
       "classes": [],
       "errors": []
     },
-    "tools/build_fillcalib_dataset.py": {
-      "module_doc": "",
-      "functions": [],
+    "tools/agentic/gpt_bundle.py": {
+      "module_doc": "gpt_bundle.py",
+      "functions": [
+        {
+          "name": "run",
+          "signature": "(cmd, cwd=None) -> Tuple[int, str]",
+          "doc": ""
+        },
+        {
+          "name": "git_root",
+          "signature": "(start) -> Optional[Path]",
+          "doc": ""
+        },
+        {
+          "name": "ensure_repo_snapshot",
+          "signature": "(repo) -> Optional[Path]",
+          "doc": ""
+        },
+        {
+          "name": "list_changed_files",
+          "signature": "(repo) -> list[str]",
+          "doc": ""
+        },
+        {
+          "name": "add_file_if_small",
+          "signature": "(z, repo, rel_path, max_bytes=120000) -> None",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "() -> int",
+          "doc": ""
+        }
+      ],
       "classes": [],
+      "errors": []
+    },
+    "tools/agentic/project_state_refresh.py": {
+      "module_doc": "project_state_refresh.py",
+      "functions": [
+        {
+          "name": "run",
+          "signature": "(cmd, cwd=None) -> Tuple[int, str]",
+          "doc": ""
+        },
+        {
+          "name": "git_root",
+          "signature": "(start) -> Optional[Path]",
+          "doc": ""
+        },
+        {
+          "name": "ensure_templates",
+          "signature": "(project_state_dir) -> None",
+          "doc": ""
+        },
+        {
+          "name": "write_generated",
+          "signature": "(repo, project_state_dir) -> None",
+          "doc": ""
+        },
+        {
+          "name": "zip_project_state",
+          "signature": "(repo, project_state_dir, out_zip) -> Path",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "() -> int",
+          "doc": ""
+        }
+      ],
+      "classes": [],
+      "errors": []
+    },
+    "tools/agentic/repo_snapshot.py": {
+      "module_doc": "Create a deterministic, lightweight repo snapshot for GPT review.",
+      "functions": [
+        {
+          "name": "run",
+          "signature": "(cmd, cwd=None) -> Tuple[int, str]",
+          "doc": ""
+        },
+        {
+          "name": "git_root",
+          "signature": "(start) -> Optional[Path]",
+          "doc": ""
+        },
+        {
+          "name": "git_ls_files",
+          "signature": "(repo) -> list[str]",
+          "doc": ""
+        },
+        {
+          "name": "guess_language_counts",
+          "signature": "(paths) -> dict[str, int]",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "() -> int",
+          "doc": ""
+        }
+      ],
+      "classes": [],
+      "errors": []
+    },
+    "tools/build_fillcalib_dataset.py": {
+      "module_doc": "Build fill calibration datasets + conservative maker fill curves from telemetry.",
+      "functions": [
+        {
+          "name": "parse_args",
+          "signature": "(argv=None) -> argparse.Namespace",
+          "doc": ""
+        },
+        {
+          "name": "build_fillcalib_dataset",
+          "signature": "(*, series, date_from, date_to, telemetry_root, horizon_seconds=DEFAULT_HORIZON_SECONDS, min_samples=DEFAULT_MIN_SAMPLES, scaler=DEFAULT_SCALER, max_fill=DEFAULT_MAX_FILL) -> tuple[dict[str, object], list[dict[str, object]]]",
+          "doc": ""
+        },
+        {
+          "name": "write_outputs",
+          "signature": "(*, payload, rows, series, date_to, output_curves, output_report, output_parquet, write_parquet, max_parquet_rows) -> dict[str, Path | None]",
+          "doc": ""
+        },
+        {
+          "name": "_render_report",
+          "signature": "(payload, rows, *, series) -> str",
+          "doc": ""
+        },
+        {
+          "name": "_load_tob_snapshots",
+          "signature": "(*, telemetry_root, series, date_from, date_to) -> tuple[dict[str, list[TobSnapshot]], int]",
+          "doc": ""
+        },
+        {
+          "name": "_load_quote_intents",
+          "signature": "(*, telemetry_root, series, date_from, date_to) -> list[QuoteIntent]",
+          "doc": ""
+        },
+        {
+          "name": "_build_tob_index",
+          "signature": "(tob_snapshots) -> dict[str, tuple[list[datetime], list[TobSnapshot]]]",
+          "doc": ""
+        },
+        {
+          "name": "_proxy_fill",
+          "signature": "(intent, times, snapshots, horizon_seconds) -> int",
+          "doc": ""
+        },
+        {
+          "name": "_quote_distance_to_touch",
+          "signature": "(intent, times, snapshots) -> float | None",
+          "doc": ""
+        },
+        {
+          "name": "_time_to_expiry",
+          "signature": "(intent) -> tuple[float | None, str]",
+          "doc": ""
+        },
+        {
+          "name": "_bin_distance",
+          "signature": "(distance) -> str",
+          "doc": ""
+        },
+        {
+          "name": "_bin_time",
+          "signature": "(minutes) -> str",
+          "doc": ""
+        },
+        {
+          "name": "_iter_paths",
+          "signature": "(root) -> Iterable[Path]",
+          "doc": ""
+        },
+        {
+          "name": "_iter_json_lines",
+          "signature": "(path) -> Iterator[dict[str, object]]",
+          "doc": ""
+        },
+        {
+          "name": "_record_type_ok",
+          "signature": "(record, expected) -> bool",
+          "doc": ""
+        },
+        {
+          "name": "_parse_ts",
+          "signature": "(value) -> datetime | None",
+          "doc": ""
+        },
+        {
+          "name": "_safe_float",
+          "signature": "(value) -> float | None",
+          "doc": ""
+        },
+        {
+          "name": "_within_range",
+          "signature": "(ts, date_from, date_to) -> bool",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "(argv=None) -> None",
+          "doc": ""
+        }
+      ],
+      "classes": [
+        {
+          "name": "TobSnapshot",
+          "signature": "()",
+          "doc": ""
+        },
+        {
+          "name": "QuoteIntent",
+          "signature": "()",
+          "doc": ""
+        },
+        {
+          "name": "BucketKey",
+          "signature": "()",
+          "doc": ""
+        }
+      ],
       "errors": []
     },
     "tools/failover_smoke.py": {
@@ -7282,6 +7765,54 @@
         }
       ],
       "classes": [],
+      "errors": []
+    },
+    "tools/gpt_bundle_builder.py": {
+      "module_doc": "Stage GPT bundle contents with fail-closed artifact checks.",
+      "functions": [
+        {
+          "name": "_copy_file",
+          "signature": "(src, dest, staging_root, staged_files) -> None",
+          "doc": ""
+        },
+        {
+          "name": "_copy_tree",
+          "signature": "(src_dir, dest_dir, staging_root, staged_files) -> None",
+          "doc": ""
+        },
+        {
+          "name": "_require_path",
+          "signature": "(path, label) -> None",
+          "doc": ""
+        },
+        {
+          "name": "_missing_artifacts_from_stage",
+          "signature": "(artifacts_content, staged_files, workspace_root) -> list[str]",
+          "doc": ""
+        },
+        {
+          "name": "stage_bundle",
+          "signature": "(workspace_root, run_name, staging_root) -> set[str]",
+          "doc": ""
+        },
+        {
+          "name": "_parse_args",
+          "signature": "(argv=None) -> argparse.Namespace",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "(argv=None) -> int",
+          "doc": ""
+        }
+      ],
+      "classes": [
+        {
+          "name": "BundleBuildError",
+          "signature": "(RuntimeError)",
+          "doc": ""
+        }
+      ],
       "errors": []
     },
     "tools/project_state_build.py": {
@@ -7459,6 +7990,21 @@
       "module_doc": "Settlement basis audit for index ladder windows (Polygon vs Kalshi expiration value).",
       "functions": [
         {
+          "name": "_kalshi_series_ticker",
+          "signature": "(series) -> str | None",
+          "doc": ""
+        },
+        {
+          "name": "_close_time_from_ticker",
+          "signature": "(ticker) -> datetime | None",
+          "doc": ""
+        },
+        {
+          "name": "_normalize_market_payload",
+          "signature": "(payload, *, series_ticker) -> dict[str, Any]",
+          "doc": ""
+        },
+        {
           "name": "_parse_day",
           "signature": "(value) -> date",
           "doc": ""
@@ -7470,7 +8016,7 @@
         },
         {
           "name": "_resolve_paths",
-          "signature": "(day, series, *, out_report, out_data) -> tuple[Path, Path]",
+          "signature": "(day, series, *, out_report, out_data, out_json) -> tuple[Path, Path, Path]",
           "doc": ""
         },
         {
@@ -7514,6 +8060,11 @@
           "doc": ""
         },
         {
+          "name": "_median_spacing",
+          "signature": "(strikes) -> float | None",
+          "doc": ""
+        },
+        {
           "name": "_load_frame",
           "signature": "(path) -> pl.DataFrame",
           "doc": ""
@@ -7539,8 +8090,38 @@
           "doc": ""
         },
         {
+          "name": "_quantiles",
+          "signature": "(series, quantiles) -> dict[str, float | None]",
+          "doc": ""
+        },
+        {
+          "name": "_normalize_float",
+          "signature": "(value) -> float | None",
+          "doc": ""
+        },
+        {
+          "name": "_load_quote_distance",
+          "signature": "(series) -> tuple[float | None, str | None]",
+          "doc": ""
+        },
+        {
+          "name": "_build_per_window_deltas",
+          "signature": "(frame) -> list[dict[str, object]]",
+          "doc": ""
+        },
+        {
+          "name": "_compute_flip_risk",
+          "signature": "(*, series, basis_series, strike_spacings) -> dict[str, object]",
+          "doc": ""
+        },
+        {
+          "name": "_build_summary",
+          "signature": "(frame, *, day, series) -> dict[str, object]",
+          "doc": ""
+        },
+        {
           "name": "_render_report",
-          "signature": "(frame, *, day, series, dataset_path, command) -> str",
+          "signature": "(frame, *, day, series, dataset_path, command, summary) -> str",
           "doc": ""
         },
         {
@@ -7550,6 +8131,11 @@
         },
         {
           "name": "_discover_markets",
+          "signature": "(client, *, day, series) -> tuple[dict[str, DiscoveredMarket], dict[str, WindowDiscovery]]",
+          "doc": ""
+        },
+        {
+          "name": "_discover_markets_authenticated",
           "signature": "(client, *, day, series) -> tuple[dict[str, DiscoveredMarket], dict[str, WindowDiscovery]]",
           "doc": ""
         },
@@ -7572,6 +8158,34 @@
         },
         {
           "name": "KalshiSettlementValue",
+          "signature": "()",
+          "doc": ""
+        },
+        {
+          "name": "_KalshiAuthenticatedClient",
+          "signature": "()",
+          "doc": "Adapter for Kalshi trade-api/v2 using the KalshiHttpClient interface."
+        }
+      ],
+      "errors": []
+    },
+    "tools/sync_vendor_docs.py": {
+      "module_doc": "",
+      "functions": [
+        {
+          "name": "sha256_bytes",
+          "signature": "(b) -> str",
+          "doc": ""
+        },
+        {
+          "name": "main",
+          "signature": "() -> None",
+          "doc": ""
+        }
+      ],
+      "classes": [
+        {
+          "name": "Source",
           "signature": "()",
           "doc": ""
         }
@@ -7604,6 +8218,16 @@
         {
           "name": "_has_patch_hunks",
           "signature": "(content) -> bool",
+          "doc": ""
+        },
+        {
+          "name": "_extract_artifact_paths",
+          "signature": "(content) -> list[str]",
+          "doc": ""
+        },
+        {
+          "name": "_missing_artifacts_from_bundle",
+          "signature": "(artifacts_content, bundle_paths, bundle_root_prefix, workspace_root) -> list[str]",
           "doc": ""
         },
         {

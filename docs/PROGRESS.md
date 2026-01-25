@@ -2,6 +2,19 @@
 
 Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
 
+## 2026-01-25
+- Ticket TICKET-111 — Committed and pushed the current repo state for server migration (captured existing changes as-is).
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260125T023806Z_TICKET-111_project_state_refresh/RUN.md`
+
+## 2026-01-10
+- Ticket BOOTSTRAP — Installed agentic system scaffold (tools/agentic, PROJECT/AGENTS refresh), restored repo-specific Makefile/plan, and generated a project_state bundle.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260110T103414Z_TICKET-BOOTSTRAP_agentic_scaffold/RUN.md`; bundle `docs/_bundles/project_state_20260110_103738.zip`
+- Ticket TICKET-111 — Refreshed project_state snapshot (module/function/dependency indices + metadata) and generated updated bundles.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260110T113814Z_TICKET-111_project_state_refresh/RUN.md`; bundles `docs/_bundles/project_state_20260110_114631.zip`, `docs/_bundles/gpt_bundle_20260110_114631_TICKET-111.zip`
+
 ## 2025-12-30
 - Ticket #106 — AWS supervisor wiring proof (PAPER): **FAIL** (unit/bundle reviewability gaps; systemd unit not committed in-repo + deploy/runbook files missing from bundles before TICKET-110).
   - Gate status: PAPER (blocked)

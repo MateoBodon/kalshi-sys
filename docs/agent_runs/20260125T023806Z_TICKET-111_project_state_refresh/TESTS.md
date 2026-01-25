@@ -1,0 +1,2 @@
+# TESTS.md
+- `pytest -q`

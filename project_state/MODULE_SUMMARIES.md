@@ -1,10 +1,10 @@
 # Module Summaries
 
 ## Metadata
-- Generated: 2025-12-22T19:42:20Z
-- Git SHA: a907a2eed87531d8178c3dc183d6f070182f9ebe
-- Branch: codex/TICKET-000_project_state_rebuild
-- Commands: `python tools/project_state_build.py`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Generated: 2026-01-10T11:43:04Z
+- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+- Branch: codex/TICKET-111_project_state_refresh
+- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
 
 ## Index
 - Summaries are grouped by top-level package.
@@ -46,7 +46,7 @@
 - `src/kalshi_alpha/core/backtest/__init__.py` — funcs=7, classes=2; doc: Backtesting utilities: scoring rules, event replay, and calibration diagnostics.
 - `src/kalshi_alpha/core/datastore/__init__.py` — funcs=2, classes=3; doc: Datastore helpers for raw snapshots, processed tables, and DuckDB cataloging.
 - `src/kalshi_alpha/core/execution/defaults.py` — funcs=4, classes=0; doc: Execution defaults for index ladder maker behaviour (alpha & slippage).
-- `src/kalshi_alpha/core/execution/fillprob.py` — funcs=3, classes=0; doc: Load conservative fill probability curves derived from TOB snapshots.
+- `src/kalshi_alpha/core/execution/fillprob.py` — funcs=11, classes=1; doc: Load conservative fill probability curves derived from TOB snapshots.
 - `src/kalshi_alpha/core/execution/fillratio.py` — funcs=7, classes=1; doc: Estimate expected fills using simple visible-depth heuristics.
 - `src/kalshi_alpha/core/execution/index_models.py` — funcs=4, classes=2; doc: Execution curve loaders for index fills and slippage.
 - `src/kalshi_alpha/core/execution/order_queue.py` — funcs=0, classes=2; doc: FIFO order queue for coordinating cancel/replace operations.
@@ -100,7 +100,7 @@
 - `src/kalshi_alpha/drivers/macro_calendar/cli.py` — funcs=7, classes=0; doc: Command-line utility to refresh macro calendar day dummies.
 - `src/kalshi_alpha/drivers/nws_cli/__init__.py` — funcs=9, classes=2; doc: NOAA/NWS Daily Climate Report (DCR) driver.
 - `src/kalshi_alpha/drivers/polygon_index/__init__.py` — funcs=0, classes=0; doc: Polygon index data integration.
-- `src/kalshi_alpha/drivers/polygon_index/client.py` — funcs=1, classes=4; doc: Massive indices client supporting REST ingestion and optional Massive websocket.
+- `src/kalshi_alpha/drivers/polygon_index/client.py` — funcs=2, classes=4; doc: Massive indices client supporting REST ingestion and optional Massive websocket.
 - `src/kalshi_alpha/drivers/polygon_index/snapshots.py` — funcs=6, classes=0; doc: Snapshot helpers for Polygon index data.
 - `src/kalshi_alpha/drivers/polygon_index/symbols.py` — funcs=3, classes=1; doc: Shared symbol metadata for Polygon-powered index ladders.
 - `src/kalshi_alpha/drivers/polygon_index/windowed.py` — funcs=10, classes=4; doc: Windowed Polygon index websocket collector for hourly and close ladders.
@@ -112,10 +112,11 @@
 - `src/kalshi_alpha/exec/backtest_index_polygon.py` — funcs=3, classes=0; doc: CLI entrypoint for Polygon-only index ladder backtests.
 - `src/kalshi_alpha/exec/brokers/__init__.py` — funcs=0, classes=0; doc: Broker integration placeholders (dry-run only).
 - `src/kalshi_alpha/exec/brokers/kalshi/__init__.py` — funcs=0, classes=0; doc: Placeholder for future authenticated Kalshi broker integration.
+- `src/kalshi_alpha/exec/calibration_ages.py` — funcs=14, classes=2; doc: Calibration age inspection and reporting for index ladders.
 - `src/kalshi_alpha/exec/collectors/__init__.py` — funcs=0, classes=0; doc: Collectors for external data feeds.
 - `src/kalshi_alpha/exec/collectors/kalshi_tob.py` — funcs=6, classes=0; doc: Capture Kalshi top-of-book snapshots for fill modeling.
-- `src/kalshi_alpha/exec/collectors/polygon_ws.py` — funcs=10, classes=3; doc: Massive (Polygon) websocket collector for index ladders.
-- `src/kalshi_alpha/exec/collectors/tob_logger.py` — funcs=9, classes=1; doc: Bounded top-of-book snapshot + quote-intent logger for index ladders.
+- `src/kalshi_alpha/exec/collectors/polygon_ws.py` — funcs=14, classes=3; doc: Massive (Polygon) websocket collector for index ladders.
+- `src/kalshi_alpha/exec/collectors/tob_logger.py` — funcs=10, classes=1; doc: Bounded top-of-book snapshot + quote-intent logger for index ladders.
 - `src/kalshi_alpha/exec/fees.py` — funcs=5, classes=2; doc: Execution-time fee helpers backed by configs/fees.json.
 - `src/kalshi_alpha/exec/gate_utils.py` — funcs=2, classes=0; doc: Shared helpers for quality gate configuration and artifacts.
 - `src/kalshi_alpha/exec/heartbeat.py` — funcs=8, classes=0; doc: Heartbeat and kill-switch utilities for execution pipelines.
@@ -127,10 +128,11 @@
 - `src/kalshi_alpha/exec/ledger/schema.py` — funcs=0, classes=1; doc: Typed ledger schema definitions.
 - `src/kalshi_alpha/exec/limits.py` — funcs=0, classes=3; doc: Limit enforcement helpers for proposal generation and broker validation.
 - `src/kalshi_alpha/exec/live_smoke.py` — funcs=8, classes=1; doc: Read-only smoke test for Kalshi index ladders.
+- `src/kalshi_alpha/exec/market_status.py` — funcs=1, classes=0; doc: Print Polygon/Massive market status for ops checks.
 - `src/kalshi_alpha/exec/monitors/__init__.py` — funcs=0, classes=0; doc: Runtime monitoring entry points.
 - `src/kalshi_alpha/exec/monitors/cli.py` — funcs=4, classes=0; doc: Command-line entry point for runtime monitors.
 - `src/kalshi_alpha/exec/monitors/fee_rules.py` — funcs=2, classes=0; doc: Helper utilities for fee/rule watcher artifacts.
-- `src/kalshi_alpha/exec/monitors/freshness.py` — funcs=30, classes=2; doc: Data feed freshness monitor for ramp readiness.
+- `src/kalshi_alpha/exec/monitors/freshness.py` — funcs=33, classes=2; doc: Data feed freshness monitor for ramp readiness.
 - `src/kalshi_alpha/exec/monitors/runtime.py` — funcs=16, classes=2; doc: Compute runtime execution monitors and persist artifacts.
 - `src/kalshi_alpha/exec/monitors/sequential.py` — funcs=1, classes=2; doc: Sequential change-detection guardrails for EV deltas.
 - `src/kalshi_alpha/exec/monitors/sigma_drift.py` — funcs=2, classes=0; doc: Helpers for sigma drift monitor artifacts.
@@ -139,18 +141,19 @@
 - `src/kalshi_alpha/exec/pilot/config.py` — funcs=3, classes=1; doc: Utilities for loading pilot mode configuration.
 - `src/kalshi_alpha/exec/pilot/runtime.py` — funcs=6, classes=1; doc: Runtime helpers for configuring pilot sessions.
 - `src/kalshi_alpha/exec/pilot_bundle.py` — funcs=11, classes=1; doc: Assemble a single tarball with key pilot readiness artifacts.
-- `src/kalshi_alpha/exec/pilot_readiness.py` — funcs=11, classes=1; doc: Compute pilot readiness for index ladders based on recent paper fills.
+- `src/kalshi_alpha/exec/pilot_readiness.py` — funcs=10, classes=1; doc: Compute pilot readiness for index ladders based on recent paper fills.
 - `src/kalshi_alpha/exec/pipelines/calendar.py` — funcs=11, classes=1; doc: Calendar-aware run window resolution for daily pipelines.
 - `src/kalshi_alpha/exec/pipelines/daily.py` — funcs=19, classes=0; doc: Daily orchestration pipeline for ladder strategies.
 - `src/kalshi_alpha/exec/pipelines/preflight.py` — funcs=2, classes=0; doc: Lightweight preflight helper for daily pipeline windows.
 - `src/kalshi_alpha/exec/pipelines/today.py` — funcs=11, classes=1; doc: Autonomous "today" orchestration that selects daily modes based on calendars.
 - `src/kalshi_alpha/exec/pipelines/week.py` — funcs=13, classes=1; doc: Weekly orchestration wrapper running daily pipeline modes in sequence.
 - `src/kalshi_alpha/exec/policy/freeze.py` — funcs=3, classes=1; doc: Utilities for evaluating pre-event freeze windows per series family.
-- `src/kalshi_alpha/exec/preflight_index.py` — funcs=12, classes=1; doc: GO/NO-GO checks for SPX/NDX index ladder windows.
+- `src/kalshi_alpha/exec/preflight_index.py` — funcs=15, classes=1; doc: GO/NO-GO checks for SPX/NDX index ladder windows.
 - `src/kalshi_alpha/exec/quote_microprice.py` — funcs=1, classes=2; doc: Microprice calculator and replacement throttle for ladder quoting.
 - `src/kalshi_alpha/exec/quote_optim.py` — funcs=0, classes=2; doc: Quote optimization utilities: PMF skew gating, microprice bias, freshness widening.
 - `src/kalshi_alpha/exec/reports/__init__.py` — funcs=10, classes=0; doc: Generate markdown reports for ladder scans.
 - `src/kalshi_alpha/exec/reports/ramp.py` — funcs=19, classes=1; doc: Compute pilot ramp readiness reports.
+- `src/kalshi_alpha/exec/reports/telemetry_volume.py` — funcs=7, classes=0; doc: Generate ops telemetry volume report for bounded TOB + quote-intent streams.
 - `src/kalshi_alpha/exec/runners/__init__.py` — funcs=0, classes=0; doc: Command-line runners for ladder scanning workflows.
 - `src/kalshi_alpha/exec/runners/micro_index.py` — funcs=6, classes=0; doc: Microlive runner for index ladders: one window, 1-lot maker quotes.
 - `src/kalshi_alpha/exec/runners/orders_doctor.py` — funcs=3, classes=0; doc: Command-line helper for cleaning up outstanding DRY orders.
@@ -172,10 +175,11 @@
 - `src/kalshi_alpha/exec/slo.py` — funcs=19, classes=1; doc: Service level objective (SLO) aggregations for scoreboard + telemetry exports.
 - `src/kalshi_alpha/exec/state/orders.py` — funcs=1, classes=2; doc: Persistence utilities for tracking outstanding broker orders.
 - `src/kalshi_alpha/exec/supervisor.py` — funcs=3, classes=2; doc: 24/7 supervisor daemon that orchestrates live index ladder scans.
-- `src/kalshi_alpha/exec/supervisor_index.py` — funcs=14, classes=2; doc: Supervisor for index ladder windows with preflight and WS freshness gating.
+- `src/kalshi_alpha/exec/supervisor_index.py` — funcs=15, classes=2; doc: Supervisor for index ladder windows with preflight and WS freshness gating.
 - `src/kalshi_alpha/exec/telemetry/__init__.py` — funcs=0, classes=0; doc: Telemetry utilities for execution flows.
+- `src/kalshi_alpha/exec/telemetry/run_metadata.py` — funcs=1, classes=0; doc: Telemetry run metadata writer for bounded TOB/quote-intent runs.
 - `src/kalshi_alpha/exec/telemetry/shipper.py` — funcs=4, classes=0; doc: Utility to bundle telemetry JSONL into artifacts for shipping.
-- `src/kalshi_alpha/exec/telemetry/sink.py` — funcs=8, classes=2; doc: Append-only telemetry sink for live execution events.
+- `src/kalshi_alpha/exec/telemetry/sink.py` — funcs=8, classes=3; doc: Append-only telemetry sink for live execution events.
 - `src/kalshi_alpha/exec/window_guard.py` — funcs=2, classes=0; doc: Shared helpers for gating index runners to ET trading windows.
 
 ## markets
@@ -226,12 +230,17 @@
 
 ## tools
 - `tools/__init__.py` — funcs=0, classes=0; doc: Utility scripts for kalshi-sys tooling.
-- `tools/build_fillcalib_dataset.py` — funcs=0, classes=0
+- `tools/agentic/gpt_bundle.py` — funcs=6, classes=0; doc: gpt_bundle.py
+- `tools/agentic/project_state_refresh.py` — funcs=6, classes=0; doc: project_state_refresh.py
+- `tools/agentic/repo_snapshot.py` — funcs=5, classes=0; doc: Create a deterministic, lightweight repo snapshot for GPT review.
+- `tools/build_fillcalib_dataset.py` — funcs=19, classes=3; doc: Build fill calibration datasets + conservative maker fill curves from telemetry.
 - `tools/failover_smoke.py` — funcs=4, classes=0; doc: CLI smoke test for DualFeedFailover (synthetic timeline).
+- `tools/gpt_bundle_builder.py` — funcs=7, classes=1; doc: Stage GPT bundle contents with fail-closed artifact checks.
 - `tools/project_state_build.py` — funcs=16, classes=1; doc: Generate project_state/_generated artifacts (inventory, symbols, imports, make targets).
 - `tools/replay.py` — funcs=13, classes=1; doc: Replay recorded Kalshi sessions to validate EV parity.
-- `tools/settlement_basis_audit.py` — funcs=21, classes=2; doc: Settlement basis audit for index ladder windows (Polygon vs Kalshi expiration value).
-- `tools/verify_gpt_bundle.py` — funcs=8, classes=1; doc: Verify GPT bundle completeness and diff hygiene.
+- `tools/settlement_basis_audit.py` — funcs=32, classes=3; doc: Settlement basis audit for index ladder windows (Polygon vs Kalshi expiration value).
+- `tools/sync_vendor_docs.py` — funcs=2, classes=1
+- `tools/verify_gpt_bundle.py` — funcs=10, classes=1; doc: Verify GPT bundle completeness and diff hygiene.
 
 ## utils
 - `src/kalshi_alpha/utils/env.py` — funcs=1, classes=0; doc: Environment loading utilities.

@@ -1,17 +1,17 @@
 # Open Questions
 
 ## Metadata
-- Generated: 2025-12-22T19:42:20Z
-- Git SHA: a907a2eed87531d8178c3dc183d6f070182f9ebe
-- Branch: codex/TICKET-000_project_state_rebuild
-- Commands: `python tools/project_state_build.py`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Generated: 2026-01-10T11:43:04Z
+- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+- Branch: codex/TICKET-111_project_state_refresh
+- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
 
 ## Execution evidence gaps
 - What is the current empirical maker fill curve for index ladders, and how is it measured from TOB snapshots? (See `reports/fillcalib/README.md` and `data/proc/fillcalib/*`.)
 - Do we have recent, per-window basis audits for INXU/NASDAQ100U and INX/NASDAQ100? (See `reports/settlement_basis/`.)
 
 ## Gating & readiness
-- What are the most recent calibration ages for index PMFs and sigma_tod curves? (Check `data/proc/calib/index/*/*/params.json`.)
+- What are the most recent calibration ages for index PMFs and sigma_tod curves? (Check `reports/calibration/calibration_ages_<ASOF_DATE>.md` or `data/proc/calib/index/*/*/params.json`.)
 - Are clock-skew warnings routinely triggered during scans? (See `reports/<SERIES>/<DATE>.md` monitor sections.)
 
 ## Ops / deployment
