@@ -41,3 +41,6 @@
 - `git status -sb` (exit 0)
 - `git commit -m "chore: snapshot repo state" -m "Tests: pytest -q"` (exit 0)
 - `git status -sb` (exit 0)
+- `git add -f docs/agent_runs/20260125T023806Z_TICKET-111_project_state_refresh` (exit 0)
+- `git status -sb` (exit 0)
+- `git commit -m "docs: add migration run log" -m "Tests: pytest -q"` (exit 0)
