@@ -1,6 +1,6 @@
 # DOCS AND LOGGING SYSTEM — Traceability for kalshi-sys
 
-Last updated: 2025-12-26
+Last updated: 2026-01-26
 
 This repo is a high-risk trading system. The primary goal of this document is **auditability**:
 - every run is traceable,
@@ -54,7 +54,7 @@ Example:
 - `docs/agent_runs/20251223T021530Z_TICKET-101_index_scope_gates/`
 
 Required files inside each run directory:
-- `RUN.md` (human-readable summary; includes: goal, approach, key decisions, known risks)
+- `RUN.md` (human-readable summary; includes: goal, approach, key decisions, known risks, and a short manifest: commit hash, commands run, key inputs, UTC timestamp)
 - `COMMANDS.md` (commands executed + outputs/exit codes; paste excerpts not full secrets)
 - `TESTS.md` (tests run; must include `pytest -q` or justified exception)
 - `DIFF.patch` (or `git diff` saved at end of run)
@@ -67,27 +67,36 @@ Optional but recommended:
 - `CONFIG_SNAPSHOT/` (copies of relevant `configs/*.yaml` used in the run)
 - `SCREENSHOTS/` (only if useful; no secrets)
 
+Run log portability (readiness + scoreboards):
+- When generating readiness/scoreboards, copy outputs into the run log or archive directory via
+  `--runlog` / `--archive-dir` (CLI) or `RUNLOG_DIR` / `ARCHIVE_DIR` (Makefile).
+- Portable copies (when generated): `pilot_readiness.md`, `pilot_ready.json`,
+  `scoreboard_7d.md`, `scoreboard_30d.md`.
+- Markdown must not include absolute paths, and NO-GO readiness reports must include a `How to fix` block.
+
 ### 2.3 Progress / changelog
 These files are the “single pane of glass” and must be updated per ticket:
 - `docs/PROGRESS.md` — current gate status + what changed + next blockers
 - `CHANGELOG.md` — dated entries, one per ticket
 
-### 2.4 Bundles (shareable snapshots)
-We maintain two bundle types:
+### 2.4 Bundles (shareable snapshots, scratch-only)
+We maintain two bundle types. Bundle outputs are **scratch-only** and must live under:
+- `artifacts/_local/gpt_bundles/` or
+- `reports/_runs/`
+
+Never write bundles under `docs/_bundles`, `docs/_generated`, or `docs/gpt_bundles`.
 
 A) **Full project state bundles** (for audits)
-- Path:
-  - `docs/gpt_bundles/project_state_<YYYYMMDD>_<HHMMSSZ>_<gitsha7>/`
+- Default zip path:
+  - `artifacts/_local/gpt_bundles/project_state_<YYYYMMDD>_<HHMMSS>.zip`
 - Contents MUST include:
   - `project_state/*.md` (ARCHITECTURE, PIPELINE_FLOW, CURRENT_RESULTS, etc.)
   - `docs/` key plans (PLAN_OF_RECORD, DOCS_AND_LOGGING_SYSTEM, CODEX_SPRINT_TICKETS, PROGRESS)
   - `_generated/` indices (repo_inventory, symbol_index, function_index)
-- Should also include a zip:
-  - `docs/gpt_bundles/project_state_<...>.zip`
 
 B) **Per-ticket bundles** (small, fast)
-- Path:
-  - `docs/gpt_bundles/ticket_<TICKET-###>_<YYYYMMDDTHHMMSSZ>_<gitsha7>/`
+- Default zip path:
+  - `artifacts/_local/gpt_bundles/gpt_bundle_<timestamp>[_<TICKET-###>].zip`
 - Contents MUST include:
   - `docs/agent_runs/<RUN_NAME>/`
   - files changed in the ticket
@@ -105,8 +114,8 @@ B) **Per-ticket bundles** (small, fast)
     - `docs/runbooks/aws_supervisor_index.md`
     - `docs/runbooks/oncall_checks.md`
     - `reports/ops/aws_supervisor_dryrun_*.md`
-- Should also include a zip:
-  - `docs/gpt_bundles/ticket_<...>.zip`
+
+If a bundle needs to be shared externally, upload it outside the repo and reference the location in the run log.
 
 ### 2.5 When to regenerate a full project_state bundle
 Regenerate full project_state when any of these occur:
@@ -148,9 +157,11 @@ Suggested subdirs:
   - `runs/<RUN_ID>.json` (run metadata: preflight status, bounds, paths)
 - `data/proc/basis/` (basis audits)
 - `data/proc/basis/<SERIES>/<YYYY-MM-DD>.json` (daily basis summary: quantiles, per-window deltas, flip-risk flag)
+- Basis audit CLI `--runlog`/`--archive-dir` copies `data/proc/basis/...` and `reports/basis/...` into the runlog preserving project-relative paths.
 - `data/proc/calibration/` (calibration outputs)
 - `data/proc/fillcalib/` (fill curves)
 - `data/proc/fillcalib/dataset_<ASOF_DATE>.parquet` (optional fillcalib dataset if small)
+- `reports/_artifacts/go_no_go.json` (preflight/supervisor GO/NO-GO artifact; includes `scope=index`, macro feed artifacts are ignored for index runs)
 
 ### 3.3 Market status guardrails
 - The Polygon indices websocket collector checks `/v1/marketstatus/now` before REST fallback.

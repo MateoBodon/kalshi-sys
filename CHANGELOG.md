@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-01-26
+- Ticket TICKET-124: Made GPT bundle generation dirty-tree safe, enforced scratch bundle outputs under artifacts/_local/gpt_bundles, and added stash-wrapper regression coverage.
+
 ## 2026-01-25
 - Committed and pushed the current repo state for a server migration (captured existing changes as-is).
 - Added an agent run log and documentation updates for the migration snapshot.

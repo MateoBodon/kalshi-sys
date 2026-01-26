@@ -2,6 +2,11 @@
 
 Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
 
+## 2026-01-26
+- Ticket TICKET-124 — Made GPT bundle generation dirty-tree safe and enforced scratch bundle outputs under artifacts/_local/gpt_bundles.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/RUN.md`
+
 ## 2026-01-25
 - Ticket TICKET-111 — Committed and pushed the current repo state for server migration (captured existing changes as-is).
   - Gate status: PAPER

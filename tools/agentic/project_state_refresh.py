@@ -6,7 +6,7 @@ Creates/updates deterministic repo metadata under:
   project_state/_generated/
 
 Optionally creates a zip bundle for GPT recenter:
-  docs/_bundles/project_state_<timestamp>.zip
+  artifacts/_local/gpt_bundles/project_state_<timestamp>.zip
 
 This script does NOT attempt to "understand" the repo. It creates the
 stable raw materials that an AI agent can summarize accurately.
@@ -36,6 +36,10 @@ def git_root(start: Path) -> Optional[Path]:
     if code != 0:
         return None
     return Path(out.strip())
+
+
+def default_zip_path(repo: Path, ts: str) -> Path:
+    return repo / "artifacts" / "_local" / "gpt_bundles" / f"project_state_{ts}.zip"
 
 
 DEFAULT_PROJECT_STATE_FILES = {
@@ -151,7 +155,7 @@ def zip_project_state(repo: Path, project_state_dir: Path, out_zip: Path) -> Pat
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--zip", action="store_true", help="Create project_state zip in docs/_bundles/")
+    ap.add_argument("--zip", action="store_true", help="Create project_state zip in artifacts/_local/gpt_bundles/")
     ap.add_argument("--out", type=str, default=None, help="Zip output path (optional)")
     args = ap.parse_args()
 
@@ -166,7 +170,7 @@ def main() -> int:
 
     if args.zip:
         ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        out_zip = Path(args.out) if args.out else (repo / "docs" / "_bundles" / f"project_state_{ts}.zip")
+        out_zip = Path(args.out) if args.out else default_zip_path(repo, ts)
         out = zip_project_state(repo, project_state_dir, out_zip)
         print(str(out))
 

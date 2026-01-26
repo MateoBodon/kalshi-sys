@@ -1,0 +1,21 @@
+# Files touched
+
+- .gitignore
+- CHANGELOG.md
+- docs/DECISIONS.md
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/PROGRESS.md
+- docs/agent_runs/README.md
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/ARTIFACTS.md
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/CITATIONS.md
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/COMMANDS.md
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/DIFF.patch
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/FILES_TOUCHED.md
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/NOTES.md
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/RUN.md
+- docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/TESTS.md
+- docs/tickets/TICKET-124.md
+- tests/tools/test_agentic_bundle_paths.py
+- tools/agentic/README.md
+- tools/agentic/gpt_bundle.py
+- tools/agentic/project_state_refresh.py
