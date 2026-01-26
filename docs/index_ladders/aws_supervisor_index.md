@@ -23,7 +23,7 @@ FAMILY=index \
 - Example EventBridge rule (UTC, covers EST 09:45–16:05): `cron(0/15 14-21 ? * MON-FRI *)` invoking a Lambda/RunCommand wrapper that calls the supervisor with `--loop --sleep-seconds 30`.
 
 ## Operational notes
-- Preflight (see `kalshi_alpha.exec.preflight_index.run_preflight`) checks env/keys, kill-switch, calibration freshness, and Polygon REST reachability.
+- Preflight (see `kalshi_alpha.exec.preflight_index.run_preflight`) checks env/keys, kill-switch, calibration freshness, and Polygon REST reachability. It enforces index-only freshness (Polygon index WS) and ignores macro feed artifacts, so macro staleness/missing never blocks index windows.
 - Kill-switch: pass `--kill-switch-file` to point at a sentinel (default is `data/proc/state/kill_switch`).
 - WS gating: when `--offline` or `--no-ws-listen` is set, WS checks are bypassed; otherwise the supervisor opens a single Massive index WS and requires fresh ticks.
 - Paper ledger writes can be redirected with `KALSHI_INDEX_PAPER_LEDGER_PATH` for sandbox runs.

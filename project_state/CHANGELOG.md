@@ -1,10 +1,14 @@
 # Project State Changelog
 
 ## Metadata
-- Generated: 2026-01-10T11:43:04Z
-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
-- Branch: codex/TICKET-111_project_state_refresh
-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Updated: 2026-01-26T00:04:48Z
+- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
+- Branch: codex/TICKET-000_project_state_refresh
+- Sources: `project_state/*`
+
+## 2026-01-26
+- Refreshed project_state runbook, architecture metadata, and current-results status.
+- Updated known issues, open questions, roadmap, experiments, and test coverage counts for the latest snapshot.
 
 ## 2026-01-10
 - Refreshed project_state metadata and regenerated module/function/dependency indices.

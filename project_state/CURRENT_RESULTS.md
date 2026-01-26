@@ -1,24 +1,24 @@
 # Current Results
 
 ## Metadata
-- Generated: 2026-01-10T11:43:04Z
-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
-- Branch: codex/TICKET-111_project_state_refresh
-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Updated: 2026-01-26T00:04:48Z
+- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
+- Branch: codex/TICKET-000_project_state_refresh
+- Sources: local `reports/` artifacts (gitignored), `docs/PROGRESS.md`
 
-## Scoreboards (latest committed artifacts)
-- `reports/scoreboard_7d.md`: Data Freshness OK; no ledger data available for the window.
-- `reports/scoreboard_30d.md`: Data Freshness OK; no ledger data available for the window.
+## Scoreboards
+- `reports/scoreboard_7d.md` and `reports/scoreboard_30d.md` are not present in this repo snapshot (gitignored artifacts). Regenerate via `python -m kalshi_alpha.exec.scoreboard` if needed.
 
-## Pilot readiness (latest committed artifact)
-- `reports/pilot_readiness.md` (14-day): GO series 0/4 (INXU, NASDAQ100U, INX, NASDAQ100 all NO-GO) due to insufficient_data with fills=0.
+## Pilot readiness (local artifact)
+- `reports/pilot_readiness.md` exists locally and was generated 2025-12-29. It reports global NO-GO reasons `ledger_stale` and `monitors_stale` with no per-series fills recorded.
 
-## Recent ladder report sample
-- `reports/INXU/2025-12-22.md`: NO-GO; dry mode; outstanding orders reported; includes monitor snapshot and window metadata for the 10:00 ET window.
+## Recent ladder report samples (local artifacts)
+- `reports/INXU/2025-12-30.md`: NO-GO; monitors show `clock_skew_exceeded` and `polygon_ws_stale` reasons in the quality gate list.
+- `reports/NASDAQ100U/2025-12-26.md`: NO-GO; dry mode; sample fill/EV tables included.
 
-## Summary (as of 2025-12-22)
-- No evidence of realized fills in committed artifacts; readiness remains NO-GO.
-- Freshness checks are passing in the scoreboard artifacts, but fill evidence and calibration/ledger coverage remain insufficient for GO.
+## Other artifacts present
+- `reports/_artifacts/go_no_go.json` exists (latest GO/NO-GO status artifact).
+- `reports/_artifacts/*_ledger.json|csv` sample ledger artifacts present (earliest dated 2025-12-21).
 
 ## Notes / caveats
-- Results reflect local, committed artifacts only. Live trading is gated and not inferred from these reports.
+- Results reflect local, gitignored artifacts only. Live trading is gated and not inferred from these reports.

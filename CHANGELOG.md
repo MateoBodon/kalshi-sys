@@ -2,6 +2,12 @@
 
 ## 2026-01-26
 - Ticket TICKET-124: Made GPT bundle generation dirty-tree safe, enforced scratch bundle outputs under artifacts/_local/gpt_bundles, and added stash-wrapper regression coverage.
+- Ticket TICKET-123: Moved agentic bundle outputs to scratch zones, removed docs/_generated usage from bundle tooling, added a bundle-path regression test, and updated run-log manifest guidance.
+- Ticket TICKET-122: Added all-series settlement basis audit runner with runlog/archive support and expanded preflight basis audit tests for stale/flip-risk cases.
+- Ticket TICKET-121: Enforced index-only freshness scope in preflight/supervisor, added tests for stale/missing macro artifacts, and documented the index-only invariant.
+- Refreshed project_state docs (runbook/status/known-issues) and regenerated the project_state bundle.
+- Ticket TICKET-120: Added optional archive/runlog copies for readiness + scoreboard reports, ensured markdown paths are portable, and added NO-GO "How to fix" guidance with tests.
+- Ticket TICKET-120A: Added pilot readiness NO-GO "How to fix" block, sanitized ramp global reasons, and expanded readiness path-safety tests.
 
 ## 2026-01-25
 - Committed and pushed the current repo state for a server migration (captured existing changes as-is).

@@ -1,14 +1,14 @@
 # Server Environment
 
 ## Metadata
-- Generated: 2026-01-10T11:43:04Z
-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
-- Branch: codex/TICKET-111_project_state_refresh
-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Updated: 2026-01-26T00:04:48Z
+- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
+- Branch: codex/TICKET-000_project_state_refresh
+- Sources: `uname -a`, `python3 --version`, `README.md`
 
 ## Local environment (this snapshot)
-- OS: Darwin (macOS) `Darwin Kernel Version 25.0.0` on arm64.
-- Python: 3.11.14 (`python --version`); pytest reported 3.12.2 during `pytest -q` (likely a different interpreter/venv).
+- OS: Linux `6.8.0-90-generic` on x86_64 (Codex sandbox).
+- Python: 3.12.3 (`python3 --version`).
 
 ## Expected runtime environment
 - Python 3.11+ with dependencies from `pyproject.toml`.

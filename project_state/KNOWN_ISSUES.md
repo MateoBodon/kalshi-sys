@@ -1,20 +1,21 @@
 # Known Issues
 
 ## Metadata
-- Generated: 2026-01-10T11:43:04Z
-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
-- Branch: codex/TICKET-111_project_state_refresh
-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Updated: 2026-01-26T00:04:48Z
+- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
+- Branch: codex/TICKET-000_project_state_refresh
+- Sources: local `reports/` artifacts (gitignored), `docs/PROGRESS.md`, `README.md`
 
 ## Evidence gaps
-- Scoreboards report no ledger data in recent windows (`reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`).
-- Pilot readiness shows 0/4 GO with fills=0 and insufficient_data (`reports/pilot_readiness.md`).
+- Scoreboard artifacts (`reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`) are missing in this repo snapshot; regenerate with `python -m kalshi_alpha.exec.scoreboard`.
+- Local pilot readiness report (2025-12-29) shows global NO-GO reasons `ledger_stale` and `monitors_stale`; fill evidence is insufficient.
 
 ## Operational signals
-- Recent INXU report shows NO-GO and clock-skew exceeded (`reports/INXU/2025-12-22.md` monitor section).
+- Recent local INXU report (2025-12-30) shows `clock_skew_exceeded` and `polygon_ws_stale` among quality-gate reasons.
+- Report artifacts embed absolute paths from the machine that generated them (e.g., `/Users/...`), so paths are not portable across hosts.
 
 ## Data calibration gaps
-- Calibration ages are now reported under `reports/calibration/calibration_ages_<ASOF_DATE>.md`, but recent artifacts are not committed by default (reports are gitignored); confirm the latest report in run logs.
+- Calibration ages are reported under `reports/calibration/calibration_ages_<ASOF_DATE>.md` when pilot readiness is generated; artifacts are gitignored, so confirm via local run logs or `data/proc/calib/index/*/*/params.json`.
 
 ## Scope risk
 - Macro strategy code exists and could run if family scoping is misconfigured; index-only scope must be enforced by entrypoints (see `docs/PLAN_OF_RECORD.md`).

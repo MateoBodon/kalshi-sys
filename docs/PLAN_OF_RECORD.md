@@ -105,7 +105,7 @@ Goal: “We know what time it is, and the index value is fresh.”
 Must-have evidence:
 - Polygon websocket staleness monitor (age of last tick/agg).
 - Time alignment and clock skew guardrails.
-- Index-only GO/NO-GO is scope-isolated from macro freshness; index freshness gating is controlled by `configs/freshness.index.yaml` (monitor inputs) and `configs/quality_gates.index.yaml` (gate thresholds).
+- Index-only GO/NO-GO is scope-isolated from macro freshness; index freshness gating is controlled by `configs/freshness.index.yaml` (monitor inputs) and `configs/quality_gates.index.yaml` (gate thresholds). Index preflight enforces `scope=index` regardless of caller-supplied scope so macro artifacts never block index runs.
 - Polygon WS fallback respects `/v1/marketstatus/now` so closed/extended hours are logged as inactive (avoids false stale alarms).
 - Freshness monitor consults `/v1/marketstatus/now` so closed/extended hours do not flag `polygon_index.websocket` as stale.
 
@@ -126,12 +126,15 @@ Goal: “Our probability engine isn’t stale and isn’t obviously wrong.”
 Commands (expected):
 - `make calibrate-index`
 - `make pilot-readiness`
+- Optional portability: `make pilot-readiness RUNLOG_DIR=docs/agent_runs/<RUN_NAME>` and
+  `python -m kalshi_alpha.exec.scoreboard --runlog docs/agent_runs/<RUN_NAME>` to archive
+  readiness + scoreboard outputs with portable paths.
 
 Required artifacts:
 - `data/proc/calibration/index/<SERIES>/<ASOF_DATE>.json` (or parquet)
 - `reports/calibration/index_summary_<ASOF_DATE>.md`
 - `reports/calibration/calibration_ages_<ASOF_DATE>.md`
-- `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration age flags
+- `reports/pilot_readiness_<ASOF_DATE>.md` includes calibration age flags and NO-GO remediation (`How to fix`) with portable paths
 
 ### 2.3 Fees: correctness + drift watch
 Goal: “Fee math matches Kalshi schedule and cannot silently drift.”
@@ -148,7 +151,9 @@ Required artifacts:
 Goal: “Basis noise is measured and controlled.”
 
 Commands (expected):
-- `python tools/settlement_basis_audit.py --series INXU --day <YYYY-MM-DD>` (repeat per series)
+- `python tools/settlement_basis_audit.py --day <YYYY-MM-DD> --all-series` (preferred; emits all four index series)
+- `python tools/settlement_basis_audit.py --series INXU --day <YYYY-MM-DD>` (single series)
+- Optional: add `--runlog docs/agent_runs/<RUN_NAME>` (or `--archive-dir`) to archive JSON/MD outputs with portable paths.
 
 Required artifacts:
 - `reports/basis/<SERIES>/<YYYY-MM-DD>.md`:
@@ -160,6 +165,7 @@ Required artifacts:
   - `basis_quantiles` (p01/p05/p50/p95/p99)
   - `per_window_deltas` (window_id, n, mean, p05, p50, p95)
   - `flip_risk` (flag, rationale, thresholds)
+  - When `--runlog`/`--archive-dir` is supplied, artifacts are copied under the runlog preserving project-relative paths.
 
 Preflight staleness rule (fail-closed):
 - `asof_date` must equal the ET date for the run.
@@ -183,8 +189,8 @@ Required artifacts:
 - `data/proc/fillcalib/dataset_<ASOF_DATE>.parquet` (optional; small datasets only)
 - `reports/fillcalib/<ASOF_DATE>.md` (sample counts + conservative curve)
 - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
-- Per-ticket GPT bundles should include telemetry artifacts (`data/proc/telemetry/*`) and the ops volume report when generated.
-- Per-ticket GPT bundles should include fillcalib curves + reports, pilot readiness artifacts, and calibration-age reports when generated (`data/proc/fillcalib/*.json`, `reports/fillcalib/*.md`, `reports/pilot_ready.json`, `reports/pilot_readiness.md`, `reports/calibration/**`).
+- Per-ticket review bundles (scratch-only; `artifacts/_local/` or `reports/_runs/`) should include telemetry artifacts (`data/proc/telemetry/*`) and the ops volume report when generated.
+- Per-ticket review bundles (scratch-only; `artifacts/_local/` or `reports/_runs/`) should include fillcalib curves + reports, pilot readiness artifacts, and calibration-age reports when generated (`data/proc/fillcalib/*.json`, `reports/fillcalib/*.md`, `reports/pilot_ready.json`, `reports/pilot_readiness.md`, `reports/calibration/**`).
 
 Notes:
 - Fill curves are proxy estimates based on TOB crossings only (upper bound), not realized fills or queue position.
@@ -220,7 +226,7 @@ Required artifacts:
 - `reports/ops/aws_supervisor_dryrun_<DATE>.md` (start/stop times, restarts, incident notes)
 - Heartbeat artifacts in `data/proc/state/` (supervisor_index updates ~60s cadence)
 - CloudWatch log group receiving supervisor logs (AWS evidence recorded in run logs)
-- Per-ticket GPT bundles include the systemd unit, CloudWatch config, and runbooks for review:
+- Per-ticket review bundles (scratch-only) include the systemd unit, CloudWatch config, and runbooks for review:
   - `configs/systemd/kalshi-index-supervisor-paper.service`
   - `configs/cloudwatch/kalshi-supervisor-index.json`
   - `docs/runbooks/aws_supervisor_index.md`

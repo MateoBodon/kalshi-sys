@@ -1,10 +1,10 @@
 # Architecture
 
 ## Metadata
-- Generated: 2026-01-10T11:43:04Z
-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
-- Branch: codex/TICKET-111_project_state_refresh
-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Updated: 2026-01-26T00:04:48Z
+- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
+- Branch: codex/TICKET-000_project_state_refresh
+- Sources: `README.md`, `docs/PROGRESS.md`, `CHANGELOG.md`, `configs/`, `src/kalshi_alpha/exec/`, `project_state/_generated`
 
 ## System summary
 Kalshi Alpha is a Python 3.11+ monorepo for research, pricing, scanning, and (guarded) execution of Kalshi ladder markets. Current hard scope is index ladders only (INX/INXU/NASDAQ100/NASDAQ100U hourly + close). The system is built to be fail-closed: quality gates, kill-switches, and broker safeguards must pass before any live behavior is armed. Default execution is paper/dry and all live paths require explicit acknowledgement and credentials.
@@ -16,10 +16,12 @@ Kalshi Alpha is a Python 3.11+ monorepo for research, pricing, scanning, and (gu
 - `scripts/`: Operational scripts (WS listeners, parity checks, fixtures, AWS jobs).
 - `tools/`: Auxiliary CLIs (replay, settlement basis audit, failover smoke).
 - `report/`: Reporting utilities (digest, honesty, agent logs).
-- `reports/`: Generated reports, scoreboards, pilot readiness outputs, artifacts.
+- `reports/`: Generated reports and artifacts (gitignored local outputs).
 - `data/`: Raw + processed datasets, calibrations, ledgers, and state (gitignored).
 - `tests/`: Pytest suite with fixtures for offline-safe validation.
 - `docs/`: Runbooks, process docs, sprint tickets, and progress logs.
+- `docs/agent_runs/`: Per-ticket run logs with evidence artifacts.
+- `docs/_bundles/`: Archived project_state and GPT bundles.
 - `project_state/`: Repo self-description snapshot (this folder).
 
 ## Major components

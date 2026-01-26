@@ -1,10 +1,10 @@
 # Pipeline Flow
 
 ## Metadata
-- Generated: 2026-01-10T11:43:04Z
-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
-- Branch: codex/TICKET-111_project_state_refresh
-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
+- Updated: 2026-01-26T00:04:48Z
+- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
+- Branch: codex/TICKET-000_project_state_refresh
+- Sources: `src/kalshi_alpha/exec/*`, `configs/*`, `README.md`, `docs/PROGRESS.md`
 
 ## Primary entrypoints (index scope)
 - `kalshi-scan` → `kalshi_alpha.exec.runners.scan_ladders:main` (core scanner).
@@ -54,7 +54,7 @@
 - `configs/fees.json` (fee coefficients and rounding).
 
 ## Typical artifact outputs
-- Reports: `reports/<SERIES>/<YYYY-MM-DD>.md` (per scan window).
+- Reports: `reports/<SERIES>/<YYYY-MM-DD>.md` (per scan window; gitignored local artifacts).
 - Scoreboards: `reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`.
 - Pilot readiness: `reports/pilot_readiness.md`, `reports/pilot_ready.json`.
 - Monitors: `reports/_artifacts/monitors/*.json`.

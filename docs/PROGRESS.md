@@ -1,11 +1,29 @@
 # Progress
 
-Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
+Note: run logs under `docs/agent_runs/` are tracked in git; curated artifacts live under `docs/artifacts/`.
 
 ## 2026-01-26
 - Ticket TICKET-124 — Made GPT bundle generation dirty-tree safe and enforced scratch bundle outputs under artifacts/_local/gpt_bundles.
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20260126T205722Z_TICKET-124_gpt_bundle_dirty_safe/RUN.md`
+- Ticket TICKET-123 — Moved agentic bundle outputs to scratch zones, removed docs/_generated usage, and added a bundle-path regression test.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260126T203727Z_TICKET-123_bundle_tracking_policy/RUN.md`
+- Ticket TICKET-000 — Refreshed project_state docs and regenerated bundle for a fresh GPT snapshot.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/RUN.md`
+- Ticket TICKET-122 — Added all-series settlement basis audit runner with runlog archiving and expanded preflight basis audit tests (stale/flip-risk).
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/RUN.md`
+- Ticket TICKET-120 — Archived pilot readiness + scoreboard outputs to runlog folders, sanitized report paths, and added NO-GO remediation guidance + tests.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260126T011652Z_TICKET-120_archive_runlogs/RUN.md`
+- Ticket TICKET-120A — Added pilot readiness NO-GO How-to-fix block, sanitized ramp global reasons, and expanded readiness path-safety tests.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260126T021711Z_TICKET-120A_readiness_howtofix/RUN.md`
+- Ticket TICKET-121 — Hardened index-only freshness scope for preflight/supervisor and added macro missing/stale coverage.
+  - Gate status: PAPER
+  - Evidence: agent run log `docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/RUN.md`
 
 ## 2026-01-25
 - Ticket TICKET-111 — Committed and pushed the current repo state for server migration (captured existing changes as-is).
@@ -15,17 +33,17 @@ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-t
 ## 2026-01-10
 - Ticket BOOTSTRAP — Installed agentic system scaffold (tools/agentic, PROJECT/AGENTS refresh), restored repo-specific Makefile/plan, and generated a project_state bundle.
   - Gate status: PAPER
-  - Evidence: agent run log `docs/agent_runs/20260110T103414Z_TICKET-BOOTSTRAP_agentic_scaffold/RUN.md`; bundle `docs/_bundles/project_state_20260110_103738.zip`
+  - Evidence: agent run log `docs/agent_runs/20260110T103414Z_TICKET-BOOTSTRAP_agentic_scaffold/RUN.md`
 - Ticket TICKET-111 — Refreshed project_state snapshot (module/function/dependency indices + metadata) and generated updated bundles.
   - Gate status: PAPER
-  - Evidence: agent run log `docs/agent_runs/20260110T113814Z_TICKET-111_project_state_refresh/RUN.md`; bundles `docs/_bundles/project_state_20260110_114631.zip`, `docs/_bundles/gpt_bundle_20260110_114631_TICKET-111.zip`
+  - Evidence: agent run log `docs/agent_runs/20260110T113814Z_TICKET-111_project_state_refresh/RUN.md`
 
 ## 2025-12-30
 - Ticket #106 — AWS supervisor wiring proof (PAPER): **FAIL** (unit/bundle reviewability gaps; systemd unit not committed in-repo + deploy/runbook files missing from bundles before TICKET-110).
   - Gate status: PAPER (blocked)
-  - Evidence: report `reports/ops/aws_supervisor_dryrun_2025-12-30.md`; agent run log `docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/RUN.md`
+  - Evidence: agent run log `docs/agent_runs/20251230T083130Z_TICKET-106_aws_supervisor_paper_proof/RUN.md`
 - Ticket #110 — Finalize AWS PAPER supervisor artifacts: DONE (paper-only unit annotated, deploy/runbook artifacts bundled, ticket statuses corrected, review bundle produced).
-  - Evidence: agent run log `docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RUN.md`; bundle `docs/gpt_bundles/gpt_bundle_TICKET-110_20251230T105711Z_TICKET-110_ops_bundle_finalize.zip`
+  - Evidence: agent run log `docs/agent_runs/20251230T105711Z_TICKET-110_ops_bundle_finalize/RUN.md`
 - Project_state drift noted; queued TICKET-109 to refresh project_state docs/bundle after ops wiring updates.
 
 ## 2025-12-29
@@ -39,7 +57,7 @@ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-t
 ## 2025-12-22
 - Ticket #0 — Project_state rebuild: refreshed `project_state/` docs with generated inventories, symbol index, dependency graph, and navigation; bundled snapshot zip created.
   - Gate status: PAPER
-  - Evidence: agent run log `docs/agent_runs/20251222_194751Z_TICKET-000_project_state_rebuild/README.md`; bundle `docs/gpt_bundles/project_state_20251222_194751Z_a907a2e.zip`
+  - Evidence: agent run log `docs/agent_runs/20251222_194751Z_TICKET-000_project_state_rebuild/README.md`
 - Ticket #10 — CloudWatch agent config validation + deterministic log shipping: DONE (CloudWatch config validated on Ubuntu; aws logs filter-log-events proof captured).
   - Gate status: PAPER
   - Evidence: agent run log `docs/agent_runs/20251222_184733Z_TICKET-010_cloudwatch_validation/README.md`
