@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import math
+import shutil
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -149,6 +150,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Optional AWS profile name for CloudWatch publishing.",
     )
+    parser.add_argument(
+        "--archive-dir",
+        type=Path,
+        default=None,
+        help="Optional directory to copy generated reports for portability.",
+    )
+    parser.add_argument(
+        "--runlog",
+        type=Path,
+        default=None,
+        help="Alias for --archive-dir (run log folder).",
+    )
     return parser.parse_args(argv)
 
 
@@ -171,6 +184,7 @@ def main(argv: list[str] | None = None) -> None:
     freshness_summary = _load_freshness_summary()
     cw_window = max(windows) if windows else None
     cw_metrics: dict[str, slo.SLOSeriesMetrics] | None = None
+    written_reports: list[Path] = []
     for window in sorted(windows):
         summary = _build_summary(
             ledger,
@@ -198,6 +212,7 @@ def main(argv: list[str] | None = None) -> None:
             calibration_summary=calibration_summary,
         )
         print(f"[scoreboard] wrote {output}")
+        written_reports.append(output)
         go_count = sum(1 for row in summary if row.get("go"))
         series_list = ", ".join(row["series"] for row in summary if row.get("go"))
         if summary:
@@ -211,6 +226,10 @@ def main(argv: list[str] | None = None) -> None:
         window_days=pilot_readiness.WINDOW_DAYS_DEFAULT,
     )
     print(f"[scoreboard] wrote {pilot_path}")
+    written_reports.append(pilot_path)
+    archive_dir = _resolve_archive_dir(args.archive_dir, args.runlog)
+    if archive_dir is not None:
+        _archive_reports(written_reports, archive_dir)
     if args.publish_slo_cloudwatch and cw_metrics:
         slo.publish_cloudwatch(
             cw_metrics.values(),
@@ -261,6 +280,24 @@ def _load_alpha_state() -> dict[str, float]:
         except (TypeError, ValueError, AttributeError):
             continue
     return result
+
+
+def _resolve_archive_dir(archive_dir: Path | None, runlog_dir: Path | None) -> Path | None:
+    if archive_dir is None:
+        return runlog_dir
+    if runlog_dir is None:
+        return archive_dir
+    if archive_dir == runlog_dir:
+        return archive_dir
+    raise ValueError("Pass only one of --archive-dir or --runlog (or ensure they match).")
+
+
+def _archive_reports(paths: Sequence[Path], archive_dir: Path) -> None:
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Report missing for archive: {path}")
+        shutil.copy2(path, archive_dir / path.name)
 
 
 def _load_freshness_summary() -> dict[str, object]:

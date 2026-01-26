@@ -24,6 +24,7 @@ from kalshi_alpha.exec.collectors.tob_logger import (
 )
 from kalshi_alpha.exec.telemetry.run_metadata import write_telemetry_run_metadata
 from kalshi_alpha.exec.preflight_index import (
+    FRESHNESS_SCOPE,
     PreflightResult,
     format_preflight_summary,
     run_preflight,
@@ -575,6 +576,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         kill_switch_file=config.kill_switch_file,
         require_kalshi=not config.offline,
         require_polygon=not config.offline,
+        freshness_scope=FRESHNESS_SCOPE,
         series=config.series_filter,
     )
     preflight_observer = lambda result: _emit_preflight_summary(result, config=config)

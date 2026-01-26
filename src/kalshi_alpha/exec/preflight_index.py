@@ -279,6 +279,17 @@ def run_preflight(
     if require_freshness:
         from kalshi_alpha.exec.monitors import freshness as freshness_monitor
 
+        enforced_scope = FRESHNESS_SCOPE
+        if freshness_scope is not None:
+            requested = str(freshness_scope).strip()
+            normalized = requested.lower()
+            if normalized and normalized not in {"index", "indices", "index-only"}:
+                details["freshness_scope_override"] = {
+                    "requested": requested,
+                    "enforced": enforced_scope,
+                }
+        freshness_scope = enforced_scope
+
         artifact_path = (
             Path(freshness_artifact_path)
             if freshness_artifact_path

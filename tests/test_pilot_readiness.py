@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -13,6 +14,12 @@ from kalshi_alpha.core.risk import drawdown
 from kalshi_alpha.exec import pilot_readiness
 from kalshi_alpha.exec.reports.ramp import RampPolicyConfig, compute_ramp_policy, write_ramp_outputs
 from kalshi_alpha.exec.runners import scan_ladders
+
+ABSOLUTE_PATH_RE = re.compile(r"(/(?:home|Users|tmp|var|srv|etc|opt|usr|mnt|Volumes|root)/|[A-Za-z]:\\\\|[A-Za-z]:/)")
+
+
+def _assert_no_absolute_paths(text: str) -> None:
+    assert not ABSOLUTE_PATH_RE.search(text)
 
 
 def _write_ok_freshness(monitors_dir: Path, now: datetime) -> Path:
@@ -158,6 +165,8 @@ def test_pilot_readiness_generate_report(tmp_path: Path, monkeypatch: pytest.Mon
     assert "Pilot Readiness" in markdown
     assert "Data Freshness" in markdown
     assert "INX — NO-GO" in markdown
+    assert "## How to fix" in markdown
+    _assert_no_absolute_paths(markdown)
 
 
 def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -241,13 +250,64 @@ def test_pilot_ramp_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
     json_path = tmp_path / "reports" / "pilot_ready.json"
     markdown_path = tmp_path / "reports" / "pilot_readiness.md"
-    write_ramp_outputs(policy, json_path=json_path, markdown_path=markdown_path)
+    archive_dir = tmp_path / "runlog"
+    write_ramp_outputs(
+        policy,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        archive_dir=archive_dir,
+    )
     assert json.loads(json_path.read_text(encoding="utf-8"))["series"]
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Pilot Ramp Readiness" in markdown
     assert "| CPI" in markdown
     assert "**Data Freshness**" in markdown
     assert "BLS CPI (latest release)" in markdown
+    assert "How to fix" in markdown
+    assert (archive_dir / "pilot_ready.json").exists()
+    assert (archive_dir / "pilot_readiness.md").exists()
+    _assert_no_absolute_paths(markdown)
+
+
+def test_ramp_markdown_sanitizes_global_reasons(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    now = datetime(2025, 11, 2, tzinfo=UTC)
+
+    policy = {
+        "generated_at": now.isoformat(),
+        "criteria": {},
+        "overall": {
+            "global_reasons": ["calibration_missing:/tmp/secret/calib/params.json"],
+            "no_go": 1,
+            "decision": "NO_GO",
+        },
+        "freshness": {},
+        "data_freshness": {},
+        "series": [
+            {
+                "series": "CPI",
+                "fills": 0,
+                "mean_delta_bps": 0.0,
+                "t_stat": 0.0,
+                "guardrail_breaches": 0,
+                "drawdown_ok": True,
+                "recommendation": "NO_GO",
+                "size_multiplier": 1.0,
+            }
+        ],
+    }
+
+    json_path = tmp_path / "reports" / "pilot_ready.json"
+    markdown_path = tmp_path / "reports" / "pilot_readiness.md"
+    write_ramp_outputs(
+        policy,
+        json_path=json_path,
+        markdown_path=markdown_path,
+    )
+
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "Global NO-GO reasons" in markdown
+    _assert_no_absolute_paths(markdown)
 
 
 def test_ramp_policy_stale_ledger_no_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

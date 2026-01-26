@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 import polars as pl
+import pytest
 
 from tools import settlement_basis_audit
 
@@ -78,3 +79,33 @@ def test_settlement_basis_offline_fixtures(tmp_path: Path) -> None:
     report_text = report_path.read_text(encoding="utf-8")
     assert "p95=" in report_text
     assert "p99=" in report_text
+
+
+def test_settlement_basis_archives_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fixtures_root = Path("tests/fixtures/settlement_basis").resolve()
+    project_root = tmp_path
+    proc_root = project_root / "data" / "proc"
+    reports_root = project_root / "reports"
+    archive_dir = tmp_path / "runlog"
+
+    monkeypatch.setattr(settlement_basis_audit, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(settlement_basis_audit, "PROC_ROOT", proc_root)
+    monkeypatch.setattr(settlement_basis_audit, "REPORTS_ROOT", reports_root)
+
+    settlement_basis_audit.main(
+        [
+            "--day",
+            "2025-11-10",
+            "--series",
+            "INXU",
+            "--offline-fixtures",
+            str(fixtures_root),
+            "--archive-dir",
+            str(archive_dir),
+        ]
+    )
+
+    archived_json = archive_dir / "data" / "proc" / "basis" / "INXU" / "2025-11-10.json"
+    archived_report = archive_dir / "reports" / "basis" / "INXU" / "2025-11-10.md"
+    assert archived_json.exists()
+    assert archived_report.exists()

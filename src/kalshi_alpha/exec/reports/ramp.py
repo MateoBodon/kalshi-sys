@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
+import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -48,6 +50,62 @@ JSON_OUTPUT = Path("reports/pilot_ready.json")
 MARKDOWN_OUTPUT = Path("reports/pilot_readiness.md")
 
 ET = ZoneInfo("America/New_York")
+_DRIVE_PREFIX_RE = re.compile(r"^[A-Za-z]:[\\\\/]")
+
+
+def _resolve_archive_dir(archive_dir: Path | None, runlog_dir: Path | None) -> Path | None:
+    if archive_dir is None:
+        return runlog_dir
+    if runlog_dir is None:
+        return archive_dir
+    if archive_dir == runlog_dir:
+        return archive_dir
+    raise ValueError("Pass only one of --archive-dir or --runlog (or ensure they match).")
+
+
+def _portable_path(value: str | Path | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return text
+    if _DRIVE_PREFIX_RE.match(text):
+        drive_stripped = text.split(":", 1)[-1].lstrip("\\/")
+        return drive_stripped.replace("\\", "/")
+    path = Path(text)
+    if path.is_absolute():
+        try:
+            return path.relative_to(Path.cwd()).as_posix()
+        except ValueError:
+            drive_stripped = path.as_posix().split(":", 1)[-1]
+            return drive_stripped.lstrip("/")
+    return path.as_posix()
+
+
+def _sanitize_reason(reason: str) -> str:
+    if not reason:
+        return ""
+    text = str(reason)
+    if ":" not in text:
+        if _DRIVE_PREFIX_RE.match(text):
+            return _portable_path(text) or text
+        if Path(text).is_absolute():
+            return _portable_path(text) or text
+        return text
+    prefix, remainder = text.split(":", 1)
+    parts = [part.strip() for part in remainder.split(",") if part.strip()]
+    if not parts:
+        return text
+    sanitized = ", ".join(_portable_path(part) or "" for part in parts)
+    return f"{prefix}: {sanitized}"
+
+
+def _archive_outputs(target_dir: Path, paths: Sequence[Path]) -> None:
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Archive source missing: {path}")
+        shutil.copy2(path, target_dir / path.name)
 
 
 @dataclass(slots=True)
@@ -388,6 +446,7 @@ def write_ramp_outputs(
     *,
     json_path: Path = JSON_OUTPUT,
     markdown_path: Path = MARKDOWN_OUTPUT,
+    archive_dir: Path | None = None,
 ) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(policy, indent=2, sort_keys=True), encoding="utf-8")
@@ -395,6 +454,7 @@ def write_ramp_outputs(
     calibration_entries = policy.get("calibration_ages") or []
     calibration_asof = policy.get("calibration_asof_date")
     calibration_report_path = policy.get("calibration_report_path")
+    calibration_report_text = _portable_path(calibration_report_path)
     generated_at = _parse_timestamp(policy.get("generated_at")) or datetime.now(tz=UTC)
     calibration_results: list[calibration_ages.CalibrationAgeResult] = []
     for entry in calibration_entries:
@@ -445,9 +505,20 @@ def write_ramp_outputs(
     lines.append("")
 
     overall = policy.get("overall", {})
-    global_reasons = [str(reason) for reason in overall.get("global_reasons", [])]
+    global_reasons = [
+        _sanitize_reason(str(reason)) for reason in overall.get("global_reasons", [])
+    ]
     if global_reasons:
         lines.append("**Global NO-GO reasons:** " + ", ".join(global_reasons))
+        lines.append("")
+    no_go_count = int(overall.get("no_go", 0) or 0)
+    decision = str(overall.get("decision") or "").upper()
+    if global_reasons or no_go_count > 0 or decision == "NO_GO":
+        lines.append("## How to fix")
+        lines.append("- Re-run monitors: `make monitors`")
+        lines.append("- Refresh readiness: `make pilot-readiness`")
+        lines.append("- Regenerate scoreboards: `python -m kalshi_alpha.exec.scoreboard`")
+        lines.append("- If calibration is stale/missing: `make calibrate-index`")
         lines.append("")
 
     freshness = policy.get("freshness", {})
@@ -493,8 +564,8 @@ def write_ramp_outputs(
     calibration_summary = policy.get("calibration_summary", {})
     if isinstance(calibration_summary, dict) and calibration_summary:
         lines.append("**Calibration Ages**")
-        if calibration_report_path:
-            lines.append(f"- Report: {calibration_report_path}")
+        if calibration_report_text:
+            lines.append(f"- Report: {calibration_report_text}")
         lines.append("| Series | Status | Age (hours) |")
         lines.append("| --- | --- | --- |")
         for series in calibration_ages.SERIES_ORDER:
@@ -582,6 +653,8 @@ def write_ramp_outputs(
                 lines.append(row)
 
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if archive_dir is not None:
+        _archive_outputs(archive_dir, [json_path, markdown_path])
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -591,6 +664,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--drawdown-state-dir", type=Path, default=None)
     parser.add_argument("--json-path", type=Path, default=JSON_OUTPUT)
     parser.add_argument("--markdown-path", type=Path, default=MARKDOWN_OUTPUT)
+    parser.add_argument("--archive-dir", type=Path, default=None)
+    parser.add_argument("--runlog", type=Path, default=None)
     parser.add_argument("--pilot-session-path", type=Path, default=None)
     parser.add_argument("--bin-overrides", type=Path, default=None)
     parser.add_argument("--lookback-days", type=int, default=RampPolicyConfig().lookback_days)
@@ -671,7 +746,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         pilot_session_path=args.pilot_session_path,
         bin_overrides_path=args.bin_overrides,
     )
-    write_ramp_outputs(policy, json_path=args.json_path, markdown_path=args.markdown_path)
+    archive_dir = _resolve_archive_dir(args.archive_dir, args.runlog)
+    write_ramp_outputs(
+        policy,
+        json_path=args.json_path,
+        markdown_path=args.markdown_path,
+        archive_dir=archive_dir,
+    )
     print(json.dumps(policy["overall"], indent=2, sort_keys=True))
     return 0
 

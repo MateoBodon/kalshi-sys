@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -8,6 +9,12 @@ import polars as pl
 import pytest
 
 from kalshi_alpha.exec import scoreboard
+
+ABSOLUTE_PATH_RE = re.compile(r"(/(?:home|Users|tmp|var|srv|etc|opt|usr|mnt|Volumes|root)/|[A-Za-z]:\\\\|[A-Za-z]:/)")
+
+
+def _assert_no_absolute_paths(text: str) -> None:
+    assert not ABSOLUTE_PATH_RE.search(text)
 
 
 def _write_calibration(root: Path, slug: str, horizon: str, generated_at: datetime) -> None:
@@ -156,12 +163,15 @@ def test_scoreboard_generates_markdown(
             encoding="utf-8",
         )
 
-    scoreboard.main([])
+    archive_dir = tmp_path / "runlog"
+    scoreboard.main(["--archive-dir", str(archive_dir)])
 
     report_7d = tmp_path / "reports" / "scoreboard_7d.md"
     report_30d = tmp_path / "reports" / "scoreboard_30d.md"
     assert report_7d.exists()
     assert report_30d.exists()
+    assert (archive_dir / "scoreboard_7d.md").exists()
+    assert (archive_dir / "scoreboard_30d.md").exists()
 
     contents = report_7d.read_text(encoding="utf-8")
     assert "## INX" in contents
@@ -177,6 +187,7 @@ def test_scoreboard_generates_markdown(
     assert "Confidence" in contents
     assert "SLO Metrics (7d)" in contents
     assert "Freshness" in contents
+    _assert_no_absolute_paths(contents)
 
     pilot_report = tmp_path / "reports" / "pilot_readiness.md"
     assert pilot_report.exists()
@@ -184,3 +195,4 @@ def test_scoreboard_generates_markdown(
     assert pilot_text.startswith("# Pilot Readiness")
     assert "INXU —" in pilot_text
     assert "Reasons" in pilot_text
+    _assert_no_absolute_paths(pilot_text)

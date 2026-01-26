@@ -7,13 +7,14 @@ import json
 import math
 import re
 import shlex
+import shutil
 import statistics
 import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 from zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,7 @@ from kalshi_alpha.utils.env import load_env
 
 ET = ZoneInfo("America/New_York")
 SUPPORTED_SERIES = {"INX", "INXU", "NASDAQ100", "NASDAQ100U"}
+SUPPORTED_SERIES_ORDER = ("INX", "INXU", "NASDAQ100", "NASDAQ100U")
 DEFAULT_FIXTURES_ROOT = Path("tests/fixtures/settlement_basis")
 DEFAULT_QUOTE_DISTANCE = 0.5
 EXEC_DEFAULTS_PATH = PROJECT_ROOT / "data" / "reference" / "index_execution_defaults.json"
@@ -255,12 +257,17 @@ def _parse_day(value: str) -> date:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compare Polygon index prints to Kalshi expiration values.")
     parser.add_argument("--day", type=_parse_day, required=True, help="Trading day (YYYY-MM-DD).")
-    parser.add_argument(
+    series_group = parser.add_mutually_exclusive_group(required=True)
+    series_group.add_argument(
         "--series",
         type=str,
-        required=True,
         choices=sorted(SUPPORTED_SERIES),
         help="Index ladder series (INX, INXU, NASDAQ100, NASDAQ100U).",
+    )
+    series_group.add_argument(
+        "--all-series",
+        action="store_true",
+        help="Run the audit for all supported series (INX, INXU, NASDAQ100, NASDAQ100U).",
     )
     parser.add_argument(
         "--out-json",
@@ -292,6 +299,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Use offline fixture JSON (default: tests/fixtures/settlement_basis).",
     )
+    parser.add_argument("--archive-dir", type=Path, default=None, help="Archive outputs into this directory.")
+    parser.add_argument("--runlog", type=Path, default=None, help="Alias for --archive-dir (run log folder).")
     return parser.parse_args(argv)
 
 
@@ -323,6 +332,30 @@ def _resolve_paths(
     data_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.parent.mkdir(parents=True, exist_ok=True)
     return report_path, data_path, json_path
+
+
+def _resolve_archive_dir(archive_dir: Path | None, runlog_dir: Path | None) -> Path | None:
+    if archive_dir is None:
+        return runlog_dir
+    if runlog_dir is None:
+        return archive_dir
+    if archive_dir == runlog_dir:
+        return archive_dir
+    raise ValueError("Pass only one of --archive-dir or --runlog (or ensure they match).")
+
+
+def _archive_outputs(archive_dir: Path, paths: Sequence[Path]) -> None:
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Artifact missing for archive: {path}")
+        try:
+            relative = path.resolve().relative_to(PROJECT_ROOT)
+            target = archive_dir / relative
+        except ValueError:
+            target = archive_dir / path.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
 
 
 def _parse_iso(value: str | None) -> datetime | None:
@@ -1011,28 +1044,58 @@ def _build_dataset(
     return frame
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = _parse_args(argv)
-    report_path, data_path, json_path = _resolve_paths(
-        args.day,
-        args.series,
-        out_report=args.out_report,
-        out_data=args.out_data,
-        out_json=args.out_json,
-    )
-    raw_args = argv if argv is not None else sys.argv[1:]
-    command = " ".join(shlex.quote(part) for part in ["python", "tools/settlement_basis_audit.py", *[str(a) for a in raw_args]])
+def _command_for_series(raw_args: Sequence[str], series: str, *, use_all_series: bool) -> str:
+    parts: list[str] = ["python", "tools/settlement_basis_audit.py"]
+    if use_all_series:
+        filtered: list[str] = []
+        skip_next = False
+        for arg in raw_args:
+            if skip_next:
+                skip_next = False
+                continue
+            if arg == "--all-series":
+                continue
+            if arg == "--series":
+                skip_next = True
+                continue
+            filtered.append(str(arg))
+        filtered.extend(["--series", series])
+        parts.extend(filtered)
+    else:
+        parts.extend(str(arg) for arg in raw_args)
+    return " ".join(shlex.quote(part) for part in parts)
 
-    if args.use_cache:
+
+def _run_audit_for_series(
+    *,
+    day: date,
+    series: str,
+    out_report: str | None,
+    out_data: str | None,
+    out_json: str | None,
+    use_cache: bool,
+    offline_root: Path | None,
+    command: str,
+    archive_dir: Path | None,
+) -> tuple[Path, Path, Path]:
+    report_path, data_path, json_path = _resolve_paths(
+        day,
+        series,
+        out_report=out_report,
+        out_data=out_data,
+        out_json=out_json,
+    )
+
+    if use_cache:
         if not data_path.exists():
             raise FileNotFoundError(f"Dataset not found for --use-cache: {data_path}")
         frame = _load_frame(data_path)
-        summary = _build_summary(frame, day=args.day, series=args.series)
+        summary = _build_summary(frame, day=day, series=series)
         json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         report = _render_report(
             frame,
-            day=args.day,
-            series=args.series,
+            day=day,
+            series=series,
             dataset_path=data_path,
             command=command,
             summary=summary,
@@ -1040,17 +1103,18 @@ def main(argv: list[str] | None = None) -> None:
         report_path.write_text(report, encoding="utf-8")
         print(f"[settlement_basis] summary written to {json_path}")
         print(f"[settlement_basis] report written to {report_path}")
-        return
+        if archive_dir is not None:
+            _archive_outputs(archive_dir, [json_path, report_path])
+        return report_path, data_path, json_path
 
-    offline_root = Path(args.offline_fixtures).resolve() if args.offline_fixtures else None
-    frame = _build_dataset(day=args.day, series=args.series, offline_fixtures=offline_root)
+    frame = _build_dataset(day=day, series=series, offline_fixtures=offline_root)
     _write_frame(frame, data_path)
-    summary = _build_summary(frame, day=args.day, series=args.series)
+    summary = _build_summary(frame, day=day, series=series)
     json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     report = _render_report(
         frame,
-        day=args.day,
-        series=args.series,
+        day=day,
+        series=series,
         dataset_path=data_path,
         command=command,
         summary=summary,
@@ -1059,6 +1123,49 @@ def main(argv: list[str] | None = None) -> None:
     print(f"[settlement_basis] dataset written to {data_path}")
     print(f"[settlement_basis] summary written to {json_path}")
     print(f"[settlement_basis] report written to {report_path}")
+    if archive_dir is not None:
+        _archive_outputs(archive_dir, [json_path, report_path])
+    return report_path, data_path, json_path
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
+    raw_args = argv if argv is not None else sys.argv[1:]
+    archive_dir = _resolve_archive_dir(args.archive_dir, args.runlog)
+
+    if args.all_series:
+        if args.out_report or args.out_data or args.out_json:
+            raise ValueError("--out-report/--out-data/--out-json are not supported with --all-series.")
+        offline_root = Path(args.offline_fixtures).resolve() if args.offline_fixtures else None
+        for series in SUPPORTED_SERIES_ORDER:
+            command = _command_for_series(raw_args, series, use_all_series=True)
+            _run_audit_for_series(
+                day=args.day,
+                series=series,
+                out_report=None,
+                out_data=None,
+                out_json=None,
+                use_cache=args.use_cache,
+                offline_root=offline_root,
+                command=command,
+                archive_dir=archive_dir,
+            )
+        return
+
+    series = str(args.series)
+    command = _command_for_series(raw_args, series, use_all_series=False)
+    offline_root = Path(args.offline_fixtures).resolve() if args.offline_fixtures else None
+    _run_audit_for_series(
+        day=args.day,
+        series=series,
+        out_report=args.out_report,
+        out_data=args.out_data,
+        out_json=args.out_json,
+        use_cache=args.use_cache,
+        offline_root=offline_root,
+        command=command,
+        archive_dir=archive_dir,
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

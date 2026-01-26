@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,7 @@ MIN_DELTA_BPS = 6.0
 MIN_T_STAT = 2.0
 MAX_ALPHA_GAP = 0.05
 MAX_CALIBRATION_AGE_DAYS = 14.0
+_DRIVE_PREFIX_RE = re.compile(r"^[A-Za-z]:[\\\\/]")
 
 
 @dataclass(slots=True)
@@ -108,6 +110,36 @@ def _alpha_gap_mean(subset: pl.DataFrame) -> float:
         return 0.0
     diff = observed - target
     return float(diff.mean()) if diff.len() else 0.0
+
+
+def _portable_path(value: str | Path) -> str:
+    text = str(value)
+    if not text:
+        return text
+    if _DRIVE_PREFIX_RE.match(text):
+        drive_stripped = text.split(":", 1)[-1].lstrip("\\/")
+        return drive_stripped.replace("\\", "/")
+    path = Path(text)
+    if path.is_absolute():
+        try:
+            return path.relative_to(Path.cwd()).as_posix()
+        except ValueError:
+            drive_stripped = path.as_posix().split(":", 1)[-1]
+            return drive_stripped.lstrip("/")
+    return path.as_posix()
+
+
+def _sanitize_reason_text(reason: str | None) -> str:
+    if not reason:
+        return ""
+    if ":" not in reason:
+        return reason
+    prefix, remainder = reason.split(":", 1)
+    parts = [part.strip() for part in remainder.split(",") if part.strip()]
+    if not parts:
+        return reason
+    sanitized = ", ".join(_portable_path(part) for part in parts)
+    return f"{prefix}: {sanitized}"
 
 
 def calibration_age_days(series: str, now: datetime) -> float | None:
@@ -229,20 +261,30 @@ def render_markdown(
         for item in reasons_iter:
             lines.append(f"  - {item}")
     lines.append("")
+    has_no_go = (not freshness_ok) or any(not entry.go for entry in results)
+    if has_no_go:
+        lines.append("## How to fix")
+        lines.append("- Re-run monitors: `make monitors`")
+        lines.append("- Refresh readiness: `make pilot-readiness`")
+        lines.append("- Regenerate scoreboards: `python -m kalshi_alpha.exec.scoreboard`")
+        lines.append("- If calibration is stale/missing: `make calibrate-index`")
+        lines.append("")
     if calibration_results:
         lines.append("**Calibration Ages**")
         lines.append("| Series | Horizon | File | MTime (UTC) | Age (hours) | Status | Reason |")
         lines.append("| --- | --- | --- | --- | --- | --- | --- |")
         for entry in calibration_results:
+            file_path = _portable_path(entry.file_path)
+            reason_text = _sanitize_reason_text(entry.reason)
             lines.append(
                 "| {series} | {horizon} | {file_path} | {mtime} | {age} | {status} | {reason} |".format(
                     series=entry.series,
                     horizon=entry.horizon,
-                    file_path=entry.file_path,
+                    file_path=file_path,
                     mtime=entry.mtime_iso or "n/a",
                     age="n/a" if entry.age_hours is None else f"{entry.age_hours:.1f}",
                     status=entry.status,
-                    reason=entry.reason or "",
+                    reason=reason_text,
                 )
             )
         lines.append("")

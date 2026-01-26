@@ -1,4 +1,11 @@
 PYTHON ?= python
+REPORT_ARCHIVE_ARGS :=
+ifneq ($(strip $(RUNLOG_DIR)),)
+REPORT_ARCHIVE_ARGS += --runlog $(RUNLOG_DIR)
+endif
+ifneq ($(strip $(ARCHIVE_DIR)),)
+REPORT_ARCHIVE_ARGS += --archive-dir $(ARCHIVE_DIR)
+endif
 
 define run_with_uv
 	@if command -v uv >/dev/null 2>&1; then \
@@ -50,7 +57,7 @@ telemetry-smoke:
 	$(PYTHON) -c 'from datetime import UTC, datetime; from kalshi_alpha.exec.telemetry.sink import TelemetrySink; sink = TelemetrySink(); now = datetime.now(tz=UTC); sink.emit("sent", source="make.telemetry", data={"order_id": "SIM-001", "side": "YES", "contracts": 10, "timestamp": now.isoformat()}); sink.emit("fill", source="make.telemetry", data={"order_id": "SIM-001", "filled": 10, "price": 0.45, "latency_ms": 180}); sink.emit("heartbeat", source="make.telemetry", data={"ws_state": "open", "seq": 1})'
 
 report:
-	$(PYTHON) -m kalshi_alpha.exec.scoreboard
+	$(PYTHON) -m kalshi_alpha.exec.scoreboard $(REPORT_ARCHIVE_ARGS)
 
 digest:
 	$(PYTHON) -m report.digest --date yesterday --write
@@ -70,9 +77,9 @@ monitors:
 
 pilot-readiness:
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run python -m kalshi_alpha.exec.reports.ramp; \
+		uv run python -m kalshi_alpha.exec.reports.ramp $(REPORT_ARCHIVE_ARGS); \
 	else \
-		$(PYTHON) -m kalshi_alpha.exec.reports.ramp; \
+		$(PYTHON) -m kalshi_alpha.exec.reports.ramp $(REPORT_ARCHIVE_ARGS); \
 	fi
 
 pilot-bundle:

@@ -243,6 +243,36 @@ def test_macro_stale_does_not_block_index_preflight(tmp_path: Path, monkeypatch:
         freshness_artifact_path=freshness_path,
         basis_root=basis_root,
     )
+    assert result.go
+    assert "STALE_FEEDS" not in result.reasons
+    assert "polygon_ws_stale" not in result.reasons
+
+
+def test_macro_missing_does_not_block_index_preflight(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
+    _seed_all_params(tmp_path, now)
+    freshness_path = tmp_path / "freshness.json"
+    _write_freshness_artifact(freshness_path, polygon_ok=True, macro_required=False)
+    basis_root = tmp_path / "basis"
+    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
+
+    key_path = tmp_path / "kalshi.pem"
+    key_path.write_text("dummy", encoding="utf-8")
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "demo-id")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
+    monkeypatch.setenv("POLYGON_API_KEY", "demo-polygon")
+
+    result = run_preflight(
+        now,
+        params_root=tmp_path,
+        kill_switch_file=tmp_path / "kill_switch",
+        polygon_ping=lambda _: True,
+        freshness_artifact_path=freshness_path,
+        basis_root=basis_root,
+    )
+    assert result.go
 
 
 def test_missing_basis_audit_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -270,6 +300,67 @@ def test_missing_basis_audit_blocks_go(tmp_path: Path, monkeypatch: pytest.Monke
     assert not result.go
     assert any(reason.startswith("basis_audit_missing") for reason in result.reasons)
 
-    assert result.go
-    assert "STALE_FEEDS" not in result.reasons
-    assert "polygon_ws_stale" not in result.reasons
+
+def test_stale_basis_audit_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
+    _seed_all_params(tmp_path, now)
+    freshness_path = tmp_path / "freshness.json"
+    _write_freshness_artifact(freshness_path)
+    basis_root = tmp_path / "basis"
+    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
+    stale_series = "INXU"
+    stale_path = basis_root / stale_series / f"{now.date().isoformat()}.json"
+    _write_basis_audit(
+        stale_path,
+        series=stale_series,
+        asof_date=now.date(),
+        generated_at=now - timedelta(days=1),
+    )
+
+    key_path = tmp_path / "kalshi.pem"
+    key_path.write_text("dummy", encoding="utf-8")
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "demo-id")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
+    monkeypatch.setenv("POLYGON_API_KEY", "demo-polygon")
+
+    result = run_preflight(
+        now,
+        params_root=tmp_path,
+        kill_switch_file=tmp_path / "kill_switch",
+        polygon_ping=lambda _: True,
+        freshness_artifact_path=freshness_path,
+        basis_root=basis_root,
+    )
+
+    assert not result.go
+    assert any(reason.startswith("basis_audit_stale") for reason in result.reasons)
+
+
+def test_flip_risk_basis_audit_blocks_go(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2025, 11, 3, 14, 30, tzinfo=ET)
+    _seed_all_params(tmp_path, now)
+    freshness_path = tmp_path / "freshness.json"
+    _write_freshness_artifact(freshness_path)
+    basis_root = tmp_path / "basis"
+    _seed_basis_audits(basis_root, asof_date=now.date(), series=preflight_index._series_labels())
+    risk_series = "INXU"
+    risk_path = basis_root / risk_series / f"{now.date().isoformat()}.json"
+    _write_basis_audit(risk_path, series=risk_series, asof_date=now.date(), flip_flag=True)
+
+    key_path = tmp_path / "kalshi.pem"
+    key_path.write_text("dummy", encoding="utf-8")
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "demo-id")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM_PATH", str(key_path))
+    monkeypatch.setenv("POLYGON_API_KEY", "demo-polygon")
+
+    result = run_preflight(
+        now,
+        params_root=tmp_path,
+        kill_switch_file=tmp_path / "kill_switch",
+        polygon_ping=lambda _: True,
+        freshness_artifact_path=freshness_path,
+        basis_root=basis_root,
+    )
+
+    assert not result.go
+    assert any(reason.startswith("basis_flip_risk") for reason in result.reasons)

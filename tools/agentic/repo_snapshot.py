@@ -3,7 +3,7 @@
 Create a deterministic, lightweight repo snapshot for GPT review.
 
 Outputs:
-  docs/_generated/repo_snapshot.md
+  artifacts/_local/repo_snapshot.md
 
 This is intentionally non-AI: it is cheap, fast, and stable.
 """
@@ -52,7 +52,7 @@ def guess_language_counts(paths: Iterable[str]) -> dict[str, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=str, default=None, help="Output path (default: docs/_generated/repo_snapshot.md)")
+    ap.add_argument("--out", type=str, default=None, help="Output path (default: artifacts/_local/repo_snapshot.md)")
     args = ap.parse_args()
 
     start = Path.cwd()
@@ -75,7 +75,7 @@ def main() -> int:
     if len(tracked) > 1200:
         tree_lines.append(f"... ({len(tracked) - 1200} more tracked files)")
 
-    out_path = Path(args.out) if args.out else (repo / "docs" / "_generated" / "repo_snapshot.md")
+    out_path = Path(args.out) if args.out else (repo / "artifacts" / "_local" / "repo_snapshot.md")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
