@@ -1,0 +1,4 @@
+- Scoreboard generates `reports/pilot_readiness.md` (simple readiness); ramp readiness also writes the same path.
+- Archive/runlog args are optional; if provided they must match or be used alone (fail if mismatched).
+- Repo was already dirty on entry (existing `project_state/*` edits and `docs/gpt_outputs/kal01-25-26prompt1-diagnosis.md`).
+- Added pyarrow to satisfy polars->pandas conversion in backtest/model tests.

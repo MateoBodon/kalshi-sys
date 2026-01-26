@@ -1,0 +1,35 @@
+# Files Touched
+
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/ARTIFACTS.md
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/CITATIONS.md
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/COMMANDS.md
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/DIFF.patch
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/FILES_TOUCHED.md
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/META.json
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/NOTES.md
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RESULTS.md
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md
+- docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/TESTS.md
+- .gitignore
+- AGENTS.md
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/CODEX_SPRINT_TICKETS.md
+- docs/gpt_outputs/
+- docs/PROGRESS.md
+- docs/prompts/12-20-25prompt1.md
+- docs/prompts/PROJECT_STATE_REBUILD
+- docs/PLAN_OF_RECORD.md
+- docs/vendor/
+- Makefile
+- CHANGELOG.md
+- REPORT.md
+- reports/ops/telemetry_volume_2025-12-26.md
+- src/kalshi_alpha/exec/collectors/polygon_ws.py
+- src/kalshi_alpha/exec/market_status.py
+- src/kalshi_alpha/exec/monitors/freshness.py
+- src/kalshi_alpha/drivers/polygon_index/client.py
+- tests/test_freshness_gate.py
+- tests/test_polygon_index_client.py
+- tests/test_polygon_ws_collector.py
+- tools/sync_vendor_docs.py
+- tools/verify_gpt_bundle.py

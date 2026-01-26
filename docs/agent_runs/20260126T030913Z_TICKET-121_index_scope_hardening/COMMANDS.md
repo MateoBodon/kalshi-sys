@@ -1,0 +1,52 @@
+# COMMANDS
+
+- [0] ls
+- [0] cat PROJECT.md
+- [0] rg --files -g 'AGENTS.md'
+- [0] cat PROGRESS.md
+- [0] cat /home/codex/.codex/skills/gpt-bundle/SKILL.md
+- [0] sed -n '1,240p' src/kalshi_alpha/exec/preflight_index.py
+- [0] sed -n '240,520p' src/kalshi_alpha/exec/preflight_index.py
+- [0] sed -n '1,240p' src/kalshi_alpha/exec/monitors/freshness.py
+- [0] sed -n '240,520p' src/kalshi_alpha/exec/monitors/freshness.py
+- [0] sed -n '1,260p' src/kalshi_alpha/exec/supervisor_index.py
+- [0] sed -n '260,620p' src/kalshi_alpha/exec/supervisor_index.py
+- [0] rg "run_preflight" -n
+- [0] sed -n '1,280p' tests/exec/test_preflight_index.py
+- [0] sed -n '280,560p' tests/exec/test_preflight_index.py
+- [0] rg "supervisor_index" tests -n
+- [0] sed -n '1,220p' tests/exec/test_supervisor_index.py
+- [0] sed -n '220,520p' tests/exec/test_supervisor_index.py
+- [0] sed -n '1,200p' docs/index_ladders/aws_supervisor_index.md
+- [0] head -n 80 CHANGELOG.md
+- [0] ls docs
+- [0] cat docs/PROGRESS.md
+- [0] date -u +"%Y%m%dT%H%M%SZ"
+- [0] rg -n "preflight|freshness|GO/NO-GO|go/no-go|gating" docs/PLAN_OF_RECORD.md
+- [0] rg -n "go/no-go|preflight|freshness|gating" docs/DOCS_AND_LOGGING_SYSTEM.md
+- [0] sed -n '120,190p' docs/DOCS_AND_LOGGING_SYSTEM.md
+- [0] sed -n '90,140p' docs/PLAN_OF_RECORD.md
+- [0] cat docs/DECISIONS.md
+- [0] rg "freshness_scope" -n
+- [0] sed -n '1,30p' CHANGELOG.md
+- [0] cat <<'EOF' > docs/tickets/TICKET-121.md
+- [0] mkdir -p docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening
+- [127] pytest -q
+- [1] python -m pytest -q
+- [0] python3 tools/agentic/project_state_refresh.py --zip
+- [0] python3 tools/agentic/gpt_bundle.py --zip --ticket TICKET-121
+- [0] git status -sb
+- [0] git checkout -b codex/TICKET-121_index_scope_hardening
+- [0] cat <<'EOF' > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/RUN.md
+- [0] cat <<'EOF' > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/NOTES.md
+- [0] cat <<'EOF' > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/COMMANDS.md
+- [0] cat <<'EOF' > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/TESTS.md
+- [0] cat <<'EOF' > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/FILES_TOUCHED.md
+- [0] cat <<'EOF' > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/ARTIFACTS.md
+- [0] cat <<'EOF' > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/CITATIONS.md
+- [0] git diff > docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/DIFF.patch
+- [1] python3 -m pip install -e ".[dev]" (externally-managed-environment)
+- [0] python3 -m venv .venv
+- [0] .venv/bin/python -m pip install -e ".[dev]"
+- [0] .venv/bin/python -m pytest -q
+- [0] python3 tools/agentic/gpt_bundle.py --zip --ticket TICKET-121

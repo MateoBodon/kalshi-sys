@@ -1,0 +1,4 @@
+- `pytest -q tests/test_pilot_readiness.py tests/test_scoreboard.py` (FAIL: /bin/bash: pytest: command not found)
+- `pytest -q` (FAIL: /bin/bash: pytest: command not found)
+- `source .venv/bin/activate && pytest -q tests/test_pilot_readiness.py tests/test_scoreboard.py` (PASS)
+- `source .venv/bin/activate && pytest -q` (PASS)

@@ -1,0 +1,5 @@
+- gpt bundle: `docs/_bundles/gpt_bundle_20260126_014323_TICKET-120.zip`
+- `reports/scoreboard_7d.md`
+- `reports/scoreboard_30d.md`
+- `reports/pilot_readiness.md`
+- `reports/pilot_ready.json`

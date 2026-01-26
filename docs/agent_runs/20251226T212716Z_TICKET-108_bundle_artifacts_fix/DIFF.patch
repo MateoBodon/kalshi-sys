@@ -1,0 +1,705 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0531e81..bac258e 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,8 @@
+ - Added `python -m kalshi_alpha.exec.market_status` CLI for ops to print market status + server time.
+ - Verified telemetry-only dry-run captures TOB + quote-intent artifacts, wrote ops telemetry volume report, and proved retention pruning with a synthetic old-file deletion.
+ - `make gpt-bundle` now includes telemetry artifacts (`data/proc/telemetry/*` and `reports/ops/telemetry_volume_*.md`) when present.
++- `make gpt-bundle` now includes fillcalib curves, pilot readiness reports, and calibration markdown, and fails closed when ARTIFACTS.md lists files missing from the bundle.
++- Added a gpt-bundle staging helper + regression tests to ensure calibration subtrees and readiness artifacts are always included and ARTIFACTS omissions fail closed.
+ 
+ ## 2025-12-25
+ - Fix: Polygon indices REST snapshot fallback now uses `/v3/snapshot/indices`, parses v3 fields (value/session/last_updated), and fails closed on NOT_ENTITLED responses with updated unit tests.
+diff --git a/Makefile b/Makefile
+index ec9bced..15a3498 100644
+--- a/Makefile
++++ b/Makefile
+@@ -90,21 +90,7 @@ gpt-bundle:
+ 	fi; \
+ 	BUNDLE_ROOT="docs/gpt_bundles"; \
+ 	STAGING="$$BUNDLE_ROOT/$(RUN_NAME)"; \
+-	mkdir -p "$$STAGING/docs/agent_runs" "$$STAGING/project_state" "$$STAGING/docs"; \
+-	cp AGENTS.md "$$STAGING/"; \
+-	cp docs/PLAN_OF_RECORD.md docs/DOCS_AND_LOGGING_SYSTEM.md docs/CODEX_SPRINT_TICKETS.md "$$STAGING/docs/"; \
+-	cp docs/PROGRESS.md "$$STAGING/docs/"; \
+-	cp docs/PROGRESS.md "$$STAGING/PROGRESS.md"; \
+-	cp project_state/CURRENT_RESULTS.md project_state/KNOWN_ISSUES.md project_state/CONFIG_REFERENCE.md "$$STAGING/project_state/"; \
+-	cp -R "docs/agent_runs/$(RUN_NAME)" "$$STAGING/docs/agent_runs/"; \
+-	if [ -d "data/proc/telemetry" ]; then \
+-		mkdir -p "$$STAGING/data/proc"; \
+-		cp -R "data/proc/telemetry" "$$STAGING/data/proc/"; \
+-	fi; \
+-	if ls reports/ops/telemetry_volume_*.md >/dev/null 2>&1; then \
+-		mkdir -p "$$STAGING/reports/ops"; \
+-		cp reports/ops/telemetry_volume_*.md "$$STAGING/reports/ops/"; \
+-	fi; \
++	$(PYTHON) -m tools.gpt_bundle_builder --run-name "$(RUN_NAME)" --staging "$$STAGING"; \
+ 	DIFF_PATH="$$STAGING/DIFF.patch"; \
+ 	BASE_REF=""; \
+ 	if git show-ref --verify --quiet refs/remotes/origin/main; then \
+diff --git a/docs/CODEX_SPRINT_TICKETS.md b/docs/CODEX_SPRINT_TICKETS.md
+index c2ae841..26a221c 100644
+--- a/docs/CODEX_SPRINT_TICKETS.md
++++ b/docs/CODEX_SPRINT_TICKETS.md
+@@ -227,3 +227,32 @@ Scope reminder:
+ **Expected artifacts:**
+ - `reports/safety/live_smoke_<DATE>.md`
+ - `docs/agent_runs/<RUN_NAME>/` with clear proof of enforced behavior
++
++---
++
++## TICKET-108 — GPT bundle completeness for calibration/readiness artifacts
++
++**Goal (1 sentence):** Ensure per-ticket GPT bundles include fillcalib, pilot readiness, and calibration age artifacts, and fail-closed if ARTIFACTS.md lists files missing from the bundle.
++
++**Likely files/modules:**
++- `Makefile` (gpt-bundle target)
++- `tools/verify_gpt_bundle.py`
++- `tools/gpt_bundle_builder.py`
++- `tests/test_gpt_bundle_verifier.py`
++- `tests/test_gpt_bundle_builder.py`
++- `docs/DOCS_AND_LOGGING_SYSTEM.md`
++
++**Acceptance criteria:**
++- Bundles include `data/proc/fillcalib/*.json`, `reports/fillcalib/*.md`, `reports/pilot_ready.json`, `reports/pilot_readiness.md`, and `reports/calibration/*.md` when present.
++- Bundle verification fails if `docs/agent_runs/<RUN_NAME>/ARTIFACTS.md` lists an existing file missing from the bundle.
++- Regression tests cover bundle contents and fail-closed behavior.
++
++**Minimal tests/commands:**
++- `pytest -q`
++- `PYTHON=python3 make gpt-bundle TICKET=TICKET-108 RUN_NAME=<RUN_NAME>`
++
++**Expected artifacts:**
++- `docs/gpt_bundles/gpt_bundle_TICKET-108_<RUN_NAME>.zip`
++- `docs/agent_runs/<RUN_NAME>/` updated with bundle evidence
++
++**Status:** DONE (2025-12-26)
+diff --git a/docs/DOCS_AND_LOGGING_SYSTEM.md b/docs/DOCS_AND_LOGGING_SYSTEM.md
+index 20fe1fc..a1e0f59 100644
+--- a/docs/DOCS_AND_LOGGING_SYSTEM.md
++++ b/docs/DOCS_AND_LOGGING_SYSTEM.md
+@@ -93,6 +93,12 @@ B) **Per-ticket bundles** (small, fast)
+   - files changed in the ticket
+   - any new reports/fixtures
+   - telemetry artifacts when generated (`data/proc/telemetry/*` and `reports/ops/telemetry_volume_*.md`)
++  - calibration + readiness artifacts when generated:
++    - `data/proc/fillcalib/*.json`
++    - `reports/fillcalib/*.md`
++    - `reports/pilot_ready.json`
++    - `reports/pilot_readiness.md`
++    - `reports/calibration/**` (calibration age reports, including nested markdown)
+ - Should also include a zip:
+   - `docs/gpt_bundles/ticket_<...>.zip`
+ 
+diff --git a/docs/PLAN_OF_RECORD.md b/docs/PLAN_OF_RECORD.md
+index 5c9a70e..208d3e9 100644
+--- a/docs/PLAN_OF_RECORD.md
++++ b/docs/PLAN_OF_RECORD.md
+@@ -183,6 +183,7 @@ Required artifacts:
+ - `reports/fillcalib/<ASOF_DATE>.md` (sample counts + conservative curve)
+ - `reports/ops/telemetry_volume_<YYYY-MM-DD>.md`
+ - Per-ticket GPT bundles should include telemetry artifacts (`data/proc/telemetry/*`) and the ops volume report when generated.
++- Per-ticket GPT bundles should include fillcalib curves + reports, pilot readiness artifacts, and calibration-age reports when generated (`data/proc/fillcalib/*.json`, `reports/fillcalib/*.md`, `reports/pilot_ready.json`, `reports/pilot_readiness.md`, `reports/calibration/**`).
+ 
+ Notes:
+ - Fill curves are proxy estimates based on TOB crossings only (upper bound), not realized fills or queue position.
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index 75943ac..5de7770 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -23,9 +23,12 @@ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-t
+   - Evidence: agent run log `docs/agent_runs/20251222_030117Z_TICKET-008_aws_dry_run_deploy_verify/README.md`
+ 
+ ## 2025-12-26
+-- Ticket #104 — Built fill calibration dataset builder, conservative maker fill curves + loader wiring (uncalibrated only when curves missing), and added fixture-based tests.
++- Ticket #104 — Built fill calibration dataset builder, conservative maker fill curves + loader wiring (uncalibrated only when curves missing), and added fixture-based tests. **FAIL** (bundle missing listed artifacts).
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251226T092315Z_TICKET-104_fillcalib_curves/RUN.md`
++- Ticket #108 — GPT bundle completeness: staged bundler now includes calibration subtrees, enforces ARTIFACTS.md fail-closed checks, and adds regression coverage.
++  - Gate status: PAPER
++  - Evidence: agent run log `docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/RUN.md`
+ - Ticket #103 follow-up — Freshness monitor now honors Polygon marketstatus for closed/extended hours and ops market-status CLI added.
+   - Gate status: PAPER
+   - Evidence: agent run log `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/RUN.md`
+diff --git a/tests/test_gpt_bundle_builder.py b/tests/test_gpt_bundle_builder.py
+new file mode 100644
+index 0000000..5d91d52
+--- /dev/null
++++ b/tests/test_gpt_bundle_builder.py
+@@ -0,0 +1,99 @@
++from __future__ import annotations
++
++import json
++import zipfile
++from pathlib import Path
++
++import pytest
++
++from tools.gpt_bundle_builder import BundleBuildError, stage_bundle
++
++
++def _write_text(path: Path, content: str) -> None:
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(content, encoding="utf-8")
++
++
++def _write_run_log(root: Path, run_name: str, artifacts_md: str) -> None:
++    run_dir = root / "docs" / "agent_runs" / run_name
++    run_dir.mkdir(parents=True, exist_ok=True)
++    _write_text(run_dir / "RUN.md", "Run summary.\n")
++    _write_text(run_dir / "NOTES.md", "Notes.\n")
++    _write_text(run_dir / "COMMANDS.md", "Commands.\n")
++    _write_text(run_dir / "TESTS.md", "Tests.\n")
++    _write_text(run_dir / "RESULTS.md", "Results.\n")
++    _write_text(run_dir / "FILES_TOUCHED.md", "Files.\n")
++    _write_text(run_dir / "DIFF.patch", "diff --git a/a b/a\n--- a/a\n+++ b/a\n@@\n+ok\n")
++    _write_text(run_dir / "ARTIFACTS.md", artifacts_md)
++    _write_text(run_dir / "prompt.md", "prompt text\n")
++    meta = {"run_name": run_name, "ticket_id": "TICKET-108", "end_utc": "2025-12-26T00:00:00Z"}
++    _write_text(run_dir / "META.json", json.dumps(meta))
++
++
++def _write_required_files(root: Path) -> None:
++    _write_text(root / "AGENTS.md", "agents\n")
++    _write_text(root / "docs" / "PLAN_OF_RECORD.md", "plan\n")
++    _write_text(root / "docs" / "DOCS_AND_LOGGING_SYSTEM.md", "docs\n")
++    _write_text(root / "docs" / "CODEX_SPRINT_TICKETS.md", "tickets\n")
++    _write_text(root / "docs" / "PROGRESS.md", "progress\n")
++    _write_text(root / "project_state" / "CURRENT_RESULTS.md", "results\n")
++    _write_text(root / "project_state" / "KNOWN_ISSUES.md", "issues\n")
++    _write_text(root / "project_state" / "CONFIG_REFERENCE.md", "config\n")
++
++
++def _write_zip_from_staging(zip_path: Path, staging_root: Path, workspace_root: Path) -> None:
++    with zipfile.ZipFile(zip_path, "w") as zf:
++        for path in staging_root.rglob("*"):
++            if path.is_file():
++                zf.write(path, path.relative_to(workspace_root))
++
++
++def test_stage_bundle_includes_fillcalib_and_readiness_artifacts(tmp_path: Path) -> None:
++    run_name = "20251226T000000Z_TICKET-108_bundle_artifacts_fix"
++    _write_required_files(tmp_path)
++
++    _write_text(tmp_path / "data" / "proc" / "fillcalib" / "curves_SMOKE.json", "{\"ok\": true}\n")
++    _write_text(tmp_path / "reports" / "fillcalib" / "SMOKE.md", "# Fillcalib\n")
++    _write_text(tmp_path / "reports" / "pilot_ready.json", "{\"ok\": true}\n")
++    _write_text(tmp_path / "reports" / "pilot_readiness.md", "# Pilot readiness\n")
++    _write_text(tmp_path / "reports" / "calibration" / "SMOKE.md", "# Calibration\n")
++
++    artifacts_md = "\n".join(
++        [
++            "# ARTIFACTS",
++            "- data/proc/fillcalib/curves_SMOKE.json",
++            "- reports/fillcalib/SMOKE.md",
++            "- reports/pilot_ready.json",
++            "- reports/pilot_readiness.md",
++            "- reports/calibration/SMOKE.md",
++            "",
++        ]
++    )
++    _write_run_log(tmp_path, run_name, artifacts_md)
++
++    staging_root = tmp_path / "docs" / "gpt_bundles" / run_name
++    stage_bundle(tmp_path, run_name, staging_root)
++
++    zip_path = tmp_path / "bundle.zip"
++    _write_zip_from_staging(zip_path, staging_root, tmp_path)
++    with zipfile.ZipFile(zip_path) as zf:
++        names = set(zf.namelist())
++        assert f"docs/gpt_bundles/{run_name}/data/proc/fillcalib/curves_SMOKE.json" in names
++        assert f"docs/gpt_bundles/{run_name}/reports/fillcalib/SMOKE.md" in names
++        assert f"docs/gpt_bundles/{run_name}/reports/pilot_ready.json" in names
++        assert f"docs/gpt_bundles/{run_name}/reports/pilot_readiness.md" in names
++        assert f"docs/gpt_bundles/{run_name}/reports/calibration/SMOKE.md" in names
++
++
++def test_stage_bundle_fails_when_artifact_listed_missing(tmp_path: Path) -> None:
++    run_name = "20251226T000001Z_TICKET-108_bundle_artifacts_fix"
++    _write_required_files(tmp_path)
++
++    _write_text(tmp_path / "reports" / "other" / "OMIT.md", "# Omit\n")
++    artifacts_md = "\n".join(["# ARTIFACTS", "- reports/other/OMIT.md", ""])
++    _write_run_log(tmp_path, run_name, artifacts_md)
++
++    staging_root = tmp_path / "docs" / "gpt_bundles" / run_name
++    with pytest.raises(BundleBuildError) as excinfo:
++        stage_bundle(tmp_path, run_name, staging_root)
++    assert "reports/other/OMIT.md" in str(excinfo.value)
+diff --git a/tests/test_gpt_bundle_verifier.py b/tests/test_gpt_bundle_verifier.py
+index c887212..559f44e 100644
+--- a/tests/test_gpt_bundle_verifier.py
++++ b/tests/test_gpt_bundle_verifier.py
+@@ -68,3 +68,99 @@ def test_verify_bundle_rejects_placeholder_diff(tmp_path: Path) -> None:
+     _write_zip(zip_path, files)
+     errors = verify_bundle(zip_path)
+     assert any("placeholder" in error or "missing patch hunks" in error for error in errors)
++
++
++def _base_files_new(run_name: str, artifacts_content: str) -> tuple[dict[str, str], str, str]:
++    root_prefix = f"docs/gpt_bundles/{run_name}"
++    run_prefix = f"{root_prefix}/docs/agent_runs/{run_name}"
++    diff_text = (
++        "diff --git a/foo.txt b/foo.txt\n"
++        "--- a/foo.txt\n"
++        "+++ b/foo.txt\n"
++        "@@\n"
++        "+hello\n"
++    )
++    meta = {
++        "run_name": run_name,
++        "ticket": "TICKET-108",
++        "end_utc": "2025-12-26T19:49:30Z",
++    }
++    files = {
++        f"{root_prefix}/DIFF.patch": diff_text,
++        f"{run_prefix}/RUN.md": "Goal: verify bundle completeness.",
++        f"{run_prefix}/NOTES.md": "Notes.",
++        f"{run_prefix}/COMMANDS.md": "Commands.",
++        f"{run_prefix}/TESTS.md": "Tests.",
++        f"{run_prefix}/RESULTS.md": "Results.",
++        f"{run_prefix}/META.json": json.dumps(meta),
++        f"{run_prefix}/ARTIFACTS.md": artifacts_content,
++        f"{run_prefix}/FILES_TOUCHED.md": "Files.",
++        f"{run_prefix}/DIFF.patch": diff_text,
++        f"{run_prefix}/prompt.md": "prompt text",
++    }
++    return files, root_prefix, run_prefix
++
++
++def test_verify_bundle_includes_fillcalib_and_readiness_artifacts(
++    tmp_path: Path, monkeypatch
++) -> None:
++    run_name = "20251226T000000Z_TICKET-108_bundle_artifacts_fix"
++    monkeypatch.chdir(tmp_path)
++    (tmp_path / "data/proc/fillcalib").mkdir(parents=True)
++    (tmp_path / "reports/fillcalib").mkdir(parents=True)
++    (tmp_path / "reports/calibration").mkdir(parents=True)
++    (tmp_path / "data/proc/fillcalib/curves_SMOKE.json").write_text("{\"ok\":true}\n")
++    (tmp_path / "reports/fillcalib/SMOKE.md").write_text("# Fillcalib\n")
++    (tmp_path / "reports/pilot_ready.json").write_text("{\"ok\":true}\n")
++    (tmp_path / "reports/pilot_readiness.md").write_text("# Pilot readiness\n")
++    (tmp_path / "reports/calibration/SMOKE.md").write_text("# Calibration\n")
++
++    artifacts_md = "\n".join(
++        [
++            "# Artifacts",
++            "- data/proc/fillcalib/curves_SMOKE.json",
++            "- reports/fillcalib/SMOKE.md",
++            "- reports/pilot_ready.json",
++            "- reports/pilot_readiness.md",
++            "- reports/calibration/SMOKE.md",
++            "",
++        ]
++    )
++    files, root_prefix, _ = _base_files_new(run_name, artifacts_md)
++    files[f"{root_prefix}/data/proc/fillcalib/curves_SMOKE.json"] = "{\"ok\":true}\n"
++    files[f"{root_prefix}/reports/fillcalib/SMOKE.md"] = "# Fillcalib\n"
++    files[f"{root_prefix}/reports/pilot_ready.json"] = "{\"ok\":true}\n"
++    files[f"{root_prefix}/reports/pilot_readiness.md"] = "# Pilot readiness\n"
++    files[f"{root_prefix}/reports/calibration/SMOKE.md"] = "# Calibration\n"
++
++    zip_path = tmp_path / "bundle.zip"
++    _write_zip(zip_path, files)
++    with zipfile.ZipFile(zip_path) as zf:
++        names = set(zf.namelist())
++        assert f"{root_prefix}/data/proc/fillcalib/curves_SMOKE.json" in names
++        assert f"{root_prefix}/reports/fillcalib/SMOKE.md" in names
++        assert f"{root_prefix}/reports/pilot_ready.json" in names
++        assert f"{root_prefix}/reports/pilot_readiness.md" in names
++        assert f"{root_prefix}/reports/calibration/SMOKE.md" in names
++    errors = verify_bundle(zip_path)
++    assert errors == []
++
++
++def test_verify_bundle_fails_when_artifact_listed_missing(tmp_path: Path, monkeypatch) -> None:
++    run_name = "20251226T000001Z_TICKET-108_bundle_artifacts_fix"
++    monkeypatch.chdir(tmp_path)
++    (tmp_path / "reports/calibration").mkdir(parents=True)
++    (tmp_path / "reports/calibration/SMOKE.md").write_text("# Calibration\n")
++
++    artifacts_md = "\n".join(
++        [
++            "# Artifacts",
++            "- reports/calibration/SMOKE.md",
++            "",
++        ]
++    )
++    files, _, _ = _base_files_new(run_name, artifacts_md)
++    zip_path = tmp_path / "bundle.zip"
++    _write_zip(zip_path, files)
++    errors = verify_bundle(zip_path)
++    assert any("missing from bundle" in error for error in errors)
+diff --git a/tools/gpt_bundle_builder.py b/tools/gpt_bundle_builder.py
+new file mode 100644
+index 0000000..abe5c62
+--- /dev/null
++++ b/tools/gpt_bundle_builder.py
+@@ -0,0 +1,260 @@
++#!/usr/bin/env python3
++"""Stage GPT bundle contents with fail-closed artifact checks."""
++from __future__ import annotations
++
++import argparse
++import shutil
++import sys
++from pathlib import Path
++
++from tools.verify_gpt_bundle import _extract_artifact_paths
++
++
++class BundleBuildError(RuntimeError):
++    pass
++
++
++def _copy_file(
++    src: Path, dest: Path, staging_root: Path, staged_files: set[str]
++) -> None:
++    dest.parent.mkdir(parents=True, exist_ok=True)
++    shutil.copy2(src, dest)
++    staged_files.add(dest.relative_to(staging_root).as_posix())
++
++
++def _copy_tree(
++    src_dir: Path, dest_dir: Path, staging_root: Path, staged_files: set[str]
++) -> None:
++    if not src_dir.exists():
++        return
++    for path in src_dir.rglob("*"):
++        if path.is_file():
++            rel = path.relative_to(src_dir)
++            dest = dest_dir / rel
++            _copy_file(path, dest, staging_root, staged_files)
++
++
++def _require_path(path: Path, label: str) -> None:
++    if not path.exists():
++        raise BundleBuildError(f"missing required {label}: {path}")
++
++
++def _missing_artifacts_from_stage(
++    artifacts_content: str, staged_files: set[str], workspace_root: Path
++) -> list[str]:
++    missing: list[str] = []
++    for raw_path in _extract_artifact_paths(artifacts_content):
++        rel_path = Path(raw_path)
++        if rel_path.is_absolute():
++            try:
++                rel_path = rel_path.relative_to(workspace_root)
++            except ValueError:
++                continue
++        if not rel_path.parts:
++            continue
++        if rel_path.parts[0] == "..":
++            continue
++        disk_path = workspace_root / rel_path
++        if not disk_path.exists():
++            continue
++        rel_str = rel_path.as_posix()
++        if disk_path.is_dir():
++            prefix = rel_str.rstrip("/") + "/"
++            present = any(
++                path.startswith(prefix) or path == rel_str for path in staged_files
++            )
++        else:
++            present = rel_str in staged_files
++        if not present:
++            missing.append(rel_str)
++    return missing
++
++
++def stage_bundle(workspace_root: Path, run_name: str, staging_root: Path) -> set[str]:
++    staged_files: set[str] = set()
++
++    docs_dir = workspace_root / "docs"
++    project_state_dir = workspace_root / "project_state"
++    run_log_dir = docs_dir / "agent_runs" / run_name
++
++    _require_path(workspace_root / "AGENTS.md", "file")
++    _require_path(docs_dir / "PLAN_OF_RECORD.md", "file")
++    _require_path(docs_dir / "DOCS_AND_LOGGING_SYSTEM.md", "file")
++    _require_path(docs_dir / "CODEX_SPRINT_TICKETS.md", "file")
++    _require_path(docs_dir / "PROGRESS.md", "file")
++    _require_path(project_state_dir / "CURRENT_RESULTS.md", "file")
++    _require_path(project_state_dir / "KNOWN_ISSUES.md", "file")
++    _require_path(project_state_dir / "CONFIG_REFERENCE.md", "file")
++    _require_path(run_log_dir, "run log directory")
++
++    _copy_file(
++        workspace_root / "AGENTS.md",
++        staging_root / "AGENTS.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        docs_dir / "PLAN_OF_RECORD.md",
++        staging_root / "docs" / "PLAN_OF_RECORD.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        docs_dir / "DOCS_AND_LOGGING_SYSTEM.md",
++        staging_root / "docs" / "DOCS_AND_LOGGING_SYSTEM.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        docs_dir / "CODEX_SPRINT_TICKETS.md",
++        staging_root / "docs" / "CODEX_SPRINT_TICKETS.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        docs_dir / "PROGRESS.md",
++        staging_root / "docs" / "PROGRESS.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        docs_dir / "PROGRESS.md",
++        staging_root / "PROGRESS.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        project_state_dir / "CURRENT_RESULTS.md",
++        staging_root / "project_state" / "CURRENT_RESULTS.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        project_state_dir / "KNOWN_ISSUES.md",
++        staging_root / "project_state" / "KNOWN_ISSUES.md",
++        staging_root,
++        staged_files,
++    )
++    _copy_file(
++        project_state_dir / "CONFIG_REFERENCE.md",
++        staging_root / "project_state" / "CONFIG_REFERENCE.md",
++        staging_root,
++        staged_files,
++    )
++
++    _copy_tree(
++        run_log_dir,
++        staging_root / "docs" / "agent_runs" / run_name,
++        staging_root,
++        staged_files,
++    )
++
++    telemetry_dir = workspace_root / "data" / "proc" / "telemetry"
++    if telemetry_dir.exists():
++        _copy_tree(
++            telemetry_dir,
++            staging_root / "data" / "proc" / "telemetry",
++            staging_root,
++            staged_files,
++        )
++
++    fillcalib_dir = workspace_root / "data" / "proc" / "fillcalib"
++    if fillcalib_dir.exists():
++        for path in fillcalib_dir.glob("*.json"):
++            _copy_file(
++                path,
++                staging_root / "data" / "proc" / "fillcalib" / path.name,
++                staging_root,
++                staged_files,
++            )
++
++    ops_reports = workspace_root / "reports" / "ops"
++    if ops_reports.exists():
++        for path in ops_reports.glob("telemetry_volume_*.md"):
++            _copy_file(
++                path,
++                staging_root / "reports" / "ops" / path.name,
++                staging_root,
++                staged_files,
++            )
++
++    fillcalib_reports = workspace_root / "reports" / "fillcalib"
++    if fillcalib_reports.exists():
++        for path in fillcalib_reports.glob("*.md"):
++            _copy_file(
++                path,
++                staging_root / "reports" / "fillcalib" / path.name,
++                staging_root,
++                staged_files,
++            )
++
++    pilot_ready = workspace_root / "reports" / "pilot_ready.json"
++    if pilot_ready.exists():
++        _copy_file(
++            pilot_ready,
++            staging_root / "reports" / "pilot_ready.json",
++            staging_root,
++            staged_files,
++        )
++
++    pilot_readiness = workspace_root / "reports" / "pilot_readiness.md"
++    if pilot_readiness.exists():
++        _copy_file(
++            pilot_readiness,
++            staging_root / "reports" / "pilot_readiness.md",
++            staging_root,
++            staged_files,
++        )
++
++    calibration_dir = workspace_root / "reports" / "calibration"
++    if calibration_dir.exists():
++        _copy_tree(
++            calibration_dir,
++            staging_root / "reports" / "calibration",
++            staging_root,
++            staged_files,
++        )
++
++    artifacts_path = run_log_dir / "ARTIFACTS.md"
++    if artifacts_path.exists():
++        content = artifacts_path.read_text(encoding="utf-8")
++        missing = _missing_artifacts_from_stage(content, staged_files, workspace_root)
++        if missing:
++            missing_list = "\n".join(f"- {path}" for path in sorted(missing))
++            raise BundleBuildError(
++                "missing from bundle (listed in ARTIFACTS.md):\n" + missing_list
++            )
++
++    return staged_files
++
++
++def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
++    parser = argparse.ArgumentParser(description="Stage GPT bundle contents.")
++    parser.add_argument("--run-name", required=True, help="Run name for bundle staging")
++    parser.add_argument(
++        "--staging",
++        required=True,
++        type=Path,
++        help="Staging directory for bundle contents",
++    )
++    parser.add_argument(
++        "--workspace",
++        default=Path("."),
++        type=Path,
++        help="Workspace root (default: current directory)",
++    )
++    return parser.parse_args(argv)
++
++
++def main(argv: list[str] | None = None) -> int:
++    args = _parse_args(argv)
++    try:
++        stage_bundle(args.workspace.resolve(), args.run_name, args.staging.resolve())
++    except BundleBuildError as exc:
++        print(f"ERROR: {exc}")
++        return 1
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tools/verify_gpt_bundle.py b/tools/verify_gpt_bundle.py
+index c210c8e..8b62f80 100644
+--- a/tools/verify_gpt_bundle.py
++++ b/tools/verify_gpt_bundle.py
+@@ -57,6 +57,74 @@ def _has_patch_hunks(content: str) -> bool:
+     return "diff --git " in content and ("+++ b/" in content or "+++ b\\" in content)
+ 
+ 
++def _extract_artifact_paths(content: str) -> list[str]:
++    paths: list[str] = []
++    for line in content.splitlines():
++        stripped = line.strip()
++        if not stripped or stripped.startswith("#"):
++            continue
++        if stripped[:1] not in {"-", "*"}:
++            continue
++        entry = stripped[1:].strip()
++        if not entry:
++            continue
++        if "`" in entry:
++            first = entry.find("`")
++            second = entry.find("`", first + 1)
++            if second != -1:
++                entry = entry[first + 1 : second]
++            else:
++                entry = entry.replace("`", "")
++        entry = entry.strip()
++        if not entry:
++            continue
++        if " " in entry:
++            entry = entry.split()[0]
++        if entry.endswith(":"):
++            entry = entry[:-1]
++        if entry:
++            paths.append(entry)
++    seen: set[str] = set()
++    unique: list[str] = []
++    for item in paths:
++        if item not in seen:
++            seen.add(item)
++            unique.append(item)
++    return unique
++
++
++def _missing_artifacts_from_bundle(
++    artifacts_content: str,
++    bundle_paths: list[str],
++    bundle_root_prefix: str,
++    workspace_root: Path,
++) -> list[str]:
++    missing: list[str] = []
++    for raw_path in _extract_artifact_paths(artifacts_content):
++        rel_path = Path(raw_path)
++        if rel_path.is_absolute():
++            try:
++                rel_path = rel_path.relative_to(workspace_root)
++            except ValueError:
++                continue
++        if not rel_path.parts:
++            continue
++        if rel_path.parts[0] == "..":
++            continue
++        disk_path = workspace_root / rel_path
++        if not disk_path.exists():
++            continue
++        expected = f"{bundle_root_prefix}{rel_path.as_posix()}"
++        if disk_path.is_dir():
++            prefix = expected.rstrip("/") + "/"
++            present = any(path.startswith(prefix) or path == expected.rstrip("/") for path in bundle_paths)
++        else:
++            present = expected in bundle_paths
++        if not present:
++            missing.append(rel_path.as_posix())
++    return missing
++
++
+ def verify_bundle(bundle_path: Path) -> list[str]:
+     errors: list[str] = []
+     if not bundle_path.exists():
+@@ -84,6 +152,7 @@ def verify_bundle(bundle_path: Path) -> list[str]:
+         if run_log_prefix is None:
+             errors.append(f"run log path not found for {run_name}")
+             return errors
++        bundle_root_prefix = run_log_prefix.split("docs/agent_runs/")[0]
+ 
+         root_diff_candidates = [
+             path
+@@ -167,6 +236,18 @@ def verify_bundle(bundle_path: Path) -> list[str]:
+             if not end_utc or not str(end_utc).strip():
+                 errors.append("META.json missing end_utc")
+ 
++        if has_new:
++            artifacts_content = _read_text(zf, run_log_prefix + "ARTIFACTS.md")
++            missing_artifacts = _missing_artifacts_from_bundle(
++                artifacts_content,
++                paths,
++                bundle_root_prefix,
++                Path.cwd(),
++            )
++            if missing_artifacts:
++                for missing in missing_artifacts:
++                    errors.append(f"missing from bundle (listed in ARTIFACTS.md): {missing}")
++
+     return errors
+ 
+ 

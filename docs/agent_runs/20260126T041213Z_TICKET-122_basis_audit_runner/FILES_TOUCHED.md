@@ -1,0 +1,24 @@
+# Files Touched
+
+- CHANGELOG.md
+- PROGRESS.md
+- docs/DECISIONS.md
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/PLAN_OF_RECORD.md
+- docs/PROGRESS.md
+- docs/RUNBOOK.md
+- docs/tickets/TICKET-122.md
+- docs/_bundles/gpt_bundle_20260126_041950_TICKET-122.zip
+- docs/_bundles/gpt_bundle_20260126_043126_TICKET-122.zip
+- docs/_bundles/gpt_bundle_20260126_150837_TICKET-122.zip
+- tools/settlement_basis_audit.py
+- tests/exec/test_preflight_index.py
+- tests/tools/test_settlement_basis_audit.py
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/RUN.md
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/NOTES.md
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/COMMANDS.md
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/TESTS.md
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/DIFF.patch
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/FILES_TOUCHED.md
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/ARTIFACTS.md
+- docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/CITATIONS.md

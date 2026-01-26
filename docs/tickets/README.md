@@ -1,7 +1,4 @@
 # Tickets
 
-Create one file per ticket:
-- `docs/tickets/T12.md`
-- `docs/tickets/T13.md`
-
-Codex will keep these updated when you run `/prompts:ticket`.
+Tickets live here and are tracked. Use `TICKET-####.md` (or the existing repo convention).
+Keep scope, acceptance criteria, and key decisions short and reviewable.

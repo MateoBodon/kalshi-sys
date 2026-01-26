@@ -1,0 +1,25 @@
+# Files touched
+- CHANGELOG.md
+- docs/PROGRESS.md
+- docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/ARTIFACTS.md
+- docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/COMMANDS.md
+- docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/DIFF.patch
+- docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/FILES_TOUCHED.md
+- docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/NOTES.md
+- docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/RUN.md
+- docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/TESTS.md
+- project_state/ARCHITECTURE.md
+- project_state/BACKLOG.md
+- project_state/CHANGELOG.md
+- project_state/CONFIG_REFERENCE.md
+- project_state/CURRENT_RESULTS.md
+- project_state/DATAFLOW.md
+- project_state/EXPERIMENTS.md
+- project_state/INDEX.md
+- project_state/KNOWN_ISSUES.md
+- project_state/OPEN_QUESTIONS.md
+- project_state/PIPELINE_FLOW.md
+- project_state/ROADMAP.md
+- project_state/RUNBOOK.md
+- project_state/SERVER_ENVIRONMENT.md
+- project_state/TEST_COVERAGE.md

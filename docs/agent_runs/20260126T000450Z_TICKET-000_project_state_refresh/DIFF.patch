@@ -1,0 +1,449 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 7350d64..cc7b06f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,8 @@
+ # Changelog
+ 
++## 2026-01-26
++- Refreshed project_state docs (runbook/status/known-issues) and regenerated the project_state bundle.
++
+ ## 2026-01-25
+ - Committed and pushed the current repo state for a server migration (captured existing changes as-is).
+ - Added an agent run log and documentation updates for the migration snapshot.
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index acf6691..9c32931 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -2,6 +2,11 @@
+ 
+ Note: run logs under `docs/agent_runs/` are tracked in git and included in per-ticket GPT bundles for review.
+ 
++## 2026-01-26
++- Ticket TICKET-000 — Refreshed project_state docs and regenerated bundle for a fresh GPT snapshot.
++  - Gate status: PAPER
++  - Evidence: agent run log `docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/RUN.md`; bundle `docs/_bundles/project_state_20260126_001255.zip`
++
+ ## 2026-01-25
+ - Ticket TICKET-111 — Committed and pushed the current repo state for server migration (captured existing changes as-is).
+   - Gate status: PAPER
+diff --git a/project_state/ARCHITECTURE.md b/project_state/ARCHITECTURE.md
+index b1b57d6..1001f0e 100644
+--- a/project_state/ARCHITECTURE.md
++++ b/project_state/ARCHITECTURE.md
+@@ -1,10 +1,10 @@
+ # Architecture
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `README.md`, `docs/PROGRESS.md`, `CHANGELOG.md`, `configs/`, `src/kalshi_alpha/exec/`, `project_state/_generated`
+ 
+ ## System summary
+ Kalshi Alpha is a Python 3.11+ monorepo for research, pricing, scanning, and (guarded) execution of Kalshi ladder markets. Current hard scope is index ladders only (INX/INXU/NASDAQ100/NASDAQ100U hourly + close). The system is built to be fail-closed: quality gates, kill-switches, and broker safeguards must pass before any live behavior is armed. Default execution is paper/dry and all live paths require explicit acknowledgement and credentials.
+@@ -16,10 +16,12 @@ Kalshi Alpha is a Python 3.11+ monorepo for research, pricing, scanning, and (gu
+ - `scripts/`: Operational scripts (WS listeners, parity checks, fixtures, AWS jobs).
+ - `tools/`: Auxiliary CLIs (replay, settlement basis audit, failover smoke).
+ - `report/`: Reporting utilities (digest, honesty, agent logs).
+-- `reports/`: Generated reports, scoreboards, pilot readiness outputs, artifacts.
++- `reports/`: Generated reports and artifacts (gitignored local outputs).
+ - `data/`: Raw + processed datasets, calibrations, ledgers, and state (gitignored).
+ - `tests/`: Pytest suite with fixtures for offline-safe validation.
+ - `docs/`: Runbooks, process docs, sprint tickets, and progress logs.
++- `docs/agent_runs/`: Per-ticket run logs with evidence artifacts.
++- `docs/_bundles/`: Archived project_state and GPT bundles.
+ - `project_state/`: Repo self-description snapshot (this folder).
+ 
+ ## Major components
+diff --git a/project_state/BACKLOG.md b/project_state/BACKLOG.md
+index 3fe1af6..aac1990 100644
+--- a/project_state/BACKLOG.md
++++ b/project_state/BACKLOG.md
+@@ -1,4 +1,6 @@
+ # Backlog
+ 
+ Ranked, short.
+-- (bullets)
++- Regenerate scoreboard and pilot readiness artifacts and archive in run logs.
++- Validate clock-skew and Polygon WS freshness gating on a fresh dry-run window.
++- Expand basis audit coverage to NASDAQ100/NASDAQ100U and latest INX/INXU windows.
+diff --git a/project_state/CHANGELOG.md b/project_state/CHANGELOG.md
+index 6690576..a76d733 100644
+--- a/project_state/CHANGELOG.md
++++ b/project_state/CHANGELOG.md
+@@ -1,10 +1,14 @@
+ # Project State Changelog
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `project_state/*`
++
++## 2026-01-26
++- Refreshed project_state runbook, architecture metadata, and current-results status.
++- Updated known issues, open questions, roadmap, experiments, and test coverage counts for the latest snapshot.
+ 
+ ## 2026-01-10
+ - Refreshed project_state metadata and regenerated module/function/dependency indices.
+diff --git a/project_state/CONFIG_REFERENCE.md b/project_state/CONFIG_REFERENCE.md
+index b01d1f2..056d815 100644
+--- a/project_state/CONFIG_REFERENCE.md
++++ b/project_state/CONFIG_REFERENCE.md
+@@ -1,10 +1,10 @@
+ # Config Reference
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `configs/*`, `README.md`, `docs/PLAN_OF_RECORD.md`
+ 
+ ## Core index configs
+ - `configs/fees.json` — fee coefficients + rounding rules per index series.
+diff --git a/project_state/CURRENT_RESULTS.md b/project_state/CURRENT_RESULTS.md
+index 47fb944..f40a928 100644
+--- a/project_state/CURRENT_RESULTS.md
++++ b/project_state/CURRENT_RESULTS.md
+@@ -1,24 +1,24 @@
+ # Current Results
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: local `reports/` artifacts (gitignored), `docs/PROGRESS.md`
+ 
+-## Scoreboards (latest committed artifacts)
+-- `reports/scoreboard_7d.md`: Data Freshness OK; no ledger data available for the window.
+-- `reports/scoreboard_30d.md`: Data Freshness OK; no ledger data available for the window.
++## Scoreboards
++- `reports/scoreboard_7d.md` and `reports/scoreboard_30d.md` are not present in this repo snapshot (gitignored artifacts). Regenerate via `python -m kalshi_alpha.exec.scoreboard` if needed.
+ 
+-## Pilot readiness (latest committed artifact)
+-- `reports/pilot_readiness.md` (14-day): GO series 0/4 (INXU, NASDAQ100U, INX, NASDAQ100 all NO-GO) due to insufficient_data with fills=0.
++## Pilot readiness (local artifact)
++- `reports/pilot_readiness.md` exists locally and was generated 2025-12-29. It reports global NO-GO reasons `ledger_stale` and `monitors_stale` with no per-series fills recorded.
+ 
+-## Recent ladder report sample
+-- `reports/INXU/2025-12-22.md`: NO-GO; dry mode; outstanding orders reported; includes monitor snapshot and window metadata for the 10:00 ET window.
++## Recent ladder report samples (local artifacts)
++- `reports/INXU/2025-12-30.md`: NO-GO; monitors show `clock_skew_exceeded` and `polygon_ws_stale` reasons in the quality gate list.
++- `reports/NASDAQ100U/2025-12-26.md`: NO-GO; dry mode; sample fill/EV tables included.
+ 
+-## Summary (as of 2025-12-22)
+-- No evidence of realized fills in committed artifacts; readiness remains NO-GO.
+-- Freshness checks are passing in the scoreboard artifacts, but fill evidence and calibration/ledger coverage remain insufficient for GO.
++## Other artifacts present
++- `reports/_artifacts/go_no_go.json` exists (latest GO/NO-GO status artifact).
++- `reports/_artifacts/*_ledger.json|csv` sample ledger artifacts present (earliest dated 2025-12-21).
+ 
+ ## Notes / caveats
+-- Results reflect local, committed artifacts only. Live trading is gated and not inferred from these reports.
++- Results reflect local, gitignored artifacts only. Live trading is gated and not inferred from these reports.
+diff --git a/project_state/DATAFLOW.md b/project_state/DATAFLOW.md
+index 11a7ca1..2233e9d 100644
+--- a/project_state/DATAFLOW.md
++++ b/project_state/DATAFLOW.md
+@@ -1,10 +1,10 @@
+ # Dataflow
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `src/kalshi_alpha/*`, `configs/*`, `README.md`
+ 
+ ## High-level flow (index ladders)
+ 1) **Market data ingest**
+@@ -22,7 +22,7 @@
+ 6) **Execution (dry or live)**
+    - Brokers in `brokers/kalshi/*` enforce maker-only + pilot boundaries; default is DRY.
+ 7) **Reporting**
+-   - Markdown reports under `reports/<SERIES>/<YYYY-MM-DD>.md`.
++   - Markdown reports under `reports/<SERIES>/<YYYY-MM-DD>.md` (gitignored local artifacts).
+    - Machine artifacts under `reports/_artifacts/`.
+ 
+ ## Macro data flow (present but out of current trading scope)
+diff --git a/project_state/EXPERIMENTS.md b/project_state/EXPERIMENTS.md
+index 6af1852..de51ff6 100644
+--- a/project_state/EXPERIMENTS.md
++++ b/project_state/EXPERIMENTS.md
+@@ -1,19 +1,19 @@
+ # Experiments
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: local `reports/` artifacts (gitignored), `report/`
+ 
+ ## Status
+ - No `experiments/` directory exists in this repo at the time of this snapshot.
+ - Ad-hoc research outputs live under `reports/`, `report/`, and `data/proc/`.
+ 
+ ## Representative research artifacts
+-- `reports/backtests/hourly/metrics.md` (index hourly backtest metrics).
+-- `reports/backtests/close/metrics.md` (index close backtest metrics).
+-- `reports/settlement_basis/2025-11-10_INXU.md` (basis audit sample).
++- `reports/fillcalib/2025-12-26.md` (fill calibration summary).
++- `reports/basis/INXU/2025-12-23.md` (basis audit sample).
++- `reports/INXU/2025-12-30.md` (index ladder scan report sample).
+ - `report/agent_logs/` (local-only agent notes and proofs).
+ 
+ ## Exclusions
+diff --git a/project_state/INDEX.md b/project_state/INDEX.md
+index faaae01..a6dfc29 100644
+--- a/project_state/INDEX.md
++++ b/project_state/INDEX.md
+@@ -1,10 +1,10 @@
+ # Project State Index
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `project_state/*`, `project_state/_generated/*`, `README.md`, `docs/PROGRESS.md`, `CHANGELOG.md`
+ 
+ ## How to read this folder
+ 1) Start with `ARCHITECTURE.md` for the system overview.
+diff --git a/project_state/KNOWN_ISSUES.md b/project_state/KNOWN_ISSUES.md
+index 9f7cae5..e167f79 100644
+--- a/project_state/KNOWN_ISSUES.md
++++ b/project_state/KNOWN_ISSUES.md
+@@ -1,20 +1,21 @@
+ # Known Issues
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: local `reports/` artifacts (gitignored), `docs/PROGRESS.md`, `README.md`
+ 
+ ## Evidence gaps
+-- Scoreboards report no ledger data in recent windows (`reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`).
+-- Pilot readiness shows 0/4 GO with fills=0 and insufficient_data (`reports/pilot_readiness.md`).
++- Scoreboard artifacts (`reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`) are missing in this repo snapshot; regenerate with `python -m kalshi_alpha.exec.scoreboard`.
++- Local pilot readiness report (2025-12-29) shows global NO-GO reasons `ledger_stale` and `monitors_stale`; fill evidence is insufficient.
+ 
+ ## Operational signals
+-- Recent INXU report shows NO-GO and clock-skew exceeded (`reports/INXU/2025-12-22.md` monitor section).
++- Recent local INXU report (2025-12-30) shows `clock_skew_exceeded` and `polygon_ws_stale` among quality-gate reasons.
++- Report artifacts embed absolute paths from the machine that generated them (e.g., `/Users/...`), so paths are not portable across hosts.
+ 
+ ## Data calibration gaps
+-- Calibration ages are now reported under `reports/calibration/calibration_ages_<ASOF_DATE>.md`, but recent artifacts are not committed by default (reports are gitignored); confirm the latest report in run logs.
++- Calibration ages are reported under `reports/calibration/calibration_ages_<ASOF_DATE>.md` when pilot readiness is generated; artifacts are gitignored, so confirm via local run logs or `data/proc/calib/index/*/*/params.json`.
+ 
+ ## Scope risk
+ - Macro strategy code exists and could run if family scoping is misconfigured; index-only scope must be enforced by entrypoints (see `docs/PLAN_OF_RECORD.md`).
+diff --git a/project_state/OPEN_QUESTIONS.md b/project_state/OPEN_QUESTIONS.md
+index cf12889..8f7baf2 100644
+--- a/project_state/OPEN_QUESTIONS.md
++++ b/project_state/OPEN_QUESTIONS.md
+@@ -1,18 +1,20 @@
+ # Open Questions
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: local `reports/` artifacts (gitignored), `docs/PROGRESS.md`, `README.md`
+ 
+ ## Execution evidence gaps
+ - What is the current empirical maker fill curve for index ladders, and how is it measured from TOB snapshots? (See `reports/fillcalib/README.md` and `data/proc/fillcalib/*`.)
+ - Do we have recent, per-window basis audits for INXU/NASDAQ100U and INX/NASDAQ100? (See `reports/settlement_basis/`.)
++- Are scoreboard artifacts regenerated and archived (e.g., `reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`) in recent run logs?
+ 
+ ## Gating & readiness
+ - What are the most recent calibration ages for index PMFs and sigma_tod curves? (Check `reports/calibration/calibration_ages_<ASOF_DATE>.md` or `data/proc/calib/index/*/*/params.json`.)
+ - Are clock-skew warnings routinely triggered during scans? (See `reports/<SERIES>/<DATE>.md` monitor sections.)
++- Are ledger and monitor freshness artifacts being updated regularly (see `reports/_artifacts/*` and `reports/pilot_readiness.md`)?
+ 
+ ## Ops / deployment
+ - Which production environment is currently authoritative for supervisor runs (local vs AWS)? (See `docs/runbooks/` and `docs/PROGRESS.md`.)
+diff --git a/project_state/PIPELINE_FLOW.md b/project_state/PIPELINE_FLOW.md
+index 6818f84..ea5dc22 100644
+--- a/project_state/PIPELINE_FLOW.md
++++ b/project_state/PIPELINE_FLOW.md
+@@ -1,10 +1,10 @@
+ # Pipeline Flow
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `src/kalshi_alpha/exec/*`, `configs/*`, `README.md`, `docs/PROGRESS.md`
+ 
+ ## Primary entrypoints (index scope)
+ - `kalshi-scan` → `kalshi_alpha.exec.runners.scan_ladders:main` (core scanner).
+@@ -54,7 +54,7 @@
+ - `configs/fees.json` (fee coefficients and rounding).
+ 
+ ## Typical artifact outputs
+-- Reports: `reports/<SERIES>/<YYYY-MM-DD>.md` (per scan window).
++- Reports: `reports/<SERIES>/<YYYY-MM-DD>.md` (per scan window; gitignored local artifacts).
+ - Scoreboards: `reports/scoreboard_7d.md`, `reports/scoreboard_30d.md`.
+ - Pilot readiness: `reports/pilot_readiness.md`, `reports/pilot_ready.json`.
+ - Monitors: `reports/_artifacts/monitors/*.json`.
+diff --git a/project_state/ROADMAP.md b/project_state/ROADMAP.md
+index 619071a..c9c52ae 100644
+--- a/project_state/ROADMAP.md
++++ b/project_state/ROADMAP.md
+@@ -1,12 +1,13 @@
+ # Roadmap
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `docs/PLAN_OF_RECORD.md`, `docs/PROGRESS.md`, `kalshi_alpha_long_term_plan.md`
+ 
+ ## Near-term (index ladders only)
++- Regenerate scoreboards and pilot readiness artifacts and archive them in run logs (`python -m kalshi_alpha.exec.scoreboard`, `make pilot-readiness`).
+ - Finalize basis audit coverage for INX/INXU/NASDAQ100/NASDAQ100U windows (`tools/settlement_basis_audit.py`, `reports/settlement_basis/`).
+ - Build empirical fill curves from TOB logs and integrate into fill models (`tools/build_fillcalib_dataset.py`, `data/proc/fillcalib/*`).
+ - Validate 24/7 supervisor wiring and CloudWatch pipelines (see `docs/runbooks/` and `docs/PROGRESS.md` entries dated 2025-12-22).
+diff --git a/project_state/RUNBOOK.md b/project_state/RUNBOOK.md
+index 7cb87e7..baa95a1 100644
+--- a/project_state/RUNBOOK.md
++++ b/project_state/RUNBOOK.md
+@@ -1,13 +1,40 @@
+ # Runbook
+ 
+ ## Setup
+-- (commands)
++- `python3 -m venv .venv`
++- `. .venv/bin/activate`
++- `pip install -e ".[dev]"`
+ 
+ ## Build
+-- (commands)
++- Not applicable (Python package).
+ 
+ ## Test
+-- (commands)
++- `pytest -q` (canonical)
++- `python -m ruff format .`
++- `python -m ruff check .`
++
++## Paper-safe entrypoints (index ladders)
++- `python -m kalshi_alpha.exec.preflight_index`
++- `python -m kalshi_alpha.exec.supervisor_index --series INXU --dry-run`
++- `python -m kalshi_alpha.exec.scanners.scan_index_hourly --series INXU NASDAQ100U --offline --fixtures-root tests/data_fixtures`
++- `python -m kalshi_alpha.exec.scanners.scan_index_close --series INX NASDAQ100 --offline --fixtures-root tests/data_fixtures`
++
++## Artifacts & outputs
++- Reports: `reports/<SERIES>/<YYYY-MM-DD>.md` (gitignored local artifacts)
++- Machine artifacts: `reports/_artifacts/*.json`, `reports/_artifacts/monitors/*.json`
++- Ledger: `data/proc/ledger/*.jsonl`, aggregate `data/proc/ledger_all.parquet`
++- Bundles: `docs/_bundles/*.zip`
++- Agent run logs: `docs/agent_runs/<RUN_NAME>/`
++
++## Environment variables (online/live only)
++- `POLYGON_API_KEY` for Polygon REST/WS checks.
++- `KALSHI_API_KEY_ID`, `KALSHI_PRIVATE_KEY_PEM_PATH` for live broker auth.
++
++## Safety & gating notes
++- Default posture is paper-only; live requires explicit CLI acks and credentials.
++- Kill switch: presence of `data/proc/state/kill_switch` forces NO-GO.
+ 
+ ## Debug
+-- (tips)
++- If scans show `clock_skew_exceeded`, verify host time sync and timezone.
++- If `polygon_ws_stale`, check websocket health and `reports/_artifacts/monitors/freshness.json`.
++- If imports fail, ensure editable install or set `PYTHONPATH=src`.
+diff --git a/project_state/SERVER_ENVIRONMENT.md b/project_state/SERVER_ENVIRONMENT.md
+index e26e284..c6bc2ae 100644
+--- a/project_state/SERVER_ENVIRONMENT.md
++++ b/project_state/SERVER_ENVIRONMENT.md
+@@ -1,14 +1,14 @@
+ # Server Environment
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `uname -a`, `python3 --version`, `README.md`
+ 
+ ## Local environment (this snapshot)
+-- OS: Darwin (macOS) `Darwin Kernel Version 25.0.0` on arm64.
+-- Python: 3.11.14 (`python --version`); pytest reported 3.12.2 during `pytest -q` (likely a different interpreter/venv).
++- OS: Linux `6.8.0-90-generic` on x86_64 (Codex sandbox).
++- Python: 3.12.3 (`python3 --version`).
+ 
+ ## Expected runtime environment
+ - Python 3.11+ with dependencies from `pyproject.toml`.
+diff --git a/project_state/TEST_COVERAGE.md b/project_state/TEST_COVERAGE.md
+index 17bf6b7..accd6c8 100644
+--- a/project_state/TEST_COVERAGE.md
++++ b/project_state/TEST_COVERAGE.md
+@@ -1,14 +1,14 @@
+ # Test Coverage
+ 
+ ## Metadata
+-- Generated: 2026-01-10T11:43:04Z
+-- Git SHA: 31316e59451269689f2da173d8a9c6d9049d3d5e
+-- Branch: codex/TICKET-111_project_state_refresh
+-- Commands: `python tools/project_state_build.py`, `python3 tools/agentic/project_state_refresh.py --zip`, `rg --files`, `sed -n '1,200p' README.md`, `sed -n '1,200p' docs/PROGRESS.md`, `sed -n '1,200p' CHANGELOG.md`, `sed -n '1,200p' pyproject.toml`, `sed -n '1,200p' Makefile`
++- Updated: 2026-01-26T00:04:48Z
++- Git SHA: c78b933ec78e5a01a1b9e943de3dfd17ec5cd260
++- Branch: codex/TICKET-000_project_state_refresh
++- Sources: `pyproject.toml`, `rg --files -g 'tests/test_*.py'`
+ 
+ ## Suite overview
+ - Test runner: pytest (`pytest -q`), configured in `pyproject.toml`.
+-- Approximate test files: 167 files matching `tests/test_*.py`.
++- Approximate test files: 141 files matching `tests/test_*.py`.
+ - Coverage config: `[tool.coverage.run]` in `pyproject.toml` (branch coverage, omit tests + notebooks).
+ 
+ ## Major test areas

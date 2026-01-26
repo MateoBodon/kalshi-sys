@@ -1,0 +1,3 @@
+- Pilot readiness markdown lacked a `How to fix` block for NO-GO cases.
+- Ramp readiness markdown rendered global reasons without sanitizing embedded paths.
+- Existing tests did not assert `How to fix` for pilot readiness NO-GO or sanitize ramp global reasons containing paths.

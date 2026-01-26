@@ -1,0 +1,23 @@
+# Files touched
+
+- `.gitignore`
+- `TRACKING_POLICY.md`
+- `docs/tickets/README.md`
+- `docs/agent_runs/README.md`
+- `docs/artifacts/README.md`
+- `docs/tickets/TICKET-120.md`
+- `docs/tickets/TICKET-120A.md`
+- `docs/tickets/TICKET-121.md`
+- `docs/tickets/TICKET-122.md`
+- `docs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/*` (DIFF.patch placeholder)
+- `docs/agent_runs/20251226T194930Z_TICKET-108_bundle_artifacts_fix/*`
+- `docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/*`
+- `docs/agent_runs/20260110T103414Z_TICKET-BOOTSTRAP_agentic_scaffold/*`
+- `docs/agent_runs/20260110T113814Z_TICKET-111_project_state_refresh/*`
+- `docs/agent_runs/20260126T000450Z_TICKET-000_project_state_refresh/*`
+- `docs/agent_runs/20260126T011652Z_TICKET-120_archive_runlogs/*`
+- `docs/agent_runs/20260126T021711Z_TICKET-120A_readiness_howtofix/*`
+- `docs/agent_runs/20260126T030913Z_TICKET-121_index_scope_hardening/*`
+- `docs/agent_runs/20260126T041213Z_TICKET-122_basis_audit_runner/*`
+- `docs/agent_runs/20260126T182709Z_TICKET-000_tracking_policy_normalization/*`
+- `reports/_runs/agent_runs/20251225T213735Z_TICKET-103_polygon_snapshot_investigation/DIFF.patch` (moved to scratch)

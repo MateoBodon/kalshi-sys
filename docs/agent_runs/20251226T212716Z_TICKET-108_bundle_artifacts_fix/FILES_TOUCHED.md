@@ -1,0 +1,21 @@
+# FILES TOUCHED
+
+- Makefile
+- tools/gpt_bundle_builder.py
+- tests/test_gpt_bundle_builder.py
+- docs/DOCS_AND_LOGGING_SYSTEM.md
+- docs/PLAN_OF_RECORD.md
+- docs/PROGRESS.md
+- docs/CODEX_SPRINT_TICKETS.md
+- CHANGELOG.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/RUN.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/NOTES.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/COMMANDS.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/TESTS.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/RESULTS.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/ARTIFACTS.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/FILES_TOUCHED.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/DIFF.patch
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/CITATIONS.md
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/META.json
+- docs/agent_runs/20251226T212716Z_TICKET-108_bundle_artifacts_fix/prompt.md

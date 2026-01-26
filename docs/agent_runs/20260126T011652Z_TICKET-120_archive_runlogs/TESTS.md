@@ -1,0 +1,4 @@
+- `pytest -q && python -m kalshi_alpha.exec.scoreboard && make pilot-readiness` (initial attempt failed: `pytest` not found)
+- `python3 -m pytest -q` (failed: No module named pytest)
+- `pytest -q && python -m kalshi_alpha.exec.scoreboard && make pilot-readiness` (failed before rerun due to missing `pyarrow`)
+- `pytest -q && python -m kalshi_alpha.exec.scoreboard && make pilot-readiness` (pass after installing deps; ran under `.venv`)
